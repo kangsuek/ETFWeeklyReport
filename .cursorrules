@@ -1,0 +1,66 @@
+# Cursor AI Rules for ETF Weekly Report Project
+
+## Project Context
+This is a Korean ETF analysis web application project.
+See CLAUDE.md for full project documentation index.
+
+## Language
+- Always respond in Korean (한국어로 응답)
+- Code comments: Korean for business logic, English for technical terms
+- Documentation: Korean
+
+## Code Style
+
+### Python (Backend)
+- Follow PEP 8
+- Use type hints
+- Async/await for I/O operations
+- See docs/DEVELOPMENT_GUIDE.md for details
+
+### JavaScript/React (Frontend)
+- Functional components + Hooks
+- 2-space indentation
+- Use PropTypes or TypeScript
+- See docs/DEVELOPMENT_GUIDE.md for details
+
+## Testing Policy ⚠️ CRITICAL
+**All features must pass 100% tests before moving to next phase**
+- See docs/DEFINITION_OF_DONE.md for complete criteria
+- Write tests alongside feature implementation
+- No feature is "done" without tests
+
+## Documentation
+- Update API_SPECIFICATION.md when adding endpoints
+- Update DATABASE_SCHEMA.md when modifying schema
+- Update TODO.md checkboxes when completing tasks
+- Update PROGRESS.md with daily summary
+
+## File Organization
+- Static docs: docs/
+- Progress tracking: project-management/
+- Backend code: backend/
+- Frontend code: frontend/
+
+## Key Documents
+1. CLAUDE.md - Project index (read first)
+2. docs/DEFINITION_OF_DONE.md - Completion criteria
+3. project-management/TODO.md - Current tasks
+4. docs/DEVELOPMENT_GUIDE.md - Coding standards
+
+## Workflow
+1. Check TODO.md for current task
+2. Implement feature + tests
+3. Verify Definition of Done
+4. Update documentation
+5. Mark task complete in TODO.md
+6. Log in PROGRESS.md
+
+## Quality Gates
+- All tests must pass (100%)
+- No linter errors
+- Documentation updated
+- Phase Acceptance Criteria met
+
+---
+See CLAUDE.md for detailed documentation structure.
+
