@@ -26,7 +26,10 @@
 | **requests** | 2.31.0 | HTTP 요청 |
 | **BeautifulSoup4** | 4.12.2 | HTML 파싱 (웹 스크래핑) |
 | **lxml** | 4.9.3 | XML/HTML 파서 |
-| **FinanceDataReader** | 0.9.50 | 한국 주식 데이터 수집 |
+
+**주요 데이터 소스**: Naver Finance (네이버 증권) 웹 스크래핑
+- 일별 가격 데이터: `https://finance.naver.com/item/sise_day.naver`
+- 투자자별 매매: `https://finance.naver.com/item/frgn.naver`
 
 ### 데이터베이스
 

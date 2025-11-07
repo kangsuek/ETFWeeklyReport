@@ -43,14 +43,15 @@
 
 ## 테이블 정의
 
-### 1. `etfs` (ETF 기본 정보)
+### 1. `etfs` (종목 기본 정보)
 
-ETF의 기본 정보를 저장하는 마스터 테이블
+종목(ETF 및 주식)의 기본 정보를 저장하는 마스터 테이블
 
 ```sql
 CREATE TABLE etfs (
     ticker VARCHAR(10) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    type VARCHAR(10) NOT NULL,
     theme VARCHAR(50),
     launch_date DATE,
     expense_ratio REAL
@@ -61,20 +62,25 @@ CREATE TABLE etfs (
 
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
-| ticker | VARCHAR(10) | ETF 티커 코드 (PK) | "480450" |
-| name | VARCHAR(100) | ETF 명칭 | "KODEX AI전력핵심설비" |
+| ticker | VARCHAR(10) | 종목 코드 (PK) | "487240" |
+| name | VARCHAR(100) | 종목 명칭 | "삼성 KODEX AI전력핵심설비 ETF" |
+| type | VARCHAR(10) | 종목 유형 | "ETF" 또는 "STOCK" |
 | theme | VARCHAR(50) | 투자 테마 | "AI/전력" |
 | launch_date | DATE | 상장일 | "2024-03-15" |
-| expense_ratio | REAL | 보수율 (소수) | 0.0045 (0.45%) |
+| expense_ratio | REAL | 보수율 (소수, ETF만) | 0.0045 (0.45%) |
 
 **초기 데이터:**
 
 ```sql
-INSERT INTO etfs (ticker, name, theme, launch_date, expense_ratio) VALUES
-('480450', 'KODEX AI전력핵심설비', 'AI/전력', '2024-03-15', 0.0045),
-('456600', 'SOL 조선TOP3플러스', '조선', '2023-08-10', 0.0050),
-('497450', 'KOACT 글로벌양자컴퓨팅액티브', '양자컴퓨팅', '2024-05-20', 0.0070),
-('481330', 'KBSTAR 글로벌원자력 iSelect', '원자력', '2024-01-25', 0.0055);
+INSERT INTO etfs (ticker, name, type, theme, launch_date, expense_ratio) VALUES
+-- ETF 4개
+('487240', '삼성 KODEX AI전력핵심설비 ETF', 'ETF', 'AI/전력', '2024-03-15', 0.0045),
+('466920', '신한 SOL 조선TOP3플러스 ETF', 'ETF', '조선', '2023-08-10', 0.0050),
+('0020H0', 'KoAct 글로벌양자컴퓨팅액티브 ETF', 'ETF', '양자컴퓨팅', '2024-05-20', 0.0070),
+('442320', 'KB RISE 글로벌원자력 iSelect ETF', 'ETF', '원자력', '2024-01-25', 0.0055),
+-- 주식 2개
+('042660', '한화오션', 'STOCK', '조선/방산', NULL, NULL),
+('034020', '두산에너빌리티', 'STOCK', '에너지/전력', NULL, NULL);
 ```
 
 ---
@@ -101,7 +107,7 @@ CREATE TABLE prices (
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | id | INTEGER | 자동 증가 PK | 1, 2, 3... |
-| ticker | VARCHAR(10) | ETF 티커 (FK) | "480450" |
+| ticker | VARCHAR(10) | 종목 코드 (FK) | "487240" |
 | date | DATE | 거래일 | "2025-11-01" |
 | close_price | REAL | 종가 | 12500.0 |
 | volume | INTEGER | 거래량 | 1250000 |
@@ -142,7 +148,7 @@ CREATE TABLE trading_flow (
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | id | INTEGER | 자동 증가 PK | 1, 2, 3... |
-| ticker | VARCHAR(10) | ETF 티커 (FK) | "480450" |
+| ticker | VARCHAR(10) | 종목 코드 (FK) | "487240" |
 | date | DATE | 거래일 | "2025-11-01" |
 | individual_net | INTEGER | 개인 순매수 (주식 수) | -15000 (순매도) |
 | institutional_net | INTEGER | 기관 순매수 (주식 수) | 8000 (순매수) |
@@ -163,7 +169,7 @@ CREATE INDEX idx_flow_ticker_date ON trading_flow(ticker, date);
 
 ### 4. `news` (뉴스 데이터)
 
-ETF 테마 관련 뉴스 기사
+종목 테마 관련 뉴스 기사
 
 ```sql
 CREATE TABLE news (
@@ -183,7 +189,7 @@ CREATE TABLE news (
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | id | INTEGER | 자동 증가 PK | 1, 2, 3... |
-| ticker | VARCHAR(10) | 관련 ETF 티커 (FK) | "480450" |
+| ticker | VARCHAR(10) | 관련 종목 코드 (FK) | "487240" |
 | date | DATE | 뉴스 발행일 | "2025-11-01" |
 | title | TEXT | 뉴스 제목 | "AI 데이터센터 투자 급증" |
 | url | TEXT | 뉴스 링크 | "https://news.naver.com/..." |
@@ -206,7 +212,7 @@ CREATE INDEX idx_news_date ON news(date DESC);
 ```sql
 SELECT date, close_price, volume, daily_change_pct
 FROM prices
-WHERE ticker = '480450'
+WHERE ticker = '487240'
   AND date >= DATE('now', '-7 days')
 ORDER BY date DESC;
 ```
@@ -219,24 +225,24 @@ SELECT
     SUM(institutional_net) as total_institutional,
     SUM(foreign_net) as total_foreign
 FROM trading_flow
-WHERE ticker = '480450'
+WHERE ticker = '487240'
   AND date BETWEEN '2025-10-01' AND '2025-11-01';
 ```
 
-### ETF별 최신 뉴스 5건
+### 종목별 최신 뉴스 5건
 
 ```sql
 SELECT ticker, title, date, url, source
 FROM news
-WHERE ticker = '480450'
+WHERE ticker = '487240'
 ORDER BY date DESC
 LIMIT 5;
 ```
 
-### 전체 ETF 최근 가격
+### 전체 종목 최근 가격
 
 ```sql
-SELECT e.ticker, e.name, p.close_price, p.daily_change_pct
+SELECT e.ticker, e.name, e.type, p.close_price, p.daily_change_pct
 FROM etfs e
 LEFT JOIN prices p ON e.ticker = p.ticker
 WHERE p.date = (
@@ -288,9 +294,9 @@ sqlite3 etf_data.db .dump > etf_data_dump.sql
 
 ### 테이블 크기 예상
 
-- **prices**: 4 ETFs × 250 거래일 × 5년 = 약 5,000 rows
+- **prices**: 6개 종목 × 250 거래일 × 5년 = 약 7,500 rows
 - **trading_flow**: 동일
-- **news**: 4 ETFs × 5 뉴스/일 × 365일 = 약 7,300 rows/year
+- **news**: 6개 종목 × 5 뉴스/일 × 365일 = 약 10,950 rows/year
 
 ---
 

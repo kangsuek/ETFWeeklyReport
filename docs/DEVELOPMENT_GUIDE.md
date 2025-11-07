@@ -26,10 +26,10 @@ async def get_etf_prices(
     end_date: date
 ) -> Optional[List[dict]]:
     """
-    특정 기간의 ETF 가격 데이터를 조회합니다.
+    특정 기간의 종목 가격 데이터를 조회합니다.
     
     Args:
-        ticker: ETF 티커 코드 (예: "480450")
+        ticker: 종목 코드 (예: "487240")
         start_date: 조회 시작 날짜
         end_date: 조회 종료 날짜
         
@@ -80,10 +80,11 @@ import { etfApi } from '@/services/api'
 import Spinner from '@/components/common/Spinner'
 
 /**
- * ETF 카드 컴포넌트
+ * ETF/주식 카드 컴포넌트
  * @param {Object} props
- * @param {string} props.ticker - ETF 티커 코드
- * @param {string} props.name - ETF 이름
+ * @param {string} props.ticker - 종목 코드
+ * @param {string} props.name - 종목 이름
+ * @param {string} props.type - 종목 유형 (ETF/STOCK)
  */
 export default function ETFCard({ ticker, name }) {
   const { data, isLoading, error } = useQuery({
@@ -286,14 +287,14 @@ from datetime import date
 def test_get_etf_prices():
     collector = ETFDataCollector()
     prices = collector.get_price_data(
-        ticker="480450",
+        ticker="487240",
         start_date=date(2025, 10, 1),
         end_date=date(2025, 10, 7)
     )
     
     assert prices is not None
     assert len(prices) > 0
-    assert prices[0].ticker == "480450"
+    assert prices[0].ticker == "487240"
 ```
 
 ### 프론트엔드 테스트 (React Testing Library)
@@ -303,15 +304,16 @@ def test_get_etf_prices():
 import { render, screen } from '@testing-library/react'
 import ETFCard from '../ETFCard'
 
-test('renders ETF name', () => {
-  const etf = {
-    ticker: '480450',
-    name: 'KODEX AI전력핵심설비'
+test('renders stock name', () => {
+  const stock = {
+    ticker: '487240',
+    name: '삼성 KODEX AI전력핵심설비 ETF',
+    type: 'ETF'
   }
   
-  render(<ETFCard etf={etf} />)
+  render(<ETFCard etf={stock} />)
   
-  expect(screen.getByText('KODEX AI전력핵심설비')).toBeInTheDocument()
+  expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
 })
 ```
 

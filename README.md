@@ -1,13 +1,18 @@
 # ETF Weekly Report Web Application
 
-한국 고성장 섹터 4개 ETF에 대한 종합 분석 및 리포팅 웹 애플리케이션
+한국 고성장 섹터 6개 종목(ETF 4개 + 주식 2개)에 대한 종합 분석 및 리포팅 웹 애플리케이션
 
-## 📊 대상 ETF
+## 📊 대상 종목
 
-1. **KODEX AI전력핵심설비** (480450) - AI & 전력 인프라
-2. **SOL 조선TOP3플러스** (456600) - 조선업 TOP 3
-3. **KOACT 글로벌양자컴퓨팅액티브** (497450) - 양자컴퓨팅
-4. **KBSTAR 글로벌원자력 iSelect** (481330) - 원자력
+### ETF 4개
+1. **삼성 KODEX AI전력핵심설비 ETF** (487240) - AI & 전력 인프라
+2. **신한 SOL 조선TOP3플러스 ETF** (466920) - 조선업
+3. **KoAct 글로벌양자컴퓨팅액티브 ETF** (0020H0) - 양자컴퓨팅
+4. **KB RISE 글로벌원자력 iSelect ETF** (442320) - 원자력
+
+### 주식 2개
+5. **한화오션** (042660) - 조선/방산
+6. **두산에너빌리티** (034020) - 에너지/전력
 
 ## 🚀 빠른 시작
 
@@ -84,12 +89,26 @@ docker-compose up --build
 - [진행 상황](./project-management/PROGRESS.md)
 - [마일스톤](./project-management/MILESTONES.md)
 
+## 📝 개발 워크플로우
+
+1. [TODO.md](./project-management/TODO.md)에서 현재 작업 확인
+2. 기능 구현 + 테스트 작성
+3. **코드 품질 검사 실행** (black, flake8, pylint)
+4. [Definition of Done](./docs/DEFINITION_OF_DONE.md) 체크리스트 확인
+5. **모든 테스트 100% 통과 확인** ⚠️
+6. 문서 업데이트
+7. TODO.md 체크박스 체크
+
+자세한 개발 가이드는 [SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)를 참조하세요.
+
+자세한 진행 상황은 [PROGRESS.md](./project-management/PROGRESS.md)를 참조하세요.
+
 ## ✨ 주요 기능
 
-- **실시간 ETF 추적** - 4개 ETF의 가격, 거래량 모니터링
+- **실시간 종목 추적** - 6개 종목(ETF 4개 + 주식 2개)의 가격, 거래량 모니터링
 - **투자자 매매 동향** - 개인/기관/외국인 순매수 분석
 - **뉴스 집계** - 테마별 뉴스 자동 수집
-- **비교 분석** - ETF 간 성과 비교 및 상관관계 분석
+- **비교 분석** - 종목 간 성과 비교 및 상관관계 분석
 - **리포트 생성** - PDF/Markdown 리포트 다운로드
 
 ## 🔧 기술 스택
@@ -173,27 +192,6 @@ cd frontend
 npm test -- --coverage
 ```
 
-## 📝 개발 워크플로우
-
-1. [TODO.md](./project-management/TODO.md)에서 현재 작업 확인
-2. 기능 구현 + 테스트 작성
-3. **코드 품질 검사 실행** (black, flake8, pylint)
-4. [Definition of Done](./docs/DEFINITION_OF_DONE.md) 체크리스트 확인
-5. **모든 테스트 100% 통과 확인** ⚠️
-6. 문서 업데이트
-7. TODO.md 체크박스 체크
-
-자세한 개발 가이드는 [SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)를 참조하세요.
-
-## 🎯 현재 상태
-
-- **Phase**: Phase 1 (Backend Core)
-- **진행률**: 약 40%
-- **최근 완료**: ✅ 백엔드 표준 환경 설정 (venv, requirements-dev, pytest 등)
-- **다음 작업**: 데이터 수집 서비스 구현
-
-자세한 진행 상황은 [PROGRESS.md](./project-management/PROGRESS.md)를 참조하세요.
-
 ## 🛠️ 개발 환경
 
 ### 백엔드 필수 파일
@@ -213,16 +211,9 @@ npm test -- --coverage
 
 ## 📖 데이터 소스
 
-- **네이버 증권** - 실시간 가격 및 투자자별 매매
-- **KRX (한국거래소)** - 공식 거래 데이터
-- **ETF 운용사** - 삼성/신한/한국투자/KB 자산운용
-- **뉴스** - 네이버 뉴스, Google News
-
-## 📄 라이선스
-
-MIT License
-
----
-
-**Last Updated**: 2025-11-06
-
+- **Naver Finance (네이버 증권)** - 주요 데이터 소스 (스크래핑)
+  - 일별 가격 데이터 (시가/고가/저가/종가/거래량)
+  - 투자자별 매매 동향 (개인/기관/외국인)
+- **KRX (한국거래소)** - 보조 데이터 소스
+- **ETF 운용사** - 삼성/신한/KoAct/KB 자산운용
+- **뉴스** - 네이버 뉴스

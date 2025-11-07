@@ -52,51 +52,54 @@ Content-Type: application/json
 
 ---
 
-### 2. ETF 목록 조회
+### 2. 종목 목록 조회
 
 #### GET `/api/etfs`
 
-전체 ETF 목록 조회
+전체 종목 목록 조회 (ETF 4개 + 주식 2개)
 
 **응답 예시:**
 
 ```json
 [
   {
-    "ticker": "480450",
-    "name": "KODEX AI전력핵심설비",
+    "ticker": "487240",
+    "name": "삼성 KODEX AI전력핵심설비 ETF",
+    "type": "ETF",
     "theme": "AI/전력",
     "launch_date": "2024-03-15",
     "expense_ratio": 0.0045
   },
   {
-    "ticker": "456600",
-    "name": "SOL 조선TOP3플러스",
-    "theme": "조선",
-    "launch_date": "2023-08-10",
-    "expense_ratio": 0.005
+    "ticker": "042660",
+    "name": "한화오션",
+    "type": "STOCK",
+    "theme": "조선/방산",
+    "launch_date": null,
+    "expense_ratio": null
   }
 ]
 ```
 
 ---
 
-### 3. ETF 기본 정보 조회
+### 3. 종목 기본 정보 조회
 
 #### GET `/api/etfs/{ticker}`
 
-특정 ETF의 기본 정보 조회
+특정 종목의 기본 정보 조회
 
 **Path Parameters:**
 
-- `ticker` (string, required): ETF 티커 코드 (예: "480450")
+- `ticker` (string, required): 종목 코드 (예: "487240", "042660")
 
 **응답 예시:**
 
 ```json
 {
-  "ticker": "480450",
-  "name": "KODEX AI전력핵심설비",
+  "ticker": "487240",
+  "name": "삼성 KODEX AI전력핵심설비 ETF",
+  "type": "ETF",
   "theme": "AI/전력",
   "launch_date": "2024-03-15",
   "expense_ratio": 0.0045
@@ -105,11 +108,11 @@ Content-Type: application/json
 
 **에러:**
 
-- `404`: ETF not found
+- `404`: 종목을 찾을 수 없음
 
 ---
 
-### 4. ETF 가격 데이터 조회
+### 4. 종목 가격 데이터 조회
 
 #### GET `/api/etfs/{ticker}/prices`
 
@@ -117,7 +120,7 @@ Content-Type: application/json
 
 **Path Parameters:**
 
-- `ticker` (string, required): ETF 티커 코드
+- `ticker` (string, required): 종목 코드 (ETF 또는 주식)
 
 **Query Parameters:**
 
@@ -127,7 +130,8 @@ Content-Type: application/json
 **요청 예시:**
 
 ```
-GET /api/etfs/480450/prices?start_date=2025-10-01&end_date=2025-11-01
+GET /api/etfs/487240/prices?start_date=2025-10-01&end_date=2025-11-01
+GET /api/etfs/042660/prices?start_date=2025-10-01&end_date=2025-11-01
 ```
 
 **응답 예시:**

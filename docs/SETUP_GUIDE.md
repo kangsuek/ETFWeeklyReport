@@ -62,7 +62,7 @@ pip install -r requirements-dev.txt
 ```
 
 설치되는 패키지:
-- **운영용**: FastAPI, Uvicorn, Pydantic, Pandas, FinanceDataReader 등
+- **운영용**: FastAPI, Uvicorn, Pydantic, Pandas, requests, BeautifulSoup4 등
 - **개발용**: pytest, black, flake8, pylint, coverage 등
 
 ### 6️⃣ 환경 변수 설정
