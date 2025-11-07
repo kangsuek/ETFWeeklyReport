@@ -5,15 +5,19 @@ from datetime import date
 class ETF(BaseModel):
     ticker: str
     name: str
+    type: str  # "ETF" or "STOCK"
     theme: Optional[str] = None
     launch_date: Optional[date] = None
     expense_ratio: Optional[float] = None
 
 class PriceData(BaseModel):
     date: date
+    open_price: Optional[float] = None
+    high_price: Optional[float] = None
+    low_price: Optional[float] = None
     close_price: float
     volume: int
-    daily_change_pct: float
+    daily_change_pct: Optional[float] = None
 
 class TradingFlow(BaseModel):
     date: date

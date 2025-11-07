@@ -24,6 +24,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS etfs (
             ticker TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            type TEXT NOT NULL,
             theme TEXT,
             launch_date DATE,
             expense_ratio REAL
@@ -35,6 +36,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             date DATE NOT NULL,
+            open_price REAL,
+            high_price REAL,
+            low_price REAL,
             close_price REAL,
             volume INTEGER,
             daily_change_pct REAL,
@@ -69,17 +73,21 @@ def init_db():
         )
     """)
     
-    # Insert initial ETF data
+    # Insert initial stock data (ETF 4개 + 주식 2개)
     etfs_data = [
-        ("480450", "KODEX AI전력핵심설비", "AI/전력", "2024-03-15", 0.0045),
-        ("456600", "SOL 조선TOP3플러스", "조선", "2023-08-10", 0.0050),
-        ("497450", "KOACT 글로벌양자컴퓨팅액티브", "양자컴퓨팅", "2024-05-20", 0.0070),
-        ("481330", "KBSTAR 글로벌원자력 iSelect", "원자력", "2024-01-25", 0.0055)
+        # ETF 4개
+        ("487240", "삼성 KODEX AI전력핵심설비 ETF", "ETF", "AI/전력", "2024-03-15", 0.0045),
+        ("466920", "신한 SOL 조선TOP3플러스 ETF", "ETF", "조선", "2023-08-10", 0.0050),
+        ("0020H0", "KoAct 글로벌양자컴퓨팅액티브 ETF", "ETF", "양자컴퓨팅", "2024-05-20", 0.0070),
+        ("442320", "KB RISE 글로벌원자력 iSelect ETF", "ETF", "원자력", "2024-01-25", 0.0055),
+        # 주식 2개
+        ("042660", "한화오션", "STOCK", "조선/방산", None, None),
+        ("034020", "두산에너빌리티", "STOCK", "에너지/전력", None, None)
     ]
     
     cursor.executemany("""
-        INSERT OR IGNORE INTO etfs (ticker, name, theme, launch_date, expense_ratio)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, etfs_data)
     
     conn.commit()
