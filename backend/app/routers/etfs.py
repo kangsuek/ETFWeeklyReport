@@ -36,19 +36,94 @@ async def get_etf(ticker: str):
 async def get_prices(
     ticker: str,
     start_date: Optional[date] = Query(default=None),
-    end_date: Optional[date] = Query(default=None)
+    end_date: Optional[date] = Query(default=None),
+    days: Optional[int] = Query(default=None, description="Number of days to fetch (alternative to date range)")
 ):
-    """Get price data for ETF within date range"""
+    """
+    Get price data for ETF/Stock within date range
+    
+    Args:
+        ticker: Stock/ETF ticker code
+        start_date: Start date (optional, defaults to 7 days ago)
+        end_date: End date (optional, defaults to today)
+        days: Number of days to fetch (alternative to date range)
+    
+    Returns:
+        List of price data
+    
+    Raises:
+        404: ETF/Stock not found
+        500: Internal server error
+    """
+    logger.info(f"Fetching prices for {ticker}")
+    
+    # ETF/Stock 존재 확인
+    etf = collector.get_etf_info(ticker)
+    if not etf:
+        logger.warning(f"Stock/ETF {ticker} not found")
+        raise HTTPException(status_code=404, detail=f"Stock/ETF {ticker} not found")
+    
+    # 날짜 범위 설정
     if not start_date:
         start_date = date.today() - timedelta(days=7)
     if not end_date:
         end_date = date.today()
     
     try:
-        return collector.get_price_data(ticker, start_date, end_date)
+        prices = collector.get_price_data(ticker, start_date, end_date)
+        logger.info(f"Successfully fetched {len(prices)} price records for {ticker}")
+        return prices
     except Exception as e:
         logger.error(f"Error fetching prices for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to fetch prices: {str(e)}")
+
+@router.post("/{ticker}/collect")
+async def collect_prices(
+    ticker: str,
+    days: int = Query(default=10, description="Number of days to collect")
+):
+    """
+    Trigger data collection from Naver Finance for a specific stock/ETF
+    
+    Args:
+        ticker: Stock/ETF ticker code
+        days: Number of days to collect (default: 10)
+    
+    Returns:
+        Collection result with count
+    
+    Raises:
+        404: ETF/Stock not found
+        500: Collection failed
+    """
+    logger.info(f"Starting data collection for {ticker} (days={days})")
+    
+    # ETF/Stock 존재 확인
+    etf = collector.get_etf_info(ticker)
+    if not etf:
+        logger.warning(f"Stock/ETF {ticker} not found")
+        raise HTTPException(status_code=404, detail=f"Stock/ETF {ticker} not found")
+    
+    try:
+        saved_count = collector.collect_and_save_prices(ticker, days=days)
+        
+        if saved_count == 0:
+            logger.warning(f"No data collected for {ticker}")
+            return {
+                "ticker": ticker,
+                "collected": 0,
+                "message": "No data collected. Check if the ticker is valid or data is available."
+            }
+        
+        logger.info(f"Successfully collected {saved_count} records for {ticker}")
+        return {
+            "ticker": ticker,
+            "collected": saved_count,
+            "message": f"Successfully collected {saved_count} price records"
+        }
+    except Exception as e:
+        logger.error(f"Error collecting data for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=f"Data collection failed: {str(e)}")
 
 @router.get("/{ticker}/trading-flow", response_model=List[TradingFlow])
 async def get_trading_flow(

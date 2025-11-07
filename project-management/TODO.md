@@ -73,17 +73,39 @@
 - [x] 저장 성공/실패 로깅 ✅
 - [x] **유닛 테스트 작성** ✅ (test_save_price_data, test_save_price_data_with_invalid_data 등)
 
-#### Step 5: API 엔드포인트 통합 (예상: 45분)
-- [ ] GET /api/etfs/{ticker}/prices 구현
-- [ ] data_collector와 라우터 연결
-- [ ] 에러 핸들링 (404, 500) 및 HTTP 상태 코드
-- [ ] 로깅 추가 (수집 시작/완료/실패)
-- [ ] **통합 테스트 작성** (test_api_integration)
+#### Step 5: API 엔드포인트 통합 ✅ (완료: 45분)
+- [x] GET /api/etfs/{ticker}/prices 구현 ✅
+  - [x] ETF/Stock 존재 확인
+  - [x] 날짜 범위 파라미터 처리
+  - [x] 404 에러 처리 (존재하지 않는 ticker)
+- [x] POST /api/etfs/{ticker}/collect 구현 ✅ (새로운 엔드포인트)
+  - [x] Naver Finance 데이터 수집 트리거
+  - [x] 수집 결과 반환
+- [x] data_collector와 라우터 연결 ✅
+- [x] 에러 핸들링 (404, 500) 및 HTTP 상태 코드 ✅
+  - [x] 404: ETF/Stock not found
+  - [x] 500: Internal server error
+  - [x] 422: Validation error
+- [x] 로깅 추가 (수집 시작/완료/실패) ✅
+- [x] **통합 테스트 작성** (18개 테스트 모두 통과 ✅)
+  - [x] Health check 테스트 (2개)
+  - [x] ETF 엔드포인트 테스트 (3개)
+  - [x] Price 엔드포인트 테스트 (4개)
+  - [x] Collect 엔드포인트 테스트 (4개)
+  - [x] 에러 핸들링 테스트 (3개)
+  - [x] End-to-End 통합 테스트 (2개)
 
-#### Step 6: 종합 테스트 및 검증 (예상: 30분)
-- [ ] 전체 테스트 실행 (`pytest -v`)
-- [ ] 커버리지 확인 (`pytest --cov=app`)
-- [ ] **모든 테스트 100% 통과** ⚠️
+#### Step 6: 종합 테스트 및 검증 ✅ (완료: 30분)
+- [x] 전체 테스트 실행 (`pytest -v`) ✅
+  - **61개 테스트 모두 통과** ✅
+  - 43개 유닛 테스트
+  - 18개 API 통합 테스트
+- [x] 커버리지 확인 (`pytest --cov=app`) ✅
+  - **전체 커버리지: 82%**
+  - data_collector.py: 90%
+  - database.py: 100%
+  - models.py: 100%
+- [x] **모든 테스트 100% 통과** ✅ ⚠️
 - [ ] API 문서 업데이트 (API_SPECIFICATION.md)
 - [ ] 수동 테스트 (Swagger UI에서 확인)
 
