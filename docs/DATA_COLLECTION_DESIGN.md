@@ -2,7 +2,16 @@
 
 ## 개요
 
-6개 종목(ETF 4개 + 주식 2개)의 가격 데이터를 Naver Finance에서 스크래핑하여 수집하는 기능 설계
+6개 종목(ETF 4개 + 주식 2개)의 데이터를 Naver Finance에서 스크래핑하여 수집하는 기능 설계
+
+## 구현 상태
+
+| 데이터 유형 | 상태 | Phase | 설명 |
+|------------|------|-------|------|
+| 가격 데이터 | ✅ 완료 | Phase 1 | 일별 시가/고가/저가/종가/거래량 |
+| 투자자 매매 동향 | ⏳ 예정 | Phase 2 | 개인/기관/외국인 순매수 |
+| 뉴스 데이터 | ⏳ 예정 | Phase 2 | 종목 관련 뉴스 및 관련도 점수 |
+| 자동 스케줄링 | ⏳ 예정 | Phase 2 | 일일/주간 자동 수집 |
 
 ---
 
@@ -324,17 +333,40 @@ def test_full_collection_workflow():
 
 ---
 
-## 다음 단계 (Step 2)
+## Phase 2 계획 (예정)
 
-1. `fetch_price_data_from_naver()` 함수 구현
-2. HTML 파싱 로직 구현
-3. 데이터 정제 및 변환
-4. 유닛 테스트 작성
-5. 1개 종목 테스트 (487240)
+### Step 1: 스케줄러 구현
+- APScheduler 통합
+- 일일 자동 수집 (장 마감 후 3:30 PM KST)
+- 주간 히스토리 백필
+
+### Step 2: 6개 종목 일괄 수집
+- 다중 종목 수집 시스템
+- 히스토리 데이터 백필 (90일)
+- API: POST /api/data/collect-all
+
+### Step 3: 투자자별 매매 동향
+- Naver Finance 매매 동향 스크래핑
+- trading_flow 테이블 저장
+- API: GET /api/etfs/{ticker}/trading-flow
+
+### Step 4: 뉴스 스크래핑
+- Naver News 검색 및 스크래핑
+- 관련도 점수 계산
+- news 테이블 저장
+
+### Step 5: 재시도 로직
+- Exponential Backoff 구현
+- Rate Limiter 유틸리티
+
+### Step 6: 데이터 정합성 검증
+- 데이터 품질 리포트
+- End-to-End 테스트
 
 ---
 
 **작성일**: 2025-11-06  
+**최종 업데이트**: 2025-11-07  
 **작성자**: AI Assistant  
-**상태**: 설계 완료 ✅
+**상태**: Phase 1 구현 완료 ✅, Phase 2 준비 중 🔜
 

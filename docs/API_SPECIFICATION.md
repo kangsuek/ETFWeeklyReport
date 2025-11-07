@@ -139,23 +139,94 @@ GET /api/etfs/042660/prices?start_date=2025-10-01&end_date=2025-11-01
 ```json
 [
   {
-    "date": "2025-11-01",
-    "close_price": 12500.0,
-    "volume": 1250000,
-    "daily_change_pct": 2.5
+    "date": "2025-11-07",
+    "open_price": 24350.0,
+    "high_price": 25810.0,
+    "low_price": 24350.0,
+    "close_price": 25695.0,
+    "volume": 1705721,
+    "daily_change_pct": -0.27
   },
   {
-    "date": "2025-10-31",
-    "close_price": 12200.0,
-    "volume": 980000,
-    "daily_change_pct": -0.8
+    "date": "2025-11-06",
+    "open_price": 26705.0,
+    "high_price": 26965.0,
+    "low_price": 25410.0,
+    "close_price": 25765.0,
+    "volume": 8225769,
+    "daily_change_pct": 0.8
   }
 ]
 ```
 
+**에러:**
+
+- `404`: 종목을 찾을 수 없음
+- `500`: 서버 내부 오류
+
 ---
 
-### 5. 투자자별 매매 동향 조회
+### 5. 데이터 수집 트리거 ⭐ NEW (Phase 1 완료)
+
+#### POST `/api/etfs/{ticker}/collect`
+
+Naver Finance에서 특정 종목의 가격 데이터를 수집합니다.
+
+**Path Parameters:**
+
+- `ticker` (string, required): 종목 코드 (ETF 또는 주식)
+
+**Query Parameters:**
+
+- `days` (integer, optional): 수집할 일수 (기본값: 10)
+
+**요청 예시:**
+
+```
+POST /api/etfs/487240/collect?days=10
+POST /api/etfs/042660/collect?days=5
+```
+
+**응답 예시 (성공):**
+
+```json
+{
+  "ticker": "487240",
+  "collected": 10,
+  "message": "Successfully collected 10 price records"
+}
+```
+
+**응답 예시 (데이터 없음):**
+
+```json
+{
+  "ticker": "487240",
+  "collected": 0,
+  "message": "No data collected. Check if the ticker is valid or data is available."
+}
+```
+
+**에러:**
+
+- `404`: 종목을 찾을 수 없음
+- `500`: 데이터 수집 실패
+
+**사용 예시:**
+
+```bash
+# cURL
+curl -X POST "http://localhost:8000/api/etfs/487240/collect?days=10"
+
+# Python requests
+import requests
+response = requests.post("http://localhost:8000/api/etfs/487240/collect?days=10")
+print(response.json())
+```
+
+---
+
+### 6. 투자자별 매매 동향 조회 (Phase 2)
 
 #### GET `/api/etfs/{ticker}/trading-flow`
 
@@ -197,7 +268,7 @@ GET /api/etfs/042660/prices?start_date=2025-10-01&end_date=2025-11-01
 
 ---
 
-### 6. ETF 주요 지표 조회
+### 7. ETF 주요 지표 조회 (Phase 2)
 
 #### GET `/api/etfs/{ticker}/metrics`
 
@@ -231,7 +302,7 @@ ETF의 주요 성과 지표 조회
 
 ---
 
-### 7. ETF 관련 뉴스 조회
+### 8. ETF 관련 뉴스 조회 (Phase 2)
 
 #### GET `/api/news/{ticker}`
 
@@ -269,7 +340,7 @@ ETF 테마 관련 뉴스 조회
 
 ---
 
-### 8. ETF 비교
+### 9. ETF 비교 (Phase 3)
 
 #### GET `/api/etfs/compare`
 
@@ -317,7 +388,7 @@ GET /api/etfs/compare?tickers=480450,456600&start_date=2025-10-01
 
 ---
 
-### 9. 리포트 생성
+### 10. 리포트 생성 (Phase 6)
 
 #### POST `/api/reports/generate`
 
@@ -360,9 +431,30 @@ GET /api/etfs/compare?tickers=480450,456600&start_date=2025-10-01
 |-----|------|
 | 200 | 성공 |
 | 400 | 잘못된 요청 (파라미터 오류) |
-| 404 | 리소스를 찾을 수 없음 |
+| 404 | 리소스를 찾을 수 없음 (종목, 데이터 등) |
+| 422 | 입력 값 검증 실패 (날짜 형식 오류 등) |
 | 500 | 서버 내부 오류 |
 | 503 | 외부 API 연결 실패 |
+
+---
+
+## API 구현 상태
+
+### ✅ Phase 1 완료 (2025-11-07)
+- ✅ **GET** `/api/health` - 헬스 체크
+- ✅ **GET** `/api/etfs/` - 전체 종목 목록 (6개)
+- ✅ **GET** `/api/etfs/{ticker}` - 종목 정보 조회
+- ✅ **GET** `/api/etfs/{ticker}/prices` - 가격 데이터 조회
+- ✅ **POST** `/api/etfs/{ticker}/collect` - 데이터 수집 트리거 ⭐
+
+### 🔄 Phase 2 예정
+- ⏳ **GET** `/api/etfs/{ticker}/trading-flow` - 투자자별 매매 동향
+- ⏳ **GET** `/api/etfs/{ticker}/metrics` - ETF 주요 지표
+- ⏳ **GET** `/api/news/{ticker}` - 뉴스 조회
+
+### 🔄 Phase 3-6 예정
+- ⏳ **GET** `/api/etfs/compare` - ETF 비교
+- ⏳ **POST** `/api/reports/generate` - 리포트 생성
 
 ---
 
@@ -373,5 +465,10 @@ GET /api/etfs/compare?tickers=480450,456600&start_date=2025-10-01
 
 ---
 
-**Last Updated**: 2025-11-06
+## 참고 자료
 
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **실행 가이드**: [docs/RUNNING_GUIDE.md](./RUNNING_GUIDE.md)
+
+---

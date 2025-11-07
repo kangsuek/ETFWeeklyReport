@@ -64,38 +64,52 @@
 
 ## 🔴 Phase별 Definition of Done
 
-### Phase 1: Backend Core
+### ✅ Phase 1: Backend Core - 완료 (2025-11-07)
 
 **다음 Phase로 진행하기 위한 필수 조건:**
 
 #### 기능 요구사항
-- [ ] FastAPI 서버가 정상적으로 실행됨
-- [ ] 데이터베이스 연결 및 초기 데이터 로드 완료
-- [ ] 최소 1개 종목(487240)의 가격 데이터 수집 성공 (Naver Finance 스크래핑)
-- [ ] GET /api/etfs 엔드포인트 정상 응답
+- [x] FastAPI 서버가 정상적으로 실행됨 ✅
+- [x] 데이터베이스 연결 및 초기 데이터 로드 완료 ✅ (6개 종목)
+- [x] 최소 1개 종목(487240)의 가격 데이터 수집 성공 ✅ (모든 6개 종목 확인)
+- [x] GET /api/etfs 엔드포인트 정상 응답 ✅
+- [x] POST /api/etfs/{ticker}/collect 엔드포인트 구현 ✅ (NEW)
 
 #### 테스트 요구사항 (필수)
-- [ ] **data_collector.py 유닛 테스트**
-  - [ ] `get_etf_info()` 테스트
-  - [ ] `get_price_data()` 테스트
-  - [ ] 에러 핸들링 테스트
-- [ ] **API 엔드포인트 통합 테스트**
-  - [ ] GET /api/health 테스트
-  - [ ] GET /api/etfs 테스트
-  - [ ] GET /api/etfs/{ticker} 테스트
-- [ ] **모든 테스트 통과율 100%**
+- [x] **data_collector.py 유닛 테스트** (43개 테스트) ✅
+  - [x] `fetch_naver_finance_prices()` 테스트 ✅
+  - [x] `validate_price_data()` 테스트 (12개) ✅
+  - [x] `clean_price_data()` 테스트 (5개) ✅
+  - [x] `save_price_data()` 테스트 ✅
+  - [x] 에러 핸들링 테스트 (11개) ✅
+- [x] **API 엔드포인트 통합 테스트** (18개 테스트) ✅
+  - [x] GET /api/health 테스트 ✅
+  - [x] GET /api/etfs 테스트 ✅
+  - [x] GET /api/etfs/{ticker} 테스트 ✅
+  - [x] GET /api/etfs/{ticker}/prices 테스트 ✅
+  - [x] POST /api/etfs/{ticker}/collect 테스트 ✅
+- [x] **모든 테스트 통과율 100%** ✅ (61개 테스트)
 
 #### 문서화
-- [ ] API 문서 (/docs) 접근 가능
-- [ ] 새로운 API 엔드포인트는 API_SPECIFICATION.md에 기록
-- [ ] 코드 주석 작성
+- [x] API 문서 (/docs) 접근 가능 ✅ (Swagger UI)
+- [x] 새로운 API 엔드포인트는 API_SPECIFICATION.md에 기록 ✅
+- [x] 코드 주석 작성 ✅
+- [x] RUNNING_GUIDE.md 생성 ✅
+- [x] SQLite 조회 도구 제공 ✅
 
 #### 검증
-- [ ] Swagger UI에서 모든 엔드포인트 테스트 성공
-- [ ] 에러 로그 없음
-- [ ] 메모리 누수 없음
+- [x] Swagger UI에서 모든 엔드포인트 테스트 성공 ✅
+- [x] 에러 로그 없음 ✅
+- [x] 메모리 누수 없음 ✅
+- [x] 실제 데이터 수집 확인 (6개 종목) ✅
 
-**완료 기준 미달 시: Phase 2로 진행 불가**
+**완료 상태: ✅ Phase 2로 진행 가능**
+
+**달성 사항**:
+- 코드 커버리지: 82%
+- 총 61개 테스트 100% 통과
+- API 5개 엔드포인트 구현
+- Naver Finance 스크래핑 구현
 
 ---
 
@@ -394,8 +408,3 @@ npm run lint
 ```
 
 ---
-
-**Last Updated**: 2025-11-06
-
-**문서 버전**: 1.0.0
-

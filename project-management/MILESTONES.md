@@ -3,79 +3,118 @@
 ## 전체 일정
 
 ```
-Phase 1: Backend Core             [=========>        ] 30%  (11/06 - 11/10)
-Phase 2: Data Collection          [                  ] 0%   (11/11 - 11/15)
-Phase 3: Frontend Foundation      [                  ] 0%   (11/16 - 11/20)
-Phase 4: Charts & Visualization   [                  ] 0%   (11/21 - 11/25)
-Phase 5: Detail & Comparison      [                  ] 0%   (11/26 - 11/30)
-Phase 6: Report Generation        [                  ] 0%   (12/01 - 12/05)
-Phase 7: Optimization & Deploy    [                  ] 0%   (12/06 - 12/10)
+Phase 1: Backend Core             [==================>] 100% (11/06 - 11/07) ✅
+Phase 2: Data Collection          [                  ] 0%   (11/08 - 11/13)
+Phase 3: Frontend Foundation      [                  ] 0%   (11/14 - 11/18)
+Phase 4: Charts & Visualization   [                  ] 0%   (11/19 - 11/23)
+Phase 5: Detail & Comparison      [                  ] 0%   (11/24 - 11/28)
+Phase 6: Report Generation        [                  ] 0%   (11/29 - 12/03)
+Phase 7: Optimization & Deploy    [                  ] 0%   (12/04 - 12/08)
 ```
 
 ---
 
-## Phase 1: Backend Core (Priority: High) 🔴
+## ✅ Phase 1: Backend Core (Priority: High) - 완료
 
-**기간**: 2025-11-06 ~ 2025-11-10 (5일)  
-**상태**: ⏳ 진행 중 (30% 완료)  
+**기간**: 2025-11-06 ~ 2025-11-07 (2일)  
+**상태**: ✅ 완료 (100%)  
 **담당**: Backend
 
 ### 목표
 백엔드 데이터 수집 및 기본 API 구축
 
 ### 체크리스트
-- [x] FastAPI 프로젝트 초기화
-- [x] 데이터베이스 스키마 생성
-- [x] 기본 API 엔드포인트 구조
-- [x] 종목코드 확정 (6개: ETF 4개 + 주식 2개)
-- [x] 데이터 소스 확정 (Naver Finance 스크래핑)
-- [ ] 1개 종목(487240) 데이터 수집 구현
-- [ ] 가격 데이터 API 테스트
-- [ ] 에러 핸들링 및 로깅
+- [x] FastAPI 프로젝트 초기화 ✅
+- [x] 데이터베이스 스키마 생성 ✅
+- [x] 기본 API 엔드포인트 구조 ✅
+- [x] 종목코드 확정 (6개: ETF 4개 + 주식 2개) ✅
+- [x] 데이터 소스 확정 (Naver Finance 스크래핑) ✅
+- [x] 1개 종목(487240) 데이터 수집 구현 ✅
+- [x] 가격 데이터 API 테스트 ✅
+- [x] 에러 핸들링 및 로깅 ✅
+- [x] 61개 테스트 100% 통과 ✅
 
 ### 완료 조건 (Acceptance Criteria)
 - ✅ API가 종목 가격 데이터를 성공적으로 반환
 - ✅ 데이터가 데이터베이스에 저장됨
 - ✅ Swagger 문서 (`/docs`)가 접근 가능
 - ✅ 최소 1개 종목의 최근 30일 데이터 수집 완료 (Naver Finance 스크래핑)
+- ✅ 모든 테스트 100% 통과
 
-### 진행 상황
-- ✅ 프로젝트 구조 생성 (11/06)
-- ✅ 문서 구조 재구성 (11/06)
-- ⏳ 환경 설정 진행 중
+### 완료 일자
+- ✅ 2025-11-07 완료
+
+### 달성 사항
+- 코드 커버리지: 82%
+- 총 61개 테스트 100% 통과 (43개 유닛 + 18개 통합)
+- API 5개 엔드포인트 구현
+- Naver Finance 스크래핑 구현
+- 데이터 검증 및 정제 시스템
 
 ---
 
 ## Phase 2: Data Collection Complete (Priority: High) 🟡
 
-**기간**: 2025-11-11 ~ 2025-11-15 (5일)  
-**상태**: ⏸️ 대기 중  
-**담당**: Backend
+**기간**: 2025-11-08 ~ 2025-11-13 (6일)  
+**상태**: 🔜 대기 중 (Phase 1 완료, 시작 준비 완료)  
+**담당**: Backend  
+**예상 소요 시간**: 12.5시간
 
 ### 목표
-전체 6개 종목(ETF 4개 + 주식 2개)에 대한 완전한 데이터 수집 시스템 구축
+전체 6개 종목(ETF 4개 + 주식 2개)에 대한 완전한 자동화 데이터 수집 시스템 구축
 
-### 체크리스트
-- [ ] 나머지 5개 종목 데이터 수집 구현
-  - [ ] 466920 (신한 SOL 조선TOP3플러스 ETF)
-  - [ ] 0020H0 (KoAct 글로벌양자컴퓨팅액티브 ETF)
-  - [ ] 442320 (KB RISE 글로벌원자력 iSelect ETF)
-  - [ ] 042660 (한화오션)
-  - [ ] 034020 (두산에너빌리티)
-- [ ] 투자자별 매매 동향 데이터 수집
-- [ ] 뉴스 스크래핑 구현
-- [ ] 재시도 로직 (exponential backoff)
-- [ ] Rate Limiting 구현 (Naver Finance 서버 부하 방지)
-- [ ] 스케줄러 설정 (APScheduler)
-- [ ] 히스토리 데이터 백필 (최근 1년)
+### 상세 작업 계획 (6단계)
 
-### 완료 조건
+#### Step 1: 스케줄러 설계 및 구현 (1.5시간)
+- [ ] APScheduler 라이브러리 통합
+- [ ] 일일/주간 스케줄 설정
+- [ ] FastAPI 생명주기 연동
+- [ ] 스케줄러 유닛 테스트
+
+#### Step 2: 6개 종목 일괄 수집 시스템 (2시간)
+- [ ] 다중 종목 수집 함수 (`collect_all_tickers`)
+- [ ] 히스토리 백필 함수 (90일 데이터)
+- [ ] API 엔드포인트: POST /api/data/collect-all
+- [ ] API 엔드포인트: POST /api/data/backfill
+- [ ] 유닛 및 통합 테스트
+
+#### Step 3: 투자자별 매매 동향 수집 (2.5시간)
+- [ ] `trading_flow` 테이블 생성
+- [ ] Naver Finance 매매 동향 스크래핑
+- [ ] API 엔드포인트: GET /api/etfs/{ticker}/trading-flow
+- [ ] API 엔드포인트: POST /api/etfs/{ticker}/collect-trading-flow
+- [ ] 유닛 및 통합 테스트
+
+#### Step 4: 뉴스 스크래핑 구현 (3시간)
+- [ ] `news` 테이블 생성
+- [ ] 종목별 키워드 매핑
+- [ ] Naver News 스크래핑 및 관련도 점수
+- [ ] API 엔드포인트: GET /api/news/{ticker}
+- [ ] API 엔드포인트: POST /api/news/{ticker}/collect
+- [ ] 유닛 및 통합 테스트
+
+#### Step 5: 재시도 로직 및 Rate Limiting (1.5시간)
+- [ ] Exponential Backoff 구현 (최대 3회)
+- [ ] Rate Limiter 유틸리티
+- [ ] 모든 수집 함수에 적용
+- [ ] 재시도 로직 테스트
+
+#### Step 6: 데이터 정합성 검증 및 종합 테스트 (2시간)
+- [ ] 데이터 정합성 검증 스크립트
+- [ ] 데이터 품질 리포트
+- [ ] End-to-End 시나리오 테스트
+- [ ] 문서 업데이트 (API, DB 스키마)
+- [ ] 커버리지 85% 이상 확인
+
+### 완료 조건 (Acceptance Criteria)
 - ✅ 6개 종목 모두 완전한 데이터 보유 (가격, 매매 동향, 뉴스)
 - ✅ 스케줄러가 자동으로 일일 업데이트 수행
 - ✅ 네트워크 실패 시 자동 재시도 작동
+- ✅ 모든 테스트 100% 통과
+- ✅ 데이터 정합성 확인 (중복 없음, NULL 최소화)
 
 ### 블로커
-- Phase 1 완료 필요
+- ✅ Phase 1 완료 (해결됨)
 
 ---
 
@@ -216,15 +255,15 @@ React 앱 기본 UI 구축 및 백엔드 연동
 ## 전체 프로젝트 타임라인
 
 ```
-Week 1 (11/06 - 11/10): Backend Core
-Week 2 (11/11 - 11/17): Data Collection + Frontend Start
-Week 3 (11/18 - 11/24): Charts & Visualization
-Week 4 (11/25 - 12/01): Detail Pages
-Week 5 (12/02 - 12/08): Reports & Optimization
-Week 6 (12/09 - 12/10): Deployment
+Week 1 (11/06 - 11/07): Backend Core ✅ (완료)
+Week 2 (11/08 - 11/13): Data Collection Complete
+Week 3 (11/14 - 11/20): Frontend Foundation + Charts
+Week 4 (11/21 - 11/27): Detail & Comparison Pages
+Week 5 (11/28 - 12/04): Reports & Optimization
+Week 6 (12/05 - 12/08): Final Testing & Deployment
 ```
 
-**예상 완료일**: 2025년 12월 10일
+**예상 완료일**: 2025년 12월 8일 (2일 단축)
 
 ---
 
@@ -259,12 +298,27 @@ Week 6 (12/09 - 12/10): Deployment
 
 ## 주간 회고 (Weekly Review)
 
-### Week 1 회고 (11/06)
-- **잘된 점**: 문서 구조 재구성으로 효율성 향상
-- **개선할 점**: 개발 환경 설정 빠르게 진행 필요
-- **다음 주 목표**: Phase 1 완료 및 Phase 2 시작
+### Week 1 회고 (11/06 - 11/07) ✅ 완료
+- **잘된 점**:
+  - 문서 구조 재구성으로 효율성 대폭 향상
+  - Phase 1을 5일 → 2일로 단축 완료 🎉
+  - 테스트 주도 개발로 품질 보장 (61개 테스트 100% 통과)
+  - 6개 종목 모두 Naver Finance 스크래핑 성공 확인
+- **개선할 점**:
+  - 초기 데이터 소스 확정에 시간 소요 (FinanceDataReader 문제)
+  - 데이터 검증 로직 추가로 개발 시간 증가 (하지만 품질 향상)
+- **다음 주 목표**: Phase 2 완료 (스케줄러, 매매 동향, 뉴스)
+
+### Week 2 목표 (11/08 - 11/13)
+- **Phase 2 완료 목표**: 자동화 데이터 수집 시스템
+- **핵심 작업**:
+  - 스케줄러 구현 (APScheduler)
+  - 투자자별 매매 동향 수집
+  - 뉴스 스크래핑 및 관련도 점수
+  - 재시도 로직 및 Rate Limiting
+- **목표 테스트**: 모든 테스트 100% 통과, 커버리지 85% 이상
 
 ---
 
-**Last Updated**: 2025-11-06
+**Last Updated**: 2025-11-07
 

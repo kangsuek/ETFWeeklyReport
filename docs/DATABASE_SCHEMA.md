@@ -6,6 +6,15 @@
 - **프로덕션**: PostgreSQL (권장)
 - **ORM**: 없음 (직접 SQL 사용)
 
+## 구현 상태
+
+| 테이블 | 상태 | Phase | 설명 |
+|--------|------|-------|------|
+| `etfs` | ✅ 구현 완료 | Phase 1 | 종목 기본 정보 (6개 종목) |
+| `prices` | ✅ 구현 완료 | Phase 1 | 가격 데이터 (시가/고가/저가/종가/거래량) |
+| `trading_flow` | ⏳ 예정 | Phase 2 | 투자자별 매매 동향 (개인/기관/외국인) |
+| `news` | ⏳ 예정 | Phase 2 | 뉴스 데이터 (제목/URL/관련도 점수) |
+
 ---
 
 ## ERD (Entity Relationship Diagram)
@@ -126,9 +135,10 @@ CREATE INDEX idx_prices_date ON prices(date);
 
 ---
 
-### 3. `trading_flow` (투자자별 매매 동향)
+### 3. `trading_flow` (투자자별 매매 동향) ⏳ Phase 2
 
-투자자 유형별 순매수/순매도 데이터
+투자자 유형별 순매수/순매도 데이터  
+**구현 예정**: Phase 2 - Step 3
 
 ```sql
 CREATE TABLE trading_flow (
@@ -167,9 +177,10 @@ CREATE INDEX idx_flow_ticker_date ON trading_flow(ticker, date);
 
 ---
 
-### 4. `news` (뉴스 데이터)
+### 4. `news` (뉴스 데이터) ⏳ Phase 2
 
-종목 테마 관련 뉴스 기사
+종목 테마 관련 뉴스 기사  
+**구현 예정**: Phase 2 - Step 4
 
 ```sql
 CREATE TABLE news (
@@ -300,5 +311,5 @@ sqlite3 etf_data.db .dump > etf_data_dump.sql
 
 ---
 
-**Last Updated**: 2025-11-06
+**Last Updated**: 2025-11-07
 

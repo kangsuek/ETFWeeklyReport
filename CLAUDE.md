@@ -51,6 +51,17 @@
    - Git 워크플로우
    - 테스트 전략
 
+6. **[실행 가이드](./docs/RUNNING_GUIDE.md)** ⭐ Phase 1 완료
+   - 서버 실행 방법
+   - Swagger UI 사용법
+   - SQLite 데이터 조회
+   - API 테스트 방법
+
+7. **[환경 설정 가이드](./docs/SETUP_GUIDE.md)**
+   - 백엔드 환경 설정
+   - 프론트엔드 환경 설정
+   - 데이터베이스 초기화
+
 ---
 
 ### 동적 문서 (진행 상황)
@@ -97,9 +108,27 @@
 
 ### 개발 중 참조할 문서
 
-- API 구현 시: **[docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)**
-- DB 작업 시: **[docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)**
-- 코딩 중: **[docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)**
-- 진행 상황 체크: **[project-management/PROGRESS.md](./project-management/PROGRESS.md)**
+- **환경 설정**: [docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)
+- **서버 실행 및 테스트**: [docs/RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md) ⭐
+- **API 구현**: [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)
+- **DB 작업**: [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)
+- **코딩**: [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)
+- **진행 상황 체크**: [project-management/PROGRESS.md](./project-management/PROGRESS.md)
+
+---
+
+## 📊 프로젝트 현황
+
+### ✅ Phase 1: Backend Core - 완료 (2025-11-07)
+
+**달성 내용**:
+- ✅ Naver Finance 웹 스크래핑 구현 (6개 종목)
+- ✅ 데이터 검증 및 정제 시스템
+- ✅ SQLite 데이터베이스 구축
+- ✅ RESTful API 5개 엔드포인트
+- ✅ 61개 테스트 100% 통과
+- ✅ 코드 커버리지 82%
+
+**실행 방법**: [docs/RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md) 참조
 
 ---

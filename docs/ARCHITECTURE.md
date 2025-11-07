@@ -118,21 +118,52 @@ frontend/
 
 ## 데이터 흐름
 
-### 데이터 수집 흐름
+### 데이터 수집 흐름 ✅ Phase 1 완료
 
 ```
-1. 스케줄러 (매일 장 마감 후 3:30 PM KST)
+1. 스케줄러 (매일 장 마감 후 3:30 PM KST) [Phase 2 예정]
+   OR
+   수동 트리거 (POST /api/etfs/{ticker}/collect) ✅
    ↓
-2. Data Collector Service
+2. Data Collector Service ✅
+   - 종목 존재 여부 확인
+   - Rate Limiting (0.5초 대기)
    ↓
-3. Naver Finance 웹 스크래핑
-   - https://finance.naver.com/item/sise_day.naver?code={종목코드}
-   - 6개 종목 (ETF 4개 + 주식 2개)
+3. Naver Finance 웹 스크래핑 ✅
+   - URL: https://finance.naver.com/item/sise_day.naver?code={종목코드}
+   - 대상: 6개 종목 (ETF 4개 + 주식 2개)
+     * 487240: KODEX AI전력핵심설비
+     * 466920: SOL 조선TOP3플러스
+     * 0020H0: 글로벌양자컴퓨팅액티브
+     * 442320: RISE 글로벌원자력 iSelect
+     * 042660: 한화오션
+     * 034020: 두산에너빌리티
    ↓
-4. HTML 파싱 (BeautifulSoup4) 및 데이터 검증
+4. HTML 파싱 (BeautifulSoup4) ✅
+   - table.type2에서 일별 데이터 추출
+   - 필드: 날짜, 시가, 고가, 저가, 종가, 거래량, 등락률
    ↓
-5. Database 저장 (SQLite)
+5. 데이터 검증 및 정제 ✅
+   - 필수 필드 검증 (ticker, date, close_price)
+   - 날짜 형식 검증 (YYYY-MM-DD)
+   - 가격/거래량 범위 검증 (양수, 논리적 관계)
+   - 데이터 타입 변환 및 정규화
+   - 결측치 처리 (None 허용)
+   ↓
+6. Database 저장 (SQLite) ✅
+   - INSERT OR REPLACE (중복 방지)
+   - 트랜잭션 관리
+   - 저장 성공/실패 로깅
 ```
+
+#### 구현된 기능 (Phase 1)
+- ✅ Naver Finance 스크래핑 (`fetch_naver_finance_prices`)
+- ✅ 데이터 검증 (`validate_price_data`)
+- ✅ 데이터 정제 (`clean_price_data`)
+- ✅ 데이터베이스 저장 (`save_price_data`)
+- ✅ 통합 수집 함수 (`collect_and_save_prices`)
+- ✅ API 엔드포인트 (POST `/api/etfs/{ticker}/collect`)
+- ✅ 61개 테스트 100% 통과
 
 ### API 요청 흐름
 
@@ -239,6 +270,3 @@ logging.basicConfig(
 - 사용자 활동 (선택사항)
 
 ---
-
-**Last Updated**: 2025-11-06
-
