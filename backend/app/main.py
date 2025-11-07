@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import etfs, reports, news
 from app.database import init_db
+from app.services.scheduler import get_scheduler
 import logging
 
 # Configure logging
@@ -26,12 +27,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database on startup
+# Initialize database and scheduler on startup
 @app.on_event("startup")
 async def startup_event():
     logger.info("Initializing database...")
     init_db()
     logger.info("Database initialized successfully")
+    
+    # 스케줄러 시작
+    logger.info("Starting scheduler...")
+    scheduler = get_scheduler()
+    scheduler.start()
+    logger.info("Scheduler started successfully")
+
+# Graceful shutdown on application shutdown
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down scheduler...")
+    scheduler = get_scheduler()
+    scheduler.stop()
+    logger.info("Scheduler stopped successfully")
 
 # Include routers
 app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
