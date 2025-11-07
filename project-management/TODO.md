@@ -219,30 +219,38 @@
   - [x] API 엔드포인트 테스트 (6개)
   - [x] 전체 플로우 테스트 (2개)
 
-#### Step 4: 뉴스 스크래핑 구현 (예상: 3시간)
-- [ ] 데이터베이스 스키마 확장
-  - [ ] `news` 테이블 생성
-  - [ ] 필드: ticker, date, title, url, source, summary, relevance_score
-- [ ] Pydantic 모델 추가 (`News`)
-- [ ] 종목별 키워드 매핑
-  - [ ] ETF/주식별 테마 키워드 정의
-  - [ ] 키워드 설정 파일 또는 DB 테이블
-- [ ] Naver News 스크래핑 구현
-  - [ ] URL: `https://search.naver.com/search.naver?where=news&query={키워드}`
-  - [ ] HTML 파싱 (제목, URL, 날짜, 출처)
-  - [ ] 관련도 점수 계산 (키워드 매칭 기반)
-- [ ] 데이터베이스 저장 함수
-  - [ ] `save_news_data()`
-  - [ ] 중복 URL 체크
-- [ ] API 엔드포인트 추가
-  - [ ] GET `/api/news/{ticker}` - 종목 관련 뉴스 조회
-  - [ ] POST `/api/news/{ticker}/collect` - 뉴스 수집 트리거
-- [ ] **유닛 테스트 작성**
-  - [ ] 스크래핑 테스트
-  - [ ] 관련도 점수 계산 테스트
-  - [ ] 데이터 저장 테스트
-- [ ] **통합 테스트 작성**
-  - [ ] API 엔드포인트 테스트
+#### Step 4: 뉴스 스크래핑 구현 (예상: 3시간) ⚠️ **Mock 구현 완료**
+- [x] 데이터베이스 스키마 확장
+  - [x] `news` 테이블 생성
+  - [x] 필드: ticker, date, title, url, source, relevance_score
+- [x] Pydantic 모델 추가 (`News`)
+- [x] 종목별 키워드 매핑
+  - [x] ETF/주식별 테마 키워드 정의 (6개 종목)
+  - [x] `THEME_KEYWORDS` 딕셔너리로 구현
+- [x] ⚠️ **Naver News 스크래핑 구현 (Mock 데이터)**
+  - [x] `fetch_naver_news()` 함수 구현 (Mock)
+  - [x] 날짜 파싱 헬퍼 함수 (`_parse_news_date`)
+  - [x] 관련도 점수 계산 (`_calculate_relevance`)
+  - ⚠️ **제한사항**: JavaScript 동적 로딩으로 인해 현재 Mock 데이터 반환
+  - ⚠️ **실제 스크래핑 불가**: `requests` + `BeautifulSoup`만으로는 불가능
+  - 📝 **TODO**: Selenium/Playwright 도입 필요 (Phase 3 또는 별도 이슈)
+- [x] 데이터베이스 저장 함수
+  - [x] `save_news_data()` - URL 중복 체크 포함
+  - [x] `collect_and_save_news()` - 통합 수집 함수
+- [x] API 엔드포인트 추가
+  - [x] GET `/api/news/{ticker}` - 종목 관련 뉴스 조회
+  - [x] POST `/api/news/{ticker}/collect` - 뉴스 수집 트리거
+- [x] **유닛 테스트 작성** (15개 테스트)
+  - [x] 스크래핑 테스트 (Mock)
+  - [x] 날짜 파싱 테스트
+  - [x] 관련도 점수 계산 테스트
+  - [x] 데이터 저장 테스트 (중복 처리 포함)
+- [x] **통합 테스트 작성**
+  - [x] API 엔드포인트 테스트
+  - [x] 전체 플로우 테스트
+  
+**✅ 완료**: 기본 구조, API, DB, 테스트 (Mock 데이터)  
+**❌ 미완료**: 실시간 뉴스 스크래핑 (Selenium/Playwright 필요)
 
 #### Step 5: 재시도 로직 및 Rate Limiting (예상: 1.5시간)
 - [ ] Exponential Backoff 재시도 구현

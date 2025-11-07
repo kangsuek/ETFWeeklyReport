@@ -302,11 +302,13 @@ ETF의 주요 성과 지표 조회
 
 ---
 
-### 8. ETF 관련 뉴스 조회 (Phase 2)
+### 8. ETF 관련 뉴스 조회 (Phase 2) ⚠️ **Mock 구현**
+
+> **⚠️ 현재 제한사항**: Naver 뉴스는 JavaScript 동적 로딩을 사용하여, `requests` + `BeautifulSoup`만으로는 실시간 스크래핑이 불가능합니다. 현재는 **Mock 데이터**로 구현되어 있으며, 실제 스크래핑을 위해서는 Selenium 또는 Playwright 도입이 필요합니다. (Phase 3 또는 별도 이슈)
 
 #### GET `/api/news/{ticker}`
 
-ETF 테마 관련 뉴스 조회
+ETF 테마 관련 뉴스 조회 (Mock 데이터)
 
 **Path Parameters:**
 
@@ -337,6 +339,35 @@ ETF 테마 관련 뉴스 조회
   }
 ]
 ```
+
+#### POST `/api/news/{ticker}/collect`
+
+ETF 테마 관련 뉴스 수집 트리거 (Mock 데이터)
+
+**Path Parameters:**
+
+- `ticker` (string, required): ETF 티커 코드
+
+**Query Parameters:**
+
+- `days` (int, optional): 수집할 일수 (기본: 7일, 최대: 30일)
+
+**응답 예시:**
+
+```json
+{
+  "ticker": "480450",
+  "collected": 5,
+  "keywords": ["AI", "데이터센터", "엔비디아"],
+  "period": "7 days"
+}
+```
+
+**설명:**
+
+- 해당 ETF의 테마 키워드를 기반으로 뉴스를 수집합니다 (현재 Mock).
+- 중복 URL은 자동으로 제거됩니다.
+- 수집된 뉴스는 관련도 점수와 함께 저장됩니다.
 
 ---
 

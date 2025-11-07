@@ -55,43 +55,46 @@ Phase 7: Optimization & Deploy    [                  ] 0%   (12/04 - 12/08)
 
 ## Phase 2: Data Collection Complete (Priority: High) 🟡
 
-**기간**: 2025-11-08 ~ 2025-11-13 (6일)  
-**상태**: 🔜 대기 중 (Phase 1 완료, 시작 준비 완료)  
+**기간**: 2025-11-07 ~ 2025-11-13 (7일)  
+**상태**: 🔄 진행 중 (67% - Step 4/6 완료, Step 5~6 남음)  
 **담당**: Backend  
-**예상 소요 시간**: 12.5시간
+**예상 소요 시간**: 12.5시간 (실제: 9시간 소요, 3.5시간 남음)
 
 ### 목표
 전체 6개 종목(ETF 4개 + 주식 2개)에 대한 완전한 자동화 데이터 수집 시스템 구축
 
 ### 상세 작업 계획 (6단계)
 
-#### Step 1: 스케줄러 설계 및 구현 (1.5시간)
-- [ ] APScheduler 라이브러리 통합
-- [ ] 일일/주간 스케줄 설정
-- [ ] FastAPI 생명주기 연동
-- [ ] 스케줄러 유닛 테스트
+#### Step 1: 스케줄러 설계 및 구현 (1.5시간) ✅
+- [x] APScheduler 라이브러리 통합
+- [x] 일일/주간 스케줄 설정
+- [x] FastAPI 생명주기 연동
+- [x] 스케줄러 유닛 테스트
 
-#### Step 2: 6개 종목 일괄 수집 시스템 (2시간)
-- [ ] 다중 종목 수집 함수 (`collect_all_tickers`)
-- [ ] 히스토리 백필 함수 (90일 데이터)
-- [ ] API 엔드포인트: POST /api/data/collect-all
-- [ ] API 엔드포인트: POST /api/data/backfill
-- [ ] 유닛 및 통합 테스트
+#### Step 2: 6개 종목 일괄 수집 시스템 (2시간) ✅
+- [x] 다중 종목 수집 함수 (`collect_all_tickers`)
+- [x] 히스토리 백필 함수 (90일 데이터)
+- [x] API 엔드포인트: POST /api/data/collect-all
+- [x] API 엔드포인트: POST /api/data/backfill
+- [x] 유닛 및 통합 테스트
 
-#### Step 3: 투자자별 매매 동향 수집 (2.5시간)
-- [ ] `trading_flow` 테이블 생성
-- [ ] Naver Finance 매매 동향 스크래핑
-- [ ] API 엔드포인트: GET /api/etfs/{ticker}/trading-flow
-- [ ] API 엔드포인트: POST /api/etfs/{ticker}/collect-trading-flow
-- [ ] 유닛 및 통합 테스트
+#### Step 3: 투자자별 매매 동향 수집 (2.5시간) ✅
+- [x] `trading_flow` 테이블 생성
+- [x] Naver Finance 매매 동향 스크래핑 (실제 데이터)
+- [x] API 엔드포인트: GET /api/etfs/{ticker}/trading-flow
+- [x] API 엔드포인트: POST /api/etfs/{ticker}/collect-trading-flow
+- [x] 유닛 및 통합 테스트
 
-#### Step 4: 뉴스 스크래핑 구현 (3시간)
-- [ ] `news` 테이블 생성
-- [ ] 종목별 키워드 매핑
-- [ ] Naver News 스크래핑 및 관련도 점수
-- [ ] API 엔드포인트: GET /api/news/{ticker}
-- [ ] API 엔드포인트: POST /api/news/{ticker}/collect
-- [ ] 유닛 및 통합 테스트
+#### Step 4: 뉴스 스크래핑 구현 (3시간) ⚠️ **Mock 구현**
+- [x] `news` 테이블 생성
+- [x] 종목별 키워드 매핑 (6개 종목)
+- [x] Naver News 스크래핑 구조 구현 (**Mock 데이터**)
+- [x] 관련도 점수 계산 로직
+- [x] API 엔드포인트: GET /api/news/{ticker}
+- [x] API 엔드포인트: POST /api/news/{ticker}/collect
+- [x] 유닛 및 통합 테스트 (15개)
+- ⚠️ **제한사항**: JavaScript 동적 로딩으로 실시간 스크래핑 불가
+- 📝 **TODO**: Selenium/Playwright 도입 필요 (Phase 3 또는 별도 이슈)
 
 #### Step 5: 재시도 로직 및 Rate Limiting (1.5시간)
 - [ ] Exponential Backoff 구현 (최대 3회)

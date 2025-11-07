@@ -151,3 +151,83 @@
    - 데이터 품질 리포트
    - End-to-End 테스트
    - 문서 업데이트
+
+---
+
+## 📅 2025-11-07 (작업 재개)
+
+### ✅ 완료
+
+#### 1. Phase 2 - Step 3: 투자자별 매매동향 수집 완료 ✅
+- **Naver Finance HTML 구조 변경 대응**
+  - 문제: 초기 구현에서 데이터 수집 실패 (0건)
+  - 원인: HTML 테이블 구조 변경 (두 번째 `type2` 테이블에 투자자 데이터)
+  - 해결: 스크래핑 로직 수정
+    - `tables[1]` 선택 (두 번째 테이블)
+    - 컬럼 인덱스 조정 (기관: 5번, 외국인: 6번)
+    - 개인 순매수 자동 계산: `-(기관 + 외국인)`
+  - 검증: 실제 데이터 수집 성공 (TIGER 차이나전기차 SOLACTIVE: 10건)
+  - 커밋: `744a6a0` - "fix: Naver Finance 투자자별 매매동향 스크래핑 수정"
+
+#### 2. Phase 2 - Step 4: 뉴스 스크래핑 구현 ⚠️ **Mock 구현**
+- **구현 내용**
+  - `NewsScraper` 서비스 완성
+    - 6개 종목별 테마 키워드 정의 (`THEME_KEYWORDS`)
+    - `fetch_naver_news()`: 뉴스 수집 (Mock)
+    - `_parse_news_date()`: 날짜 파싱 헬퍼
+    - `_calculate_relevance()`: 관련도 점수 계산
+    - `save_news_data()`: DB 저장 (중복 URL 체크)
+    - `collect_and_save_news()`: 통합 수집 함수
+  - API 엔드포인트 2개 추가
+    - `GET /api/news/{ticker}` - 뉴스 조회
+    - `POST /api/news/{ticker}/collect` - 뉴스 수집 트리거
+  - 테스트 15개 작성 (100% 통과)
+  - 커밋: `31be039` - "feat: 뉴스 스크래핑 구현 (Phase 2 - Step 4)"
+
+- **⚠️ 제한사항: Mock 구현**
+  - **현재 상태**: Mock 데이터만 반환
+  - **이유**: Naver 뉴스는 JavaScript 동적 로딩 사용
+  - **불가능한 것**: `requests` + `BeautifulSoup`만으로는 실제 스크래핑 불가
+  - **필요한 것**: Selenium 또는 Playwright 같은 브라우저 자동화 도구
+  - **TODO**: Phase 3 또는 별도 이슈로 실제 스크래핑 구현 예정
+
+#### 3. 코드 커버리지 유지
+- **전체 테스트**: 170/170 통과 (100%)
+- **코드 커버리지**: 90% 유지
+- **API 엔드포인트**: 총 13개
+  - ETF: 5개
+  - Data Collection: 3개
+  - News: 2개 (신규)
+  - Trading Flow: 2개
+  - Reports: 1개
+
+### 📝 문서 업데이트
+- `TODO.md`: Step 4 완료 상태 및 Mock 제한사항 명시
+- `PROGRESS.md`: 현재 문서 (Step 3~4 진행 상황 기록)
+
+### 🔍 발견된 이슈
+
+#### Issue #1: Naver 뉴스 실시간 스크래핑 불가 ⚠️
+- **상태**: Mock 구현만 완료
+- **제한사항**: JavaScript 동적 로딩으로 인한 실제 스크래핑 불가
+- **해결 방법**: 
+  1. Selenium/Playwright 도입
+  2. Headless 브라우저로 동적 콘텐츠 렌더링
+  3. DOM 파싱 후 데이터 추출
+- **우선순위**: Phase 3 또는 별도 이슈
+- **대안**: 현재 Mock 데이터로 프로토타입/테스트 진행 가능
+
+### ⏸️ 작업 중단
+- **현재 위치**: Phase 2 - Step 4 완료 (Mock)
+- **다음 단계**: Phase 2 - Step 5 (재시도 로직 및 Rate Limiting)
+- **남은 작업**: Step 5, 6
+
+### 📊 Phase 2 진행률
+- ✅ Step 1: 스케줄러 (100%)
+- ✅ Step 2: 일괄 수집 (100%)
+- ✅ Step 3: 매매동향 (100%)
+- ✅ Step 4: 뉴스 스크래핑 (100% - Mock만)
+- ⏸️ Step 5: 재시도/Rate Limiting (0%)
+- ⏸️ Step 6: 데이터 검증 (0%)
+
+**전체**: 67% (4/6 Step 완료)
