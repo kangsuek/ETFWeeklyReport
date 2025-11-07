@@ -80,6 +80,7 @@ docker-compose up --build
 - [데이터베이스 스키마](./docs/DATABASE_SCHEMA.md)
 - [기술 스택](./docs/TECH_STACK.md)
 - [개발 가이드](./docs/DEVELOPMENT_GUIDE.md)
+- **[실행 가이드](./docs/RUNNING_GUIDE.md)** ⭐ - Phase 1 기능 테스트 방법
 
 ### 품질 기준 ⭐
 - **[Definition of Done](./docs/DEFINITION_OF_DONE.md)** - 완료 기준 및 테스트 정책
