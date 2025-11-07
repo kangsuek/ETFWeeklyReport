@@ -102,13 +102,13 @@ class ETFDataCollector:
     
     def _parse_number(self, text: str) -> Optional[float]:
         """숫자 문자열을 float로 변환 (쉼표 제거)"""
-        if not text or text == '':
+        if not text or not text.strip():
             return None
         try:
             # 쉼표 제거 후 숫자로 변환
             cleaned = text.replace(',', '')
             return float(cleaned)
-        except ValueError:
+        except (ValueError, AttributeError):
             return None
     
     def _parse_change(self, change_str: str, close_price: Optional[float]) -> Optional[float]:
@@ -147,9 +147,101 @@ class ETFDataCollector:
             logger.warning(f"Failed to parse change string '{change_str}': {e}")
             return None
     
+    def validate_price_data(self, data: dict) -> tuple[bool, Optional[str]]:
+        """
+        가격 데이터 유효성 검증
+        
+        Args:
+            data: 검증할 가격 데이터
+        
+        Returns:
+            (is_valid, error_message) 튜플
+        """
+        # 필수 필드 확인
+        required_fields = ['ticker', 'date', 'close_price']
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                return False, f"Missing required field: {field}"
+        
+        # 날짜 타입 확인
+        if not isinstance(data['date'], date):
+            return False, f"Invalid date type: {type(data['date'])}"
+        
+        # 종가 검증 (양수)
+        if data['close_price'] <= 0:
+            return False, f"Invalid close_price: {data['close_price']} (must be > 0)"
+        
+        # 시가/고가/저가 검증 (있는 경우)
+        for price_field in ['open_price', 'high_price', 'low_price']:
+            if price_field in data and data[price_field] is not None:
+                if data[price_field] <= 0:
+                    return False, f"Invalid {price_field}: {data[price_field]} (must be > 0)"
+        
+        # 거래량 검증 (0 이상)
+        if 'volume' in data and data['volume'] is not None:
+            if data['volume'] < 0:
+                return False, f"Invalid volume: {data['volume']} (must be >= 0)"
+        
+        # 고가 >= 저가 검증
+        if (data.get('high_price') is not None and 
+            data.get('low_price') is not None):
+            if data['high_price'] < data['low_price']:
+                return False, f"high_price ({data['high_price']}) < low_price ({data['low_price']})"
+        
+        # 시가/고가/저가가 모두 있는 경우 범위 검증
+        if (data.get('open_price') is not None and 
+            data.get('high_price') is not None and 
+            data.get('low_price') is not None):
+            if not (data['low_price'] <= data['open_price'] <= data['high_price']):
+                return False, f"open_price ({data['open_price']}) out of range [{data['low_price']}, {data['high_price']}]"
+        
+        # 종가 범위 검증
+        if (data.get('high_price') is not None and 
+            data.get('low_price') is not None):
+            if not (data['low_price'] <= data['close_price'] <= data['high_price']):
+                return False, f"close_price ({data['close_price']}) out of range [{data['low_price']}, {data['high_price']}]"
+        
+        return True, None
+    
+    def clean_price_data(self, data: dict) -> dict:
+        """
+        가격 데이터 정제 및 정규화
+        
+        Args:
+            data: 정제할 가격 데이터
+        
+        Returns:
+            정제된 가격 데이터
+        """
+        cleaned = data.copy()
+        
+        # 거래량이 None인 경우 0으로 처리
+        if cleaned.get('volume') is None:
+            cleaned['volume'] = 0
+        
+        # 거래량을 정수로 변환
+        if isinstance(cleaned.get('volume'), float):
+            cleaned['volume'] = int(cleaned['volume'])
+        
+        # 가격 필드를 소수점 2자리로 반올림 (누락된 필드는 None으로 유지)
+        price_fields = ['open_price', 'high_price', 'low_price', 'close_price']
+        for field in price_fields:
+            if field not in cleaned:
+                cleaned[field] = None
+            elif cleaned[field] is not None:
+                cleaned[field] = round(float(cleaned[field]), 2)
+        
+        # 등락률을 소수점 2자리로 반올림 (누락된 경우 None)
+        if 'daily_change_pct' not in cleaned:
+            cleaned['daily_change_pct'] = None
+        elif cleaned['daily_change_pct'] is not None:
+            cleaned['daily_change_pct'] = round(float(cleaned['daily_change_pct']), 2)
+        
+        return cleaned
+    
     def save_price_data(self, price_data: List[dict]) -> int:
         """
-        가격 데이터를 데이터베이스에 저장
+        가격 데이터를 데이터베이스에 저장 (검증 및 정제 포함)
         
         Args:
             price_data: 저장할 가격 데이터 리스트
@@ -166,24 +258,33 @@ class ETFDataCollector:
         
         try:
             for data in price_data:
+                # 데이터 검증
+                is_valid, error_msg = self.validate_price_data(data)
+                if not is_valid:
+                    logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
+                    continue
+                
+                # 데이터 정제
+                cleaned_data = self.clean_price_data(data)
+                
                 try:
                     cursor.execute("""
                         INSERT OR REPLACE INTO prices 
                         (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
-                        data['ticker'],
-                        data['date'],
-                        data['open_price'],
-                        data['high_price'],
-                        data['low_price'],
-                        data['close_price'],
-                        data['volume'],
-                        data['daily_change_pct']
+                        cleaned_data['ticker'],
+                        cleaned_data['date'],
+                        cleaned_data['open_price'],
+                        cleaned_data['high_price'],
+                        cleaned_data['low_price'],
+                        cleaned_data['close_price'],
+                        cleaned_data['volume'],
+                        cleaned_data['daily_change_pct']
                     ))
                     saved_count += 1
                 except Exception as e:
-                    logger.error(f"Failed to save price data for {data.get('ticker')} on {data.get('date')}: {e}")
+                    logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
             
             conn.commit()
             logger.info(f"Saved {saved_count} price records to database")
