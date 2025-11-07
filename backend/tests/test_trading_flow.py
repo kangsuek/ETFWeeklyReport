@@ -32,27 +32,40 @@ class TestTradingFlowScraping:
         """Naver Finance 매매동향 수집 성공 테스트"""
         collector = ETFDataCollector()
         
-        # Mock HTML response
+        # Mock HTML response (실제 Naver Finance 구조: 두 개의 type2 테이블)
         mock_html = """
         <html>
             <table class="type2">
+                <!-- 첫 번째 테이블: 증권사별 매매 (건너뜀) -->
+                <tr><th>매도상위</th><th>거래량</th></tr>
+            </table>
+            <table class="type2">
+                <!-- 두 번째 테이블: 투자자별 매매동향 -->
+                <tr>
+                    <th>날짜</th><th>종가</th><th>전일비</th><th>등락률</th>
+                    <th>거래량</th><th>기관</th><th>외국인</th><th>보유</th><th>비율</th>
+                </tr>
                 <tr>
                     <td>2025.11.07</td>
                     <td>10,000</td>
                     <td>상승100</td>
-                    <td>1,234</td>
+                    <td>+1.0%</td>
+                    <td>1,000,000</td>
                     <td>-567</td>
                     <td>890</td>
-                    <td>-1,557</td>
+                    <td>10,000,000</td>
+                    <td>10.5%</td>
                 </tr>
                 <tr>
                     <td>2025.11.06</td>
                     <td>9,900</td>
                     <td>상승50</td>
-                    <td>-456</td>
+                    <td>+0.5%</td>
+                    <td>900,000</td>
                     <td>789</td>
                     <td>-333</td>
-                    <td>0</td>
+                    <td>9,950,000</td>
+                    <td>10.3%</td>
                 </tr>
             </table>
         </html>
@@ -69,12 +82,16 @@ class TestTradingFlowScraping:
             assert len(result) == 2
             assert result[0]['ticker'] == "487240"
             assert result[0]['date'] == date(2025, 11, 7)
-            assert result[0]['individual_net'] == 1234
+            # 개인 = -(기관 + 외국인) = -(-567 + 890) = -323
+            assert result[0]['individual_net'] == -323
             assert result[0]['institutional_net'] == -567
             assert result[0]['foreign_net'] == 890
             
             assert result[1]['date'] == date(2025, 11, 6)
+            # 개인 = -(기관 + 외국인) = -(789 + (-333)) = -456
             assert result[1]['individual_net'] == -456
+            assert result[1]['institutional_net'] == 789
+            assert result[1]['foreign_net'] == -333
     
     def test_fetch_naver_trading_flow_table_not_found(self):
         """매매동향 테이블 없음 테스트"""

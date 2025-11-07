@@ -600,11 +600,14 @@ class ETFDataCollector:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # 매매동향 테이블 찾기
-            table = soup.find('table', {'class': 'type2'})
-            if not table:
+            # 매매동향 테이블 찾기 (두 번째 type2 테이블)
+            # 첫 번째는 증권사별 매매, 두 번째가 투자자별 매매동향
+            tables = soup.find_all('table', {'class': 'type2'})
+            if len(tables) < 2:
                 logger.error(f"Trading flow table not found for {ticker}")
                 return []
+            
+            table = tables[1]  # 두 번째 테이블 선택
             
             # 데이터 행 추출
             rows = table.find_all('tr')
@@ -616,30 +619,35 @@ class ETFDataCollector:
                     break
                 
                 cols = row.find_all('td')
-                if len(cols) < 7:  # 날짜, 종가, 전일비, 개인, 기관, 외국인, 기타
+                # 실제 데이터 행은 7개 이상의 컬럼을 가짐
+                # [0]날짜 [1]종가 [2]전일비 [3]등락률 [4]거래량 [5]기관 [6]외국인 [7]외국인보유 [8]지분율
+                if len(cols) < 7:
                     continue
                 
                 try:
                     # 날짜 추출
                     date_text = cols[0].get_text(strip=True)
-                    if not date_text or date_text == '날짜':
+                    if not date_text or date_text == '날짜' or '.' not in date_text:
                         continue
                     
                     # 날짜 파싱 (YYYY.MM.DD 형식)
                     trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
                     
                     # 투자자별 순매수 추출 (천주 단위)
-                    # 개인 (3번 컬럼)
-                    individual_text = cols[3].get_text(strip=True)
-                    individual_net = self._parse_trading_volume(individual_text)
-                    
-                    # 기관 (4번 컬럼)
-                    institutional_text = cols[4].get_text(strip=True)
+                    # 기관 (5번 컬럼)
+                    institutional_text = cols[5].get_text(strip=True)
                     institutional_net = self._parse_trading_volume(institutional_text)
                     
-                    # 외국인 (5번 컬럼)
-                    foreign_text = cols[5].get_text(strip=True)
+                    # 외국인 (6번 컬럼)
+                    foreign_text = cols[6].get_text(strip=True)
                     foreign_net = self._parse_trading_volume(foreign_text)
+                    
+                    # 개인 = -(기관 + 외국인)
+                    # None 처리: 기관이나 외국인이 None이면 개인도 None
+                    if institutional_net is not None and foreign_net is not None:
+                        individual_net = -(institutional_net + foreign_net)
+                    else:
+                        individual_net = None
                     
                     trading_data.append({
                         'ticker': ticker,
