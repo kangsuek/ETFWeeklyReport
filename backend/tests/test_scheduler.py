@@ -105,138 +105,108 @@ class TestDataCollectionScheduler:
         # 정리
         scheduler.stop()
     
-    @pytest.mark.asyncio
-    async def test_collect_daily_data_success(self):
+    def test_collect_daily_data_success(self):
         """일일 데이터 수집 성공 테스트"""
         scheduler = DataCollectionScheduler()
         
-        # Mock collector
-        with patch.object(scheduler.collector, 'get_etf_info') as mock_get_info, \
-             patch.object(scheduler.collector, 'collect_and_save_prices', new_callable=AsyncMock) as mock_collect:
-            
-            # ETF 정보 반환 설정
-            mock_get_info.return_value = {
-                'ticker': '487240',
-                'name': 'KODEX AI전력핵심설비',
-                'type': 'ETF'
+        # Mock collect_all_tickers
+        with patch.object(scheduler.collector, 'collect_all_tickers') as mock_collect_all:
+            mock_collect_all.return_value = {
+                'success_count': 6,
+                'fail_count': 0,
+                'total_records': 6,
+                'total_tickers': 6,
+                'duration_seconds': 3.5,
+                'details': []
             }
             
-            # 수집 성공 설정 (1개 수집)
-            mock_collect.return_value = 1
-            
             # 일일 데이터 수집 실행
-            await scheduler.collect_daily_data()
+            scheduler.collect_daily_data()
             
-            # collect_and_save_prices가 6번 호출되었는지 확인 (6개 종목)
-            assert mock_collect.call_count == 6
-            
-            # 각 호출에서 days=1로 호출되었는지 확인
-            for call in mock_collect.call_args_list:
-                assert call[1]['days'] == 1
+            # collect_all_tickers가 days=1로 호출되었는지 확인
+            mock_collect_all.assert_called_once_with(days=1)
     
-    @pytest.mark.asyncio
-    async def test_collect_daily_data_with_failures(self):
+    def test_collect_daily_data_with_failures(self):
         """일일 데이터 수집 중 일부 실패 테스트"""
         scheduler = DataCollectionScheduler()
         
-        # Mock collector
-        with patch.object(scheduler.collector, 'get_etf_info') as mock_get_info, \
-             patch.object(scheduler.collector, 'collect_and_save_prices', new_callable=AsyncMock) as mock_collect:
+        # Mock collect_all_tickers (일부 실패 포함)
+        with patch.object(scheduler.collector, 'collect_all_tickers') as mock_collect_all:
+            mock_collect_all.return_value = {
+                'success_count': 4,
+                'fail_count': 2,
+                'total_records': 4,
+                'total_tickers': 6,
+                'duration_seconds': 3.5,
+                'details': [
+                    {'ticker': '487240', 'status': 'success', 'collected': 1},
+                    {'ticker': '466920', 'status': 'failed', 'reason': 'No data', 'collected': 0}
+                ]
+            }
             
-            # 일부 종목은 정보 없음
-            mock_get_info.side_effect = [
-                {'ticker': '487240', 'name': 'KODEX AI전력핵심설비', 'type': 'ETF'},
-                None,  # 2번째 종목 정보 없음
-                {'ticker': '0020H0', 'name': 'KoAct 글로벌양자컴퓨팅액티브', 'type': 'ETF'},
-                {'ticker': '442320', 'name': 'KB RISE 글로벌원자력 iSelect', 'type': 'ETF'},
-                {'ticker': '042660', 'name': '한화오션', 'type': 'STOCK'},
-                {'ticker': '034020', 'name': '두산에너빌리티', 'type': 'STOCK'},
-            ]
+            # 일일 데이터 수집 실행
+            scheduler.collect_daily_data()
             
-            # 수집 성공 설정
-            mock_collect.return_value = 1
-            
-            # 일일 데이터 수집 실행 - 예외 없이 완료되어야 함
-            await scheduler.collect_daily_data()
-            
-            # 정보가 있는 종목만 수집 시도 (5번)
-            assert mock_collect.call_count == 5
+            # collect_all_tickers가 호출되었는지 확인
+            mock_collect_all.assert_called_once_with(days=1)
     
-    @pytest.mark.asyncio
-    async def test_collect_daily_data_with_exception(self):
+    def test_collect_daily_data_with_exception(self):
         """일일 데이터 수집 중 예외 발생 테스트"""
         scheduler = DataCollectionScheduler()
         
-        # Mock collector
-        with patch.object(scheduler.collector, 'get_etf_info') as mock_get_info, \
-             patch.object(scheduler.collector, 'collect_and_save_prices', new_callable=AsyncMock) as mock_collect:
+        # Mock collect_all_tickers (예외 발생)
+        with patch.object(scheduler.collector, 'collect_all_tickers') as mock_collect_all:
+            mock_collect_all.side_effect = Exception("Database connection failed")
             
-            mock_get_info.return_value = {
-                'ticker': '487240',
-                'name': 'KODEX AI전력핵심설비',
-                'type': 'ETF'
-            }
+            # 일일 데이터 수집 실행 (예외가 발생해도 크래시하지 않아야 함)
+            scheduler.collect_daily_data()
             
-            # 수집 중 예외 발생
-            mock_collect.side_effect = Exception("네트워크 오류")
-            
-            # 예외가 발생해도 전체 작업은 완료되어야 함
-            await scheduler.collect_daily_data()
-            
-            # 모든 종목에 대해 시도했는지 확인
-            assert mock_collect.call_count == 6
+            # collect_all_tickers가 호출되었는지 확인
+            mock_collect_all.assert_called_once_with(days=1)
     
-    @pytest.mark.asyncio
-    async def test_backfill_historical_data(self):
+    def test_backfill_historical_data(self):
         """히스토리 데이터 백필 테스트"""
         scheduler = DataCollectionScheduler()
         
-        # Mock collector
-        with patch.object(scheduler.collector, 'get_etf_info') as mock_get_info, \
-             patch.object(scheduler.collector, 'collect_and_save_prices', new_callable=AsyncMock) as mock_collect:
-            
-            mock_get_info.return_value = {
-                'ticker': '487240',
-                'name': 'KODEX AI전력핵심설비',
-                'type': 'ETF'
+        # Mock backfill_all_tickers
+        with patch.object(scheduler.collector, 'backfill_all_tickers') as mock_backfill_all:
+            mock_backfill_all.return_value = {
+                'success_count': 6,
+                'fail_count': 0,
+                'total_records': 180,
+                'total_tickers': 6,
+                'days': 30,
+                'duration_seconds': 15.0,
+                'details': []
             }
             
-            # 백필 성공 (10개씩 수집)
-            mock_collect.return_value = 10
-            
             # 백필 실행 (30일치)
-            await scheduler.backfill_historical_data(days=30)
+            scheduler.backfill_historical_data(days=30)
             
-            # 6개 종목에 대해 호출되었는지 확인
-            assert mock_collect.call_count == 6
-            
-            # 각 호출에서 days=30으로 호출되었는지 확인
-            for call in mock_collect.call_args_list:
-                assert call[1]['days'] == 30
+            # backfill_all_tickers가 days=30으로 호출되었는지 확인
+            mock_backfill_all.assert_called_once_with(days=30)
     
-    @pytest.mark.asyncio
-    async def test_backfill_historical_data_default_days(self):
+    def test_backfill_historical_data_default_days(self):
         """히스토리 데이터 백필 기본 일수 테스트"""
         scheduler = DataCollectionScheduler()
         
-        # Mock collector
-        with patch.object(scheduler.collector, 'get_etf_info') as mock_get_info, \
-             patch.object(scheduler.collector, 'collect_and_save_prices', new_callable=AsyncMock) as mock_collect:
-            
-            mock_get_info.return_value = {
-                'ticker': '487240',
-                'name': 'KODEX AI전력핵심설비',
-                'type': 'ETF'
+        # Mock backfill_all_tickers
+        with patch.object(scheduler.collector, 'backfill_all_tickers') as mock_backfill_all:
+            mock_backfill_all.return_value = {
+                'success_count': 6,
+                'fail_count': 0,
+                'total_records': 540,
+                'total_tickers': 6,
+                'days': 90,
+                'duration_seconds': 30.0,
+                'details': []
             }
             
-            mock_collect.return_value = 10
-            
             # 기본값(90일)으로 백필 실행
-            await scheduler.backfill_historical_data()
+            scheduler.backfill_historical_data()
             
-            # days=90으로 호출되었는지 확인
-            for call in mock_collect.call_args_list:
-                assert call[1]['days'] == 90
+            # backfill_all_tickers가 days=90으로 호출되었는지 확인
+            mock_backfill_all.assert_called_once_with(days=90)
 
 
 class TestSchedulerJobTiming:

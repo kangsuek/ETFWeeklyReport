@@ -32,53 +32,40 @@ class DataCollectionScheduler:
         self._jobs = {}
         logger.info("DataCollectionScheduler 초기화 완료")
     
-    async def collect_daily_data(self):
+    def collect_daily_data(self):
         """
         일일 데이터 수집 작업
         
-        6개 종목의 당일 가격 데이터를 수집합니다.
+        6개 종목의 당일 가격 데이터를 일괄 수집합니다.
         """
         start_time = datetime.now(KST)
-        logger.info(f"[일일 수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"[스케줄러-일일수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # 6개 종목 코드
-        tickers = ['487240', '466920', '0020H0', '442320', '042660', '034020']
-        
-        success_count = 0
-        fail_count = 0
-        
-        for ticker in tickers:
-            try:
-                # ETF/Stock 정보 확인
-                etf_info = self.collector.get_etf_info(ticker)
-                if not etf_info:
-                    logger.warning(f"[일일 수집] 종목 정보 없음: {ticker}")
-                    fail_count += 1
-                    continue
-                
-                # 당일 데이터만 수집 (days=1)
-                collected_count = await self.collector.collect_and_save_prices(ticker, days=1)
-                
-                if collected_count > 0:
-                    logger.info(f"[일일 수집] {ticker} ({etf_info['name']}): {collected_count}개 수집 성공")
-                    success_count += 1
-                else:
-                    logger.warning(f"[일일 수집] {ticker}: 수집 데이터 없음")
-                    fail_count += 1
+        try:
+            # collect_all_tickers를 사용하여 일괄 수집
+            result = self.collector.collect_all_tickers(days=1)
+            
+            logger.info(
+                f"[스케줄러-일일수집] 완료: "
+                f"성공 {result['success_count']}/{result['total_tickers']}, "
+                f"실패 {result['fail_count']}, "
+                f"총 {result['total_records']}개 레코드, "
+                f"소요 시간 {result['duration_seconds']:.2f}초"
+            )
+            
+            # 실패한 종목이 있으면 상세 로그
+            if result['fail_count'] > 0:
+                failed_tickers = [d for d in result['details'] if d['status'] == 'failed']
+                for detail in failed_tickers:
+                    logger.warning(
+                        f"[스케줄러-일일수집] 실패: {detail['ticker']} - "
+                        f"{detail.get('reason', 'Unknown error')}"
+                    )
                     
-            except Exception as e:
-                logger.error(f"[일일 수집] {ticker} 실패: {e}")
-                fail_count += 1
-        
-        end_time = datetime.now(KST)
-        duration = (end_time - start_time).total_seconds()
-        
-        logger.info(
-            f"[일일 수집] 완료: 성공 {success_count}개, 실패 {fail_count}개, "
-            f"소요 시간 {duration:.2f}초"
-        )
+        except Exception as e:
+            logger.error(f"[스케줄러-일일수집] 전체 실패: {e}", exc_info=True)
     
-    async def backfill_historical_data(self, days: int = 90):
+    def backfill_historical_data(self, days: int = 90):
         """
         히스토리 데이터 백필 작업
         
@@ -86,43 +73,31 @@ class DataCollectionScheduler:
             days: 백필할 일수 (기본 90일)
         """
         start_time = datetime.now(KST)
-        logger.info(f"[백필] 시작: {days}일치 데이터, {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"[스케줄러-백필] 시작: {days}일치 데이터, {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        tickers = ['487240', '466920', '0020H0', '442320', '042660', '034020']
-        
-        total_collected = 0
-        success_count = 0
-        fail_count = 0
-        
-        for ticker in tickers:
-            try:
-                etf_info = self.collector.get_etf_info(ticker)
-                if not etf_info:
-                    logger.warning(f"[백필] 종목 정보 없음: {ticker}")
-                    fail_count += 1
-                    continue
-                
-                collected_count = await self.collector.collect_and_save_prices(ticker, days=days)
-                
-                if collected_count > 0:
-                    logger.info(f"[백필] {ticker} ({etf_info['name']}): {collected_count}개 수집")
-                    total_collected += collected_count
-                    success_count += 1
-                else:
-                    logger.warning(f"[백필] {ticker}: 수집 데이터 없음")
-                    fail_count += 1
+        try:
+            # backfill_all_tickers를 사용하여 일괄 백필
+            result = self.collector.backfill_all_tickers(days=days)
+            
+            logger.info(
+                f"[스케줄러-백필] 완료: "
+                f"성공 {result['success_count']}/{result['total_tickers']}, "
+                f"실패 {result['fail_count']}, "
+                f"총 {result['total_records']}개 레코드, "
+                f"소요 시간 {result['duration_seconds']:.2f}초"
+            )
+            
+            # 실패한 종목이 있으면 상세 로그
+            if result['fail_count'] > 0:
+                failed_tickers = [d for d in result['details'] if d['status'] == 'failed']
+                for detail in failed_tickers:
+                    logger.warning(
+                        f"[스케줄러-백필] 실패: {detail['ticker']} - "
+                        f"{detail.get('reason', 'Unknown error')}"
+                    )
                     
-            except Exception as e:
-                logger.error(f"[백필] {ticker} 실패: {e}")
-                fail_count += 1
-        
-        end_time = datetime.now(KST)
-        duration = (end_time - start_time).total_seconds()
-        
-        logger.info(
-            f"[백필] 완료: 총 {total_collected}개 수집, 성공 {success_count}개, 실패 {fail_count}개, "
-            f"소요 시간 {duration:.2f}초"
-        )
+        except Exception as e:
+            logger.error(f"[스케줄러-백필] 전체 실패: {e}", exc_info=True)
     
     def start(self):
         """

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import etfs, reports, news
+from app.routers import etfs, reports, news, data
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 import logging
@@ -50,6 +50,7 @@ async def shutdown_event():
 
 # Include routers
 app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
+app.include_router(data.router, prefix="/api/data", tags=["Data Collection"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 
