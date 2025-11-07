@@ -187,27 +187,37 @@
   - [x] 백필 API 테스트 (성공/기본값/커스텀)
   - [x] 수집 상태 조회 API 테스트
 
-#### Step 3: 투자자별 매매 동향 수집 (예상: 2.5시간)
-- [ ] 데이터베이스 스키마 확장
-  - [ ] `trading_flow` 테이블 생성
-  - [ ] 필드: ticker, date, individual_net, institutional_net, foreign_net
-- [ ] Pydantic 모델 추가 (`TradingFlow`)
-- [ ] Naver Finance 매매 동향 스크래핑 구현
-  - [ ] URL: `https://finance.naver.com/item/frgn.naver?code={종목코드}`
-  - [ ] HTML 파싱 (투자자별 순매수 데이터)
-  - [ ] 데이터 검증 및 정제
-- [ ] 데이터베이스 저장 함수
-  - [ ] `save_trading_flow_data()`
-  - [ ] UPSERT 로직
-- [ ] API 엔드포인트 추가
-  - [ ] GET `/api/etfs/{ticker}/trading-flow` - 매매 동향 조회
-  - [ ] POST `/api/etfs/{ticker}/collect-trading-flow` - 매매 동향 수집
-- [ ] **유닛 테스트 작성**
-  - [ ] 스크래핑 테스트
-  - [ ] 데이터 저장 테스트
-  - [ ] 데이터 검증 테스트
-- [ ] **통합 테스트 작성**
-  - [ ] API 엔드포인트 테스트
+#### Step 3: 투자자별 매매 동향 수집 ✅ (완료: 2시간)
+- [x] 데이터베이스 스키마 확장 ✅
+  - [x] `trading_flow` 테이블 (이미 존재)
+  - [x] 필드: ticker, date, individual_net, institutional_net, foreign_net
+- [x] Pydantic 모델 (`TradingFlow` - 이미 존재) ✅
+- [x] Naver Finance 매매 동향 스크래핑 구현 ✅
+  - [x] `fetch_naver_trading_flow(ticker, days)` 함수
+  - [x] URL: `https://finance.naver.com/item/frgn.naver?code={ticker}`
+  - [x] HTML 파싱 (투자자별 순매수: 개인/기관/외국인)
+  - [x] `_parse_trading_volume(text)` 헬퍼 함수
+  - [x] 데이터 검증 및 정제
+  - [x] 에러 핸들링 (네트워크, 파싱, 테이블 없음)
+- [x] 데이터베이스 저장 함수 ✅
+  - [x] `validate_trading_flow_data()` - 검증
+  - [x] `save_trading_flow_data()` - INSERT OR REPLACE
+  - [x] `collect_and_save_trading_flow()` - 수집+저장 통합
+  - [x] `get_trading_flow_data()` - 조회
+- [x] API 엔드포인트 추가 ✅
+  - [x] GET `/api/etfs/{ticker}/trading-flow` - 매매 동향 조회
+    - [x] 날짜 범위 파라미터 (start_date, end_date, 기본: 7일)
+    - [x] ETF 존재 확인 및 404 처리
+  - [x] POST `/api/etfs/{ticker}/collect-trading-flow` - 매매 동향 수집
+    - [x] days 파라미터 (1-90일, 기본: 10일)
+    - [x] 수집 결과 및 레코드 수 반환
+- [x] **유닛 테스트 작성** ✅ (13개)
+  - [x] 스크래핑 테스트 (4개)
+  - [x] 데이터 검증 테스트 (6개)
+  - [x] 데이터 저장 테스트 (3개)
+- [x] **통합 테스트 작성** ✅ (8개)
+  - [x] API 엔드포인트 테스트 (6개)
+  - [x] 전체 플로우 테스트 (2개)
 
 #### Step 4: 뉴스 스크래핑 구현 (예상: 3시간)
 - [ ] 데이터베이스 스키마 확장

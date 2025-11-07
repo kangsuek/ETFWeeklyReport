@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
 from app.database import get_db_connection
@@ -578,3 +578,273 @@ class ETFDataCollector:
         )
         
         return result
+    
+    def fetch_naver_trading_flow(self, ticker: str, days: int = 10) -> List[dict]:
+        """
+        Naver Finance에서 투자자별 매매동향 데이터 수집
+        
+        Args:
+            ticker: 종목 코드
+            days: 수집할 일수 (기본: 10일)
+        
+        Returns:
+            수집된 매매동향 데이터 리스트
+        """
+        try:
+            # Naver Finance 투자자별 매매동향 페이지
+            url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
+            logger.info(f"Fetching trading flow from Naver Finance for {ticker}")
+            
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 매매동향 테이블 찾기
+            table = soup.find('table', {'class': 'type2'})
+            if not table:
+                logger.error(f"Trading flow table not found for {ticker}")
+                return []
+            
+            # 데이터 행 추출
+            rows = table.find_all('tr')
+            trading_data = []
+            count = 0
+            
+            for row in rows:
+                if count >= days:
+                    break
+                
+                cols = row.find_all('td')
+                if len(cols) < 7:  # 날짜, 종가, 전일비, 개인, 기관, 외국인, 기타
+                    continue
+                
+                try:
+                    # 날짜 추출
+                    date_text = cols[0].get_text(strip=True)
+                    if not date_text or date_text == '날짜':
+                        continue
+                    
+                    # 날짜 파싱 (YYYY.MM.DD 형식)
+                    trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
+                    
+                    # 투자자별 순매수 추출 (천주 단위)
+                    # 개인 (3번 컬럼)
+                    individual_text = cols[3].get_text(strip=True)
+                    individual_net = self._parse_trading_volume(individual_text)
+                    
+                    # 기관 (4번 컬럼)
+                    institutional_text = cols[4].get_text(strip=True)
+                    institutional_net = self._parse_trading_volume(institutional_text)
+                    
+                    # 외국인 (5번 컬럼)
+                    foreign_text = cols[5].get_text(strip=True)
+                    foreign_net = self._parse_trading_volume(foreign_text)
+                    
+                    trading_data.append({
+                        'ticker': ticker,
+                        'date': trade_date,
+                        'individual_net': individual_net,
+                        'institutional_net': institutional_net,
+                        'foreign_net': foreign_net
+                    })
+                    
+                    count += 1
+                    
+                except (ValueError, AttributeError, IndexError) as e:
+                    logger.warning(f"Failed to parse trading flow row for {ticker}: {e}")
+                    continue
+            
+            logger.info(f"Collected {len(trading_data)} trading flow records for {ticker}")
+            return trading_data
+            
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout fetching trading flow for {ticker}")
+            return []
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching trading flow for {ticker}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching trading flow for {ticker}: {e}")
+            return []
+    
+    def _parse_trading_volume(self, text: str) -> Optional[int]:
+        """
+        거래량 텍스트를 정수로 변환 (천주 단위)
+        
+        Args:
+            text: 거래량 텍스트 (예: "1,234", "-5,678")
+        
+        Returns:
+            정수로 변환된 거래량 (천주 단위), 실패 시 None
+        """
+        try:
+            if not text or text.strip() == '':
+                return None
+            
+            # 쉼표 제거 및 숫자 추출
+            cleaned = text.replace(',', '').strip()
+            
+            # 빈 문자열이면 None
+            if not cleaned or cleaned == '-':
+                return None
+            
+            return int(cleaned)
+            
+        except (ValueError, AttributeError):
+            return None
+    
+    def validate_trading_flow_data(self, data: dict) -> bool:
+        """
+        매매동향 데이터 유효성 검증
+        
+        Args:
+            data: 매매동향 데이터 딕셔너리
+        
+        Returns:
+            유효하면 True, 아니면 False
+        """
+        # 필수 필드 확인
+        required_fields = ['ticker', 'date']
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                logger.warning(f"Missing required field: {field}")
+                return False
+        
+        # 날짜 타입 확인
+        if not isinstance(data['date'], date):
+            logger.warning(f"Invalid date type: {type(data['date'])}")
+            return False
+        
+        # 적어도 하나의 매매동향 데이터가 있어야 함
+        has_data = (
+            data.get('individual_net') is not None or
+            data.get('institutional_net') is not None or
+            data.get('foreign_net') is not None
+        )
+        
+        if not has_data:
+            logger.warning("No trading flow data available")
+            return False
+        
+        return True
+    
+    def save_trading_flow_data(self, trading_data: List[dict]) -> int:
+        """
+        매매동향 데이터를 데이터베이스에 저장
+        
+        Args:
+            trading_data: 매매동향 데이터 리스트
+        
+        Returns:
+            저장된 레코드 수
+        """
+        if not trading_data:
+            logger.warning("No trading flow data to save")
+            return 0
+        
+        # 데이터 검증
+        valid_data = []
+        for data in trading_data:
+            if self.validate_trading_flow_data(data):
+                valid_data.append(data)
+        
+        if not valid_data:
+            logger.warning("No valid trading flow data after validation")
+            return 0
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        saved_count = 0
+        
+        try:
+            for data in valid_data:
+                try:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO trading_flow 
+                        (ticker, date, individual_net, institutional_net, foreign_net)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        data['ticker'],
+                        data['date'],
+                        data.get('individual_net'),
+                        data.get('institutional_net'),
+                        data.get('foreign_net')
+                    ))
+                    saved_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save trading flow record: {e}")
+                    continue
+            
+            conn.commit()
+            logger.info(f"Saved {saved_count} trading flow records")
+            
+        except Exception as e:
+            logger.error(f"Database error saving trading flow: {e}")
+            conn.rollback()
+            
+        finally:
+            conn.close()
+        
+        return saved_count
+    
+    def collect_and_save_trading_flow(self, ticker: str, days: int = 10) -> int:
+        """
+        매매동향 데이터를 수집하고 저장
+        
+        Args:
+            ticker: 종목 코드
+            days: 수집할 일수
+        
+        Returns:
+            저장된 레코드 수
+        """
+        logger.info(f"Starting trading flow collection for {ticker} (last {days} days)")
+        
+        # 데이터 수집
+        trading_data = self.fetch_naver_trading_flow(ticker, days)
+        
+        if not trading_data:
+            logger.warning(f"No trading flow data collected for {ticker}")
+            return 0
+        
+        # 데이터 저장
+        saved_count = self.save_trading_flow_data(trading_data)
+        
+        # Rate limiting
+        time.sleep(0.5)
+        
+        return saved_count
+    
+    def get_trading_flow_data(
+        self, 
+        ticker: str, 
+        start_date: date, 
+        end_date: date
+    ) -> List[Dict]:
+        """
+        데이터베이스에서 매매동향 데이터 조회
+        
+        Args:
+            ticker: 종목 코드
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+        
+        Returns:
+            매매동향 데이터 리스트
+        """
+        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT date, individual_net, institutional_net, foreign_net
+            FROM trading_flow
+            WHERE ticker = ? AND date BETWEEN ? AND ?
+            ORDER BY date DESC
+        """, (ticker, start_date, end_date))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
