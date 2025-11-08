@@ -215,6 +215,55 @@ npm test -- --coverage
 - **Naver Finance (네이버 증권)** - 주요 데이터 소스 (스크래핑)
   - 일별 가격 데이터 (시가/고가/저가/종가/거래량)
   - 투자자별 매매 동향 (개인/기관/외국인)
+- **Naver Search API (네이버 검색 API)** - 뉴스 데이터 소스
+  - 실시간 뉴스 수집 (일일 25,000회 무료)
+  - 종목별 관련도 점수 계산
 - **KRX (한국거래소)** - 보조 데이터 소스
 - **ETF 운용사** - 삼성/신한/KoAct/KB 자산운용
-- **뉴스** - 네이버 뉴스
+
+## 📊 프로젝트 현황
+
+### ✅ Phase 1: Backend Core (완료 - 2025-11-07)
+- FastAPI 기본 구조 및 API 엔드포인트
+- Naver Finance 웹 스크래핑 구현
+- 데이터 검증 및 정제 시스템
+- SQLite 데이터베이스 구축
+- **테스트**: 61개 통과, 커버리지 82%
+
+### ✅ Phase 2: Data Collection Complete (완료 - 2025-11-08)
+- 6개 종목 자동 데이터 수집 시스템
+- APScheduler 스케줄러 (일일/주간 자동 실행)
+- 투자자별 매매 동향 수집
+- **네이버 검색 API 실시간 뉴스 수집** (Mock → 실제 API)
+- 재시도 로직 (Exponential Backoff) 및 Rate Limiting
+- 데이터 품질 검증 시스템
+- **테스트**: 196개 통과, 커버리지 89%
+- **데이터 완전성**: 전 종목 100점 달성 (6/6)
+
+### 🟡 Phase 3: Frontend Foundation (진행 중 - 2025-11-09)
+- ✅ Step 1: 프론트엔드 환경 설정 (Node.js v25.1.0, npm 406 packages)
+- ✅ Step 2: API 서비스 레이어 구현 (Axios, 인터셉터, 에러 처리)
+  - **4개 API 모듈**: etfApi, newsApi, dataApi, healthApi
+  - **14개 메서드**: 데이터 조회 및 수집 트리거
+- ⏸️ Step 3: Dashboard 페이지 개선
+- ⏸️ Step 4-8: Layout, 실시간 데이터, 테스트, 스타일링, 최적화
+
+**진행률**: Phase 3 - 25% (2/8 Step 완료)
+
+### 🎯 실행 중인 서비스
+- **백엔드**: http://localhost:8000 (FastAPI + Uvicorn)
+- **프론트엔드**: http://localhost:5173 (Vite + React)
+- **API 문서**: http://localhost:8000/docs (Swagger UI)
+- **데이터베이스**: SQLite (`backend/data/etf_report.db`)
+
+### 📈 수집된 데이터 현황
+- **가격 데이터**: 60건 (6개 종목)
+- **매매 동향**: 65건 (투자자별)
+- **뉴스**: 159건 (네이버 검색 API)
+- **데이터 완전성**: 전 종목 100점 ✅
+
+### 🔄 자동화
+- **일일 데이터 수집**: 평일 15:30 KST (APScheduler)
+- **주간 백필**: 일요일 02:00 KST (90일치)
+- **Rate Limiting**: 0.5초 간격 (Naver Finance), 0.1초 간격 (뉴스 API)
+- **재시도**: 최대 3회, Exponential Backoff (1s, 2s, 4s)
