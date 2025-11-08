@@ -1,0 +1,57 @@
+{
+  "487240": {
+    "name": "삼성 KODEX AI전력핵심설비 ETF",
+    "type": "ETF",
+    "theme": "AI/전력",
+    "launch_date": "2024-03-15",
+    "expense_ratio": 0.0045,
+    "search_keyword": "AI 전력",
+    "relevance_keywords": ["AI", "전력", "데이터센터"]
+  },
+  "466920": {
+    "name": "신한 SOL 조선TOP3플러스 ETF",
+    "type": "ETF",
+    "theme": "조선",
+    "launch_date": "2023-08-10",
+    "expense_ratio": 0.0050,
+    "search_keyword": "조선 ETF",
+    "relevance_keywords": ["조선", "ETF", "한화오션", "HD현대중공업"]
+  },
+  "0020H0": {
+    "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
+    "type": "ETF",
+    "theme": "양자컴퓨팅",
+    "launch_date": "2024-05-20",
+    "expense_ratio": 0.0070,
+    "search_keyword": "양자컴퓨팅 ETF",
+    "relevance_keywords": ["양자컴퓨팅", "ETF"]
+  },
+  "442320": {
+    "name": "KB RISE 글로벌원자력 iSelect ETF",
+    "type": "ETF",
+    "theme": "원자력",
+    "launch_date": "2024-01-25",
+    "expense_ratio": 0.0055,
+    "search_keyword": "원자력 ETF",
+    "relevance_keywords": ["원자력", "ETF", "SMR"]
+  },
+  "042660": {
+    "name": "한화오션",
+    "type": "STOCK",
+    "theme": "조선/방산",
+    "launch_date": null,
+    "expense_ratio": null,
+    "search_keyword": "한화오션",
+    "relevance_keywords": ["한화오션", "조선", "방산"]
+  },
+  "034020": {
+    "name": "두산에너빌리티",
+    "type": "STOCK",
+    "theme": "에너지/전력",
+    "launch_date": null,
+    "expense_ratio": null,
+    "search_keyword": "두산에너빌리티",
+    "relevance_keywords": ["두산에너빌리티", "원자력", "에너지"]
+  }
+}
+

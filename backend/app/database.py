@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 import logging
+from app.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +74,21 @@ def init_db():
         )
     """)
     
-    # Insert initial stock data (ETF 4개 + 주식 2개)
-    etfs_data = [
-        # ETF 4개
-        ("487240", "삼성 KODEX AI전력핵심설비 ETF", "ETF", "AI/전력", "2024-03-15", 0.0045),
-        ("466920", "신한 SOL 조선TOP3플러스 ETF", "ETF", "조선", "2023-08-10", 0.0050),
-        ("0020H0", "KoAct 글로벌양자컴퓨팅액티브 ETF", "ETF", "양자컴퓨팅", "2024-05-20", 0.0070),
-        ("442320", "KB RISE 글로벌원자력 iSelect ETF", "ETF", "원자력", "2024-01-25", 0.0055),
-        # 주식 2개
-        ("042660", "한화오션", "STOCK", "조선/방산", None, None),
-        ("034020", "두산에너빌리티", "STOCK", "에너지/전력", None, None)
-    ]
+    # Insert initial stock data from config (ETF 4개 + 주식 2개)
+    stock_config = Config.get_stock_config()
+    etfs_data = []
+    
+    for ticker, info in stock_config.items():
+        etfs_data.append((
+            ticker,
+            info.get("name"),
+            info.get("type"),
+            info.get("theme"),
+            info.get("launch_date"),
+            info.get("expense_ratio")
+        ))
+    
+    logger.info(f"Loading {len(etfs_data)} stocks from configuration")
     
     cursor.executemany("""
         INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)

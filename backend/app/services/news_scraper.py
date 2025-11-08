@@ -2,6 +2,7 @@ from typing import List, Dict, Optional
 from datetime import date, datetime, timedelta
 from app.models import News
 from app.database import get_db_connection
+from app.config import Config
 import logging
 import requests
 import os
@@ -13,44 +14,14 @@ logger = logging.getLogger(__name__)
 class NewsScraper:
     """Service for scraping news from Naver Search API"""
 
-    # 6개 종목별 검색 키워드 및 관련도 계산 키워드
-    STOCK_CONFIG = {
-        "487240": {
-            "name": "삼성 KODEX AI전력핵심설비 ETF",
-            "search_keyword": "AI 전력",
-            "relevance_keywords": ["AI", "전력", "데이터센터"]
-        },
-        "466920": {
-            "name": "신한 SOL 조선TOP3플러스 ETF",
-            "search_keyword": "조선 ETF",
-            "relevance_keywords": ["조선", "ETF", "한화오션", "HD현대중공업"]
-        },
-        "0020H0": {
-            "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
-            "search_keyword": "양자컴퓨팅 ETF",
-            "relevance_keywords": ["양자컴퓨팅", "ETF"]
-        },
-        "442320": {
-            "name": "KB RISE 글로벌원자력 iSelect ETF",
-            "search_keyword": "원자력 ETF",
-            "relevance_keywords": ["원자력", "ETF", "SMR"]
-        },
-        "042660": {
-            "name": "한화오션",
-            "search_keyword": "한화오션",
-            "relevance_keywords": ["한화오션", "조선", "방산"]
-        },
-        "034020": {
-            "name": "두산에너빌리티",
-            "search_keyword": "두산에너빌리티",
-            "relevance_keywords": ["두산에너빌리티", "원자력", "에너지"]
-        }
-    }
-
     def __init__(self):
         """Initialize Naver News API client"""
         self.client_id = os.getenv("NAVER_CLIENT_ID")
         self.client_secret = os.getenv("NAVER_CLIENT_SECRET")
+        
+        # Load stock configuration from Config
+        self.stock_config = Config.get_stock_config()
+        logger.info(f"Loaded {len(self.stock_config)} stocks from configuration")
 
         if not self.client_id or not self.client_secret:
             logger.warning("Naver API credentials not found in environment variables")
@@ -359,7 +330,7 @@ class NewsScraper:
         """
         logger.info(f"Starting news collection for {ticker} (last {days} days)")
 
-        stock_config = self.STOCK_CONFIG.get(ticker)
+        stock_config = self.stock_config.get(ticker)
 
         if not stock_config:
             logger.warning(f"No configuration defined for ticker: {ticker}")
