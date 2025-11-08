@@ -298,6 +298,126 @@
 
 ---
 
+## 🔬 서브 프로젝트: 실시간 뉴스 스크래핑 기술 검증 (POC)
+
+**목표**: Selenium/Playwright를 사용한 Naver 뉴스 실시간 스크래핑 가능성 검증
+
+**우선순위**: High (Phase 2 - Step 5, 6보다 우선)
+
+**예상 소요 시간**: 3~4시간
+
+**배경**:
+- Phase 2 - Step 4에서 뉴스 스크래핑을 Mock으로 구현
+- Naver 뉴스는 JavaScript 동적 로딩으로 `requests` + `BeautifulSoup` 불가
+- 메인 개발 전에 기술적 가능성을 먼저 검증 필요
+
+### 개발 전략
+
+1. **별도 프로토타입으로 개발** (`backend/prototypes/news_scraper_poc/`)
+2. **기술 스택 선택 및 테스트**
+3. **성공 시 메인 코드에 통합**
+4. **실패 시 대안 검토** (RSS, API 등)
+
+### 작업 계획
+
+#### 1단계: 환경 준비 및 기술 선택 (30분) ✅ **완료**
+- [x] ~~Selenium vs Playwright 비교 분석~~ → **네이버 공식 API 선택**
+  - [x] 설치 복잡도: API가 훨씬 간단
+  - [x] 성능: API가 훨씬 빠름 (< 1초)
+  - [x] 안정성: 공식 API가 훨씬 안정적
+  - [x] 문서화: 네이버 개발자 센터 문서 완비
+- [x] 최종 선택: **네이버 검색 API** (일일 25,000회 무료)
+- [x] 프로토타입 디렉토리 생성
+- [x] 작업 지시서 작성 완료
+  - [x] `README.md`: 프로젝트 개요
+  - [x] `STEP1_PLAN.md`: 1단계 세부 계획
+  - [x] `WORK_INSTRUCTION.md`: 새 세션용 작업 지시서
+
+#### 2단계: 기본 API 호출 구현 (1시간) 🔜 **새 세션에서 진행**
+- [ ] `.env` 파일 생성 (Client ID/Secret)
+- [ ] `requirements.txt` 생성 (`requests`, `python-dotenv`)
+- [ ] 네이버 뉴스 API 호출 스크립트 작성
+  - [ ] URL: `https://openapi.naver.com/v1/search/news.json`
+  - [ ] 헤더: `X-Naver-Client-Id`, `X-Naver-Client-Secret`
+  - [ ] 파라미터: `query`, `display`, `start`, `sort`
+- [ ] 응답 데이터 파싱 및 출력
+  - [ ] 제목 (title)
+  - [ ] URL (link, originallink)
+  - [ ] 날짜 (pubDate)
+  - [ ] 요약 (description)
+- [ ] HTML 태그 제거 (`<b>`, `</b>`)
+- [ ] 날짜 파싱 (RFC 822 → YYYY-MM-DD)
+- [ ] 단일 키워드 테스트 ("AI")
+- [ ] 에러 핸들링 (401, 403, 429, 500)
+
+#### 3단계: 다중 키워드 및 필터링 (1시간) 🔜 **새 세션에서 진행**
+- [ ] 페이지네이션 처리 (`start` 파라미터)
+- [ ] 다중 결과 수집 (최대 100개/요청)
+- [ ] 날짜 범위 필터링 구현
+  - [ ] pubDate 파싱 후 날짜 비교
+  - [ ] 최근 N일 이내 뉴스만 필터링
+- [ ] 관련도 점수 계산 (`_calculate_relevance()`)
+- [ ] Rate Limiting 구현 (0.5초 대기)
+
+#### 4단계: 실전 테스트 (1시간)
+- [ ] 6개 종목별 키워드로 테스트
+  - [ ] "AI 데이터센터" (KODEX AI전력핵심설비)
+  - [ ] "조선업 수주" (SOL 조선TOP3플러스)
+  - [ ] "양자컴퓨팅" (글로벌양자컴퓨팅액티브)
+  - [ ] "원자력 SMR" (RISE 글로벌원자력)
+  - [ ] "한화오션" (주식)
+  - [ ] "두산에너빌리티" (주식)
+- [ ] 수집 성공률 측정
+- [ ] 성능 측정 (평균 소요 시간)
+- [ ] Rate Limiting 적용 (Naver 차단 방지)
+
+#### 5단계: 메인 코드 통합 (1시간) 🔜 **새 세션에서 진행**
+- [ ] `app/services/news_scraper.py` 수정
+  - [ ] Mock `fetch_naver_news()` 제거
+  - [ ] 네이버 API 호출 코드로 교체
+  - [ ] Client ID/Secret 환경 변수 설정
+- [ ] 기존 테스트 수정 (`tests/test_news.py`)
+  - [ ] Mock 테스트 → 실제 API 테스트
+  - [ ] API 응답 모킹 (unittest.mock)
+- [ ] 통합 테스트 실행
+  - [ ] 전체 테스트 통과 확인
+  - [ ] 코드 커버리지 90% 유지
+- [ ] 문서 업데이트
+  - [ ] `API_SPECIFICATION.md`: Mock 경고 제거
+  - [ ] `DATA_COLLECTION_DESIGN.md`: 실제 구현 완료 표시
+  - [ ] `PROGRESS.md`: 서브프로젝트 완료 기록
+
+### Acceptance Criteria (수정됨)
+
+#### 프로토타입 단계 (2~4단계)
+- [ ] 최소 1개 키워드로 10개 이상 뉴스 수집 성공
+- [ ] 수집된 데이터 필드 완전성 (제목, URL, 날짜, 요약)
+- [ ] 날짜 파싱 정확도 100%
+- [ ] 평균 API 응답 시간 < 2초/키워드
+- [ ] 6개 종목 키워드로 실전 테스트 성공
+
+#### 메인 코드 통합 (5단계)
+- [ ] Mock 코드 완전 제거
+- [ ] 실제 API로 뉴스 수집 성공
+- [ ] 모든 테스트 통과 (170+ 테스트)
+- [ ] 코드 커버리지 90% 유지
+- [ ] 문서 업데이트 완료
+
+### 참고 자료
+
+- **네이버 검색 API 문서**: https://developers.naver.com/docs/serviceapi/search/news/news.md
+- **네이버 개발자 센터**: https://developers.naver.com/
+- Python requests: https://requests.readthedocs.io/
+- Python-dotenv: https://pypi.org/project/python-dotenv/
+
+### 작업 지시서 위치
+
+📂 **`backend/prototypes/news_scraper_poc/WORK_INSTRUCTION.md`**
+
+새로운 Claude 세션에서 위 파일을 읽고 작업을 진행하세요.
+
+---
+
 ## 🟡 Phase 3: Frontend Foundation (Priority: High)
 
 **목표**: React 앱 기본 UI 구축
