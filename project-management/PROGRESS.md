@@ -290,20 +290,120 @@
 - **Client ID**: `pQbDBJ1we0Cpv5l54xne`
 - **Client Secret**: `GcptomaJI1`
 
-### 다음 단계 (새 세션에서 진행)
-1. **2단계**: 기본 API 호출 구현 (1시간)
-   - `.env` 파일 설정
-   - API 호출 스크립트 작성
-   - 단일 키워드 테스트
-   - HTML 태그 제거 및 날짜 파싱
-2. **3단계**: 다중 키워드 및 필터링 (1시간)
-   - 6개 종목 키워드 테스트
-   - 날짜 범위 필터링
-   - 관련도 점수 계산
-3. **4단계**: 실전 테스트 (30분)
-   - 성능 측정
-   - 수집 성공률 확인
-4. **5단계**: 메인 코드 통합 (1시간)
-   - Mock 코드 제거
-   - 실제 API 통합
-   - 테스트 수정 및 실행
+---
+
+## 📅 2025-11-08
+
+### ✅ 서브 프로젝트 완료: 실시간 뉴스 스크래핑 (네이버 API 통합)
+
+#### Step 1-2: 프로토타입 개발 완료 ✅
+
+**2단계: 기본 API 호출 구현 (실제 소요: 1시간)**
+- ✅ `.env` 파일 생성 (Naver Client ID/Secret)
+- ✅ `requirements.txt` 작성 (`requests`, `python-dotenv`)
+- ✅ `naver_news_api.py` 메인 스크립트 작성
+  - `search_news()`: 네이버 뉴스 검색 API 호출
+  - `clean_html_tags()`: HTML 태그 제거
+  - `parse_pubdate()`: RFC 822 날짜 파싱
+- ✅ `test_basic.py` 작성 및 실행
+  - 단일 키워드 ("AI") 테스트 성공
+  - 10건 수집, 0.12초 응답 시간
+- ✅ 에러 핸들링 구현 (401, 403, 429)
+- ✅ `STEP1_RESULT.md` 문서화
+
+**3단계: 고급 필터링 기능 구현 (실제 소요: 1시간)**
+- ✅ HTML 엔티티 디코딩 추가 (`html.unescape()`)
+- ✅ 날짜 범위 필터링 (`filter_by_date_range()`)
+- ✅ 관련도 점수 계산 (`calculate_relevance_score()`, 0.0~1.0)
+- ✅ 6개 종목 일괄 수집 함수 (`collect_all_stock_news()`)
+- ✅ Rate Limiting 구현 (0.1초 간격)
+- ✅ `TARGET_STOCKS` 데이터 정의 (6개 종목)
+- ✅ `test_target_stocks.py` - 6개 종목 키워드 검증
+  - AI 전력: 268,780건
+  - 조선 ETF: 13,567건
+  - 양자컴퓨팅 ETF: 2,025건
+  - 원자력 ETF: 4,920건
+  - 한화오션: 115,774건
+  - 두산에너빌리티: 84,111건
+- ✅ `test_advanced_features.py` - 통합 테스트
+  - 60건 수집 (6개 종목 × 10건)
+  - 1.30초 총 소요 시간
+  - API 호출 성공률 100%
+- ✅ `STEP2_RESULT.md` 문서화
+
+**Git 커밋**
+- ✅ Commit: "feat: 네이버 뉴스 API 실시간 스크래핑 프로토타입 완료 (Step 1-2)"
+
+#### Step 3: 메인 코드 통합 완료 ✅
+
+**메인 코드 수정 (실제 소요: 1시간)**
+- ✅ `backend/app/services/news_scraper.py` 수정
+  - Mock 데이터 생성 로직 완전 제거
+  - 프로토타입 기능 이식:
+    - `_search_naver_news_api()`: 네이버 API 호출
+    - `_clean_html_tags()`: HTML 정제
+    - `_parse_pubdate()`: RFC 822 파싱
+    - `_filter_by_date_range()`: 날짜 필터링
+    - `_calculate_relevance_score()`: 관련도 계산
+    - `_extract_source_from_url()`: 출처 추출
+  - `THEME_KEYWORDS` → `STOCK_CONFIG` 구조 변경
+    - `search_keyword`: 검색용 키워드
+    - `relevance_keywords`: 관련도 계산용 키워드
+  - 네이버 API 환경 변수 설정 (Client ID/Secret)
+- ✅ `backend/tests/test_news.py` 수정
+  - `@patch('app.services.news_scraper.NewsScraper._search_naver_news_api')` 추가
+  - Mock API 응답 데이터 작성 (RFC 822 형식)
+  - 테스트 15개 → Mock API 호출 테스트로 전환
+- ✅ `.env` 파일 업데이트 (이미 설정되어 있음)
+- ✅ 전체 테스트 실행
+  - **170/170 테스트 통과 (100%)**
+  - **커버리지 88%** (목표 85% 초과 달성)
+- ✅ `STEP3_RESULT.md` 문서화
+
+**Git 커밋**
+- ✅ Commit: "feat: 네이버 뉴스 API 실시간 스크래핑 메인 코드 통합 완료 (Step 3)"
+
+#### 최종 성과 🎉
+
+**기술적 성과**
+- ✅ Mock 데이터 → 실시간 API 전환 완료
+- ✅ 네이버 검색 API 통합 (일일 25,000회 무료)
+- ✅ 6개 종목 실시간 뉴스 수집 가능
+- ✅ HTML 정제, 날짜 파싱, 관련도 점수 계산
+
+**품질 지표**
+- ✅ 테스트 성공률: 100% (170/170)
+- ✅ 코드 커버리지: 88% (목표: 85% 이상)
+- ✅ API 호출 성공률: 100%
+- ✅ 평균 응답 시간: 0.14초/종목
+
+**문서화**
+- ✅ `STEP1_RESULT.md`: 기본 API 호출 결과
+- ✅ `STEP2_RESULT.md`: 고급 기능 및 6개 종목 테스트
+- ✅ `STEP3_RESULT.md`: 메인 코드 통합 결과
+- ✅ `TODO.md`: Phase 2 Step 4 완료 상태로 업데이트
+- ✅ `PROGRESS.md`: 서브프로젝트 완료 기록
+
+**생성된 파일**
+- `backend/prototypes/news_scraper_poc/.env`
+- `backend/prototypes/news_scraper_poc/requirements.txt`
+- `backend/prototypes/news_scraper_poc/naver_news_api.py`
+- `backend/prototypes/news_scraper_poc/test_basic.py`
+- `backend/prototypes/news_scraper_poc/test_target_stocks.py`
+- `backend/prototypes/news_scraper_poc/test_advanced_features.py`
+- `backend/prototypes/news_scraper_poc/STEP1_RESULT.md`
+- `backend/prototypes/news_scraper_poc/STEP2_RESULT.md`
+- `backend/prototypes/news_scraper_poc/STEP3_RESULT.md`
+
+**수정된 파일**
+- `backend/app/services/news_scraper.py` (431줄)
+- `backend/tests/test_news.py` (395줄)
+- `backend/.env` (네이버 API 키 추가)
+- `project-management/TODO.md` (Phase 2 Step 4 완료)
+- `project-management/PROGRESS.md` (이 문서)
+
+#### 다음 단계
+
+**Phase 2 - 계속 진행**
+- ⏸️ Step 5: 재시도 로직 및 Rate Limiting
+- ⏸️ Step 6: 데이터 정합성 검증 및 종합 테스트
