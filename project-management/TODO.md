@@ -474,32 +474,39 @@
 
 ---
 
-### Step 1: 환경 설정 및 프로젝트 구조 확인 (예상: 30분)
+### Step 1: 환경 설정 및 프로젝트 구조 확인 ✅ (완료: 2025-11-08, 30분)
 
 **목표**: 프론트엔드 개발 환경 준비 및 현재 구조 파악
 
-- [ ] 프론트엔드 환경 설정 확인
-  - [ ] Node.js 버전 확인 (v18 이상 권장)
-  - [ ] npm 패키지 설치 (`npm install`)
-  - [ ] Vite 개발 서버 실행 테스트 (`npm run dev`)
-  - [ ] 빌드 테스트 (`npm run build`)
+- [x] 프론트엔드 환경 설정 확인 ✅
+  - [x] Node.js 버전 확인 (v25.1.0 설치 완료)
+  - [x] npm 패키지 설치 (406 packages)
+  - [x] Vite 개발 서버 실행 테스트 (http://localhost:5173/)
+  - [x] 빌드 테스트 (1.20초, 성공)
 
-- [ ] 백엔드 API 연결 확인
-  - [ ] FastAPI 서버 실행 (localhost:8000)
-  - [ ] CORS 설정 확인
-  - [ ] API 엔드포인트 테스트 (Swagger UI)
-  - [ ] 프론트엔드에서 API 호출 테스트
+- [x] 백엔드 API 연결 확인 ✅
+  - [x] FastAPI 서버 실행 (http://localhost:8000)
+  - [x] CORS 설정 확인 (localhost:5173 허용됨)
+  - [x] API 엔드포인트 테스트 (/api/health, /api/etfs)
+  - [x] 프론트엔드에서 API 호출 테스트 (6개 종목 데이터 확인)
 
-- [ ] 프로젝트 구조 검토
-  - [ ] 디렉토리 구조 확인
-  - [ ] 라우팅 설정 확인 (React Router)
-  - [ ] 상태 관리 확인 (React Query)
-  - [ ] 스타일링 확인 (Tailwind CSS)
+- [x] 프로젝트 구조 검토 ✅
+  - [x] 디렉토리 구조 확인 (components, pages, services, hooks, utils, styles)
+  - [x] 라우팅 설정 확인 (React Router v6: /, /etf/:ticker, /compare)
+  - [x] 상태 관리 확인 (React Query: staleTime 5분, retry 1)
+  - [x] 스타일링 확인 (Tailwind CSS: primary/success/danger 색상, .btn/.card 클래스)
 
-**Acceptance Criteria**:
+**Acceptance Criteria**: ✅ **모두 달성**
 - ✅ Vite 서버 정상 실행 (localhost:5173)
-- ✅ 백엔드 API 호출 성공 (CORS 없음)
+- ✅ 백엔드 API 호출 성공 (CORS 설정 확인)
 - ✅ 빌드 에러 없음
+
+**완료 결과**:
+- Node.js v25.1.0, npm v11.6.2 설치
+- 프론트엔드 서버: http://localhost:5173/ (실행 중)
+- 백엔드 서버: http://localhost:8000 (실행 중)
+- API 프록시 설정 확인 (vite.config.js)
+- 기본 컴포넌트 구조 확인 (Header, Footer, ETFCard, Dashboard)
 
 ---
 
@@ -862,5 +869,5 @@
 
 ---
 
-**Last Updated**: 2025-11-06
+**Last Updated**: 2025-11-08
 
