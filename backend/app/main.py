@@ -4,6 +4,10 @@ from app.routers import etfs, reports, news, data
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
