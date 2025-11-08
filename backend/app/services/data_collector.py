@@ -2,6 +2,8 @@ from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
 from app.database import get_db_connection
+from app.utils.retry import retry_with_backoff
+from app.utils.rate_limiter import RateLimiter
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +19,14 @@ class ETFDataCollector:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
+        # Rate Limiter 초기화 (요청 간 0.5초 대기)
+        self.rate_limiter = RateLimiter(min_interval=0.5)
     
+    @retry_with_backoff(
+        max_retries=3,
+        base_delay=1.0,
+        exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
+    )
     def fetch_naver_finance_prices(self, ticker: str, days: int = 10) -> List[dict]:
         """
         Naver Finance에서 가격 데이터 수집
@@ -33,8 +42,9 @@ class ETFDataCollector:
             url = f"https://finance.naver.com/item/sise_day.naver?code={ticker}"
             logger.info(f"Fetching data from Naver Finance for {ticker}")
             
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
+            with self.rate_limiter:
+                response = requests.get(url, headers=self.headers, timeout=10)
+                response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
@@ -320,9 +330,7 @@ class ETFDataCollector:
         # 데이터 저장
         saved_count = self.save_price_data(price_data)
         
-        # Rate limiting (서버 부하 방지)
-        time.sleep(0.5)
-        
+        # Rate limiting은 fetch 함수에서 RateLimiter로 처리
         return saved_count
     
     def get_all_etfs(self) -> List[ETF]:
@@ -579,6 +587,11 @@ class ETFDataCollector:
         
         return result
     
+    @retry_with_backoff(
+        max_retries=3,
+        base_delay=1.0,
+        exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
+    )
     def fetch_naver_trading_flow(self, ticker: str, days: int = 10) -> List[dict]:
         """
         Naver Finance에서 투자자별 매매동향 데이터 수집
@@ -595,8 +608,9 @@ class ETFDataCollector:
             url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
             logger.info(f"Fetching trading flow from Naver Finance for {ticker}")
             
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
+            with self.rate_limiter:
+                response = requests.get(url, headers=self.headers, timeout=10)
+                response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
@@ -820,9 +834,7 @@ class ETFDataCollector:
         # 데이터 저장
         saved_count = self.save_trading_flow_data(trading_data)
         
-        # Rate limiting
-        time.sleep(0.5)
-        
+        # Rate limiting은 fetch 함수에서 RateLimiter로 처리
         return saved_count
     
     def get_trading_flow_data(

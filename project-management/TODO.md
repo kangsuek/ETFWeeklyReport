@@ -255,23 +255,42 @@
 **✅ 테스트**: 170개 테스트 100% 통과, 커버리지 88%
 **✅ 성능**: 6개 종목 60건 수집 (1.3초), API 호출 성공률 100%
 
-#### Step 5: 재시도 로직 및 Rate Limiting (예상: 1.5시간)
-- [ ] Exponential Backoff 재시도 구현
-  - [ ] 최대 3회 재시도
-  - [ ] 대기 시간: 1초, 2초, 4초
-  - [ ] 재시도 로깅
-- [ ] Rate Limiter 유틸리티 구현
-  - [ ] 요청 간 최소 대기 시간 설정
-  - [ ] 동시 요청 수 제한 (선택사항)
-  - [ ] 429 에러 처리
-- [ ] 모든 수집 함수에 재시도 로직 적용
-  - [ ] fetch_naver_finance_prices
-  - [ ] fetch_trading_flow
-  - [ ] fetch_news
-- [ ] **유닛 테스트 작성**
-  - [ ] 재시도 로직 테스트 (네트워크 실패 시뮬레이션)
-  - [ ] Rate Limiter 테스트
-  - [ ] Exponential Backoff 검증
+#### Step 5: 재시도 로직 및 Rate Limiting ✅ (완료: 이미 구현됨, 확인 완료)
+- [x] Exponential Backoff 재시도 구현 ✅
+  - [x] 최대 3회 재시도
+  - [x] 대기 시간: 1초, 2초, 4초 (base_delay=1.0, exponential_base=2.0)
+  - [x] 재시도 로깅 (WARNING 레벨: 재시도 중, ERROR 레벨: 최종 실패)
+  - [x] `retry_with_backoff` 데코레이터 구현 ([app/utils/retry.py](backend/app/utils/retry.py))
+- [x] Rate Limiter 유틸리티 구현 ✅
+  - [x] 요청 간 최소 대기 시간 설정 (Context Manager 패턴)
+  - [x] 동시 요청 수 제한 구현 (max_concurrent 파라미터)
+  - [x] 429 에러 처리 (재시도 로직과 통합)
+  - [x] `RateLimiter` 클래스 구현 ([app/utils/rate_limiter.py](backend/app/utils/rate_limiter.py))
+  - [x] 싱글톤 패턴 적용 (`get_rate_limiter()`)
+  - [x] 통계 수집 기능 (`get_stats()`, `reset_stats()`)
+- [x] 모든 수집 함수에 재시도 로직 적용 ✅
+  - [x] `fetch_naver_finance_prices` (max_retries=3, base_delay=1.0)
+  - [x] `fetch_naver_trading_flow` (max_retries=3, base_delay=1.0)
+  - [x] `_search_naver_news_api` (max_retries=3, base_delay=1.0)
+  - [x] Rate Limiter 적용: data_collector (0.5초), news_scraper (0.1초)
+- [x] **유닛 테스트 작성** ✅ (23개 테스트)
+  - [x] 재시도 로직 테스트 (11개 테스트)
+    - [x] 첫 시도 성공, 재시도 후 성공, 최대 재시도 초과
+    - [x] Exponential Backoff 타이밍 검증
+    - [x] 최대 대기 시간 제한 검증
+    - [x] 특정 예외만 재시도
+    - [x] 네트워크 요청 시뮬레이션 (Mock)
+    - [x] 로깅 검증 (WARNING/ERROR)
+  - [x] Rate Limiter 테스트 (12개 테스트)
+    - [x] 초기화, 최소 간격 보장, 타이밍 검증
+    - [x] 동시 요청 수 제한, Context Manager 예외 처리
+    - [x] 통계 수집 및 초기화
+    - [x] 싱글톤 패턴 검증
+    - [x] API 요청 시뮬레이션
+
+**✅ 완료**: 재시도 로직 및 Rate Limiting (2025-11-08)
+**✅ 테스트**: 23개 유닛 테스트 100% 통과
+**✅ 전체 테스트**: 193개 테스트 100% 통과, 커버리지 88%
 
 #### Step 6: 데이터 정합성 검증 및 종합 테스트 (예상: 2시간)
 - [ ] 데이터 정합성 검증 스크립트

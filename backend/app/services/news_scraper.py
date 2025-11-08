@@ -3,6 +3,8 @@ from datetime import date, datetime, timedelta
 from app.models import News
 from app.database import get_db_connection
 from app.config import Config
+from app.utils.retry import retry_with_backoff
+from app.utils.rate_limiter import RateLimiter
 import logging
 import requests
 import os
@@ -25,7 +27,15 @@ class NewsScraper:
 
         if not self.client_id or not self.client_secret:
             logger.warning("Naver API credentials not found in environment variables")
+        
+        # Rate Limiter 초기화 (API 요청 간 0.1초 대기)
+        self.rate_limiter = RateLimiter(min_interval=0.1)
 
+    @retry_with_backoff(
+        max_retries=3,
+        base_delay=1.0,
+        exceptions=(requests.exceptions.RequestException, requests.exceptions.HTTPError)
+    )
     def _search_naver_news_api(
         self,
         query: str,
@@ -60,19 +70,27 @@ class NewsScraper:
         }
 
         try:
-            response = requests.get(url, headers=headers, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
+            with self.rate_limiter:
+                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+                return response.json()
         except requests.exceptions.HTTPError as e:
+            # 429 (Rate Limit) 에러는 재시도, 401/403은 재시도 안함
             if response.status_code == 401:
                 logger.error("Naver API authentication failed: Check Client ID/Secret")
+                # 인증 오류는 재시도해도 소용없으므로 다른 예외로 변환
+                raise ValueError("Naver API authentication failed") from e
             elif response.status_code == 403:
                 logger.error("Naver API permission denied: Enable News API in developer center")
+                # 권한 오류도 재시도 불가
+                raise ValueError("Naver API permission denied") from e
             elif response.status_code == 429:
                 logger.error("Naver API rate limit exceeded: Daily limit is 25,000 calls")
+                # 429는 재시도 가능하도록 HTTPError 그대로 raise
+                raise
             else:
                 logger.error(f"Naver API HTTP error: {e}")
-            raise
+                raise
         except Exception as e:
             logger.error(f"Naver API request failed: {e}")
             raise
