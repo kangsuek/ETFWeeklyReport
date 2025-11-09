@@ -499,20 +499,65 @@
 **GitHub Push**
 - Push: 5개 커밋을 origin/main에 푸시 완료
 
+#### Step 3: Dashboard 페이지 개선 ✅ (1.5시간)
+- ✅ **ETFCard 컴포넌트 완전 개선**
+  - 최신 가격 데이터 자동 조회 (React Query)
+  - 가격 정보 표시: 종가, 등락률, 거래량, 날짜
+  - 등락률 색상: 상승(빨강), 하락(파랑), 변동없음(회색)
+  - 포맷팅: 천 단위 콤마, K/M 단위 변환
+  - 타입 뱃지: ETF(파란색), STOCK(보라색)
+  - 호버 효과: shadow-xl, scale-105
+  - 카드 내 Skeleton 로딩 상태
+- ✅ **Dashboard 페이지 개선**
+  - 정렬 기능: 이름순, 타입별, 코드순
+  - 정렬 드롭다운 UI
+  - 종목 카운트 표시 (총 6개 종목)
+  - Skeleton UI: 6개 카드 로딩 상태
+  - 에러 상태: 아이콘 + 메시지 + 재시도 버튼
+  - 빈 데이터 상태 처리
+  - React Query: retry 2, staleTime 5분
+- ✅ **공통 컴포넌트 생성**
+  - `ETFCardSkeleton.jsx`: 카드 Skeleton UI
+- ✅ **반응형 디자인**
+  - 모바일: grid-cols-1
+  - 태블릿: md:grid-cols-2
+  - 데스크톱: lg:grid-cols-3 xl:grid-cols-4
+  - Gap: 6 (1.5rem)
+- ✅ **사용자 경험 개선**
+  - 부드러운 전환 효과 (transition-all duration-200)
+  - 직관적인 등락률 색상
+  - 명확한 로딩/에러 메시지
+  - 재시도 기능 (refetch)
+
+**수정 파일**:
+- `frontend/src/pages/Dashboard.jsx` (업데이트)
+- `frontend/src/components/etf/ETFCard.jsx` (완전 개선)
+- `frontend/src/components/common/ETFCardSkeleton.jsx` (신규 생성)
+
+**테스트 확인**:
+- ✅ 6개 종목 모두 정상 표시
+- ✅ 실시간 가격 데이터 표시
+- ✅ 로딩 상태 Skeleton UI 작동
+- ✅ 에러 상태 처리 및 재시도 기능
+- ✅ 반응형 디자인 (1열/2열/3-4열)
+- ✅ 정렬 기능 정상 작동
+- ✅ 타입 뱃지 및 호버 효과
+
 ### 📊 Phase 3 진행률
 - ✅ Step 1: 환경 설정 (100%)
 - ✅ Step 2: API 서비스 레이어 (100%)
-- ⏸️ Step 3: Dashboard 페이지 개선 (0%)
+- ✅ Step 3: Dashboard 페이지 개선 (100%)
 - ⏸️ Step 4: Layout 및 Navigation (0%)
 - ⏸️ Step 5: 실시간 데이터 통합 (0%)
 - ⏸️ Step 6: 컴포넌트 테스트 (0%)
 - ⏸️ Step 7: 스타일링 및 UX (0%)
 - ⏸️ Step 8: 크로스 브라우저 테스트 (0%)
 
-**전체**: 25% (2/8 Step 완료)
+**전체**: 37.5% (3/8 Step 완료)
 
 ### 🎯 현재 상태
-- **프론트엔드 서버**: http://localhost:5173/ (실행 중)
+- **프론트엔드 서버**: http://localhost:5174/ (실행 중)
 - **백엔드 서버**: http://localhost:8000 (실행 중)
 - **API 연동**: 정상 작동
-- **다음 단계**: Step 3 - Dashboard 페이지 개선
+- **Dashboard**: 6개 종목 표시, 실시간 가격 데이터 연동 완료
+- **다음 단계**: Step 4 - Layout 및 Navigation 개선
