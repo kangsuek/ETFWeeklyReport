@@ -151,6 +151,9 @@ export const dataApi = {
 
   // 수집 상태 조회
   getStatus: () => api.get('/data/status'),
+
+  // 스케줄러 상태 조회 (마지막 수집 시간 포함)
+  getSchedulerStatus: () => api.get('/data/scheduler-status'),
 }
 
 // Health Check API

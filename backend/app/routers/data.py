@@ -4,6 +4,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from app.services.data_collector import ETFDataCollector
+from app.services.scheduler import get_scheduler
 import logging
 
 router = APIRouter()
@@ -63,23 +64,23 @@ async def backfill_data(
 async def get_collection_status():
     """
     데이터 수집 상태 조회
-    
+
     Returns:
         각 종목별 데이터 수집 현황
     """
     try:
         collector = ETFDataCollector()
         all_etfs = collector.get_all_etfs()
-        
+
         status_list = []
         for etf in all_etfs:
             # 최근 30일 데이터 조회
             from datetime import date, timedelta
             end_date = date.today()
             start_date = end_date - timedelta(days=30)
-            
+
             prices = collector.get_price_data(etf.ticker, start_date, end_date)
-            
+
             status_list.append({
                 "ticker": etf.ticker,
                 "name": etf.name,
@@ -87,7 +88,7 @@ async def get_collection_status():
                 "recent_data_count": len(prices),
                 "latest_date": prices[0].date if prices else None
             })
-        
+
         return {
             "total_tickers": len(all_etfs),
             "status": status_list
@@ -95,4 +96,25 @@ async def get_collection_status():
     except Exception as e:
         logger.error(f"Failed to get collection status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+
+@router.get("/scheduler-status")
+async def get_scheduler_status():
+    """
+    스케줄러 상태 조회
+
+    Returns:
+        스케줄러 실행 상태 및 마지막 수집 시간
+    """
+    try:
+        scheduler = get_scheduler()
+        status = scheduler.get_status()
+
+        return {
+            "scheduler": status,
+            "message": "Scheduler status retrieved successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get scheduler status: {str(e)}")
 

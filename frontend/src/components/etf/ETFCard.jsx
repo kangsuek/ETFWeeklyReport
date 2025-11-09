@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { etfApi, newsApi } from '../../services/api'
 
 export default function ETFCard({ etf }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null)
   // 최신 가격 데이터 조회 (5일치 - 주간 수익률 및 차트용)
   const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ['prices', etf.ticker],
@@ -79,49 +81,152 @@ export default function ETFCard({ etf }) {
     return volume.toString()
   }
 
-  // 매매 동향 포맷팅 (억 단위)
+  // 매매 동향 포맷팅 (억 단위, 천 단위 콤마)
   const formatTradingValue = (value) => {
     if (!value) return '0'
     const absValue = Math.abs(value)
     if (absValue >= 100000000) {
-      return `${(value / 100000000).toFixed(0)}억`
+      const billions = (value / 100000000).toFixed(0)
+      return `${new Intl.NumberFormat('ko-KR').format(billions)}억`
     } else if (absValue >= 10000) {
-      return `${(value / 10000).toFixed(0)}만`
+      const tenThousands = (value / 10000).toFixed(0)
+      return `${new Intl.NumberFormat('ko-KR').format(tenThousands)}만`
     }
-    return value.toString()
+    return new Intl.NumberFormat('ko-KR').format(value)
   }
 
-  // 미니 차트 생성 (SVG 스파크라인)
+  // 날짜 포맷팅 (MM/DD)
+  const formatChartDate = (dateStr) => {
+    const date = new Date(dateStr)
+    return `${date.getMonth() + 1}/${date.getDate()}`
+  }
+
+  // 미니 캔들스틱 차트 생성 (OHLC)
   const renderMiniChart = () => {
     if (!prices || prices.length < 2) return null
 
     const reversedPrices = [...prices].reverse() // 오래된 것부터
-    const priceValues = reversedPrices.map(p => p.close_price)
-    const min = Math.min(...priceValues)
-    const max = Math.max(...priceValues)
+
+    // 전체 가격 범위 계산 (고가/저가 기준)
+    const allPrices = reversedPrices.flatMap(p => [p.high_price, p.low_price])
+    const min = Math.min(...allPrices)
+    const max = Math.max(...allPrices)
     const range = max - min || 1
 
+    const height = 50
     const width = 100
-    const height = 30
-    const points = priceValues.map((price, i) => {
-      const x = (i / (priceValues.length - 1)) * width
-      const y = height - ((price - min) / range) * height
-      return `${x},${y}`
-    }).join(' ')
+    const candleWidth = width / (reversedPrices.length * 5) // 캔들 너비 (폭 축소)
 
-    const isPositive = priceValues[priceValues.length - 1] >= priceValues[0]
+    // 가격을 Y 좌표로 변환
+    const priceToY = (price) => height - ((price - min) / range) * height
+
+    // 캔들스틱 데이터 계산
+    const candles = reversedPrices.map((p, i) => {
+      const x = (i + 0.5) * (width / reversedPrices.length)
+      const isUp = p.close_price >= p.open_price
+
+      return {
+        x,
+        high: priceToY(p.high_price),
+        low: priceToY(p.low_price),
+        open: priceToY(p.open_price),
+        close: priceToY(p.close_price),
+        isUp,
+        data: p,
+      }
+    })
 
     return (
-      <svg width={width} height={height} className="inline-block">
-        <polyline
-          points={points}
-          fill="none"
-          stroke={isPositive ? '#ef4444' : '#3b82f6'}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <div className="relative w-full">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="w-full"
+          style={{ height: `${height}px` }}
+          onMouseLeave={() => setHoveredPoint(null)}
+        >
+          {/* 배경 일자 구분선 */}
+          {candles.map((candle, i) => (
+            <line
+              key={`grid-${i}`}
+              x1={candle.x}
+              y1={0}
+              x2={candle.x}
+              y2={height}
+              stroke="#e5e7eb"
+              strokeWidth="0.5"
+              strokeDasharray="2,2"
+            />
+          ))}
+
+          {/* 캔들스틱 */}
+          {candles.map((candle, i) => {
+            const bodyTop = Math.min(candle.open, candle.close)
+            const bodyBottom = Math.max(candle.open, candle.close)
+            const bodyHeight = Math.abs(candle.close - candle.open) || 0.5
+            const color = candle.isUp ? '#ef4444' : '#3b82f6'
+
+            return (
+              <g key={`candle-${i}`}>
+                {/* 고가-저가 심지 (Wick) */}
+                <line
+                  x1={candle.x}
+                  y1={candle.high}
+                  x2={candle.x}
+                  y2={candle.low}
+                  stroke={color}
+                  strokeWidth="0.5"
+                />
+
+                {/* 시가-종가 몸통 (Body) */}
+                <rect
+                  x={candle.x - candleWidth / 2}
+                  y={bodyTop}
+                  width={candleWidth}
+                  height={bodyHeight}
+                  fill={color}
+                  stroke={color}
+                  strokeWidth="1"
+                  opacity={hoveredPoint === i ? 1 : 0.9}
+                  className="cursor-pointer transition-opacity"
+                  onMouseEnter={() => setHoveredPoint(i)}
+                />
+
+                {/* 투명한 인터랙션 영역 */}
+                <rect
+                  x={i === 0 ? 0 : candle.x - (width / reversedPrices.length) / 2}
+                  y={0}
+                  width={width / reversedPrices.length}
+                  height={height}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredPoint(i)}
+                />
+              </g>
+            )
+          })}
+        </svg>
+
+        {/* 툴팁 */}
+        {hoveredPoint !== null && candles[hoveredPoint] && (
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-10 pointer-events-none">
+            <div className="font-semibold mb-1">{formatChartDate(candles[hoveredPoint].data.date)}</div>
+            <div className="grid grid-cols-2 gap-x-2 text-xs">
+              <div className="text-gray-300">시가:</div>
+              <div>{formatPrice(candles[hoveredPoint].data.open_price)}</div>
+              <div className="text-gray-300">고가:</div>
+              <div className="text-red-400">{formatPrice(candles[hoveredPoint].data.high_price)}</div>
+              <div className="text-gray-300">저가:</div>
+              <div className="text-blue-400">{formatPrice(candles[hoveredPoint].data.low_price)}</div>
+              <div className="text-gray-300">종가:</div>
+              <div>{formatPrice(candles[hoveredPoint].data.close_price)}</div>
+            </div>
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="border-4 border-transparent border-t-gray-800"></div>
+            </div>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -186,9 +291,8 @@ export default function ETFCard({ etf }) {
               )}
             </div>
 
-            {/* 미니 차트 & 날짜 */}
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-              <div className="text-xs text-gray-400">{latestPrice.date}</div>
+            {/* 미니 차트 (전체 너비) */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
               {renderMiniChart()}
             </div>
           </div>

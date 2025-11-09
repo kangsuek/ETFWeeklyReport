@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
-import { etfApi } from '../services/api'
+import { etfApi, dataApi } from '../services/api'
 import ETFCard from '../components/etf/ETFCard'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
@@ -11,6 +11,17 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(false)
 
+  // 스케줄러 상태 조회 (마지막 수집 시각)
+  const { data: schedulerStatus } = useQuery({
+    queryKey: ['scheduler-status'],
+    queryFn: async () => {
+      const response = await dataApi.getSchedulerStatus()
+      return response.data.scheduler
+    },
+    refetchInterval: 30000, // 30초마다 스케줄러 상태 갱신
+    retry: 1,
+  })
+
   // 전체 데이터 새로고침 함수
   const handleRefreshAll = async () => {
     // 모든 쿼리 무효화하여 재조회
@@ -18,6 +29,7 @@ export default function Dashboard() {
     await queryClient.invalidateQueries({ queryKey: ['prices'] })
     await queryClient.invalidateQueries({ queryKey: ['trading-flow'] })
     await queryClient.invalidateQueries({ queryKey: ['news'] })
+    await queryClient.invalidateQueries({ queryKey: ['scheduler-status'] })
     setLastUpdate(new Date())
   }
 
@@ -180,7 +192,7 @@ export default function Dashboard() {
 
       {/* 날짜 및 업데이트 정보 */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg p-4 shadow-sm">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2">
           {/* 오늘 날짜 */}
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,14 +201,29 @@ export default function Dashboard() {
             <span className="text-sm font-medium text-gray-700">{formatDate(new Date())}</span>
           </div>
 
-          {/* 마지막 업데이트 시간 */}
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm text-gray-600">
-              마지막 업데이트: <span className="font-medium text-gray-700">{formatUpdateTime(lastUpdate)}</span>
-            </span>
+          {/* 수집/업데이트 시간 정보 */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            {/* 마지막 수집일시 (스케줄러) */}
+            {schedulerStatus?.last_collection_time && (
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-gray-600">
+                  마지막 수집일시: <span className="font-medium text-success">{formatUpdateTime(new Date(schedulerStatus.last_collection_time))}</span>
+                </span>
+              </div>
+            )}
+
+            {/* 화면 업데이트 시간 */}
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-gray-600">
+                마지막 업데이트: <span className="font-medium text-gray-700">{formatUpdateTime(lastUpdate)}</span>
+              </span>
+            </div>
           </div>
         </div>
 

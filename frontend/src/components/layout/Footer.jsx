@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { dataApi } from '../../services/api'
 
 export default function Footer() {
-  const [lastUpdate, setLastUpdate] = useState(new Date())
+  // 스케줄러 상태 조회 (마지막 수집 시각)
+  const { data: schedulerStatus } = useQuery({
+    queryKey: ['scheduler-status'],
+    queryFn: async () => {
+      const response = await dataApi.getSchedulerStatus()
+      return response.data.scheduler
+    },
+    refetchInterval: 30000, // 30초마다 스케줄러 상태 갱신
+    retry: 1,
+  })
 
-  useEffect(() => {
-    // 컴포넌트 마운트 시 현재 시간 설정
-    setLastUpdate(new Date())
-  }, [])
-
-  const formatUpdateTime = (date) => {
+  const formatUpdateTime = (dateStr) => {
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
     return date.toLocaleString('ko-KR', {
       year: 'numeric',
       month: 'long',
@@ -67,7 +74,7 @@ export default function Footer() {
                 </svg>
                 <span>마지막 업데이트:</span>
               </div>
-              <p className="pl-6 text-gray-300">{formatUpdateTime(lastUpdate)}</p>
+              <p className="pl-6 text-gray-300">{formatUpdateTime(schedulerStatus?.last_collection_time)}</p>
               <a
                 href="https://github.com/kangsuek/ETFWeeklyReport"
                 target="_blank"
