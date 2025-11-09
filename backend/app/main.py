@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import etfs, reports, news, data
 from app.database import init_db
 from app.services.scheduler import get_scheduler
+from app.config import Config
 import logging
 from dotenv import load_dotenv
 
@@ -25,7 +26,7 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=Config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
