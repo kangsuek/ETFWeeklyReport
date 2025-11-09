@@ -8,6 +8,8 @@ venv/
 env/
 *.egg-info/
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Node
 node_modules/
