@@ -252,59 +252,58 @@ class ETFDataCollector:
     def save_price_data(self, price_data: List[dict]) -> int:
         """
         가격 데이터를 데이터베이스에 저장 (검증 및 정제 포함)
-        
+
         Args:
             price_data: 저장할 가격 데이터 리스트
-        
+
         Returns:
             저장된 레코드 수
         """
         if not price_data:
             return 0
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
+
         saved_count = 0
-        
-        try:
-            for data in price_data:
-                # 데이터 검증
-                is_valid, error_msg = self.validate_price_data(data)
-                if not is_valid:
-                    logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
-                    continue
-                
-                # 데이터 정제
-                cleaned_data = self.clean_price_data(data)
-                
-                try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO prices 
-                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        cleaned_data['ticker'],
-                        cleaned_data['date'],
-                        cleaned_data['open_price'],
-                        cleaned_data['high_price'],
-                        cleaned_data['low_price'],
-                        cleaned_data['close_price'],
-                        cleaned_data['volume'],
-                        cleaned_data['daily_change_pct']
-                    ))
-                    saved_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
-            
-            conn.commit()
-            logger.info(f"Saved {saved_count} price records to database")
-            
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error while saving price data: {e}")
-        finally:
-            conn.close()
-        
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                for data in price_data:
+                    # 데이터 검증
+                    is_valid, error_msg = self.validate_price_data(data)
+                    if not is_valid:
+                        logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
+                        continue
+
+                    # 데이터 정제
+                    cleaned_data = self.clean_price_data(data)
+
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO prices
+                            (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            cleaned_data['ticker'],
+                            cleaned_data['date'],
+                            cleaned_data['open_price'],
+                            cleaned_data['high_price'],
+                            cleaned_data['low_price'],
+                            cleaned_data['close_price'],
+                            cleaned_data['volume'],
+                            cleaned_data['daily_change_pct']
+                        ))
+                        saved_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
+
+                conn.commit()
+                logger.info(f"Saved {saved_count} price records to database")
+
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Database error while saving price data: {e}")
+
         return saved_count
     
     def collect_and_save_prices(self, ticker: str, days: int = 10) -> int:
@@ -335,60 +334,53 @@ class ETFDataCollector:
     
     def get_all_etfs(self) -> List[ETF]:
         """Get list of all ETFs from database"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM etfs")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [ETF(**dict(row)) for row in rows]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM etfs")
+            rows = cursor.fetchall()
+            return [ETF(**dict(row)) for row in rows]
     
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return ETF(**dict(row))
-        return None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
+            row = cursor.fetchone()
+
+            if row:
+                return ETF(**dict(row))
+            return None
     
     def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[PriceData]:
         """Get price data for date range"""
         # TODO: Implement actual data collection from Naver Finance
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}")
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
-            FROM prices
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [PriceData(**dict(row)) for row in rows]
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
+                FROM prices
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [PriceData(**dict(row)) for row in rows]
     
     def get_trading_flow(self, ticker: str, start_date: date, end_date: date) -> List[TradingFlow]:
         """Get trading flow data"""
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, individual_net, institutional_net, foreign_net
-            FROM trading_flow
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [TradingFlow(**dict(row)) for row in rows]
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, individual_net, institutional_net, foreign_net
+                FROM trading_flow
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [TradingFlow(**dict(row)) for row in rows]
     
     def get_etf_metrics(self, ticker: str) -> ETFMetrics:
         """Calculate key metrics for ETF"""
@@ -754,61 +746,59 @@ class ETFDataCollector:
     def save_trading_flow_data(self, trading_data: List[dict]) -> int:
         """
         매매동향 데이터를 데이터베이스에 저장
-        
+
         Args:
             trading_data: 매매동향 데이터 리스트
-        
+
         Returns:
             저장된 레코드 수
         """
         if not trading_data:
             logger.warning("No trading flow data to save")
             return 0
-        
+
         # 데이터 검증
         valid_data = []
         for data in trading_data:
             if self.validate_trading_flow_data(data):
                 valid_data.append(data)
-        
+
         if not valid_data:
             logger.warning("No valid trading flow data after validation")
             return 0
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
+
         saved_count = 0
-        
-        try:
-            for data in valid_data:
-                try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO trading_flow 
-                        (ticker, date, individual_net, institutional_net, foreign_net)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (
-                        data['ticker'],
-                        data['date'],
-                        data.get('individual_net'),
-                        data.get('institutional_net'),
-                        data.get('foreign_net')
-                    ))
-                    saved_count += 1
-                    
-                except Exception as e:
-                    logger.error(f"Failed to save trading flow record: {e}")
-                    continue
-            
-            conn.commit()
-            logger.info(f"Saved {saved_count} trading flow records")
-            
-        except Exception as e:
-            logger.error(f"Database error saving trading flow: {e}")
-            conn.rollback()
-            
-        finally:
-            conn.close()
-        
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                for data in valid_data:
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO trading_flow
+                            (ticker, date, individual_net, institutional_net, foreign_net)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            data['ticker'],
+                            data['date'],
+                            data.get('individual_net'),
+                            data.get('institutional_net'),
+                            data.get('foreign_net')
+                        ))
+                        saved_count += 1
+
+                    except Exception as e:
+                        logger.error(f"Failed to save trading flow record: {e}")
+                        continue
+
+                conn.commit()
+                logger.info(f"Saved {saved_count} trading flow records")
+
+            except Exception as e:
+                logger.error(f"Database error saving trading flow: {e}")
+                conn.rollback()
+
         return saved_count
     
     def collect_and_save_trading_flow(self, ticker: str, days: int = 10) -> int:
@@ -838,33 +828,31 @@ class ETFDataCollector:
         return saved_count
     
     def get_trading_flow_data(
-        self, 
-        ticker: str, 
-        start_date: date, 
+        self,
+        ticker: str,
+        start_date: date,
         end_date: date
     ) -> List[Dict]:
         """
         데이터베이스에서 매매동향 데이터 조회
-        
+
         Args:
             ticker: 종목 코드
             start_date: 시작 날짜
             end_date: 종료 날짜
-        
+
         Returns:
             매매동향 데이터 리스트
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, individual_net, institutional_net, foreign_net
-            FROM trading_flow
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, individual_net, institutional_net, foreign_net
+                FROM trading_flow
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
