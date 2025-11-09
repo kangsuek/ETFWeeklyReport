@@ -14,14 +14,42 @@ export default function ETFCardSkeleton() {
 
       {/* 가격 정보 */}
       <div className="mb-4 py-3 border-t border-b border-gray-100">
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-baseline justify-between mb-2">
           <div className="h-8 bg-gray-200 rounded w-24"></div>
           <div className="h-5 bg-gray-200 rounded w-16"></div>
         </div>
-        <div className="flex justify-between">
-          <div className="h-3 bg-gray-200 rounded w-20"></div>
-          <div className="h-3 bg-gray-200 rounded w-20"></div>
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
         </div>
+        <div className="flex justify-between pt-2 border-t border-gray-100">
+          <div className="h-3 bg-gray-200 rounded w-20"></div>
+          <div className="h-3 bg-gray-200 rounded w-16"></div>
+        </div>
+        <div className="flex justify-between mt-2 pt-2 border-t border-gray-100">
+          <div className="h-3 bg-gray-200 rounded w-20"></div>
+          <div className="h-8 bg-gray-200 rounded w-24"></div>
+        </div>
+      </div>
+
+      {/* 매매 동향 */}
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <div className="h-3 bg-gray-200 rounded w-32 mb-2"></div>
+        <div className="grid grid-cols-3 gap-1">
+          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+
+      {/* 뉴스 */}
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <div className="flex justify-between mb-1">
+          <div className="h-3 bg-gray-200 rounded w-16"></div>
+          <div className="h-3 bg-gray-200 rounded w-8"></div>
+        </div>
+        <div className="h-3 bg-gray-200 rounded w-full"></div>
       </div>
 
       {/* 하단 */}

@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { etfApi } from '../../services/api'
+import { etfApi, newsApi } from '../../services/api'
 
 export default function ETFCard({ etf }) {
-  // 최신 가격 데이터 조회 (5일치 - 주간 수익률 계산용)
-  const { data: prices, isLoading } = useQuery({
+  // 최신 가격 데이터 조회 (5일치 - 주간 수익률 및 차트용)
+  const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ['prices', etf.ticker],
     queryFn: async () => {
       const response = await etfApi.getPrices(etf.ticker, { days: 5 })
@@ -14,6 +14,28 @@ export default function ETFCard({ etf }) {
     staleTime: 60000, // 1분간 캐시
   })
 
+  // 매매 동향 데이터 조회 (최근 1일)
+  const { data: tradingFlow } = useQuery({
+    queryKey: ['trading-flow', etf.ticker],
+    queryFn: async () => {
+      const response = await etfApi.getTradingFlow(etf.ticker, { days: 1 })
+      return response.data
+    },
+    retry: 1,
+    staleTime: 60000,
+  })
+
+  // 뉴스 데이터 조회 (최근 5개)
+  const { data: news } = useQuery({
+    queryKey: ['news', etf.ticker],
+    queryFn: async () => {
+      const response = await newsApi.getByTicker(etf.ticker, { limit: 5 })
+      return response.data
+    },
+    retry: 1,
+    staleTime: 300000, // 5분간 캐시
+  })
+
   // 최신 가격 데이터 (첫 번째 항목)
   const latestPrice = prices?.[0]
 
@@ -21,6 +43,11 @@ export default function ETFCard({ etf }) {
   const weeklyReturn = prices && prices.length >= 2
     ? ((prices[0].close_price - prices[prices.length - 1].close_price) / prices[prices.length - 1].close_price) * 100
     : null
+
+  // 최신 매매 동향
+  const latestTradingFlow = tradingFlow?.[0]
+
+  const isLoading = pricesLoading
 
   // 등락률에 따른 색상 결정
   const getChangeColor = (changePct) => {
@@ -50,6 +77,52 @@ export default function ETFCard({ etf }) {
       return `${(volume / 1000).toFixed(0)}K`
     }
     return volume.toString()
+  }
+
+  // 매매 동향 포맷팅 (억 단위)
+  const formatTradingValue = (value) => {
+    if (!value) return '0'
+    const absValue = Math.abs(value)
+    if (absValue >= 100000000) {
+      return `${(value / 100000000).toFixed(0)}억`
+    } else if (absValue >= 10000) {
+      return `${(value / 10000).toFixed(0)}만`
+    }
+    return value.toString()
+  }
+
+  // 미니 차트 생성 (SVG 스파크라인)
+  const renderMiniChart = () => {
+    if (!prices || prices.length < 2) return null
+
+    const reversedPrices = [...prices].reverse() // 오래된 것부터
+    const priceValues = reversedPrices.map(p => p.close_price)
+    const min = Math.min(...priceValues)
+    const max = Math.max(...priceValues)
+    const range = max - min || 1
+
+    const width = 100
+    const height = 30
+    const points = priceValues.map((price, i) => {
+      const x = (i / (priceValues.length - 1)) * width
+      const y = height - ((price - min) / range) * height
+      return `${x},${y}`
+    }).join(' ')
+
+    const isPositive = priceValues[priceValues.length - 1] >= priceValues[0]
+
+    return (
+      <svg width={width} height={height} className="inline-block">
+        <polyline
+          points={points}
+          fill="none"
+          stroke={isPositive ? '#ef4444' : '#3b82f6'}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
   }
 
   return (
@@ -113,12 +186,53 @@ export default function ETFCard({ etf }) {
               )}
             </div>
 
-            {/* 날짜 */}
-            <div className="text-xs text-gray-400 mt-1">{latestPrice.date}</div>
+            {/* 미니 차트 & 날짜 */}
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+              <div className="text-xs text-gray-400">{latestPrice.date}</div>
+              {renderMiniChart()}
+            </div>
           </div>
         ) : (
           <div className="py-4 text-center text-sm text-gray-400">
             가격 정보 없음
+          </div>
+        )}
+
+        {/* 매매 동향 */}
+        {latestTradingFlow && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <div className="text-xs text-gray-500 mb-1">매매 동향 ({latestTradingFlow.date})</div>
+            <div className="grid grid-cols-3 gap-1 text-xs">
+              <div className="text-center">
+                <div className="text-gray-500">개인</div>
+                <div className={`font-semibold ${latestTradingFlow.individual_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {formatTradingValue(latestTradingFlow.individual_net)}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-500">기관</div>
+                <div className={`font-semibold ${latestTradingFlow.institutional_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {formatTradingValue(latestTradingFlow.institutional_net)}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-500">외국인</div>
+                <div className={`font-semibold ${latestTradingFlow.foreign_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {formatTradingValue(latestTradingFlow.foreign_net)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 뉴스 */}
+        {news && news.length > 0 && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-gray-500">최근 뉴스</span>
+              <span className="font-semibold text-primary">{news.length}건</span>
+            </div>
+            <div className="text-xs text-gray-600 line-clamp-1">{news[0].title}</div>
           </div>
         )}
 
