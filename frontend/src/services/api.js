@@ -15,12 +15,6 @@ const api = axios.create({
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {
-    // FastAPI trailing slash 리다이렉트 방지
-    // URL이 쿼리 파라미터를 포함하지 않고 /로 끝나지 않으면 /를 추가
-    if (config.url && !config.url.includes('?') && !config.url.endsWith('/')) {
-      config.url += '/'
-    }
-
     // 요청 전 처리 (예: 인증 토큰 추가)
     // if (token) {
     //   config.headers.Authorization = `Bearer ${token}`
