@@ -329,6 +329,7 @@ class NewsScraper:
         except Exception as e:
             logger.error(f"Database error saving news: {e}")
             conn.rollback()
+            saved_count = 0  # 롤백 시 저장된 레코드 없음
 
         finally:
             conn.close()

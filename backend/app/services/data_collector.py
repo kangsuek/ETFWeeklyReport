@@ -252,20 +252,20 @@ class ETFDataCollector:
     def save_price_data(self, price_data: List[dict]) -> int:
         """
         가격 데이터를 데이터베이스에 저장 (검증 및 정제 포함)
-        
+
         Args:
             price_data: 저장할 가격 데이터 리스트
-        
+
         Returns:
             저장된 레코드 수
         """
         if not price_data:
             return 0
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
         saved_count = 0
-        
+
         try:
             for data in price_data:
                 # 데이터 검증
@@ -273,13 +273,13 @@ class ETFDataCollector:
                 if not is_valid:
                     logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
                     continue
-                
+
                 # 데이터 정제
                 cleaned_data = self.clean_price_data(data)
-                
+
                 try:
                     cursor.execute("""
-                        INSERT OR REPLACE INTO prices 
+                        INSERT OR REPLACE INTO prices
                         (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
@@ -295,16 +295,17 @@ class ETFDataCollector:
                     saved_count += 1
                 except Exception as e:
                     logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
-            
+
             conn.commit()
             logger.info(f"Saved {saved_count} price records to database")
-            
+
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error while saving price data: {e}")
+            saved_count = 0  # 롤백 시 저장된 레코드 없음
         finally:
             conn.close()
-        
+
         return saved_count
     
     def collect_and_save_prices(self, ticker: str, days: int = 10) -> int:
@@ -754,36 +755,36 @@ class ETFDataCollector:
     def save_trading_flow_data(self, trading_data: List[dict]) -> int:
         """
         매매동향 데이터를 데이터베이스에 저장
-        
+
         Args:
             trading_data: 매매동향 데이터 리스트
-        
+
         Returns:
             저장된 레코드 수
         """
         if not trading_data:
             logger.warning("No trading flow data to save")
             return 0
-        
+
         # 데이터 검증
         valid_data = []
         for data in trading_data:
             if self.validate_trading_flow_data(data):
                 valid_data.append(data)
-        
+
         if not valid_data:
             logger.warning("No valid trading flow data after validation")
             return 0
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
         saved_count = 0
-        
+
         try:
             for data in valid_data:
                 try:
                     cursor.execute("""
-                        INSERT OR REPLACE INTO trading_flow 
+                        INSERT OR REPLACE INTO trading_flow
                         (ticker, date, individual_net, institutional_net, foreign_net)
                         VALUES (?, ?, ?, ?, ?)
                     """, (
@@ -794,23 +795,24 @@ class ETFDataCollector:
                         data.get('foreign_net')
                     ))
                     saved_count += 1
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to save trading flow record: {e}")
                     continue
-            
+
             conn.commit()
             logger.info(f"Saved {saved_count} trading flow records")
-            
+
         except Exception as e:
             logger.error(f"Database error saving trading flow: {e}")
             conn.rollback()
-            
+            saved_count = 0  # 롤백 시 저장된 레코드 없음
+
         finally:
             conn.close()
-        
+
         return saved_count
-    
+
     def collect_and_save_trading_flow(self, ticker: str, days: int = 10) -> int:
         """
         매매동향 데이터를 수집하고 저장
