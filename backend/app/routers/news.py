@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from app.models import News
 from app.services.news_scraper import NewsScraper
 from app.services.data_collector import ETFDataCollector
+from app.exceptions import DatabaseException, ValidationException, ScraperException
+import sqlite3
 import logging
 
 router = APIRouter()
@@ -39,16 +41,22 @@ async def get_news(
     
     try:
         news_list = scraper.get_news_for_ticker(ticker, start_date, end_date)
-        
+
         if not news_list:
             logger.warning(f"No news found for {ticker} between {start_date} and {end_date}")
-        
+
         logger.info(f"Retrieved {len(news_list)} news articles for {ticker}")
         return news_list
-        
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching news for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error fetching news for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid date range or ticker")
     except Exception as e:
-        logger.error(f"Error fetching news for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve news: {str(e)}")
+        logger.error(f"Unexpected error fetching news for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve news. Please try again later.")
 
 @router.post("/{ticker}/collect")
 async def collect_news(
@@ -72,10 +80,19 @@ async def collect_news(
     try:
         logger.info(f"Starting news collection for {ticker}, days={days}")
         result = scraper.collect_and_save_news(ticker, days)
-        
+
         result['name'] = etf_info.name
         return result
-        
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error collecting news for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error during news collection")
+    except ScraperException as e:
+        logger.error(f"Scraper error collecting news for {ticker}: {e}")
+        raise HTTPException(status_code=503, detail="News source temporarily unavailable")
+    except ValidationException as e:
+        logger.error(f"Validation error collecting news for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Error collecting news for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"News collection failed: {str(e)}")
+        logger.error(f"Unexpected error collecting news for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="News collection failed. Please try again later.")
