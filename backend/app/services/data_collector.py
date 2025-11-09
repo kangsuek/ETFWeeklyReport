@@ -4,6 +4,7 @@ from app.models import ETF, PriceData, TradingFlow, ETFMetrics
 from app.database import get_db_connection
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
+from app.constants import DAYS_IN_YEAR, TRADING_DAYS_PER_YEAR, PERCENT_MULTIPLIER
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -262,49 +263,47 @@ class ETFDataCollector:
         if not price_data:
             return 0
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
         saved_count = 0
 
-        try:
-            for data in price_data:
-                # 데이터 검증
-                is_valid, error_msg = self.validate_price_data(data)
-                if not is_valid:
-                    logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
-                    continue
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                for data in price_data:
+                    # 데이터 검증
+                    is_valid, error_msg = self.validate_price_data(data)
+                    if not is_valid:
+                        logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
+                        continue
 
-                # 데이터 정제
-                cleaned_data = self.clean_price_data(data)
+                    # 데이터 정제
+                    cleaned_data = self.clean_price_data(data)
 
-                try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO prices
-                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        cleaned_data['ticker'],
-                        cleaned_data['date'],
-                        cleaned_data['open_price'],
-                        cleaned_data['high_price'],
-                        cleaned_data['low_price'],
-                        cleaned_data['close_price'],
-                        cleaned_data['volume'],
-                        cleaned_data['daily_change_pct']
-                    ))
-                    saved_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO prices
+                            (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            cleaned_data['ticker'],
+                            cleaned_data['date'],
+                            cleaned_data['open_price'],
+                            cleaned_data['high_price'],
+                            cleaned_data['low_price'],
+                            cleaned_data['close_price'],
+                            cleaned_data['volume'],
+                            cleaned_data['daily_change_pct']
+                        ))
+                        saved_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
 
-            conn.commit()
-            logger.info(f"Saved {saved_count} price records to database")
+                conn.commit()
+                logger.info(f"Saved {saved_count} price records to database")
 
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error while saving price data: {e}")
-            saved_count = 0  # 롤백 시 저장된 레코드 없음
-        finally:
-            conn.close()
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Database error while saving price data: {e}")
+                saved_count = 0  # 롤백 시 저장된 레코드 없음
 
         return saved_count
     
@@ -336,72 +335,163 @@ class ETFDataCollector:
     
     def get_all_etfs(self) -> List[ETF]:
         """Get list of all ETFs from database"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM etfs")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [ETF(**dict(row)) for row in rows]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM etfs")
+            rows = cursor.fetchall()
+            return [ETF(**dict(row)) for row in rows]
     
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return ETF(**dict(row))
-        return None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
+            row = cursor.fetchone()
+            if row:
+                return ETF(**dict(row))
+            return None
     
     def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[PriceData]:
         """Get price data for date range"""
         # TODO: Implement actual data collection from Naver Finance
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}")
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
-            FROM prices
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [PriceData(**dict(row)) for row in rows]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
+                FROM prices
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [PriceData(**dict(row)) for row in rows]
     
     def get_trading_flow(self, ticker: str, start_date: date, end_date: date) -> List[TradingFlow]:
         """Get trading flow data"""
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, individual_net, institutional_net, foreign_net
-            FROM trading_flow
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [TradingFlow(**dict(row)) for row in rows]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, individual_net, institutional_net, foreign_net
+                FROM trading_flow
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [TradingFlow(**dict(row)) for row in rows]
     
     def get_etf_metrics(self, ticker: str) -> ETFMetrics:
-        """Calculate key metrics for ETF"""
-        # TODO: Implement metrics calculation
+        """
+        Calculate key metrics for ETF
+
+        Calculates:
+        - Returns: 1 week, 1 month, year-to-date
+        - Volatility: Standard deviation of daily returns (annualized)
+
+        Args:
+            ticker: Stock/ETF ticker code
+
+        Returns:
+            ETFMetrics with calculated values
+        """
         logger.info(f"Calculating metrics for {ticker}")
-        
-        return ETFMetrics(
-            ticker=ticker,
-            aum=None,
-            returns={"1w": 0.0, "1m": 0.0, "ytd": 0.0},
-            volatility=None
-        )
+
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                # Get price data for calculations
+                today = date.today()
+                one_year_ago = today - timedelta(days=DAYS_IN_YEAR)
+
+                cursor.execute("""
+                    SELECT date, close_price, daily_change_pct
+                    FROM prices
+                    WHERE ticker = ? AND date >= ?
+                    ORDER BY date DESC
+                """, (ticker, one_year_ago))
+
+                rows = cursor.fetchall()
+
+                if not rows:
+                    logger.warning(f"No price data available for {ticker}")
+                    return ETFMetrics(
+                        ticker=ticker,
+                        aum=None,
+                        returns={"1w": None, "1m": None, "ytd": None},
+                        volatility=None
+                    )
+
+                # Convert to list for easier indexing
+                prices = [dict(row) for row in rows]
+
+                # Calculate returns
+                returns = {}
+
+                # 1 week return
+                if len(prices) >= 7:
+                    week_ago_price = prices[min(6, len(prices)-1)]['close_price']
+                    current_price = prices[0]['close_price']
+                    if week_ago_price and current_price:
+                        returns['1w'] = ((current_price - week_ago_price) / week_ago_price) * PERCENT_MULTIPLIER
+                    else:
+                        returns['1w'] = None
+                else:
+                    returns['1w'] = None
+
+                # 1 month return
+                if len(prices) >= 30:
+                    month_ago_price = prices[min(29, len(prices)-1)]['close_price']
+                    current_price = prices[0]['close_price']
+                    if month_ago_price and current_price:
+                        returns['1m'] = ((current_price - month_ago_price) / month_ago_price) * PERCENT_MULTIPLIER
+                    else:
+                        returns['1m'] = None
+                else:
+                    returns['1m'] = None
+
+                # Year-to-date return
+                year_start = date(today.year, 1, 1)
+                ytd_prices = [p for p in prices if date.fromisoformat(p['date']) >= year_start]
+                if len(ytd_prices) >= 2:
+                    ytd_start_price = ytd_prices[-1]['close_price']
+                    current_price = ytd_prices[0]['close_price']
+                    if ytd_start_price and current_price:
+                        returns['ytd'] = ((current_price - ytd_start_price) / ytd_start_price) * PERCENT_MULTIPLIER
+                    else:
+                        returns['ytd'] = None
+                else:
+                    returns['ytd'] = None
+
+                # Calculate volatility (annualized standard deviation of daily returns)
+                daily_changes = [p['daily_change_pct'] for p in prices if p['daily_change_pct'] is not None]
+                volatility = None
+
+                if len(daily_changes) >= 10:  # Need at least 10 data points for meaningful volatility
+                    import math
+                    mean_change = sum(daily_changes) / len(daily_changes)
+                    variance = sum((x - mean_change) ** 2 for x in daily_changes) / len(daily_changes)
+                    std_dev = math.sqrt(variance)
+                    # Annualize: daily std * sqrt(trading days per year)
+                    volatility = std_dev * math.sqrt(TRADING_DAYS_PER_YEAR)
+
+                return ETFMetrics(
+                    ticker=ticker,
+                    aum=None,  # AUM data not available from scraping
+                    returns=returns,
+                    volatility=volatility
+                )
+
+        except Exception as e:
+            logger.error(f"Error calculating metrics for {ticker}: {e}", exc_info=True)
+            return ETFMetrics(
+                ticker=ticker,
+                aum=None,
+                returns={"1w": None, "1m": None, "ytd": None},
+                volatility=None
+            )
     
     def collect_all_tickers(self, days: int = 1) -> dict:
         """
@@ -776,40 +866,37 @@ class ETFDataCollector:
             logger.warning("No valid trading flow data after validation")
             return 0
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
         saved_count = 0
 
-        try:
-            for data in valid_data:
-                try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO trading_flow
-                        (ticker, date, individual_net, institutional_net, foreign_net)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (
-                        data['ticker'],
-                        data['date'],
-                        data.get('individual_net'),
-                        data.get('institutional_net'),
-                        data.get('foreign_net')
-                    ))
-                    saved_count += 1
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                for data in valid_data:
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO trading_flow
+                            (ticker, date, individual_net, institutional_net, foreign_net)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            data['ticker'],
+                            data['date'],
+                            data.get('individual_net'),
+                            data.get('institutional_net'),
+                            data.get('foreign_net')
+                        ))
+                        saved_count += 1
 
-                except Exception as e:
-                    logger.error(f"Failed to save trading flow record: {e}")
-                    continue
+                    except Exception as e:
+                        logger.error(f"Failed to save trading flow record: {e}")
+                        continue
 
-            conn.commit()
-            logger.info(f"Saved {saved_count} trading flow records")
+                conn.commit()
+                logger.info(f"Saved {saved_count} trading flow records")
 
-        except Exception as e:
-            logger.error(f"Database error saving trading flow: {e}")
-            conn.rollback()
-            saved_count = 0  # 롤백 시 저장된 레코드 없음
-
-        finally:
-            conn.close()
+            except Exception as e:
+                logger.error(f"Database error saving trading flow: {e}")
+                conn.rollback()
+                saved_count = 0  # 롤백 시 저장된 레코드 없음
 
         return saved_count
 
@@ -858,15 +945,13 @@ class ETFDataCollector:
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT date, individual_net, institutional_net, foreign_net
-            FROM trading_flow
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (ticker, start_date, end_date))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, individual_net, institutional_net, foreign_net
+                FROM trading_flow
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]

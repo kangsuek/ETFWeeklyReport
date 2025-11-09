@@ -1,17 +1,48 @@
 import sqlite3
 from pathlib import Path
 import logging
+import os
+from contextlib import contextmanager
 from app.config import Config
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
+# DATABASE_URL 환경 변수 사용 (설정되지 않으면 기본값 사용)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    # PostgreSQL 등 다른 DB URL이 제공된 경우
+    # 현재는 SQLite만 지원하므로 경고 로깅
+    if not DATABASE_URL.startswith("sqlite"):
+        logger.warning(f"Only SQLite is currently supported. Ignoring DATABASE_URL: {DATABASE_URL}")
+        DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
+    else:
+        # sqlite:///path/to/db.db 형식에서 경로 추출
+        db_path_str = DATABASE_URL.replace("sqlite:///", "")
+        DB_PATH = Path(db_path_str)
+        logger.info(f"Using DATABASE_URL: {DATABASE_URL}")
+else:
+    # 기본값: SQLite
+    DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
+    logger.info(f"Using default database path: {DB_PATH}")
 
+@contextmanager
 def get_db_connection():
-    """Get database connection"""
+    """
+    Get database connection as a context manager.
+    Ensures connection is properly closed even if an exception occurs.
+    
+    Usage:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM etfs")
+            rows = cursor.fetchall()
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def init_db():
     """Initialize database with schema"""
@@ -73,7 +104,25 @@ def init_db():
             FOREIGN KEY (ticker) REFERENCES etfs(ticker)
         )
     """)
-    
+
+    # Create indexes for improved query performance on date-based queries
+    logger.info("Creating database indexes for performance optimization")
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_prices_ticker_date
+        ON prices(ticker, date DESC)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_trading_flow_ticker_date
+        ON trading_flow(ticker, date DESC)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_news_ticker_date
+        ON news(ticker, date DESC)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []

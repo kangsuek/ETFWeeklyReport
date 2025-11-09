@@ -1,19 +1,58 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from datetime import date, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics
 from app.services.data_collector import ETFDataCollector
 from app.exceptions import DatabaseException, ValidationException, ScraperException
+from app.utils.date_utils import apply_default_dates
+from app.dependencies import get_etf_or_404, get_collector
 import sqlite3
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-collector = ETFDataCollector()
 
 @router.get("/", response_model=List[ETF])
-async def get_etfs():
-    """Get list of all ETFs"""
+async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
+    """
+    전체 종목 목록 조회
+
+    등록된 모든 ETF 및 주식 종목의 기본 정보를 반환합니다.
+
+    **Returns:**
+    종목 목록 (ETF 4개 + 주식 2개 = 총 6개)
+
+    **Example Request:**
+    ```
+    GET /api/etfs/
+    ```
+
+    **Example Response:**
+    ```json
+    [
+      {
+        "ticker": "487240",
+        "name": "삼성 KODEX AI전력핵심설비 ETF",
+        "type": "ETF",
+        "theme": "AI/전력",
+        "launch_date": "2024-03-15",
+        "expense_ratio": 0.0045
+      },
+      {
+        "ticker": "042660",
+        "name": "한화오션",
+        "type": "STOCK",
+        "theme": "조선/방산",
+        "launch_date": null,
+        "expense_ratio": null
+      }
+    ]
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 500: 서버 오류
+    """
     try:
         return collector.get_all_etfs()
     except sqlite3.Error as e:
@@ -27,12 +66,38 @@ async def get_etfs():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{ticker}", response_model=ETF)
-async def get_etf(ticker: str):
-    """Get basic info for specific ETF"""
+async def get_etf(etf: ETF = Depends(get_etf_or_404)):
+    """
+    특정 종목 상세 정보 조회
+
+    종목 코드(ticker)로 특정 ETF 또는 주식의 상세 정보를 조회합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240, 042660)
+
+    **Example Request:**
+    ```
+    GET /api/etfs/487240
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "ticker": "487240",
+      "name": "삼성 KODEX AI전력핵심설비 ETF",
+      "type": "ETF",
+      "theme": "AI/전력",
+      "launch_date": "2024-03-15",
+      "expense_ratio": 0.0045
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 500: 서버 오류
+    """
     try:
-        etf = collector.get_etf_info(ticker)
-        if not etf:
-            raise HTTPException(status_code=404, detail="ETF not found")
         return etf
     except HTTPException:
         raise
@@ -48,215 +113,298 @@ async def get_etf(ticker: str):
 
 @router.get("/{ticker}/prices", response_model=List[PriceData])
 async def get_prices(
-    ticker: str,
+    etf: ETF = Depends(get_etf_or_404),
     start_date: Optional[date] = Query(default=None),
     end_date: Optional[date] = Query(default=None),
-    days: Optional[int] = Query(default=None, description="Number of days to fetch (alternative to date range)")
+    days: Optional[int] = Query(default=None, description="Number of days to fetch (alternative to date range)"),
+    collector: ETFDataCollector = Depends(get_collector)
 ):
     """
-    Get price data for ETF/Stock within date range
-    
-    Args:
-        ticker: Stock/ETF ticker code
-        start_date: Start date (optional, defaults to 7 days ago)
-        end_date: End date (optional, defaults to today)
-        days: Number of days to fetch (alternative to date range)
-    
-    Returns:
-        List of price data
-    
-    Raises:
-        404: ETF/Stock not found
-        500: Internal server error
+    종목 가격 데이터 조회
+
+    지정한 기간 동안의 가격 데이터(시가, 고가, 저가, 종가, 거래량, 등락률)를 조회합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+
+    **Query Parameters:**
+    - start_date: 조회 시작 날짜 (선택, 기본값: 7일 전)
+    - end_date: 조회 종료 날짜 (선택, 기본값: 오늘)
+    - days: 조회 일수 (선택, date range 대신 사용 가능)
+
+    **Example Requests:**
+    ```
+    # 기본 (최근 7일)
+    GET /api/etfs/487240/prices
+
+    # 날짜 범위 지정
+    GET /api/etfs/487240/prices?start_date=2025-11-01&end_date=2025-11-09
+
+    # 최근 N일
+    GET /api/etfs/487240/prices?days=30
+    ```
+
+    **Example Response:**
+    ```json
+    [
+      {
+        "date": "2025-11-09",
+        "open_price": 12400.0,
+        "high_price": 12600.0,
+        "low_price": 12300.0,
+        "close_price": 12500.0,
+        "volume": 1000000,
+        "daily_change_pct": 2.5
+      },
+      {
+        "date": "2025-11-08",
+        "open_price": 12200.0,
+        "high_price": 12450.0,
+        "low_price": 12150.0,
+        "close_price": 12400.0,
+        "volume": 850000,
+        "daily_change_pct": 1.2
+      }
+    ]
+    ```
+
+    **Response Fields:**
+    - date: 거래 날짜
+    - open_price: 시가
+    - high_price: 고가
+    - low_price: 저가
+    - close_price: 종가
+    - volume: 거래량
+    - daily_change_pct: 전일 대비 등락률 (%)
+
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 400: 잘못된 날짜 범위
+    - 500: 서버 오류
+
+    **Notes:**
+    - 데이터는 최신순(날짜 내림차순)으로 정렬됨
+    - 주말/공휴일 데이터는 포함되지 않음
+    - 최대 조회 가능 기간: 1년 (365일)
     """
-    logger.info(f"Fetching prices for {ticker}")
-    
-    # ETF/Stock 존재 확인
-    etf = collector.get_etf_info(ticker)
-    if not etf:
-        logger.warning(f"Stock/ETF {ticker} not found")
-        raise HTTPException(status_code=404, detail=f"Stock/ETF {ticker} not found")
-    
+    logger.info(f"Fetching prices for {etf.ticker}")
+
     # 날짜 범위 설정
-    if not start_date:
-        start_date = date.today() - timedelta(days=7)
-    if not end_date:
-        end_date = date.today()
-    
+    start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
+
     try:
-        prices = collector.get_price_data(ticker, start_date, end_date)
-        logger.info(f"Successfully fetched {len(prices)} price records for {ticker}")
+        prices = collector.get_price_data(etf.ticker, start_date, end_date)
+        logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
         return prices
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching prices for {ticker}: {e}")
+        logger.error(f"Database error fetching prices for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred")
     except ValidationException as e:
-        logger.error(f"Validation error fetching prices for {ticker}: {e}")
+        logger.error(f"Validation error fetching prices for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid date range or ticker")
     except Exception as e:
-        logger.error(f"Unexpected error fetching prices for {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching prices for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch prices. Please try again later.")
 
 @router.post("/{ticker}/collect")
 async def collect_prices(
-    ticker: str,
-    days: int = Query(default=10, description="Number of days to collect")
+    etf: ETF = Depends(get_etf_or_404),
+    days: int = Query(default=10, description="Number of days to collect"),
+    collector: ETFDataCollector = Depends(get_collector)
 ):
     """
     Trigger data collection from Naver Finance for a specific stock/ETF
-    
+
     Args:
-        ticker: Stock/ETF ticker code
+        etf: ETF/Stock model (injected, validated)
         days: Number of days to collect (default: 10)
-    
+        collector: Data collector instance (injected)
+
     Returns:
         Collection result with count
-    
+
     Raises:
         404: ETF/Stock not found
         500: Collection failed
     """
-    logger.info(f"Starting data collection for {ticker} (days={days})")
-    
-    # ETF/Stock 존재 확인
-    etf = collector.get_etf_info(ticker)
-    if not etf:
-        logger.warning(f"Stock/ETF {ticker} not found")
-        raise HTTPException(status_code=404, detail=f"Stock/ETF {ticker} not found")
-    
+    logger.info(f"Starting data collection for {etf.ticker} (days={days})")
+
     try:
-        saved_count = collector.collect_and_save_prices(ticker, days=days)
+        saved_count = collector.collect_and_save_prices(etf.ticker, days=days)
 
         if saved_count == 0:
-            logger.warning(f"No data collected for {ticker}")
+            logger.warning(f"No data collected for {etf.ticker}")
             return {
-                "ticker": ticker,
+                "ticker": etf.ticker,
                 "collected": 0,
                 "message": "No data collected. Check if the ticker is valid or data is available."
             }
 
-        logger.info(f"Successfully collected {saved_count} records for {ticker}")
+        logger.info(f"Successfully collected {saved_count} records for {etf.ticker}")
         return {
-            "ticker": ticker,
+            "ticker": etf.ticker,
             "collected": saved_count,
             "message": f"Successfully collected {saved_count} price records"
         }
     except sqlite3.Error as e:
-        logger.error(f"Database error collecting data for {ticker}: {e}")
+        logger.error(f"Database error collecting data for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error during data collection")
     except ScraperException as e:
-        logger.error(f"Scraper error collecting data for {ticker}: {e}")
+        logger.error(f"Scraper error collecting data for {etf.ticker}: {e}")
         raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
     except ValidationException as e:
-        logger.error(f"Validation error collecting data for {ticker}: {e}")
+        logger.error(f"Validation error collecting data for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Unexpected error collecting data for {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error collecting data for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Data collection failed. Please try again later.")
 
 @router.get("/{ticker}/trading-flow")
 async def get_trading_flow(
-    ticker: str,
+    etf: ETF = Depends(get_etf_or_404),
     start_date: Optional[date] = Query(default=None, description="조회 시작 날짜 (기본: 7일 전)"),
-    end_date: Optional[date] = Query(default=None, description="조회 종료 날짜 (기본: 오늘)")
+    end_date: Optional[date] = Query(default=None, description="조회 종료 날짜 (기본: 오늘)"),
+    collector: ETFDataCollector = Depends(get_collector)
 ):
     """
     투자자별 매매동향 데이터 조회
-    
-    - **ticker**: 종목 코드
+
+    - **etf**: 종목 정보 (자동 주입, 검증됨)
     - **start_date**: 시작 날짜 (선택, 기본: 7일 전)
     - **end_date**: 종료 날짜 (선택, 기본: 오늘)
-    
+
     Returns:
         매매동향 데이터 리스트 (개인, 기관, 외국인 순매수)
     """
     # 날짜 기본값 설정
-    if not start_date:
-        start_date = date.today() - timedelta(days=7)
-    if not end_date:
-        end_date = date.today()
-    
-    # ETF 존재 확인
-    etf_info = collector.get_etf_info(ticker)
-    if not etf_info:
-        raise HTTPException(status_code=404, detail=f"ETF/Stock not found: {ticker}")
-    
+    start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
+
     try:
-        trading_data = collector.get_trading_flow_data(ticker, start_date, end_date)
+        trading_data = collector.get_trading_flow_data(etf.ticker, start_date, end_date)
 
         if not trading_data:
-            logger.warning(f"No trading flow data found for {ticker} between {start_date} and {end_date}")
+            logger.warning(f"No trading flow data found for {etf.ticker} between {start_date} and {end_date}")
             return []
 
-        logger.info(f"Retrieved {len(trading_data)} trading flow records for {ticker}")
+        logger.info(f"Retrieved {len(trading_data)} trading flow records for {etf.ticker}")
         return trading_data
 
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching trading flow for {ticker}: {e}")
+        logger.error(f"Database error fetching trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred")
     except ValidationException as e:
-        logger.error(f"Validation error fetching trading flow for {ticker}: {e}")
+        logger.error(f"Validation error fetching trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid date range or ticker")
     except Exception as e:
-        logger.error(f"Unexpected error fetching trading flow for {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching trading flow for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve trading flow. Please try again later.")
 
 
 @router.post("/{ticker}/collect-trading-flow")
 async def collect_trading_flow(
-    ticker: str,
-    days: int = Query(10, ge=1, le=90, description="수집할 일수 (1-90일)")
+    etf: ETF = Depends(get_etf_or_404),
+    days: int = Query(10, ge=1, le=90, description="수집할 일수 (1-90일)"),
+    collector: ETFDataCollector = Depends(get_collector)
 ):
     """
     투자자별 매매동향 데이터 수집
-    
-    - **ticker**: 종목 코드
+
+    - **etf**: 종목 정보 (자동 주입, 검증됨)
     - **days**: 수집할 일수 (1-90일, 기본: 10일)
-    
+
     Returns:
         수집 결과 및 저장된 레코드 수
     """
-    # ETF 존재 확인
-    etf_info = collector.get_etf_info(ticker)
-    if not etf_info:
-        raise HTTPException(status_code=404, detail=f"ETF/Stock not found: {ticker}")
-    
     try:
-        logger.info(f"Starting trading flow collection for {ticker}, days={days}")
-        saved_count = collector.collect_and_save_trading_flow(ticker, days)
+        logger.info(f"Starting trading flow collection for {etf.ticker}, days={days}")
+        saved_count = collector.collect_and_save_trading_flow(etf.ticker, days)
 
         return {
-            "ticker": ticker,
-            "name": etf_info.name,
+            "ticker": etf.ticker,
+            "name": etf.name,
             "collected": saved_count,
             "days": days,
             "message": f"Successfully collected {saved_count} trading flow records"
         }
 
     except sqlite3.Error as e:
-        logger.error(f"Database error collecting trading flow for {ticker}: {e}")
+        logger.error(f"Database error collecting trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error during trading flow collection")
     except ScraperException as e:
-        logger.error(f"Scraper error collecting trading flow for {ticker}: {e}")
+        logger.error(f"Scraper error collecting trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
     except ValidationException as e:
-        logger.error(f"Validation error collecting trading flow for {ticker}: {e}")
+        logger.error(f"Validation error collecting trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Unexpected error collecting trading flow for {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error collecting trading flow for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Trading flow collection failed. Please try again later.")
 
 @router.get("/{ticker}/metrics", response_model=ETFMetrics)
-async def get_metrics(ticker: str):
-    """Get key metrics for ETF"""
+async def get_metrics(
+    etf: ETF = Depends(get_etf_or_404),
+    collector: ETFDataCollector = Depends(get_collector)
+):
+    """
+    종목 주요 지표 조회
+
+    종목의 수익률, 변동성 등 주요 투자 지표를 계산하여 반환합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+
+    **Example Request:**
+    ```
+    GET /api/etfs/487240/metrics
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "ticker": "487240",
+      "aum": null,
+      "returns": {
+        "1w": 5.2,
+        "1m": 12.5,
+        "ytd": 18.3
+      },
+      "volatility": 25.4
+    }
+    ```
+
+    **Response Fields:**
+    - ticker: 종목 코드
+    - aum: 순자산총액 (AUM, 현재 미제공)
+    - returns: 수익률 (%)
+      - 1w: 1주일 수익률
+      - 1m: 1개월 수익률
+      - ytd: 연초 대비 수익률 (Year-to-Date)
+    - volatility: 연환산 변동성 (%)
+
+    **Calculation Methods:**
+    - 수익률: (현재가 - 과거가) / 과거가 × 100
+    - 변동성: 일간 변동성 표준편차 × √252 (연환산)
+
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 500: 서버 오류
+
+    **Notes:**
+    - 데이터가 부족한 경우 null 반환
+    - 최소 7일 데이터 필요 (1주 수익률)
+    - 최소 30일 데이터 필요 (1개월 수익률)
+    - 변동성 계산에는 최소 10일 데이터 필요
+    """
     try:
-        return collector.get_etf_metrics(ticker)
+        return collector.get_etf_metrics(etf.ticker)
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching metrics for {ticker}: {e}")
+        logger.error(f"Database error fetching metrics for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred")
     except ValidationException as e:
-        logger.error(f"Validation error fetching metrics for {ticker}: {e}")
+        logger.error(f"Validation error fetching metrics for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid ticker")
     except Exception as e:
-        logger.error(f"Unexpected error fetching metrics for {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching metrics for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve metrics. Please try again later.")

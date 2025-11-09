@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.services.data_collector import ETFDataCollector
 from app.services.scheduler import get_scheduler
 from app.exceptions import DatabaseException, ValidationException, ScraperException
+from app.constants import MAX_COLLECTION_DAYS, DEFAULT_COLLECTION_DAYS, DEFAULT_BACKFILL_DAYS
 import sqlite3
 import logging
 
@@ -14,15 +15,59 @@ logger = logging.getLogger(__name__)
 
 @router.post("/collect-all")
 async def collect_all_data(
-    days: int = Query(1, ge=1, le=365, description="수집할 일수 (기본: 1일)")
+    days: int = Query(DEFAULT_COLLECTION_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"수집할 일수 (기본: {DEFAULT_COLLECTION_DAYS}일)")
 ):
     """
-    모든 종목의 가격 데이터를 일괄 수집
-    
-    - **days**: 수집할 일수 (1-365)
-    
-    Returns:
-        수집 결과 및 종목별 상세 정보
+    전체 종목 데이터 일괄 수집
+
+    등록된 모든 종목(6개)의 가격 데이터와 매매동향을 일괄 수집합니다.
+
+    **Query Parameters:**
+    - days: 수집할 일수 (기본: 1일, 최대: 365일)
+
+    **Example Request:**
+    ```
+    # 당일 데이터만 수집 (기본)
+    POST /api/data/collect-all
+
+    # 최근 10일 데이터 수집
+    POST /api/data/collect-all?days=10
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "message": "Data collection completed for 6 tickers",
+      "result": {
+        "total_tickers": 6,
+        "success_count": 6,
+        "fail_count": 0,
+        "total_price_records": 6,
+        "total_trading_flow_records": 6,
+        "total_news_records": 0,
+        "details": {
+          "487240": {
+            "name": "삼성 KODEX AI전력핵심설비 ETF",
+            "success": true,
+            "price_records": 1,
+            "trading_flow_records": 1,
+            "news_records": 0
+          }
+        }
+      }
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 400: 잘못된 파라미터
+    - 503: 데이터 소스 일시적 오류
+    - 500: 서버 오류
+
+    **Notes:**
+    - 일반적으로 스케줄러가 자동으로 실행하므로 수동 호출은 불필요
+    - 데이터 갱신이 필요한 경우에만 사용
+    - 대량 수집 시 시간이 오래 걸릴 수 있음 (약 6초/종목)
     """
     try:
         collector = ETFDataCollector()
@@ -48,12 +93,12 @@ async def collect_all_data(
 
 @router.post("/backfill")
 async def backfill_data(
-    days: int = Query(90, ge=1, le=365, description="백필할 일수 (기본: 90일)")
+    days: int = Query(DEFAULT_BACKFILL_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"백필할 일수 (기본: {DEFAULT_BACKFILL_DAYS}일)")
 ):
     """
     모든 종목의 히스토리 데이터를 백필
-    
-    - **days**: 백필할 일수 (1-365일, 기본: 90일)
+
+    - **days**: 백필할 일수 (1-{MAX_COLLECTION_DAYS}일, 기본: {DEFAULT_BACKFILL_DAYS}일)
     
     Returns:
         백필 결과 및 종목별 상세 정보
