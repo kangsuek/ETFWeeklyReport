@@ -291,48 +291,45 @@ class NewsScraper:
             logger.warning("No news data to save")
             return 0
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
         saved_count = 0
 
-        try:
-            for news in news_data:
-                try:
-                    # 중복 체크 (ticker + url)
-                    cursor.execute("""
-                        SELECT id FROM news WHERE ticker = ? AND url = ?
-                    """, (ticker, news['url']))
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                for news in news_data:
+                    try:
+                        # 중복 체크 (ticker + url)
+                        cursor.execute("""
+                            SELECT id FROM news WHERE ticker = ? AND url = ?
+                        """, (ticker, news['url']))
 
-                    if cursor.fetchone():
-                        continue  # 이미 존재하면 건너뜀
+                        if cursor.fetchone():
+                            continue  # 이미 존재하면 건너뜀
 
-                    cursor.execute("""
-                        INSERT INTO news (ticker, date, title, url, source, relevance_score)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (
-                        ticker,
-                        news['date'],
-                        news['title'],
-                        news['url'],
-                        news['source'],
-                        news.get('relevance_score', 0.5)
-                    ))
-                    saved_count += 1
+                        cursor.execute("""
+                            INSERT INTO news (ticker, date, title, url, source, relevance_score)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            ticker,
+                            news['date'],
+                            news['title'],
+                            news['url'],
+                            news['source'],
+                            news.get('relevance_score', 0.5)
+                        ))
+                        saved_count += 1
 
-                except Exception as e:
-                    logger.error(f"Failed to save news record: {e}")
-                    continue
+                    except Exception as e:
+                        logger.error(f"Failed to save news record: {e}")
+                        continue
 
-            conn.commit()
-            logger.info(f"Saved {saved_count} news records for {ticker}")
+                conn.commit()
+                logger.info(f"Saved {saved_count} news records for {ticker}")
 
-        except Exception as e:
-            logger.error(f"Database error saving news: {e}")
-            conn.rollback()
-            saved_count = 0  # 롤백 시 저장된 레코드 없음
-
-        finally:
-            conn.close()
+            except Exception as e:
+                logger.error(f"Database error saving news: {e}")
+                conn.rollback()
+                saved_count = 0  # 롤백 시 저장된 레코드 없음
 
         return saved_count
 
@@ -392,28 +389,26 @@ class NewsScraper:
         """
         logger.info(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, title, url, source, relevance_score
+                FROM news
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date DESC, relevance_score DESC
+            """, (ticker, start_date, end_date))
 
-        cursor.execute("""
-            SELECT date, title, url, source, relevance_score
-            FROM news
-            WHERE ticker = ? AND date BETWEEN ? AND ?
-            ORDER BY date DESC, relevance_score DESC
-        """, (ticker, start_date, end_date))
+            rows = cursor.fetchall()
 
-        rows = cursor.fetchall()
-        conn.close()
-
-        news_list = []
-        for row in rows:
-            news_list.append(News(
-                date=row['date'],
-                title=row['title'],
-                url=row['url'],
-                source=row['source'],
-                relevance_score=row['relevance_score']
-            ))
+            news_list = []
+            for row in rows:
+                news_list.append(News(
+                    date=row['date'],
+                    title=row['title'],
+                    url=row['url'],
+                    source=row['source'],
+                    relevance_score=row['relevance_score']
+                ))
 
         logger.info(f"Retrieved {len(news_list)} news articles for {ticker}")
         return news_list
