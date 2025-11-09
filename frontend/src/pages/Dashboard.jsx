@@ -11,19 +11,6 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(false)
 
-  const { data: etfs, isLoading, error, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ['etfs'],
-    queryFn: async () => {
-      const response = await etfApi.getAll()
-      setLastUpdate(new Date())
-      return response.data
-    },
-    retry: 2,
-    staleTime: 300000, // 5분간 캐시
-    refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
-    refetchInterval: autoRefresh ? 30000 : false, // 30초 자동 갱신 (선택사항)
-  })
-
   // 전체 데이터 새로고침 함수
   const handleRefreshAll = async () => {
     // 모든 쿼리 무효화하여 재조회
@@ -33,6 +20,27 @@ export default function Dashboard() {
     await queryClient.invalidateQueries({ queryKey: ['news'] })
     setLastUpdate(new Date())
   }
+
+  const { data: etfs, isLoading, error, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ['etfs'],
+    queryFn: async () => {
+      const response = await etfApi.getAll()
+      return response.data
+    },
+    retry: 2,
+    staleTime: 300000, // 5분간 캐시
+    refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
+  })
+
+  // 자동 갱신 시 모든 데이터 갱신
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        handleRefreshAll()
+      }, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [autoRefresh])
 
   // 오늘 날짜 포맷팅
   const formatDate = (date) => {
