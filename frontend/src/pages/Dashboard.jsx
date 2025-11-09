@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { etfApi } from '../services/api'
 import ETFCard from '../components/etf/ETFCard'
@@ -6,6 +6,7 @@ import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
 
 export default function Dashboard() {
+  const queryClient = useQueryClient()
   const [sortBy, setSortBy] = useState('name') // 'name', 'type', 'ticker'
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -22,6 +23,16 @@ export default function Dashboard() {
     refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
     refetchInterval: autoRefresh ? 30000 : false, // 30초 자동 갱신 (선택사항)
   })
+
+  // 전체 데이터 새로고침 함수
+  const handleRefreshAll = async () => {
+    // 모든 쿼리 무효화하여 재조회
+    await queryClient.invalidateQueries({ queryKey: ['etfs'] })
+    await queryClient.invalidateQueries({ queryKey: ['prices'] })
+    await queryClient.invalidateQueries({ queryKey: ['trading-flow'] })
+    await queryClient.invalidateQueries({ queryKey: ['news'] })
+    setLastUpdate(new Date())
+  }
 
   // 오늘 날짜 포맷팅
   const formatDate = (date) => {
@@ -196,9 +207,9 @@ export default function Dashboard() {
 
           {/* 수동 새로고침 버튼 */}
           <button
-            onClick={() => refetch()}
+            onClick={handleRefreshAll}
             className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-blue-50 rounded-lg transition-colors"
-            title="데이터 새로고침"
+            title="모든 데이터 새로고침"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
