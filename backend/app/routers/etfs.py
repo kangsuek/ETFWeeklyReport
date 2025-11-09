@@ -3,6 +3,8 @@ from typing import List, Optional
 from datetime import date, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics
 from app.services.data_collector import ETFDataCollector
+from app.exceptions import DatabaseException, ValidationException, ScraperException
+import sqlite3
 import logging
 
 router = APIRouter()
@@ -14,9 +16,15 @@ async def get_etfs():
     """Get list of all ETFs"""
     try:
         return collector.get_all_etfs()
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching ETFs: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(status_code=400, detail="Data validation failed")
     except Exception as e:
-        logger.error(f"Error fetching ETFs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error fetching ETFs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{ticker}", response_model=ETF)
 async def get_etf(ticker: str):
@@ -28,9 +36,15 @@ async def get_etf(ticker: str):
         return etf
     except HTTPException:
         raise
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching ETF {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error for ticker {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid ticker format")
     except Exception as e:
-        logger.error(f"Error fetching ETF {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error fetching ETF {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{ticker}/prices", response_model=List[PriceData])
 async def get_prices(
@@ -73,9 +87,15 @@ async def get_prices(
         prices = collector.get_price_data(ticker, start_date, end_date)
         logger.info(f"Successfully fetched {len(prices)} price records for {ticker}")
         return prices
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching prices for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error fetching prices for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid date range or ticker")
     except Exception as e:
-        logger.error(f"Error fetching prices for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch prices: {str(e)}")
+        logger.error(f"Unexpected error fetching prices for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch prices. Please try again later.")
 
 @router.post("/{ticker}/collect")
 async def collect_prices(
@@ -106,7 +126,7 @@ async def collect_prices(
     
     try:
         saved_count = collector.collect_and_save_prices(ticker, days=days)
-        
+
         if saved_count == 0:
             logger.warning(f"No data collected for {ticker}")
             return {
@@ -114,16 +134,25 @@ async def collect_prices(
                 "collected": 0,
                 "message": "No data collected. Check if the ticker is valid or data is available."
             }
-        
+
         logger.info(f"Successfully collected {saved_count} records for {ticker}")
         return {
             "ticker": ticker,
             "collected": saved_count,
             "message": f"Successfully collected {saved_count} price records"
         }
+    except sqlite3.Error as e:
+        logger.error(f"Database error collecting data for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error during data collection")
+    except ScraperException as e:
+        logger.error(f"Scraper error collecting data for {ticker}: {e}")
+        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+    except ValidationException as e:
+        logger.error(f"Validation error collecting data for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Error collecting data for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"Data collection failed: {str(e)}")
+        logger.error(f"Unexpected error collecting data for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Data collection failed. Please try again later.")
 
 @router.get("/{ticker}/trading-flow")
 async def get_trading_flow(
@@ -154,17 +183,23 @@ async def get_trading_flow(
     
     try:
         trading_data = collector.get_trading_flow_data(ticker, start_date, end_date)
-        
+
         if not trading_data:
             logger.warning(f"No trading flow data found for {ticker} between {start_date} and {end_date}")
             return []
-        
+
         logger.info(f"Retrieved {len(trading_data)} trading flow records for {ticker}")
         return trading_data
-        
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching trading flow for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error fetching trading flow for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid date range or ticker")
     except Exception as e:
-        logger.error(f"Error fetching trading flow for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve trading flow: {str(e)}")
+        logger.error(f"Unexpected error fetching trading flow for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve trading flow. Please try again later.")
 
 
 @router.post("/{ticker}/collect-trading-flow")
@@ -189,7 +224,7 @@ async def collect_trading_flow(
     try:
         logger.info(f"Starting trading flow collection for {ticker}, days={days}")
         saved_count = collector.collect_and_save_trading_flow(ticker, days)
-        
+
         return {
             "ticker": ticker,
             "name": etf_info.name,
@@ -197,16 +232,31 @@ async def collect_trading_flow(
             "days": days,
             "message": f"Successfully collected {saved_count} trading flow records"
         }
-        
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error collecting trading flow for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error during trading flow collection")
+    except ScraperException as e:
+        logger.error(f"Scraper error collecting trading flow for {ticker}: {e}")
+        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+    except ValidationException as e:
+        logger.error(f"Validation error collecting trading flow for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Error collecting trading flow for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=f"Trading flow collection failed: {str(e)}")
+        logger.error(f"Unexpected error collecting trading flow for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Trading flow collection failed. Please try again later.")
 
 @router.get("/{ticker}/metrics", response_model=ETFMetrics)
 async def get_metrics(ticker: str):
     """Get key metrics for ETF"""
     try:
         return collector.get_etf_metrics(ticker)
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching metrics for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except ValidationException as e:
+        logger.error(f"Validation error fetching metrics for {ticker}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid ticker")
     except Exception as e:
-        logger.error(f"Error fetching metrics for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error fetching metrics for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve metrics. Please try again later.")

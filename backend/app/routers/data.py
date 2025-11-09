@@ -5,6 +5,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.services.data_collector import ETFDataCollector
 from app.services.scheduler import get_scheduler
+from app.exceptions import DatabaseException, ValidationException, ScraperException
+import sqlite3
 import logging
 
 router = APIRouter()
@@ -25,14 +27,23 @@ async def collect_all_data(
     try:
         collector = ETFDataCollector()
         result = collector.collect_all_tickers(days=days)
-        
+
         return {
             "message": f"Data collection completed for {result['total_tickers']} tickers",
             "result": result
         }
+    except sqlite3.Error as e:
+        logger.error(f"Database error during batch collection: {e}")
+        raise HTTPException(status_code=500, detail="Database error during batch collection")
+    except ScraperException as e:
+        logger.error(f"Scraper error during batch collection: {e}")
+        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+    except ValidationException as e:
+        logger.error(f"Validation error during batch collection: {e}")
+        raise HTTPException(status_code=400, detail="Invalid collection parameters")
     except Exception as e:
-        logger.error(f"Batch collection failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Batch collection failed: {str(e)}")
+        logger.error(f"Unexpected error during batch collection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Batch collection failed. Please try again later.")
 
 
 @router.post("/backfill")
@@ -50,14 +61,23 @@ async def backfill_data(
     try:
         collector = ETFDataCollector()
         result = collector.backfill_all_tickers(days=days)
-        
+
         return {
             "message": f"Backfill completed for {result['total_tickers']} tickers ({days} days)",
             "result": result
         }
+    except sqlite3.Error as e:
+        logger.error(f"Database error during backfill: {e}")
+        raise HTTPException(status_code=500, detail="Database error during backfill")
+    except ScraperException as e:
+        logger.error(f"Scraper error during backfill: {e}")
+        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+    except ValidationException as e:
+        logger.error(f"Validation error during backfill: {e}")
+        raise HTTPException(status_code=400, detail="Invalid backfill parameters")
     except Exception as e:
-        logger.error(f"Backfill failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
+        logger.error(f"Unexpected error during backfill: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Backfill failed. Please try again later.")
 
 
 @router.get("/status")
@@ -93,9 +113,12 @@ async def get_collection_status():
             "total_tickers": len(all_etfs),
             "status": status_list
         }
+    except sqlite3.Error as e:
+        logger.error(f"Database error getting collection status: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
     except Exception as e:
-        logger.error(f"Failed to get collection status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+        logger.error(f"Unexpected error getting collection status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get status. Please try again later.")
 
 
 @router.get("/scheduler-status")
@@ -114,7 +137,10 @@ async def get_scheduler_status():
             "scheduler": status,
             "message": "Scheduler status retrieved successfully"
         }
+    except sqlite3.Error as e:
+        logger.error(f"Database error getting scheduler status: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
     except Exception as e:
-        logger.error(f"Failed to get scheduler status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get scheduler status: {str(e)}")
+        logger.error(f"Unexpected error getting scheduler status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get scheduler status. Please try again later.")
 
