@@ -231,17 +231,17 @@ export default function ETFCard({ etf }) {
   }
 
   return (
-    <Link to={`/etf/${etf.ticker}`}>
-      <div className="card hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
+    <Link to={`/etf/${etf.ticker}`} className="block group">
+      <div className="card-interactive animate-fadeInUp">
         {/* 헤더: 종목명 + 타입 뱃지 */}
         <div className="mb-3">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-bold flex-1 leading-tight">{etf.name}</h3>
-            <span className={`text-xs px-2 py-1 rounded-full ml-2 flex-shrink-0 ${
-              etf.type === 'ETF'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-purple-100 text-purple-800'
-            }`}>
+            <h3 className="text-lg font-bold flex-1 leading-tight group-hover:text-primary-600 transition-colors">
+              {etf.name}
+            </h3>
+            <span className={`badge ${
+              etf.type === 'ETF' ? 'badge-primary' : 'badge-info'
+            } ml-2 flex-shrink-0`}>
               {etf.type}
             </span>
           </div>
@@ -250,10 +250,10 @@ export default function ETFCard({ etf }) {
 
         {/* 가격 정보 */}
         {isLoading ? (
-          <div className="py-4">
-            <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4 mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
+          <div className="py-4 space-y-2">
+            <div className="skeleton-text h-5"></div>
+            <div className="skeleton-text h-4 w-3/4"></div>
+            <div className="skeleton-text h-4 w-1/2"></div>
           </div>
         ) : latestPrice ? (
           <div className="mb-4 py-3 border-t border-b border-gray-100">
@@ -334,9 +334,9 @@ export default function ETFCard({ etf }) {
           <div className="mb-3 pb-3 border-b border-gray-100">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-500">최근 뉴스</span>
-              <span className="font-semibold text-primary">{news.length}건</span>
+              <span className="badge badge-primary">{news.length}건</span>
             </div>
-            <div className="text-xs text-gray-600 line-clamp-1">{news[0].title}</div>
+            <div className="text-xs text-gray-600 truncate-2-lines">{news[0].title}</div>
           </div>
         )}
 

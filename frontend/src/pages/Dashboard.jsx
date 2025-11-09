@@ -129,7 +129,8 @@ export default function Dashboard() {
           <p className="text-red-600 mb-6">{error.message}</p>
           <button
             onClick={() => refetch()}
-            className="btn btn-primary hover:opacity-90 transition-opacity"
+            className="btn btn-primary"
+            aria-label="다시 시도"
           >
             다시 시도
           </button>
@@ -182,7 +183,8 @@ export default function Dashboard() {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white shadow-sm hover:border-gray-400 transition-colors"
+          className="input text-sm py-2"
+          aria-label="종목 정렬 기준 선택"
         >
           <option value="name">이름순</option>
           <option value="type">타입별</option>
@@ -230,26 +232,27 @@ export default function Dashboard() {
         {/* 컨트롤 버튼 */}
         <div className="flex items-center gap-3">
           {/* 자동 새로고침 토글 */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+              className="w-4 h-4 text-primary-500 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 focus:ring-2 transition-colors"
+              aria-label="자동 갱신 토글"
             />
-            <span className="text-sm text-gray-600">자동 갱신 (30초)</span>
+            <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">자동 갱신 (30초)</span>
           </label>
 
           {/* 수동 새로고침 버튼 */}
           <button
             onClick={handleRefreshAll}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-blue-50 rounded-lg transition-colors"
-            title="모든 데이터 새로고침"
+            className="btn btn-outline btn-sm"
+            aria-label="모든 데이터 새로고침"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span className="hidden sm:inline">새로고침</span>
+            <span className="hidden sm:inline ml-1">새로고침</span>
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 export default function ETFCardSkeleton() {
   return (
-    <div className="card animate-pulse">
+    <div className="card animate-pulse" data-testid="etf-card-skeleton">
       {/* 헤더 */}
       <div className="mb-3">
         <div className="flex items-start justify-between mb-2">

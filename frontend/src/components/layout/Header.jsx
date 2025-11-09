@@ -10,17 +10,17 @@ export default function Header() {
   }
 
   const navLinkClass = (path) => {
-    const baseClass = 'px-3 py-2 rounded-md text-sm font-medium transition-colors'
+    const baseClass = 'px-3 py-2 rounded-md text-sm font-medium transition-all duration-200'
     return isActive(path)
-      ? `${baseClass} bg-primary text-white`
-      : `${baseClass} text-gray-700 hover:bg-blue-50 hover:text-primary`
+      ? `${baseClass} bg-primary-500 text-white shadow-md`
+      : `${baseClass} text-gray-700 hover:bg-primary-50 hover:text-primary-600`
   }
 
   const mobileNavLinkClass = (path) => {
-    const baseClass = 'block px-3 py-2 rounded-md text-base font-medium transition-colors'
+    const baseClass = 'block px-3 py-2 rounded-md text-base font-medium transition-all duration-200'
     return isActive(path)
-      ? `${baseClass} bg-primary text-white`
-      : `${baseClass} text-gray-700 hover:bg-blue-50 hover:text-primary`
+      ? `${baseClass} bg-primary-500 text-white shadow-md`
+      : `${baseClass} text-gray-700 hover:bg-primary-50 hover:text-primary-600`
   }
 
   return (
@@ -28,17 +28,17 @@ export default function Header() {
       <nav className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* 로고 및 서비스 이름 */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center transform group-hover:scale-105 transition-transform">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <Link to="/" className="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-lg">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 shadow-md group-hover:shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors">
+              <h1 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors duration-200">
                 ETF Weekly Report
               </h1>
-              <p className="text-xs text-gray-500">한국 고성장 섹터 분석</p>
+              <p className="text-xs text-gray-500 group-hover:text-gray-700 transition-colors">한국 고성장 섹터 분석</p>
             </div>
           </Link>
 
@@ -66,15 +66,16 @@ export default function Header() {
           {/* 모바일 햄버거 메뉴 버튼 */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary"
-            aria-label="메뉴 열기"
+            className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors"
+            aria-label={mobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}
@@ -83,7 +84,7 @@ export default function Header() {
 
         {/* 모바일 메뉴 */}
         {mobileMenuOpen && (
-          <div className="md:hidden mt-3 pb-3 space-y-1 border-t border-gray-200 pt-3">
+          <div className="md:hidden mt-3 pb-3 space-y-1 border-t border-gray-200 pt-3 animate-slideDown">
             <Link
               to="/"
               className={mobileNavLinkClass('/')}
