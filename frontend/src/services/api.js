@@ -65,7 +65,7 @@ api.interceptors.response.use(
 // ETF API 서비스
 export const etfApi = {
   // 전체 종목 조회
-  getAll: () => api.get('/etfs'),
+  getAll: () => api.get('/etfs/'),
 
   // 개별 종목 정보
   getDetail: (ticker) => api.get(`/etfs/${ticker}`),

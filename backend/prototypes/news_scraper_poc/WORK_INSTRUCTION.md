@@ -74,20 +74,28 @@
 
 ### 인증 정보 (중요!)
 ```
-Client ID: pQbDBJ1we0Cpv5l54xne
-Client Secret: GcptomaJI1
+Client ID: 네이버 개발자 센터에서 발급받은 Client ID
+Client Secret: 네이버 개발자 센터에서 발급받은 Client Secret
 ```
 
-**⚠️ 주의**: 이 정보는 `.env` 파일에 저장하고 `.gitignore`에 추가하세요!
+**⚠️ 주의**: 
+- API 키는 네이버 개발자 센터(https://developers.naver.com/)에서 발급받으세요
+- 이 정보는 `.env` 파일에 저장하고 `.gitignore`에 추가하세요!
+- 절대 Git에 커밋하지 마세요!
 
 ### API 요청 형식
 ```python
+import os
 import requests
+from dotenv import load_dotenv
+
+# 환경 변수 로드
+load_dotenv()
 
 url = "https://openapi.naver.com/v1/search/news.json"
 headers = {
-    "X-Naver-Client-Id": "pQbDBJ1we0Cpv5l54xne",
-    "X-Naver-Client-Secret": "GcptomaJI1"
+    "X-Naver-Client-Id": os.getenv("NAVER_CLIENT_ID"),
+    "X-Naver-Client-Secret": os.getenv("NAVER_CLIENT_SECRET")
 }
 params = {
     "query": "AI",
@@ -148,9 +156,10 @@ data = response.json()
 #### 체크리스트
 - [ ] `.env` 파일 생성
   ```env
-  NAVER_CLIENT_ID=pQbDBJ1we0Cpv5l54xne
-  NAVER_CLIENT_SECRET=GcptomaJI1
+  NAVER_CLIENT_ID=your_client_id_here
+  NAVER_CLIENT_SECRET=your_client_secret_here
   ```
+  **⚠️ 실제 API 키는 네이버 개발자 센터에서 발급받아 입력하세요!**
 - [ ] `.gitignore`에 `.env` 추가 (보안)
 - [ ] `requirements.txt` 생성
   ```txt

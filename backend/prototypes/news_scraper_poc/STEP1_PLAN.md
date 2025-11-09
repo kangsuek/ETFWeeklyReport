@@ -25,9 +25,10 @@
 
 2. **`.env` 파일 생성**
    ```env
-   NAVER_CLIENT_ID=pQbDBJ1we0Cpv5l54xne
-   NAVER_CLIENT_SECRET=GcptomaJI1
+   NAVER_CLIENT_ID=your_client_id_here
+   NAVER_CLIENT_SECRET=your_client_secret_here
    ```
+   **⚠️ 실제 API 키는 네이버 개발자 센터(https://developers.naver.com/)에서 발급받아 입력하세요!**
 
 3. **`requirements.txt` 생성**
    ```txt

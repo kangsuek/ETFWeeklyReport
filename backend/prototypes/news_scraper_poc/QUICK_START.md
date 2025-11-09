@@ -32,10 +32,11 @@ cd /Users/kangsuek/pythonProject/ETFWeeklyReport/backend/prototypes/news_scraper
 **1. `.env` 파일 생성**
 ```bash
 cat > .env << 'EOF'
-NAVER_CLIENT_ID=pQbDBJ1we0Cpv5l54xne
-NAVER_CLIENT_SECRET=GcptomaJI1
+NAVER_CLIENT_ID=your_client_id_here
+NAVER_CLIENT_SECRET=your_client_secret_here
 EOF
 ```
+**⚠️ 주의**: 실제 API 키는 네이버 개발자 센터에서 발급받아 `.env` 파일에 입력하세요. `.env` 파일은 Git에 커밋하지 마세요!
 
 **2. `requirements.txt` 생성**
 ```bash
