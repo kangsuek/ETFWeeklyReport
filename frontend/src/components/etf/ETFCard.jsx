@@ -3,11 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { etfApi } from '../../services/api'
 
 export default function ETFCard({ etf }) {
-  // 최신 가격 데이터 조회 (1일치만)
+  // 최신 가격 데이터 조회 (5일치 - 주간 수익률 계산용)
   const { data: prices, isLoading } = useQuery({
     queryKey: ['prices', etf.ticker],
     queryFn: async () => {
-      const response = await etfApi.getPrices(etf.ticker, { days: 1 })
+      const response = await etfApi.getPrices(etf.ticker, { days: 5 })
       return response.data
     },
     retry: 1,
@@ -16,6 +16,11 @@ export default function ETFCard({ etf }) {
 
   // 최신 가격 데이터 (첫 번째 항목)
   const latestPrice = prices?.[0]
+
+  // 주간 수익률 계산 (5일 전과 비교)
+  const weeklyReturn = prices && prices.length >= 2
+    ? ((prices[0].close_price - prices[prices.length - 1].close_price) / prices[prices.length - 1].close_price) * 100
+    : null
 
   // 등락률에 따른 색상 결정
   const getChangeColor = (changePct) => {
@@ -69,20 +74,47 @@ export default function ETFCard({ etf }) {
         {isLoading ? (
           <div className="py-4">
             <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
+            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4 mb-2"></div>
+            <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
           </div>
         ) : latestPrice ? (
           <div className="mb-4 py-3 border-t border-b border-gray-100">
-            <div className="flex items-baseline justify-between mb-1">
+            {/* 종가 & 등락률 */}
+            <div className="flex items-baseline justify-between mb-2">
               <span className="text-2xl font-bold">{formatPrice(latestPrice.close_price)}</span>
               <span className={`text-sm font-semibold ${getChangeColor(latestPrice.daily_change_pct)}`}>
                 {formatChange(latestPrice.daily_change_pct)}
               </span>
             </div>
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>거래량: {formatVolume(latestPrice.volume)}</span>
-              <span>{latestPrice.date}</span>
+
+            {/* 시가/고가/저가 */}
+            <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
+              <div>
+                <span className="text-gray-500">시가</span>
+                <div className="font-medium">{formatPrice(latestPrice.open_price)}</div>
+              </div>
+              <div>
+                <span className="text-gray-500">고가</span>
+                <div className="font-medium text-red-600">{formatPrice(latestPrice.high_price)}</div>
+              </div>
+              <div>
+                <span className="text-gray-500">저가</span>
+                <div className="font-medium text-blue-600">{formatPrice(latestPrice.low_price)}</div>
+              </div>
             </div>
+
+            {/* 거래량 & 주간수익률 */}
+            <div className="flex justify-between text-xs text-gray-500 border-t border-gray-100 pt-2">
+              <span>거래량: {formatVolume(latestPrice.volume)}</span>
+              {weeklyReturn !== null && (
+                <span className={`font-semibold ${getChangeColor(weeklyReturn)}`}>
+                  주간: {formatChange(weeklyReturn)}
+                </span>
+              )}
+            </div>
+
+            {/* 날짜 */}
+            <div className="text-xs text-gray-400 mt-1">{latestPrice.date}</div>
           </div>
         ) : (
           <div className="py-4 text-center text-sm text-gray-400">
