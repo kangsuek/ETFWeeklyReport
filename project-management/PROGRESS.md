@@ -651,10 +651,124 @@
 - ✅ Step 1: 환경 설정 (100%)
 - ✅ Step 2: API 서비스 레이어 (100%)
 - ✅ Step 3: Dashboard 페이지 개선 (100%)
-- ✅ Step 4: Layout 및 Navigation (100%) ⭐ **NEW**
-- ⏸️ Step 5: 실시간 데이터 통합 (0%)
+- ✅ Step 4: Layout 및 Navigation (100%)
+- ✅ Step 5: 실시간 데이터 통합 (100%) ⭐ **NEW**
 - ⏸️ Step 6: 컴포넌트 테스트 (0%)
 - ⏸️ Step 7: 스타일링 및 UX (0%)
 - ⏸️ Step 8: 크로스 브라우저 테스트 (0%)
 
-**전체**: 50% (4/8 Step 완료)
+**전체**: 62.5% (5/8 Step 완료)
+
+---
+
+## 📅 2025-11-09 (오후 - Phase 3 Step 5)
+
+### ✅ Phase 3 - Step 5: 실시간 데이터 통합 완료
+
+#### 구현 내용
+
+**1. Dashboard 날짜 및 시간 정보 표시** ([Dashboard.jsx](../frontend/src/pages/Dashboard.jsx))
+- ✅ 오늘 날짜 표시
+  - 한국어 포맷: "2025년 11월 9일 토요일"
+  - 달력 아이콘과 함께 표시
+- ✅ 마지막 업데이트 시간
+  - HH:mm:ss 포맷 (24시간제)
+  - 시계 아이콘과 함께 표시
+  - 데이터 조회 시마다 자동 갱신
+
+**2. 자동 새로고침 기능**
+- ✅ 자동 갱신 토글 (체크박스)
+  - ON 시: 30초마다 자동 갱신
+  - OFF 시: 수동 갱신만 가능
+- ✅ 수동 새로고침 버튼
+  - 새로고침 아이콘
+  - 클릭 시 즉시 데이터 갱신
+- ✅ 윈도우 포커스 시 자동 갱신
+  - `refetchOnWindowFocus: true`
+
+**3. React Query 캐싱 최적화**
+- ✅ 전역 캐시 설정 (App.jsx)
+  - staleTime: 5분
+  - retry: 1
+- ✅ 컴포넌트별 캐시 설정
+  - 가격 데이터: 1분
+  - 뉴스 데이터: 5분
+  - 매매 동향: 1분
+
+**4. 데이터 없음 상태 처리**
+- ✅ ETFCard의 null 체크
+  - 가격 없음: "-" 표시
+  - 거래량 없음: "-" 표시
+  - 매매 동향 없음: "-" 표시
+- ✅ Dashboard의 빈 데이터 상태
+  - 아이콘 + 안내 메시지
+  - 종목이 없을 때 처리
+
+**5. UI/UX 개선**
+- ✅ 날짜/시간 정보 박스
+  - 흰색 배경 카드
+  - 반응형 레이아웃 (모바일: 세로, 데스크톱: 가로)
+  - 아이콘 + 텍스트 조합
+- ✅ 컨트롤 버튼 그룹
+  - 자동 갱신 토글
+  - 수동 새로고침 버튼
+  - Hover 효과
+
+#### 기술 사항
+
+```javascript
+// 자동 갱신 설정
+const { data: etfs, refetch } = useQuery({
+  queryKey: ['etfs'],
+  queryFn: async () => {
+    const response = await etfApi.getAll()
+    setLastUpdate(new Date())
+    return response.data
+  },
+  retry: 2,
+  staleTime: 300000, // 5분
+  refetchOnWindowFocus: true,
+  refetchInterval: autoRefresh ? 30000 : false,
+})
+
+// 날짜 포맷팅
+const formatDate = (date) => {
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  })
+}
+
+// 시간 포맷팅
+const formatUpdateTime = (date) => {
+  return date.toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
+```
+
+#### Acceptance Criteria 달성
+- ✅ 실시간 가격 데이터 표시 (ETFCard)
+- ✅ 데이터 캐싱 정상 작동 (React Query)
+- ✅ 자동 새로고침 구현 (30초 간격, 토글)
+- ✅ 날짜 및 시간 정보 표시
+- ✅ 윈도우 포커스 시 자동 갱신
+- ✅ 수동 새로고침 버튼
+- ✅ 데이터 없음 상태 처리
+
+### 📊 Phase 3 진행률
+- ✅ Step 1: 환경 설정 (100%)
+- ✅ Step 2: API 서비스 레이어 (100%)
+- ✅ Step 3: Dashboard 페이지 개선 (100%)
+- ✅ Step 4: Layout 및 Navigation (100%)
+- ✅ Step 5: 실시간 데이터 통합 (100%) ⭐ **NEW**
+- ⏸️ Step 6: 컴포넌트 테스트 (0%)
+- ⏸️ Step 7: 스타일링 및 UX (0%)
+- ⏸️ Step 8: 크로스 브라우저 테스트 (0%)
+
+**전체**: 62.5% (5/8 Step 완료)

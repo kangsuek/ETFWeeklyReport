@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { etfApi } from '../services/api'
 import ETFCard from '../components/etf/ETFCard'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
@@ -7,16 +7,41 @@ import PageHeader from '../components/common/PageHeader'
 
 export default function Dashboard() {
   const [sortBy, setSortBy] = useState('name') // 'name', 'type', 'ticker'
+  const [lastUpdate, setLastUpdate] = useState(new Date())
+  const [autoRefresh, setAutoRefresh] = useState(false)
 
-  const { data: etfs, isLoading, error, refetch } = useQuery({
+  const { data: etfs, isLoading, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['etfs'],
     queryFn: async () => {
       const response = await etfApi.getAll()
+      setLastUpdate(new Date())
       return response.data
     },
     retry: 2,
     staleTime: 300000, // 5분간 캐시
+    refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
+    refetchInterval: autoRefresh ? 30000 : false, // 30초 자동 갱신 (선택사항)
   })
+
+  // 오늘 날짜 포맷팅
+  const formatDate = (date) => {
+    return date.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'long'
+    })
+  }
+
+  // 업데이트 시간 포맷팅
+  const formatUpdateTime = (date) => {
+    return date.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+  }
 
   // 정렬 함수
   const sortedEtfs = etfs ? [...etfs].sort((a, b) => {
@@ -133,6 +158,55 @@ export default function Dashboard() {
           <option value="ticker">코드순</option>
         </select>
       </PageHeader>
+
+      {/* 날짜 및 업데이트 정보 */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg p-4 shadow-sm">
+        <div className="flex items-center gap-4">
+          {/* 오늘 날짜 */}
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm font-medium text-gray-700">{formatDate(new Date())}</span>
+          </div>
+
+          {/* 마지막 업데이트 시간 */}
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm text-gray-600">
+              마지막 업데이트: <span className="font-medium text-gray-700">{formatUpdateTime(lastUpdate)}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* 컨트롤 버튼 */}
+        <div className="flex items-center gap-3">
+          {/* 자동 새로고침 토글 */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+            />
+            <span className="text-sm text-gray-600">자동 갱신 (30초)</span>
+          </label>
+
+          {/* 수동 새로고침 버튼 */}
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-blue-50 rounded-lg transition-colors"
+            title="데이터 새로고침"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="hidden sm:inline">새로고침</span>
+          </button>
+        </div>
+      </div>
 
       {/* 종목 그리드 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
