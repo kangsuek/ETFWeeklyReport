@@ -547,17 +547,114 @@
 - ✅ Step 1: 환경 설정 (100%)
 - ✅ Step 2: API 서비스 레이어 (100%)
 - ✅ Step 3: Dashboard 페이지 개선 (100%)
-- ⏸️ Step 4: Layout 및 Navigation (0%)
+- ✅ Step 4: Layout 및 Navigation (100%)
 - ⏸️ Step 5: 실시간 데이터 통합 (0%)
 - ⏸️ Step 6: 컴포넌트 테스트 (0%)
 - ⏸️ Step 7: 스타일링 및 UX (0%)
 - ⏸️ Step 8: 크로스 브라우저 테스트 (0%)
 
-**전체**: 37.5% (3/8 Step 완료)
+**전체**: 50% (4/8 Step 완료)
 
 ### 🎯 현재 상태
 - **프론트엔드 서버**: http://localhost:5174/ (실행 중)
 - **백엔드 서버**: http://localhost:8000 (실행 중)
 - **API 연동**: 정상 작동
 - **Dashboard**: 6개 종목 표시, 실시간 가격 데이터 연동 완료
-- **다음 단계**: Step 4 - Layout 및 Navigation 개선
+- **Layout & Navigation**: Header, Footer, PageHeader 컴포넌트 완성
+- **다음 단계**: Step 5 - 실시간 데이터 통합
+
+---
+
+## 📅 2025-11-09 (오후)
+
+### ✅ Phase 3 - Step 4: Layout 및 Navigation 개선 완료
+
+#### 구현 내용
+
+**1. Header 컴포넌트 대폭 개선** ([Header.jsx](../frontend/src/components/layout/Header.jsx))
+- ✅ 로고 및 서비스 이름
+  - 그라디언트 배경의 차트 아이콘 로고
+  - 메인 타이틀 + 서브타이틀 ("한국 고성장 섹터 분석")
+  - Hover 효과 (scale, color transition)
+- ✅ 데스크톱 네비게이션
+  - Dashboard, Comparison, GitHub 링크
+  - Active 링크 하이라이팅 (파란색 배경)
+  - useLocation으로 현재 경로 감지
+- ✅ 모바일 햄버거 메뉴
+  - useState로 메뉴 열림/닫힘 상태 관리
+  - X 아이콘 ↔ 햄버거 아이콘 토글
+  - 메뉴 클릭 시 자동 닫힘
+- ✅ Sticky 헤더 (sticky top-0 z-50)
+- ✅ 반응형 디자인 (md: breakpoint)
+
+**2. Footer 컴포넌트 대폭 개선** ([Footer.jsx](../frontend/src/components/layout/Footer.jsx))
+- ✅ 3단 그리드 레이아웃 (모바일: 1열, 데스크톱: 3열)
+  - **서비스 정보**: 프로젝트 설명
+  - **데이터 출처**: Naver Finance (가격, 매매동향), Naver News (뉴스)
+  - **업데이트 정보**: 마지막 업데이트 시간 (한국어 포맷)
+- ✅ GitHub 저장소 링크
+- ✅ 저작권 정보 및 면책 조항
+- ✅ 아이콘 활용 (체크마크, 시계, GitHub)
+- ✅ 반응형 디자인
+
+**3. 공통 컴포넌트 생성**
+- ✅ [Container.jsx](../frontend/src/components/common/Container.jsx)
+  - 반응형 padding (px-4 sm:px-6 lg:px-8)
+  - 재사용 가능한 컨테이너
+- ✅ [PageHeader.jsx](../frontend/src/components/common/PageHeader.jsx)
+  - title + subtitle + children (추가 버튼 등)
+  - 일관된 페이지 헤더 디자인
+
+**4. 페이지 레이아웃 개선**
+- ✅ [Dashboard.jsx](../frontend/src/pages/Dashboard.jsx)
+  - PageHeader 적용
+  - 반응형 그리드 간격 (gap-4 sm:gap-6)
+  - animate-fadeIn 효과
+- ✅ [Comparison.jsx](../frontend/src/pages/Comparison.jsx)
+  - PageHeader 적용
+  - animate-fadeIn 효과
+- ✅ [ETFDetail.jsx](../frontend/src/pages/ETFDetail.jsx)
+  - PageHeader 적용
+  - Spinner 컴포넌트 사용
+  - animate-fadeIn 효과
+
+**5. CSS 스타일 개선** ([index.css](../frontend/src/styles/index.css))
+- ✅ smooth scroll 추가
+- ✅ 폰트 안티앨리어싱
+- ✅ fadeIn 애니메이션 정의 (keyframes)
+- ✅ card 호버 효과 (shadow-lg)
+- ✅ 커스텀 스크롤바 스타일링 (scrollbar-thin)
+
+**6. App.jsx 레이아웃 개선**
+- ✅ 반응형 padding 적용 (px-4 sm:px-6 lg:px-8)
+- ✅ 반응형 vertical padding (py-6 sm:py-8)
+
+#### 검증 결과
+- ✅ 빌드 성공 (vite build)
+  - dist/index.html: 0.46 kB
+  - dist/assets/index.css: 0.85 kB
+  - dist/assets/index.js: 261.20 kB
+- ✅ 모든 컴포넌트 import 정상
+- ✅ TypeScript 타입 오류 없음
+
+#### Acceptance Criteria 달성
+- ✅ Header/Footer 모든 페이지에 표시
+- ✅ 네비게이션 정상 작동 (Dashboard ↔ Comparison)
+- ✅ 모바일 메뉴 동작 (햄버거 → 메뉴 펼침/닫힘)
+- ✅ 반응형 디자인 적용 (sm/md/lg/xl breakpoints)
+- ✅ Active 링크 하이라이팅
+- ✅ Sticky 헤더 동작
+- ✅ 페이드인 애니메이션
+- ✅ 일관된 여백 및 간격
+
+### 📊 Phase 3 진행률 업데이트
+- ✅ Step 1: 환경 설정 (100%)
+- ✅ Step 2: API 서비스 레이어 (100%)
+- ✅ Step 3: Dashboard 페이지 개선 (100%)
+- ✅ Step 4: Layout 및 Navigation (100%) ⭐ **NEW**
+- ⏸️ Step 5: 실시간 데이터 통합 (0%)
+- ⏸️ Step 6: 컴포넌트 테스트 (0%)
+- ⏸️ Step 7: 스타일링 및 UX (0%)
+- ⏸️ Step 8: 크로스 브라우저 테스트 (0%)
+
+**전체**: 50% (4/8 Step 완료)

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { etfApi } from '../services/api'
 import ETFCard from '../components/etf/ETFCard'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
+import PageHeader from '../components/common/PageHeader'
 
 export default function Dashboard() {
   const [sortBy, setSortBy] = useState('name') // 'name', 'type', 'ticker'
@@ -36,9 +37,9 @@ export default function Dashboard() {
   // 로딩 상태
   if (isLoading) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold mb-8">ETF Dashboard</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="animate-fadeIn">
+        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {[...Array(6)].map((_, index) => (
             <ETFCardSkeleton key={index} />
           ))}
@@ -50,9 +51,9 @@ export default function Dashboard() {
   // 에러 상태
   if (error) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold mb-8">ETF Dashboard</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
+      <div className="animate-fadeIn">
+        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center max-w-2xl mx-auto">
           <svg
             className="w-16 h-16 mx-auto mb-4 text-red-500"
             fill="none"
@@ -84,9 +85,9 @@ export default function Dashboard() {
   // 빈 데이터 상태
   if (!etfs || etfs.length === 0) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold mb-8">ETF Dashboard</h1>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+      <div className="animate-fadeIn">
+        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center max-w-2xl mx-auto">
           <svg
             className="w-16 h-16 mx-auto mb-4 text-gray-400"
             fill="none"
@@ -110,33 +111,31 @@ export default function Dashboard() {
   }
 
   return (
-    <div>
+    <div className="animate-fadeIn">
       {/* 헤더 */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">ETF Dashboard</h1>
-        <div className="flex items-center justify-between">
-          <p className="text-gray-600">
+      <PageHeader
+        title="ETF Dashboard"
+        subtitle={
+          <span>
             총 <span className="font-semibold text-primary">{etfs.length}</span>개 종목
-          </p>
-
-          {/* 정렬 옵션 */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">정렬:</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="name">이름순</option>
-              <option value="type">타입별</option>
-              <option value="ticker">코드순</option>
-            </select>
-          </div>
-        </div>
-      </div>
+          </span>
+        }
+      >
+        {/* 정렬 옵션 */}
+        <label className="text-sm text-gray-600 hidden sm:inline">정렬:</label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white shadow-sm hover:border-gray-400 transition-colors"
+        >
+          <option value="name">이름순</option>
+          <option value="type">타입별</option>
+          <option value="ticker">코드순</option>
+        </select>
+      </PageHeader>
 
       {/* 종목 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {sortedEtfs.map((etf) => (
           <ETFCard key={etf.ticker} etf={etf} />
         ))}

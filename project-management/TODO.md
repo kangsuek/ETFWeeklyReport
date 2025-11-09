@@ -607,32 +607,39 @@
 
 ---
 
-### Step 4: Layout 및 Navigation 개선 (예상: 1시간)
+### Step 4: Layout 및 Navigation 개선 ✅ (완료: 2025-11-09)
 
 **목표**: 일관된 레이아웃 및 네비게이션 구축
 
-- [ ] Header 컴포넌트 개선
-  - [ ] 로고 및 서비스 이름
-  - [ ] 네비게이션 메뉴 (Dashboard, Comparison, About)
-  - [ ] 모바일 햄버거 메뉴
-  - [ ] 다크 모드 토글 (선택사항)
+- [x] Header 컴포넌트 개선
+  - [x] 로고 및 서비스 이름 (차트 아이콘 + 서비스명)
+  - [x] 네비게이션 메뉴 (Dashboard, Comparison, GitHub)
+  - [x] 모바일 햄버거 메뉴 (토글 기능 구현)
+  - [x] Active 링크 하이라이팅
+  - [x] Sticky 헤더 (스크롤 시 상단 고정)
 
-- [ ] Footer 컴포넌트 개선
-  - [ ] 저작권 정보
-  - [ ] 데이터 출처 표시 (Naver Finance, Naver News)
-  - [ ] 마지막 업데이트 시간
-  - [ ] GitHub 링크 (선택사항)
+- [x] Footer 컴포넌트 개선
+  - [x] 저작권 정보
+  - [x] 데이터 출처 표시 (Naver Finance, Naver News)
+  - [x] 마지막 업데이트 시간 (한국어 포맷)
+  - [x] GitHub 링크
+  - [x] 면책 조항 추가
+  - [x] 3단 그리드 레이아웃 (서비스 정보, 데이터 출처, 업데이트 정보)
 
-- [ ] 페이지 레이아웃
-  - [ ] Container 컴포넌트
-  - [ ] 페이지 제목 스타일링
-  - [ ] 여백 및 간격 일관성
-  - [ ] 스크롤 동작 개선
+- [x] 페이지 레이아웃
+  - [x] Container 컴포넌트 생성
+  - [x] PageHeader 컴포넌트 생성
+  - [x] 여백 및 간격 일관성 (반응형 px 적용)
+  - [x] 스크롤 동작 개선 (smooth scroll)
+  - [x] 페이드인 애니메이션 추가
+  - [x] 전체 페이지에 일관된 레이아웃 적용 (Dashboard, Comparison, ETFDetail)
 
 **Acceptance Criteria**:
 - ✅ Header/Footer 모든 페이지에 표시
 - ✅ 네비게이션 정상 작동
 - ✅ 모바일 메뉴 동작
+- ✅ 반응형 디자인 적용
+- ✅ 빌드 테스트 통과
 
 ---
 
