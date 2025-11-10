@@ -54,42 +54,68 @@ class TestNewsScraping:
         assert result == date(2025, 11, 8)
 
     def test_calculate_relevance_score(self):
-        """관련도 점수 계산 테스트 (개선된 알고리즘)"""
+        """관련도 점수 계산 테스트 (고도화된 알고리즘 v3 - 단순화)"""
         scraper = NewsScraper()
 
-        # 모든 키워드 매칭 (제목 + 본문)
+        # Case 1: 제목에 2개 키워드 → 0.8 이상
         news_item = {
             'title': 'AI 전력 시장 동향',
-            'description': 'AI 데이터센터의 전력 수요'
+            'description': '데이터센터 관련 뉴스'
         }
         score = scraper._calculate_relevance_score(news_item, ["AI", "전력"])
-        # 제목: AI(1.5) + 전력(1.5) = 3.0
-        # 본문: AI(1.0) + 전력(1.0) = 2.0
-        # 총점: 5.0 / max 10.0 = 0.5
-        # 최종: 0.2 + (0.5 * 0.8) = 0.6
-        assert score == pytest.approx(0.6, rel=0.01)
+        # title_matches=2, keyword_ratio=2/2=1.0
+        # 0.80 + (1.0 * 0.20) = 1.0
+        assert score >= 0.8
 
-        # 부분 매칭 (제목에만 1개 키워드)
+        # Case 2: 제목 1개 + 본문 1개 → 0.7~0.9
         news_item2 = {
             'title': '전력 시장 동향',
-            'description': '에너지 산업'
+            'description': 'AI 데이터센터 확장'
         }
         score2 = scraper._calculate_relevance_score(news_item2, ["AI", "전력"])
-        # 제목: 전력(1.5) = 1.5
-        # 본문: 0
-        # 총점: 1.5 / max 10.0 = 0.15
-        # 최종: 0.2 + (0.15 * 0.8) = 0.32
-        assert 0.2 < score2 < 0.4
+        # title_matches=1, desc_matches=1, keyword_ratio=2/2=1.0
+        # 0.70 + (1.0 * 0.20) = 0.9
+        assert 0.7 <= score2 <= 0.9
 
-        # 불일치 - 기본 점수 20%
+        # Case 3: 제목에만 1개 → 0.6~0.8
         news_item3 = {
+            'title': '전력 시장 동향',
+            'description': '에너지 산업 전망'
+        }
+        score3 = scraper._calculate_relevance_score(news_item3, ["AI", "전력"])
+        # title_matches=1, desc_matches=0, keyword_ratio=1/2=0.5
+        # 0.60 + (0.5 * 0.20) = 0.70
+        assert 0.6 <= score3 <= 0.8
+
+        # Case 4: 본문에 2개 → 0.55~0.7
+        news_item4 = {
+            'title': '시장 동향 분석',
+            'description': 'AI 기술과 전력 인프라'
+        }
+        score4 = scraper._calculate_relevance_score(news_item4, ["AI", "전력"])
+        # title_matches=0, desc_matches=2, keyword_ratio=2/2=1.0
+        # 0.55 + (1.0 * 0.15) = 0.70
+        assert score4 == pytest.approx(0.7, rel=0.01)
+
+        # Case 5: 본문에만 1개 → 0.45~0.6
+        news_item5 = {
+            'title': '시장 전망',
+            'description': 'AI 기술 발전'
+        }
+        score5 = scraper._calculate_relevance_score(news_item5, ["AI", "전력"])
+        # title_matches=0, desc_matches=1, keyword_ratio=1/2=0.5
+        # 0.45 + (0.5 * 0.15) = 0.525
+        assert 0.45 <= score5 <= 0.6
+
+        # Case 6: 매칭 없음 → 0.4
+        news_item6 = {
             'title': '조선 시장',
             'description': '선박 수주'
         }
-        score3 = scraper._calculate_relevance_score(news_item3, ["AI"])
-        # 매칭 없음: 0 / max 5.0 = 0
-        # 최종: 0.2 + (0 * 0.8) = 0.2
-        assert score3 == pytest.approx(0.2, rel=0.01)
+        score6 = scraper._calculate_relevance_score(news_item6, ["AI"])
+        # title_matches=0, desc_matches=0
+        # 0.40
+        assert score6 == pytest.approx(0.4, rel=0.01)
 
 
 class TestNewsDataManagement:
