@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   BarChart,
   Bar,
@@ -90,7 +90,7 @@ export const formatTradingFlowData = (data) => {
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
  */
-export default function TradingFlowChart({ data = [], ticker, height = 400 }) {
+const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400 }) {
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => formatTradingFlowData(data), [data])
 
@@ -183,4 +183,6 @@ export default function TradingFlowChart({ data = [], ticker, height = 400 }) {
       </ResponsiveContainer>
     </div>
   )
-}
+})
+
+export default TradingFlowChart

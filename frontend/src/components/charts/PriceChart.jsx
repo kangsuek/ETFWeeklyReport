@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   ComposedChart,
   Line,
@@ -75,7 +75,7 @@ const CustomTooltip = ({ active, payload }) => {
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
  */
-export default function PriceChart({ data = [], ticker, height = 400 }) {
+const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400 }) {
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return []
@@ -228,4 +228,6 @@ export default function PriceChart({ data = [], ticker, height = 400 }) {
       </ResponsiveContainer>
     </div>
   )
-}
+})
+
+export default PriceChart
