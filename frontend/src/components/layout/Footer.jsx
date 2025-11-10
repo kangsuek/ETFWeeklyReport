@@ -33,7 +33,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           {/* 서비스 정보 */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">ETF Weekly Report</h3>
+            <h3 className="text-lg font-semibold mb-3">K-Growth Insights</h3>
             <p className="text-sm text-gray-400">
               한국 고성장 섹터 6개 종목(ETF 4개 + 주식 2개)에 대한 종합 분석 및 리포팅 서비스
             </p>
@@ -96,7 +96,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* 저작권 */}
             <p className="text-sm text-gray-400">
-              &copy; 2025 ETF Weekly Report. All rights reserved.
+              &copy; 2025 K-Growth Insights. All rights reserved.
             </p>
 
             {/* 면책 조항 */}

@@ -80,10 +80,6 @@ const NewsTimeline = ({ ticker }) => {
     return 'bg-gray-400'
   }
 
-  const handleLoadMore = () => {
-    setLimit((prev) => prev + 10)
-  }
-
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -168,17 +164,6 @@ const NewsTimeline = ({ ticker }) => {
           </div>
         </div>
       ))}
-
-      {data.length >= limit && (
-        <div className="text-center pt-4">
-          <button
-            onClick={handleLoadMore}
-            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-          >
-            더 보기
-          </button>
-        </div>
-      )}
     </div>
   )
 }

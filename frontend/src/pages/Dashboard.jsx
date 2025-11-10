@@ -77,7 +77,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="animate-fadeIn">
-        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <PageHeader title="Insights Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {[...Array(6)].map((_, index) => (
             <ETFCardSkeleton key={index} />
@@ -91,7 +91,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="animate-fadeIn">
-        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <PageHeader title="Insights Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
         <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center max-w-2xl mx-auto">
           <svg
             className="w-16 h-16 mx-auto mb-4 text-red-500"
@@ -126,7 +126,7 @@ export default function Dashboard() {
   if (!etfs || etfs.length === 0) {
     return (
       <div className="animate-fadeIn">
-        <PageHeader title="ETF Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
+        <PageHeader title="Insights Dashboard" subtitle="한국 고성장 섹터 종합 분석" />
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center max-w-2xl mx-auto">
           <svg
             className="w-16 h-16 mx-auto mb-4 text-gray-400"
@@ -154,7 +154,7 @@ export default function Dashboard() {
     <div className="animate-fadeIn">
       {/* 헤더 */}
       <PageHeader
-        title="ETF Dashboard"
+        title="Insights Dashboard"
         subtitle={
           <span>
             총 <span className="font-semibold text-primary">{etfs.length}</span>개 종목

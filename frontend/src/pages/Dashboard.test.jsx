@@ -54,7 +54,7 @@ describe('Dashboard', () => {
   it('로딩 중에 스켈레톤을 표시한다', () => {
     renderWithProviders(<Dashboard />)
 
-    expect(screen.getByText('ETF Dashboard')).toBeInTheDocument()
+    expect(screen.getByText('Insights Dashboard')).toBeInTheDocument()
     expect(screen.getByText('한국 고성장 섹터 종합 분석')).toBeInTheDocument()
 
     // 스켈레톤이 6개 표시되어야 함

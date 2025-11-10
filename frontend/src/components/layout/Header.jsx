@@ -29,14 +29,12 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* 로고 및 서비스 이름 */}
           <Link to="/" className="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-lg">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 shadow-md group-hover:shadow-lg">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
+            <div className="w-10 h-10 rounded-lg overflow-hidden transform group-hover:scale-110 transition-all duration-300 shadow-md group-hover:shadow-lg">
+              <img src="/favicon.svg" alt="K-Growth Insights Logo" className="w-full h-full" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors duration-200">
-                ETF Weekly Report
+                K-Growth Insights
               </h1>
               <p className="text-xs text-gray-500 group-hover:text-gray-700 transition-colors">한국 고성장 섹터 분석</p>
             </div>
