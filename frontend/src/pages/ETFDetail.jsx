@@ -273,10 +273,20 @@ export default function ETFDetail() {
 
   return (
     <div className="animate-fadeIn">
-      <PageHeader
-        title={etf?.name || 'ETF 상세'}
-        subtitle={`${etf?.ticker} · ${etf?.theme}`}
-      />
+      {/* Sticky 헤더 */}
+      <div className="sticky top-0 z-50 mb-4">
+        {/* 배경 레이어 (전체 너비) */}
+        <div className="absolute inset-0 bg-white border-b border-gray-200 shadow-sm -mx-4 sm:-mx-6 lg:-mx-8"></div>
+        {/* 내용 레이어 (카드와 동일한 패딩) */}
+        <div className="relative py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{etf?.name || 'ETF 상세'}</h1>
+              <p className="text-gray-600">{`${etf?.ticker} · ${etf?.theme}`}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 기본 정보 섹션 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
