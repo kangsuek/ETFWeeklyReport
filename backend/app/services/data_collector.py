@@ -700,101 +700,118 @@ class ETFDataCollector:
     )
     def fetch_naver_trading_flow(self, ticker: str, days: int = 10) -> List[dict]:
         """
-        Naver Finance에서 투자자별 매매동향 데이터 수집
-        
+        Naver Finance에서 투자자별 매매동향 데이터 수집 (다중 페이지 지원)
+
         Args:
             ticker: 종목 코드
             days: 수집할 일수 (기본: 10일)
-        
+
         Returns:
             수집된 매매동향 데이터 리스트
         """
-        try:
-            # Naver Finance 투자자별 매매동향 페이지
-            url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
-            logger.info(f"Fetching trading flow from Naver Finance for {ticker}")
-            
-            with self.rate_limiter:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 매매동향 테이블 찾기 (두 번째 type2 테이블)
-            # 첫 번째는 증권사별 매매, 두 번째가 투자자별 매매동향
-            tables = soup.find_all('table', {'class': 'type2'})
-            if len(tables) < 2:
-                logger.error(f"Trading flow table not found for {ticker}")
-                return []
-            
-            table = tables[1]  # 두 번째 테이블 선택
-            
-            # 데이터 행 추출
-            rows = table.find_all('tr')
-            trading_data = []
-            count = 0
-            
-            for row in rows:
-                if count >= days:
+        trading_data = []
+        page = 1
+        # 페이지당 약 10개 데이터, 여유있게 2페이지 추가
+        max_pages = (days // 10) + 2
+
+        logger.info(f"Fetching trading flow from Naver Finance for {ticker} (target: {days} days, max pages: {max_pages})")
+
+        while len(trading_data) < days and page <= max_pages:
+            try:
+                # Naver Finance 투자자별 매매동향 페이지 (페이지 파라미터 포함)
+                url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
+                logger.info(f"Fetching trading flow page {page} for {ticker}")
+
+                with self.rate_limiter:
+                    response = requests.get(url, headers=self.headers, timeout=10)
+                    response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # 매매동향 테이블 찾기 (두 번째 type2 테이블)
+                # 첫 번째는 증권사별 매매, 두 번째가 투자자별 매매동향
+                tables = soup.find_all('table', {'class': 'type2'})
+                if len(tables) < 2:
+                    logger.warning(f"Trading flow table not found for {ticker} on page {page}")
                     break
-                
-                cols = row.find_all('td')
-                # 실제 데이터 행은 7개 이상의 컬럼을 가짐
-                # [0]날짜 [1]종가 [2]전일비 [3]등락률 [4]거래량 [5]기관 [6]외국인 [7]외국인보유 [8]지분율
-                if len(cols) < 7:
-                    continue
-                
-                try:
-                    # 날짜 추출
-                    date_text = cols[0].get_text(strip=True)
-                    if not date_text or date_text == '날짜' or '.' not in date_text:
+
+                table = tables[1]  # 두 번째 테이블 선택
+
+                # 데이터 행 추출
+                rows = table.find_all('tr')
+                page_data_count = 0
+
+                for row in rows:
+                    # 이미 충분한 데이터를 수집했으면 중단
+                    if len(trading_data) >= days:
+                        break
+
+                    cols = row.find_all('td')
+                    # 실제 데이터 행은 7개 이상의 컬럼을 가짐
+                    # [0]날짜 [1]종가 [2]전일비 [3]등락률 [4]거래량 [5]기관 [6]외국인 [7]외국인보유 [8]지분율
+                    if len(cols) < 7:
                         continue
-                    
-                    # 날짜 파싱 (YYYY.MM.DD 형식)
-                    trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
-                    
-                    # 투자자별 순매수 추출 (천주 단위)
-                    # 기관 (5번 컬럼)
-                    institutional_text = cols[5].get_text(strip=True)
-                    institutional_net = self._parse_trading_volume(institutional_text)
-                    
-                    # 외국인 (6번 컬럼)
-                    foreign_text = cols[6].get_text(strip=True)
-                    foreign_net = self._parse_trading_volume(foreign_text)
-                    
-                    # 개인 = -(기관 + 외국인)
-                    # None 처리: 기관이나 외국인이 None이면 개인도 None
-                    if institutional_net is not None and foreign_net is not None:
-                        individual_net = -(institutional_net + foreign_net)
-                    else:
-                        individual_net = None
-                    
-                    trading_data.append({
-                        'ticker': ticker,
-                        'date': trade_date,
-                        'individual_net': individual_net,
-                        'institutional_net': institutional_net,
-                        'foreign_net': foreign_net
-                    })
-                    
-                    count += 1
-                    
-                except (ValueError, AttributeError, IndexError) as e:
-                    logger.warning(f"Failed to parse trading flow row for {ticker}: {e}")
-                    continue
-            
-            logger.info(f"Collected {len(trading_data)} trading flow records for {ticker}")
-            return trading_data
-            
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout fetching trading flow for {ticker}")
-            return []
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error fetching trading flow for {ticker}: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error fetching trading flow for {ticker}: {e}")
-            return []
+
+                    try:
+                        # 날짜 추출
+                        date_text = cols[0].get_text(strip=True)
+                        if not date_text or date_text == '날짜' or '.' not in date_text:
+                            continue
+
+                        # 날짜 파싱 (YYYY.MM.DD 형식)
+                        trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
+
+                        # 투자자별 순매수 추출 (천주 단위)
+                        # 기관 (5번 컬럼)
+                        institutional_text = cols[5].get_text(strip=True)
+                        institutional_net = self._parse_trading_volume(institutional_text)
+
+                        # 외국인 (6번 컬럼)
+                        foreign_text = cols[6].get_text(strip=True)
+                        foreign_net = self._parse_trading_volume(foreign_text)
+
+                        # 개인 = -(기관 + 외국인)
+                        # None 처리: 기관이나 외국인이 None이면 개인도 None
+                        if institutional_net is not None and foreign_net is not None:
+                            individual_net = -(institutional_net + foreign_net)
+                        else:
+                            individual_net = None
+
+                        trading_data.append({
+                            'ticker': ticker,
+                            'date': trade_date,
+                            'individual_net': individual_net,
+                            'institutional_net': institutional_net,
+                            'foreign_net': foreign_net
+                        })
+
+                        page_data_count += 1
+
+                    except (ValueError, AttributeError, IndexError) as e:
+                        logger.warning(f"Failed to parse trading flow row for {ticker} on page {page}: {e}")
+                        continue
+
+                logger.info(f"Collected {page_data_count} trading flow records from page {page} for {ticker} (total: {len(trading_data)})")
+
+                # 현재 페이지에서 데이터가 없으면 더 이상 페이지가 없는 것으로 간주
+                if page_data_count == 0:
+                    logger.info(f"No more data found on page {page} for {ticker}, stopping pagination")
+                    break
+
+                page += 1
+
+            except requests.exceptions.Timeout:
+                logger.error(f"Timeout fetching trading flow page {page} for {ticker}")
+                break
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error fetching trading flow page {page} for {ticker}: {e}")
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error fetching trading flow page {page} for {ticker}: {e}")
+                break
+
+        logger.info(f"Collected total {len(trading_data)} trading flow records for {ticker} from {page-1} pages")
+        return trading_data
     
     def _parse_trading_volume(self, text: str) -> Optional[int]:
         """
