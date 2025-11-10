@@ -153,7 +153,7 @@ class NewsScraper:
 
     def _calculate_relevance_score(self, news_item: Dict, keywords: List[str]) -> float:
         """
-        뉴스 아이템의 관련도 점수 계산
+        뉴스 아이템의 관련도 점수 계산 (개선된 버전)
 
         Args:
             news_item: 뉴스 아이템 (title, description 포함)
@@ -161,26 +161,43 @@ class NewsScraper:
 
         Returns:
             관련도 점수 (0.0 ~ 1.0)
+
+        개선 사항:
+            - 제목 가중치 증가 (2점)
+            - 키워드 빈도 고려 (최대 3회까지)
+            - 기본 점수 부여로 전체적인 점수 상향
         """
         title = self._clean_html_tags(news_item.get('title', '')).lower()
         description = self._clean_html_tags(news_item.get('description', '')).lower()
 
         score = 0.0
-        max_score = len(keywords) * 2  # 제목 1점, 본문 1점
+        max_score = len(keywords) * 5.0  # 제목 3점 + 본문 2점
 
         for keyword in keywords:
             keyword_lower = keyword.lower()
 
-            # 제목에 키워드 포함: 1점
-            if keyword_lower in title:
-                score += 1.0
+            # 제목에 키워드 포함: 최대 3점 (빈도에 따라)
+            title_count = title.count(keyword_lower)
+            if title_count > 0:
+                # 1회: 1.5점, 2회: 2.5점, 3회 이상: 3점
+                title_score = min(1.5 + (title_count - 1) * 1.0, 3.0)
+                score += title_score
 
-            # 본문에 키워드 포함: 1점
-            if keyword_lower in description:
-                score += 1.0
+            # 본문에 키워드 포함: 최대 2점 (빈도에 따라)
+            desc_count = description.count(keyword_lower)
+            if desc_count > 0:
+                # 1회: 1점, 2회: 1.5점, 3회 이상: 2점
+                desc_score = min(1.0 + (desc_count - 1) * 0.5, 2.0)
+                score += desc_score
 
         # 정규화 (0.0 ~ 1.0)
-        return score / max_score if max_score > 0 else 0.0
+        normalized_score = score / max_score if max_score > 0 else 0.0
+
+        # 기본 점수 부여: 최소 20% 보장 (검색 키워드로 찾은 뉴스이므로)
+        # 최종 점수 = 0.2 + (정규화 점수 * 0.8)
+        final_score = 0.2 + (normalized_score * 0.8)
+
+        return min(final_score, 1.0)  # 최대값 1.0으로 제한
 
     def fetch_naver_news(
         self,
