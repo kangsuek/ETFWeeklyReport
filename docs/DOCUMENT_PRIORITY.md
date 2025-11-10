@@ -65,7 +65,7 @@
 
 ---
 
-## 📚 선택 문서 (Optional) - 8개
+## 📚 선택 문서 (Optional) - 6개
 
 ### 참조용 문서
 1. **project-management/PROGRESS.md**
@@ -98,27 +98,18 @@
    - 필요성: 프론트엔드 전용 정보 (중복 가능)
    - 읽기 시점: 프론트엔드 작업 시
 
-### 프로토타입 문서 (완료된 작업)
-7. **backend/prototypes/news_scraper_poc/** (전체 디렉토리)
+### 프로토타입 문서 (제거 완료)
+7. ✅ **backend/prototypes/news_scraper_poc/** - 제거 완료 (2025-11-09)
    - 목적: 뉴스 스크래핑 POC 프로젝트 문서
-   - 필요성: 이미 완료된 프로토타입 (참조용)
-   - 읽기 시점: 뉴스 스크래핑 로직 이해 필요 시
-   - 포함 파일:
-     - README.md
-     - WORK_INSTRUCTION.md
-     - STEP1_PLAN.md, STEP1_RESULT.md
-     - STEP2_RESULT.md, STEP3_RESULT.md
-     - QUICK_START.md
-     - 새_세션_시작_방법.md
+   - 상태: 완료된 프로토타입 문서로 제거됨
 
-8. **backend/data/data_quality_report.md**
+8. ✅ **backend/data/data_quality_report.md** - 제거 완료 (2025-11-09)
    - 목적: 데이터 품질 리포트
-   - 필요성: 데이터 품질 확인 (필요 시만)
-   - 읽기 시점: 데이터 품질 검증 시
+   - 상태: 참고용 문서로 제거됨
 
 ---
 
-## ✅ 제거 완료 문서 (Removed) - 5개
+## ✅ 제거 완료 문서 (Removed) - 7개
 
 ### 최적화 관련 문서 (제거 완료)
 1. ✅ **docs/DOCUMENT_OPTIMIZATION_PLAN.md** - 제거 완료 (2025-11-09)
@@ -168,13 +159,11 @@
 3. ✅ `docs/CODE_EXAMPLE_ANALYSIS.md` - 제거 완료
 4. ✅ `project-management/PHASE4_PLAN.md` - 제거 완료
 5. ✅ `docs/CODE_IMPROVEMENTS.md` - 제거 완료
+6. ✅ `backend/prototypes/news_scraper_poc/` - 제거 완료 (완료된 POC 문서)
+7. ✅ `backend/data/data_quality_report.md` - 제거 완료 (데이터 품질 리포트)
 
-**제거된 줄 수**: 약 2,148줄  
-**절감된 토큰**: 약 8,592 토큰
-
-### 보관 문서 (참고용, 개발 작업에는 불필요)
-- `backend/prototypes/news_scraper_poc/` - 완료된 POC 문서 (참고용)
-- `backend/data/data_quality_report.md` - 데이터 품질 리포트 (참고용)
+**제거된 줄 수**: 약 2,148줄 (최적화 문서) + 프로토타입 문서  
+**절감된 토큰**: 약 8,592 토큰 이상
 
 ---
 
@@ -186,7 +175,9 @@
 - 최적화 관련 문서 3개: 약 1,000줄 (약 4,000 토큰)
 - PHASE4_PLAN.md: 약 700줄 (약 2,800 토큰)
 - CODE_IMPROVEMENTS.md: 약 618줄 (약 2,472 토큰)
-- **총 제거**: 약 2,148줄 (약 8,592 토큰)
+- 프로토타입 문서 (news_scraper_poc): 약 2,228줄 (약 8,912 토큰)
+- data_quality_report.md: 포함
+- **총 제거**: 약 4,376줄 이상 (약 17,504 토큰 이상)
 
 **최적화 전후 비교**:
 - Phase 1+2 최적화 후: 약 8,564 토큰
