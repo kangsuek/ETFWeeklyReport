@@ -120,28 +120,6 @@ describe('Dashboard', () => {
     expect(screen.getByText('종목 데이터를 추가해주세요.')).toBeInTheDocument()
   })
 
-  it('정렬 옵션을 변경할 수 있다', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<Dashboard />)
-
-    // 데이터 로딩 대기
-    await waitFor(() => {
-      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
-    })
-
-    // 정렬 select 요소 찾기
-    const sortSelect = screen.getByRole('combobox')
-    expect(sortSelect).toHaveValue('name')
-
-    // 타입별 정렬로 변경
-    await user.selectOptions(sortSelect, 'type')
-    expect(sortSelect).toHaveValue('type')
-
-    // 코드순 정렬로 변경
-    await user.selectOptions(sortSelect, 'ticker')
-    expect(sortSelect).toHaveValue('ticker')
-  })
-
   it('새로고침 버튼을 클릭하면 데이터를 갱신한다', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Dashboard />)

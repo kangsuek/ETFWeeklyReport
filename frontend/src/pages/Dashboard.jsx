@@ -7,7 +7,6 @@ import PageHeader from '../components/common/PageHeader'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
-  const [sortBy, setSortBy] = useState('name') // 'name', 'type', 'ticker'
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(false)
 
@@ -73,22 +72,6 @@ export default function Dashboard() {
       hour12: false
     })
   }
-
-  // 정렬 함수
-  const sortedEtfs = etfs ? [...etfs].sort((a, b) => {
-    switch (sortBy) {
-      case 'name':
-        return a.name.localeCompare(b.name, 'ko-KR')
-      case 'type':
-        // ETF가 먼저, STOCK이 나중
-        if (a.type === b.type) return a.name.localeCompare(b.name, 'ko-KR')
-        return a.type === 'ETF' ? -1 : 1
-      case 'ticker':
-        return a.ticker.localeCompare(b.ticker)
-      default:
-        return 0
-    }
-  }) : []
 
   // 로딩 상태
   if (isLoading) {
@@ -177,20 +160,7 @@ export default function Dashboard() {
             총 <span className="font-semibold text-primary">{etfs.length}</span>개 종목
           </span>
         }
-      >
-        {/* 정렬 옵션 */}
-        <label className="text-sm text-gray-600 hidden sm:inline">정렬:</label>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="input text-sm py-2"
-          aria-label="종목 정렬 기준 선택"
-        >
-          <option value="name">이름순</option>
-          <option value="type">타입별</option>
-          <option value="ticker">코드순</option>
-        </select>
-      </PageHeader>
+      />
 
       {/* 날짜 및 업데이트 정보 */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg p-4 shadow-sm">
@@ -259,7 +229,7 @@ export default function Dashboard() {
 
       {/* 종목 그리드 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-        {sortedEtfs.map((etf) => (
+        {etfs.map((etf) => (
           <ETFCard key={etf.ticker} etf={etf} />
         ))}
       </div>
