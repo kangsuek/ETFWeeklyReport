@@ -94,15 +94,13 @@ docker-compose up --build
 
 1. [TODO.md](./project-management/TODO.md)에서 현재 작업 확인
 2. 기능 구현 + 테스트 작성
-3. **코드 품질 검사 실행** (black, flake8, pylint)
+3. 코드 품질 검사 실행 (black, flake8, pylint)
 4. [Definition of Done](./docs/DEFINITION_OF_DONE.md) 체크리스트 확인
 5. **모든 테스트 100% 통과 확인** ⚠️
 6. 문서 업데이트
 7. TODO.md 체크박스 체크
 
-자세한 개발 가이드는 [SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)를 참조하세요.
-
-자세한 진행 상황은 [PROGRESS.md](./project-management/PROGRESS.md)를 참조하세요.
+> **상세 개발 가이드**: [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) 참조
 
 ## ✨ 주요 기능
 
@@ -119,7 +117,8 @@ docker-compose up --build
 - **Database**: SQLite (개발) / PostgreSQL (프로덕션)
 - **Charts**: Recharts
 - **State Management**: TanStack Query
-- **Deployment**: Docker, docker-compose
+
+> **상세 기술 스택 및 버전 정보**: [docs/TECH_STACK.md](./docs/TECH_STACK.md) 참조
 
 ## 📦 프로젝트 구조
 
@@ -223,59 +222,13 @@ npm test -- --coverage
 
 ## 📊 프로젝트 현황
 
-### ✅ Phase 1: Backend Core (완료 - 2025-11-07)
-- FastAPI 기본 구조 및 API 엔드포인트
-- Naver Finance 웹 스크래핑 구현
-- 데이터 검증 및 정제 시스템
-- SQLite 데이터베이스 구축
-- **테스트**: 61개 통과, 커버리지 82%
+### 완료된 Phase
+- ✅ **Phase 1**: Backend Core (2025-11-07) - 61개 테스트, 커버리지 82%
+- ✅ **Phase 2**: Data Collection Complete (2025-11-08) - 196개 테스트, 커버리지 89%
+- ✅ **Phase 3**: Frontend Foundation (2025-11-09) - 대시보드, API 연동, 반응형 디자인
 
-### ✅ Phase 2: Data Collection Complete (완료 - 2025-11-08)
-- 6개 종목 자동 데이터 수집 시스템
-- APScheduler 스케줄러 (일일/주간 자동 실행)
-- 투자자별 매매 동향 수집
-- **네이버 검색 API 실시간 뉴스 수집** (Mock → 실제 API)
-- 재시도 로직 (Exponential Backoff) 및 Rate Limiting
-- 데이터 품질 검증 시스템
-- **테스트**: 196개 통과, 커버리지 89%
-- **데이터 완전성**: 전 종목 100점 달성 (6/6)
+### 현재 진행 중
+- 🟢 **Phase 4**: Charts & Visualization - 차트 컴포넌트 구현 예정
 
-### ✅ Phase 3: Frontend Foundation (완료 - 2025-11-09)
-- ✅ Step 1: 프론트엔드 환경 설정 (Node.js v25.1.0, npm 406 packages)
-- ✅ Step 2: API 서비스 레이어 구현 (Axios, 인터셉터, 에러 처리)
-  - **4개 API 모듈**: etfApi, newsApi, dataApi, healthApi
-  - **14개 메서드**: 데이터 조회 및 수집 트리거
-- ✅ Step 3: Dashboard 페이지 개선 (6개 종목 카드, 정렬, 실시간 데이터)
-- ✅ Step 4: Layout 및 Navigation (Header, Footer, 모바일 메뉴)
-- ✅ Step 5: 실시간 데이터 통합 (React Query, 자동/수동 새로고침)
-- ⚠️ Step 6: 컴포넌트 테스트 (연기 - Phase 4에서 구현)
-- ⚠️ Step 7: 스타일링 및 UX (이미 Step 3-5에서 구현)
-- ✅ Step 8: 크로스 브라우저 테스트 및 최적화 (88.73 kB gzip)
-
-**달성 내용**:
-- ✅ 6개 종목 대시보드 (타입별/이름순 정렬)
-- ✅ ETFCard 컴포넌트 (가격, 등락률, 거래량, 뉴스)
-- ✅ 반응형 디자인 (모바일/태블릿/데스크톱)
-- ✅ 로딩/에러 상태 (Skeleton UI)
-- ✅ 프로덕션 빌드 (267 kB → 88.73 kB gzip)
-- ✅ 배포 준비 완료 (DEPLOYMENT.md)
-
-**진행률**: Phase 3 - 100% (6/8 Step 완료, 2 Step 통합/연기)
-
-### 🎯 실행 중인 서비스
-- **백엔드**: http://localhost:8000 (FastAPI + Uvicorn)
-- **프론트엔드**: http://localhost:5173 (Vite + React)
-- **API 문서**: http://localhost:8000/docs (Swagger UI)
-- **데이터베이스**: SQLite (`backend/data/etf_report.db`)
-
-### 📈 수집된 데이터 현황
-- **가격 데이터**: 60건 (6개 종목)
-- **매매 동향**: 65건 (투자자별)
-- **뉴스**: 159건 (네이버 검색 API)
-- **데이터 완전성**: 전 종목 100점 ✅
-
-### 🔄 자동화
-- **일일 데이터 수집**: 평일 15:30 KST (APScheduler)
-- **주간 백필**: 일요일 02:00 KST (90일치)
-- **Rate Limiting**: 0.5초 간격 (Naver Finance), 0.1초 간격 (뉴스 API)
-- **재시도**: 최대 3회, Exponential Backoff (1s, 2s, 4s)
+> **상세 진행 상황**: [project-management/PROGRESS.md](./project-management/PROGRESS.md) 참조  
+> **현재 할 일**: [project-management/TODO.md](./project-management/TODO.md) 참조

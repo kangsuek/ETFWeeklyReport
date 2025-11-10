@@ -1,21 +1,8 @@
 # ETF Weekly Report - 문서 인덱스
 
-이 프로젝트는 한국 고성장 섹터 6개 종목(ETF 4개 + 주식 2개)에 대한 종합 분석 및 리포팅 웹 애플리케이션입니다.
+한국 고성장 섹터 6개 종목(ETF 4개 + 주식 2개)에 대한 종합 분석 및 리포팅 웹 애플리케이션
 
----
-## 🎯 대상 종목
-
-### ETF 4개
-1. **삼성 KODEX AI전력핵심설비 ETF** (487240) - AI & 전력 인프라
-2. **신한 SOL 조선TOP3플러스 ETF** (466920) - 조선업
-3. **KoAct 글로벌양자컴퓨팅액티브 ETF** (0020H0) - 양자컴퓨팅
-4. **KB RISE 글로벌원자력 iSelect ETF** (442320) - 원자력
-
-### 주식 2개
-5. **한화오션** (042660) - 조선/방산
-6. **두산에너빌리티** (034020) - 에너지/전력
-
----
+> **종목 목록 및 프로젝트 현황**: [README.md](./README.md) 참조
 
 
 ## 📚 프로젝트 문서
@@ -98,37 +85,16 @@
 
 ## 🚀 빠른 시작
 
-### 문서 읽는 순서 (처음 시작하는 경우)
+### 문서 읽는 순서 (새 에이전트 실행 시)
 
 1. **[README.md](./README.md)** - 프로젝트 개요 및 빠른 시작
 2. **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - 시스템 구조 파악
 3. **[docs/TECH_STACK.md](./docs/TECH_STACK.md)** - 사용 기술 확인
-4. **[project-management/TODO.md](./project-management/TODO.md)** - 현재 할 일 확인
-5. **[docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 시작
+4. **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정
+5. **[docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드
+6. **[docs/DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)** - 완료 기준
+7. **[project-management/TODO.md](./project-management/TODO.md)** - 현재 할 일
 
-### 개발 중 참조할 문서
-
-- **환경 설정**: [docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)
-- **서버 실행 및 테스트**: [docs/RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md) ⭐
-- **API 구현**: [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)
-- **DB 작업**: [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)
-- **코딩**: [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)
-- **진행 상황 체크**: [project-management/PROGRESS.md](./project-management/PROGRESS.md)
-
----
-
-## 📊 프로젝트 현황
-
-### ✅ Phase 1: Backend Core - 완료 (2025-11-07)
-
-**달성 내용**:
-- ✅ Naver Finance 웹 스크래핑 구현 (6개 종목)
-- ✅ 데이터 검증 및 정제 시스템
-- ✅ SQLite 데이터베이스 구축
-- ✅ RESTful API 5개 엔드포인트
-- ✅ 61개 테스트 100% 통과
-- ✅ 코드 커버리지 82%
-
-**실행 방법**: [docs/RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md) 참조
+> **프로젝트 현황 및 진행 상황**: [project-management/PROGRESS.md](./project-management/PROGRESS.md) 참조
 
 ---
