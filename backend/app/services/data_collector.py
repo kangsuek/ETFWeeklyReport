@@ -31,85 +31,100 @@ class ETFDataCollector:
     def fetch_naver_finance_prices(self, ticker: str, days: int = 10) -> List[dict]:
         """
         Naver Finance에서 가격 데이터 수집
-        
+
         Args:
             ticker: 종목 코드 (예: "487240")
             days: 수집할 일수 (기본: 10일)
-        
+
         Returns:
             수집된 가격 데이터 리스트
         """
+        price_data = []
+        page = 1
+        max_pages = (days // 10) + 2  # 한 페이지당 10개씩, 여유있게 +2
+
         try:
-            url = f"https://finance.naver.com/item/sise_day.naver?code={ticker}"
-            logger.info(f"Fetching data from Naver Finance for {ticker}")
-            
-            with self.rate_limiter:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 시세 테이블 찾기
-            table = soup.find('table', {'class': 'type2'})
-            if not table:
-                logger.error(f"Price table not found for {ticker}")
-                return []
-            
-            # 데이터 행 추출
-            rows = table.find_all('tr')
-            price_data = []
-            
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) >= 7:  # 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
-                    date_cell = cols[0].get_text(strip=True)
-                    
-                    # 날짜 형식 확인 (YYYY.MM.DD)
-                    if date_cell and '.' in date_cell:
-                        try:
-                            # 데이터 파싱
-                            date_str = date_cell  # 2025.11.07
-                            close_price = self._parse_number(cols[1].get_text(strip=True))
-                            change_str = cols[2].get_text(strip=True)  # 예: "상승205" 또는 "하락1,375"
-                            open_price = self._parse_number(cols[3].get_text(strip=True))
-                            high_price = self._parse_number(cols[4].get_text(strip=True))
-                            low_price = self._parse_number(cols[5].get_text(strip=True))
-                            volume = self._parse_number(cols[6].get_text(strip=True))
-                            
-                            # 등락률 계산
-                            daily_change_pct = self._parse_change(change_str, close_price)
-                            
-                            # 날짜 변환 (YYYY.MM.DD → YYYY-MM-DD)
-                            date_obj = datetime.strptime(date_str, '%Y.%m.%d').date()
-                            
-                            price_data.append({
-                                'ticker': ticker,
-                                'date': date_obj,
-                                'open_price': open_price,
-                                'high_price': high_price,
-                                'low_price': low_price,
-                                'close_price': close_price,
-                                'volume': volume,
-                                'daily_change_pct': daily_change_pct
-                            })
-                            
-                            # 요청한 일수만큼 수집하면 종료
-                            if len(price_data) >= days:
-                                break
-                                
-                        except Exception as e:
-                            logger.warning(f"Failed to parse row for {ticker}: {e}")
-                            continue
-            
-            logger.info(f"Collected {len(price_data)} price records for {ticker}")
+            logger.info(f"Fetching up to {days} days of data from Naver Finance for {ticker}")
+
+            while len(price_data) < days and page <= max_pages:
+                url = f"https://finance.naver.com/item/sise_day.naver?code={ticker}&page={page}"
+                logger.debug(f"Fetching page {page} for {ticker}")
+
+                with self.rate_limiter:
+                    response = requests.get(url, headers=self.headers, timeout=10)
+                    response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # 시세 테이블 찾기
+                table = soup.find('table', {'class': 'type2'})
+                if not table:
+                    logger.warning(f"Price table not found for {ticker} on page {page}")
+                    break
+
+                # 데이터 행 추출
+                rows = table.find_all('tr')
+                rows_parsed_this_page = 0
+
+                for row in rows:
+                    # 이미 충분한 데이터를 수집했으면 종료
+                    if len(price_data) >= days:
+                        break
+
+                    cols = row.find_all('td')
+                    if len(cols) >= 7:  # 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
+                        date_cell = cols[0].get_text(strip=True)
+
+                        # 날짜 형식 확인 (YYYY.MM.DD)
+                        if date_cell and '.' in date_cell:
+                            try:
+                                # 데이터 파싱
+                                date_str = date_cell  # 2025.11.07
+                                close_price = self._parse_number(cols[1].get_text(strip=True))
+                                change_str = cols[2].get_text(strip=True)  # 예: "상승205" 또는 "하락1,375"
+                                open_price = self._parse_number(cols[3].get_text(strip=True))
+                                high_price = self._parse_number(cols[4].get_text(strip=True))
+                                low_price = self._parse_number(cols[5].get_text(strip=True))
+                                volume = self._parse_number(cols[6].get_text(strip=True))
+
+                                # 등락률 계산
+                                daily_change_pct = self._parse_change(change_str, close_price)
+
+                                # 날짜 변환 (YYYY.MM.DD → YYYY-MM-DD)
+                                date_obj = datetime.strptime(date_str, '%Y.%m.%d').date()
+
+                                price_data.append({
+                                    'ticker': ticker,
+                                    'date': date_obj,
+                                    'open_price': open_price,
+                                    'high_price': high_price,
+                                    'low_price': low_price,
+                                    'close_price': close_price,
+                                    'volume': volume,
+                                    'daily_change_pct': daily_change_pct
+                                })
+                                rows_parsed_this_page += 1
+
+                            except Exception as e:
+                                logger.warning(f"Failed to parse row for {ticker} on page {page}: {e}")
+                                continue
+
+                # 이번 페이지에서 아무 데이터도 파싱하지 못했으면 더 이상 페이지가 없는 것
+                if rows_parsed_this_page == 0:
+                    logger.info(f"No more data available for {ticker} after page {page}")
+                    break
+
+                page += 1
+
+            logger.info(f"Collected {len(price_data)} price records for {ticker} from {page-1} pages")
             return price_data
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Network error while fetching {ticker}: {e}")
-            return []
+            return price_data  # 수집된 데이터라도 반환
         except Exception as e:
             logger.error(f"Unexpected error while fetching {ticker}: {e}")
-            return []
+            return price_data  # 수집된 데이터라도 반환
     
     def _parse_number(self, text: str) -> Optional[float]:
         """숫자 문자열을 float로 변환 (쉼표 제거)"""

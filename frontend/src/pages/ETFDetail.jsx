@@ -279,18 +279,18 @@ export default function ETFDetail() {
       />
 
       {/* 기본 정보 섹션 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* 종목 정보 */}
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4">종목 정보</h3>
-          <div className="space-y-3">
+        <div className="card lg:col-span-2">
+          <h3 className="text-lg font-semibold mb-3">종목 정보</h3>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
             <div>
               <span className="text-sm text-gray-500">티커</span>
-              <p className="text-base font-semibold">{etf?.ticker}</p>
+              <p className="text-base font-semibold mt-0.5">{etf?.ticker}</p>
             </div>
             <div>
               <span className="text-sm text-gray-500">타입</span>
-              <p className="text-base font-semibold">
+              <p className="text-base font-semibold mt-0.5">
                 <span className={`inline-block px-2 py-1 rounded text-xs ${
                   etf?.type === 'ETF' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                 }`}>
@@ -300,19 +300,19 @@ export default function ETFDetail() {
             </div>
             <div>
               <span className="text-sm text-gray-500">테마</span>
-              <p className="text-base font-semibold">{etf?.theme}</p>
+              <p className="text-base font-semibold mt-0.5 line-clamp-1">{etf?.theme}</p>
             </div>
             {etf?.expense_ratio && (
               <div>
                 <span className="text-sm text-gray-500">운용보수</span>
-                <p className="text-base font-semibold">{etf?.expense_ratio}%</p>
+                <p className="text-base font-semibold mt-0.5">{etf?.expense_ratio}%</p>
               </div>
             )}
-            {etf?.listing_date && (
+            {etf?.launch_date && (
               <div>
                 <span className="text-sm text-gray-500">상장일</span>
-                <p className="text-base font-semibold">
-                  {format(new Date(etf.listing_date), 'yyyy-MM-dd')}
+                <p className="text-base font-semibold mt-0.5">
+                  {format(new Date(etf.launch_date), 'yyyy-MM-dd')}
                 </p>
               </div>
             )}
@@ -320,27 +320,27 @@ export default function ETFDetail() {
         </div>
 
         {/* 최근 가격 정보 */}
-        <div className="card lg:col-span-2">
-          <h3 className="text-lg font-semibold mb-4">최근 가격 정보</h3>
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-3">최근 가격 정보</h3>
           {latestPrice ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               <div>
                 <span className="text-sm text-gray-500">종가</span>
-                <p className="text-xl font-bold">{formatPrice(latestPrice.close_price)}</p>
+                <p className="text-xl font-bold mt-0.5">{formatPrice(latestPrice.close_price)}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-500">등락률</span>
-                <p className={`text-xl font-bold ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
+                <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
                   {formatPercent(latestPrice.daily_change_pct)}
                 </p>
               </div>
               <div>
                 <span className="text-sm text-gray-500">거래량</span>
-                <p className="text-xl font-bold">{formatVolume(latestPrice.volume)}</p>
+                <p className="text-xl font-bold mt-0.5">{formatVolume(latestPrice.volume)}</p>
               </div>
               <div>
                 <span className="text-sm text-gray-500">일자</span>
-                <p className="text-base font-semibold">
+                <p className="text-base font-semibold mt-0.5">
                   {format(new Date(latestPrice.date), 'yyyy-MM-dd')}
                 </p>
               </div>
@@ -358,10 +358,10 @@ export default function ETFDetail() {
       />
 
       {/* 차트 섹션 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="space-y-4 mb-4">
         {/* 가격 차트 */}
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">가격 차트</h3>
+          <h3 className="text-lg font-semibold mb-3">가격 차트</h3>
           {pricesLoading ? (
             <ChartSkeleton height={400} />
           ) : pricesError ? (
@@ -373,7 +373,7 @@ export default function ETFDetail() {
 
         {/* 매매 동향 차트 */}
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">투자자별 매매 동향</h3>
+          <h3 className="text-lg font-semibold mb-3">투자자별 매매 동향</h3>
           {tradingFlowLoading ? (
             <ChartSkeleton height={400} />
           ) : tradingFlowError ? (
@@ -386,7 +386,7 @@ export default function ETFDetail() {
 
       {/* 뉴스 타임라인 섹션 */}
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">최근 뉴스</h3>
+        <h3 className="text-lg font-semibold mb-3">최근 뉴스</h3>
         <NewsTimeline ticker={ticker} />
       </div>
     </div>

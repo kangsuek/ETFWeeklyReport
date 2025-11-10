@@ -127,8 +127,8 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
       {/* 커스텀 날짜 선택기 */}
       {selectedRange === 'custom' && (
         <div className="border-t pt-4 mt-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[180px]">
               <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
                 시작 날짜
               </label>
@@ -140,7 +140,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div>
+            <div className="flex-1 min-w-[180px]">
               <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
                 종료 날짜
               </label>
@@ -152,6 +152,13 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <button
+              onClick={applyCustomRange}
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap"
+              type="button"
+            >
+              적용
+            </button>
           </div>
 
           {error && (
@@ -159,14 +166,6 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-
-          <button
-            onClick={applyCustomRange}
-            className="mt-3 w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            type="button"
-          >
-            적용
-          </button>
         </div>
       )}
 
