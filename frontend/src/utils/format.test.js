@@ -6,6 +6,9 @@ import {
   formatPercent,
   getPriceChangeColor,
   getPriceChangeColorHex,
+  formatBillionWon,
+  formatNetBuying,
+  getNetBuyingColor,
 } from './format'
 
 describe('formatNumber', () => {
@@ -195,5 +198,111 @@ describe('getPriceChangeColorHex', () => {
 
   it('NaN 값을 처리한다', () => {
     expect(getPriceChangeColorHex(NaN)).toBe('#6b7280')
+  })
+})
+
+describe('formatBillionWon', () => {
+  it('원 단위를 억 원 단위로 변환한다', () => {
+    expect(formatBillionWon(100000000000)).toBe('1,000억')
+    expect(formatBillionWon(50000000000)).toBe('500억')
+    expect(formatBillionWon(25000000000)).toBe('250억')
+  })
+
+  it('소수점을 올바르게 처리한다', () => {
+    expect(formatBillionWon(123456789000)).toBe('1,234.6억')
+    expect(formatBillionWon(15000000000)).toBe('150억')
+  })
+
+  it('음수를 올바르게 처리한다', () => {
+    expect(formatBillionWon(-100000000000)).toBe('-1,000억')
+    expect(formatBillionWon(-50000000000)).toBe('-500억')
+  })
+
+  it('0을 올바르게 처리한다', () => {
+    expect(formatBillionWon(0)).toBe('0억')
+  })
+
+  it('null 값을 처리한다', () => {
+    expect(formatBillionWon(null)).toBe('-')
+  })
+
+  it('undefined 값을 처리한다', () => {
+    expect(formatBillionWon(undefined)).toBe('-')
+  })
+
+  it('NaN 값을 처리한다', () => {
+    expect(formatBillionWon(NaN)).toBe('-')
+  })
+
+  it('1억 미만의 작은 금액을 처리한다', () => {
+    expect(formatBillionWon(10000000)).toBe('0.1억')
+    expect(formatBillionWon(50000000)).toBe('0.5억')
+  })
+})
+
+describe('formatNetBuying', () => {
+  it('양수는 "순매수 +XX억" 형식으로 표시한다', () => {
+    expect(formatNetBuying(100000000000)).toBe('순매수 +1,000억')
+    expect(formatNetBuying(50000000000)).toBe('순매수 +500억')
+  })
+
+  it('음수는 "순매도 -XX억" 형식으로 표시한다', () => {
+    expect(formatNetBuying(-100000000000)).toBe('순매도 -1,000억')
+    expect(formatNetBuying(-50000000000)).toBe('순매도 -500억')
+  })
+
+  it('소수점을 올바르게 처리한다', () => {
+    expect(formatNetBuying(123456789000)).toBe('순매수 +1,234.6억')
+    expect(formatNetBuying(-123456789000)).toBe('순매도 -1,234.6억')
+  })
+
+  it('0을 올바르게 처리한다', () => {
+    const result = formatNetBuying(0)
+    expect(result).toContain('0억')
+  })
+
+  it('null 값을 처리한다', () => {
+    expect(formatNetBuying(null)).toBe('-')
+  })
+
+  it('undefined 값을 처리한다', () => {
+    expect(formatNetBuying(undefined)).toBe('-')
+  })
+
+  it('NaN 값을 처리한다', () => {
+    expect(formatNetBuying(NaN)).toBe('-')
+  })
+
+  it('작은 금액을 올바르게 처리한다', () => {
+    expect(formatNetBuying(10000000)).toBe('순매수 +0.1억')
+    expect(formatNetBuying(-10000000)).toBe('순매도 -0.1억')
+  })
+})
+
+describe('getNetBuyingColor', () => {
+  it('양수(순매수)는 빨강 hex를 반환한다', () => {
+    expect(getNetBuyingColor(100000000000)).toBe('#dc2626')
+    expect(getNetBuyingColor(1)).toBe('#dc2626')
+  })
+
+  it('음수(순매도)는 파랑 hex를 반환한다', () => {
+    expect(getNetBuyingColor(-100000000000)).toBe('#2563eb')
+    expect(getNetBuyingColor(-1)).toBe('#2563eb')
+  })
+
+  it('0은 회색 hex를 반환한다', () => {
+    expect(getNetBuyingColor(0)).toBe('#6b7280')
+  })
+
+  it('null 값을 처리한다', () => {
+    expect(getNetBuyingColor(null)).toBe('#6b7280')
+  })
+
+  it('undefined 값을 처리한다', () => {
+    expect(getNetBuyingColor(undefined)).toBe('#6b7280')
+  })
+
+  it('NaN 값을 처리한다', () => {
+    expect(getNetBuyingColor(NaN)).toBe('#6b7280')
   })
 })

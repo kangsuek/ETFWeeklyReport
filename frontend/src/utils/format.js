@@ -71,3 +71,39 @@ export const getPriceChangeColorHex = (value) => {
   if (value < 0) return '#2563eb'
   return '#6b7280'
 }
+
+/**
+ * 금액을 억 원 단위로 포맷팅
+ * @param {number} value - 금액 (원)
+ * @returns {string} - 포맷팅된 문자열
+ */
+export const formatBillionWon = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '-'
+  const billions = value / 100000000
+  return `${billions.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}억`
+}
+
+/**
+ * 순매수/순매도 포맷팅
+ * @param {number} value - 순매수 금액 (원)
+ * @returns {string} - 포맷팅된 문자열 (순매수 +XX억 / 순매도 -XX억)
+ */
+export const formatNetBuying = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '-'
+  const billions = value / 100000000
+  const sign = value > 0 ? '+' : ''
+  const label = value > 0 ? '순매수' : '순매도'
+  return `${label} ${sign}${billions.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}억`
+}
+
+/**
+ * 순매수/순매도 색상 반환
+ * @param {number} value - 순매수 금액
+ * @returns {string} - Hex 색상 값
+ */
+export const getNetBuyingColor = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '#6b7280'
+  if (value > 0) return '#dc2626' // 빨강 (순매수)
+  if (value < 0) return '#2563eb' // 파랑 (순매도)
+  return '#6b7280'
+}
