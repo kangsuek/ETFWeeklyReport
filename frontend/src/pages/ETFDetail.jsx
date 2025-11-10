@@ -52,11 +52,22 @@ const NewsTimeline = ({ ticker }) => {
 
     const groups = {}
     data.forEach((news) => {
-      const dateKey = format(new Date(news.published_at), 'yyyy-MM-dd')
-      if (!groups[dateKey]) {
-        groups[dateKey] = []
+      // 날짜 유효성 검사 추가
+      if (!news.published_at) return
+
+      try {
+        const date = new Date(news.published_at)
+        // Invalid Date 체크
+        if (isNaN(date.getTime())) return
+
+        const dateKey = format(date, 'yyyy-MM-dd')
+        if (!groups[dateKey]) {
+          groups[dateKey] = []
+        }
+        groups[dateKey].push(news)
+      } catch (error) {
+        console.warn('Invalid date for news:', news.published_at, error)
       }
-      groups[dateKey].push(news)
     })
     return groups
   }, [data])
@@ -125,7 +136,16 @@ const NewsTimeline = ({ ticker }) => {
                 <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                   <span>{news.source}</span>
                   <span>•</span>
-                  <span>{format(new Date(news.published_at), 'HH:mm')}</span>
+                  <span>
+                    {news.published_at ? (() => {
+                      try {
+                        const date = new Date(news.published_at)
+                        return isNaN(date.getTime()) ? '-' : format(date, 'HH:mm')
+                      } catch {
+                        return '-'
+                      }
+                    })() : '-'}
+                  </span>
                   {news.relevance_score && (
                     <>
                       <span>•</span>
