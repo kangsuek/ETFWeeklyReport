@@ -44,3 +44,23 @@ global.IntersectionObserver = class IntersectionObserver {
   }
   unobserve() {}
 }
+
+// Mock ResizeObserver (for Recharts)
+global.ResizeObserver = class ResizeObserver {
+  constructor(callback) {
+    this.callback = callback
+  }
+  observe() {
+    // Trigger callback with mock dimensions
+    this.callback([
+      {
+        contentRect: {
+          width: 800,
+          height: 400,
+        },
+      },
+    ])
+  }
+  unobserve() {}
+  disconnect() {}
+}
