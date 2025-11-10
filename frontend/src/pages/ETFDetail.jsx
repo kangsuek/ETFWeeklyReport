@@ -54,10 +54,10 @@ const NewsTimeline = ({ ticker }) => {
     const groups = {}
     data.forEach((news) => {
       // 날짜 유효성 검사 추가
-      if (!news.published_at) return
+      if (!news.date) return
 
       try {
-        const date = new Date(news.published_at)
+        const date = new Date(news.date)
         // Invalid Date 체크
         if (isNaN(date.getTime())) return
 
@@ -67,7 +67,7 @@ const NewsTimeline = ({ ticker }) => {
         }
         groups[dateKey].push(news)
       } catch (error) {
-        console.warn('Invalid date for news:', news.published_at, error)
+        console.warn('Invalid date for news:', news.date, error)
       }
     })
     return groups
@@ -121,9 +121,9 @@ const NewsTimeline = ({ ticker }) => {
             {format(new Date(date), 'yyyy년 MM월 dd일')}
           </h4>
           <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
-            {newsItems.map((news) => (
+            {newsItems.map((news, index) => (
               <div
-                key={news.id}
+                key={news.url || `${news.date}-${index}`}
                 className="bg-white rounded-lg p-4 hover:shadow-md transition-shadow border border-gray-100"
               >
                 <a
@@ -138,9 +138,9 @@ const NewsTimeline = ({ ticker }) => {
                   <span>{news.source}</span>
                   <span>•</span>
                   <span>
-                    {news.published_at ? (() => {
+                    {news.date ? (() => {
                       try {
-                        const date = new Date(news.published_at)
+                        const date = new Date(news.date)
                         return isNaN(date.getTime()) ? '-' : format(date, 'HH:mm')
                       } catch {
                         return '-'
