@@ -11,46 +11,24 @@
 - 최대 줄 길이: 100자
 - 타입 힌트 사용
 
-#### 코드 예시
+#### 코드 패턴
 
 ```python
-from typing import Optional, List
-from datetime import date
-import logging
-
-logger = logging.getLogger(__name__)
-
-async def get_etf_prices(
-    ticker: str,
-    start_date: date,
-    end_date: date
-) -> Optional[List[dict]]:
-    """
-    특정 기간의 종목 가격 데이터를 조회합니다.
-    
-    Args:
-        ticker: 종목 코드 (예: "487240")
-        start_date: 조회 시작 날짜
-        end_date: 조회 종료 날짜
-        
-    Returns:
-        가격 데이터 리스트 또는 실패 시 None
-        
-    Raises:
-        ValueError: 잘못된 날짜 범위
-    """
+# 함수 작성 패턴
+async def function_name(
+    param: Type
+) -> ReturnType:
+    """Docstring 필수 (Args, Returns, Raises 포함)"""
     try:
-        if start_date > end_date:
-            raise ValueError("시작 날짜가 종료 날짜보다 늦을 수 없습니다")
-        
-        # 데이터 조회 로직
-        data = await fetch_data(ticker, start_date, end_date)
-        return data
-        
+        # 비즈니스 로직
+        return result
     except Exception as e:
-        logger.error(f"가격 데이터 조회 실패 ({ticker}): {e}")
+        logger.error(f"에러: {e}")
         return None
 ```
+
+**실제 구현 예시**: 
+- `backend/app/services/data_collector.py`의 `fetch_naver_finance_prices()` 참조
 
 #### 함수 작성 규칙
 
@@ -71,47 +49,26 @@ async def get_etf_prices(
 - 함수형 컴포넌트 + Hooks 사용
 - PropTypes 또는 TypeScript 사용 권장
 
-#### 컴포넌트 예시
+#### 컴포넌트 패턴
 
 ```javascript
-import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { etfApi } from '@/services/api'
-import Spinner from '@/components/common/Spinner'
-
-/**
- * ETF/주식 카드 컴포넌트
- * @param {Object} props
- * @param {string} props.ticker - 종목 코드
- * @param {string} props.name - 종목 이름
- * @param {string} props.type - 종목 유형 (ETF/STOCK)
- */
-export default function ETFCard({ ticker, name }) {
+// React Query 사용 패턴
+export default function Component({ props }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['etf', ticker],
-    queryFn: () => etfApi.getDetail(ticker),
+    queryKey: ['key', props.id],
+    queryFn: () => api.getData(props.id),
     staleTime: 5 * 60 * 1000, // 5분
   })
 
   if (isLoading) return <Spinner />
+  if (error) return <Error message={error.message} />
   
-  if (error) {
-    return (
-      <div className="text-red-600">
-        데이터를 불러올 수 없습니다: {error.message}
-      </div>
-    )
-  }
-
-  return (
-    <div className="card hover:shadow-lg transition-shadow">
-      <h3 className="text-lg font-bold">{name}</h3>
-      <p className="text-sm text-gray-600">{ticker}</p>
-      {/* 추가 내용 */}
-    </div>
-  )
+  return <div>{/* UI */}</div>
 }
 ```
+
+**실제 구현 예시**: 
+- `frontend/src/components/etf/ETFCard.jsx` 참조
 
 #### 컴포넌트 작성 규칙
 
@@ -279,43 +236,40 @@ Closes #15
 ### 백엔드 테스트 (pytest)
 
 ```python
-# tests/test_data_collector.py
-import pytest
-from app.services.data_collector import ETFDataCollector
-from datetime import date
-
-def test_get_etf_prices():
-    collector = ETFDataCollector()
-    prices = collector.get_price_data(
-        ticker="487240",
-        start_date=date(2025, 10, 1),
-        end_date=date(2025, 10, 7)
-    )
+# 테스트 구조 패턴 (Given-When-Then)
+def test_function_name():
+    # Given: 테스트 데이터 준비
+    ticker = "487240"
     
-    assert prices is not None
-    assert len(prices) > 0
-    assert prices[0].ticker == "487240"
+    # When: 함수 실행
+    result = function_to_test(ticker)
+    
+    # Then: 결과 검증
+    assert result is not None
+    assert result.ticker == ticker
 ```
+
+**실제 테스트 예시**: 
+- `backend/tests/test_data_collector.py` 참조
 
 ### 프론트엔드 테스트 (React Testing Library)
 
 ```javascript
-// components/etf/__tests__/ETFCard.test.jsx
-import { render, screen } from '@testing-library/react'
-import ETFCard from '../ETFCard'
-
-test('renders stock name', () => {
-  const stock = {
-    ticker: '487240',
-    name: '삼성 KODEX AI전력핵심설비 ETF',
-    type: 'ETF'
-  }
+// 테스트 구조 패턴
+test('renders component', () => {
+  // Given: 테스트 데이터
+  const props = { ticker: '487240', name: 'ETF Name' }
   
-  render(<ETFCard etf={stock} />)
+  // When: 컴포넌트 렌더링
+  render(<Component {...props} />)
   
-  expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+  // Then: 결과 검증
+  expect(screen.getByText('ETF Name')).toBeInTheDocument()
 })
 ```
+
+**실제 테스트 예시**: 
+- `frontend/src/components/etf/ETFCard.test.jsx` 참조
 
 ---
 
@@ -327,96 +281,29 @@ test('renders stock name', () => {
 2. **일일 업데이트**: 장 마감 후 15:30 KST
 3. **실시간 업데이트**: 사용자 요청 시 (캐시 TTL: 10분)
 
-### 에러 처리
+### 에러 처리 패턴
+- 재시도 로직: Exponential Backoff 사용
+- Rate Limiting: 요청 간 최소 간격 보장
 
-```python
-import time
-from typing import Optional
-
-def retry_with_backoff(func, max_retries=3):
-    """지수 백오프를 사용한 재시도 데코레이터"""
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except Exception as e:
-            if attempt == max_retries - 1:
-                raise
-            wait_time = 2 ** attempt  # 1, 2, 4초
-            logger.warning(f"재시도 {attempt + 1}/{max_retries}: {e}")
-            time.sleep(wait_time)
-```
-
-### Rate Limiting 준수
-
-```python
-import time
-
-class RateLimiter:
-    def __init__(self, calls_per_minute=10):
-        self.calls_per_minute = calls_per_minute
-        self.last_call = 0
-    
-    def wait_if_needed(self):
-        now = time.time()
-        time_since_last = now - self.last_call
-        min_interval = 60.0 / self.calls_per_minute
-        
-        if time_since_last < min_interval:
-            time.sleep(min_interval - time_since_last)
-        
-        self.last_call = time.time()
-```
+**실제 구현**: 
+- `backend/app/utils/retry.py` (재시도 로직)
+- `backend/app/utils/rate_limiter.py` (Rate Limiter)
 
 ---
 
 ## 성능 최적화
 
 ### 백엔드
-
-1. **비동기 I/O 사용**
-```python
-async def fetch_multiple_etfs(tickers: List[str]):
-    tasks = [fetch_etf_data(ticker) for ticker in tickers]
-    return await asyncio.gather(*tasks)
-```
-
-2. **데이터베이스 인덱스**
-```sql
-CREATE INDEX idx_prices_ticker_date ON prices(ticker, date);
-```
-
-3. **쿼리 최적화**
-```python
-# Bad: N+1 쿼리
-for ticker in tickers:
-    get_latest_price(ticker)  # 4번 DB 호출
-
-# Good: 단일 쿼리
-get_latest_prices(tickers)  # 1번 DB 호출
-```
+- 비동기 I/O: `async/await`, `asyncio.gather()` 사용
+- 데이터베이스 인덱스: 자주 조회하는 컬럼에 인덱스 생성
+- 쿼리 최적화: N+1 쿼리 방지, 단일 쿼리 사용
 
 ### 프론트엔드
+- React.memo: 불필요한 리렌더링 방지
+- Code Splitting: `React.lazy()` 사용
+- 이미지 최적화: `loading="lazy"`, width/height 지정
 
-1. **React.memo로 불필요한 렌더링 방지**
-```javascript
-export default React.memo(ETFCard)
-```
-
-2. **Code Splitting**
-```javascript
-const Comparison = lazy(() => import('./pages/Comparison'))
-```
-
-3. **이미지 최적화**
-```jsx
-<img
-  src="/logo.png"
-  alt="Logo"
-  loading="lazy"
-  width={200}
-  height={50}
-/>
-```
+**실제 구현 예시**: 코드베이스 참조
 
 ---
 
@@ -439,24 +326,10 @@ const Comparison = lazy(() => import('./pages/Comparison'))
 ```
 
 ### 금액/날짜 포맷팅
+- `Intl.NumberFormat`: 금액 포맷팅 (한국어, KRW)
+- `Intl.DateTimeFormat`: 날짜 포맷팅 (한국어)
 
-```javascript
-// utils/formatters.js
-export const formatPrice = (price) => {
-  return new Intl.NumberFormat('ko-KR', {
-    style: 'currency',
-    currency: 'KRW',
-  }).format(price)
-}
-
-export const formatDate = (date) => {
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(date))
-}
-```
+**실제 구현**: `frontend/src/utils/` 참조
 
 ---
 

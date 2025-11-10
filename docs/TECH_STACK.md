@@ -139,98 +139,28 @@
 
 ## 선택 기준
 
-### FastAPI 선택 이유
-
-✅ **장점:**
-- 자동 API 문서 생성 (Swagger UI)
-- Pydantic을 통한 강력한 타입 검증
-- 비동기 지원 (높은 성능)
-- Python 생태계 활용 가능 (pandas, numpy 등)
-
-### React + Vite 선택 이유
-
-✅ **장점:**
-- Vite의 빠른 개발 서버 및 빌드 속도
-- React의 풍부한 생태계
-- TailwindCSS로 빠른 UI 개발
-- React Query로 서버 상태 관리 간소화
-
-### TailwindCSS 선택 이유
-
-✅ **장점:**
-- 빠른 프로토타이핑
-- 일관된 디자인 시스템
-- 작은 번들 크기 (사용하지 않는 클래스 제거)
-- 모바일 우선 반응형 디자인
-
-### Recharts 선택 이유
-
-✅ **장점:**
-- React 네이티브 (React 컴포넌트 기반)
-- 선언적 API
-- 반응형 차트
-- 커스터마이징 용이
-
-### TanStack Query 선택 이유
-
-✅ **장점:**
-- 자동 캐싱 및 백그라운드 업데이트
-- 로딩/에러 상태 관리 간소화
-- 중복 요청 자동 제거
-- 서버 상태와 클라이언트 상태 분리
+### 주요 기술 선택 이유
+- **FastAPI**: 자동 API 문서 생성, 강력한 타입 검증, 비동기 지원
+- **React + Vite**: 빠른 개발 서버, 풍부한 생태계
+- **TailwindCSS**: 빠른 프로토타이핑, 일관된 디자인 시스템
+- **Recharts**: React 네이티브, 선언적 API, 반응형 차트
+- **TanStack Query**: 자동 캐싱, 로딩/에러 상태 관리 간소화
 
 ---
 
 ## 환경 변수
 
-### 백엔드 (.env)
+### 주요 환경 변수
+- **백엔드**: `API_HOST`, `API_PORT`, `DATABASE_URL`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`
+- **프론트엔드**: `VITE_API_BASE_URL`, `VITE_APP_TITLE`
 
-```bash
-# API 설정
-API_HOST=0.0.0.0
-API_PORT=8000
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-
-# 데이터베이스
-DATABASE_URL=sqlite:///./data/etf_data.db
-
-# 데이터 수집
-CACHE_TTL_MINUTES=10
-NEWS_MAX_RESULTS=5
-
-# 선택사항: 외부 API
-NAVER_CLIENT_ID=your_client_id
-NAVER_CLIENT_SECRET=your_client_secret
-```
-
-### 프론트엔드 (.env)
-
-```bash
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_APP_TITLE=ETF Weekly Report
-```
+> **상세 설정**: [SETUP_GUIDE.md](./SETUP_GUIDE.md) 참조
 
 ---
 
 ## 의존성 설치
 
-### 백엔드
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 프론트엔드
-
-```bash
-cd frontend
-npm install
-# 또는
-yarn install
-```
+> **설치 방법**: [SETUP_GUIDE.md](./SETUP_GUIDE.md) 참조
 
 ---
 

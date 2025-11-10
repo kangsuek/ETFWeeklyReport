@@ -132,12 +132,7 @@ frontend/
 3. Naver Finance 웹 스크래핑 ✅
    - URL: https://finance.naver.com/item/sise_day.naver?code={종목코드}
    - 대상: 6개 종목 (ETF 4개 + 주식 2개)
-     * 487240: KODEX AI전력핵심설비
-     * 466920: SOL 조선TOP3플러스
-     * 0020H0: 글로벌양자컴퓨팅액티브
-     * 442320: RISE 글로벌원자력 iSelect
-     * 042660: 한화오션
-     * 034020: 두산에너빌리티
+   - 상세 목록: [README.md](../README.md) 참조
    ↓
 4. HTML 파싱 (BeautifulSoup4) ✅
    - table.type2에서 일별 데이터 추출
@@ -157,13 +152,10 @@ frontend/
 ```
 
 #### 구현된 기능 (Phase 1)
-- ✅ Naver Finance 스크래핑 (`fetch_naver_finance_prices`)
-- ✅ 데이터 검증 (`validate_price_data`)
-- ✅ 데이터 정제 (`clean_price_data`)
-- ✅ 데이터베이스 저장 (`save_price_data`)
-- ✅ 통합 수집 함수 (`collect_and_save_prices`)
-- ✅ API 엔드포인트 (POST `/api/etfs/{ticker}/collect`)
-- ✅ 61개 테스트 100% 통과
+- ✅ Naver Finance 스크래핑, 데이터 검증/정제, API 엔드포인트
+- ✅ 61개 테스트 100% 통과, 커버리지 82%
+- 상세 내용: [PROGRESS.md](../project-management/PROGRESS.md) 참조
+- 실제 구현: `backend/app/services/data_collector.py` 참조
 
 ### API 요청 흐름
 
@@ -251,15 +243,8 @@ Docker Host
 ## 모니터링 및 로깅
 
 ### 백엔드 로깅
-
-```python
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-```
+- 로깅 설정: [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) 참조
+- 실제 구현: `backend/app/services/data_collector.py` 참조
 
 ### 추적할 메트릭
 
