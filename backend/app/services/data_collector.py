@@ -366,11 +366,65 @@ class ETFDataCollector:
                 return ETF(**dict(row))
             return None
     
+    def get_price_data_range(self, ticker: str) -> Optional[Dict[str, date]]:
+        """
+        DB에 저장된 가격 데이터의 날짜 범위 확인
+
+        Args:
+            ticker: 종목 코드
+
+        Returns:
+            {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
+                FROM prices
+                WHERE ticker = ?
+            """, (ticker,))
+            row = cursor.fetchone()
+
+            if row and row['min_date'] and row['max_date']:
+                return {
+                    'min_date': datetime.strptime(row['min_date'], '%Y-%m-%d').date() if isinstance(row['min_date'], str) else row['min_date'],
+                    'max_date': datetime.strptime(row['max_date'], '%Y-%m-%d').date() if isinstance(row['max_date'], str) else row['max_date'],
+                    'count': row['count']
+                }
+            return None
+
+    def get_trading_flow_data_range(self, ticker: str) -> Optional[Dict[str, date]]:
+        """
+        DB에 저장된 매매 동향 데이터의 날짜 범위 확인
+
+        Args:
+            ticker: 종목 코드
+
+        Returns:
+            {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
+                FROM trading_flow
+                WHERE ticker = ?
+            """, (ticker,))
+            row = cursor.fetchone()
+
+            if row and row['min_date'] and row['max_date']:
+                return {
+                    'min_date': datetime.strptime(row['min_date'], '%Y-%m-%d').date() if isinstance(row['min_date'], str) else row['min_date'],
+                    'max_date': datetime.strptime(row['max_date'], '%Y-%m-%d').date() if isinstance(row['max_date'], str) else row['max_date'],
+                    'count': row['count']
+                }
+            return None
+
     def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[PriceData]:
         """Get price data for date range"""
         # TODO: Implement actual data collection from Naver Finance
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}")
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""

@@ -120,9 +120,10 @@ async def get_prices(
     collector: ETFDataCollector = Depends(get_collector)
 ):
     """
-    종목 가격 데이터 조회
+    종목 가격 데이터 조회 (자동 수집 지원)
 
     지정한 기간 동안의 가격 데이터(시가, 고가, 저가, 종가, 거래량, 등락률)를 조회합니다.
+    요청한 기간의 데이터가 DB에 없으면 자동으로 수집합니다.
 
     **Path Parameters:**
     - ticker: 종목 코드 (예: 487240)
@@ -187,6 +188,7 @@ async def get_prices(
     - 데이터는 최신순(날짜 내림차순)으로 정렬됨
     - 주말/공휴일 데이터는 포함되지 않음
     - 최대 조회 가능 기간: 1년 (365일)
+    - 데이터 부족 시 자동 수집 (최대 30초 소요)
     """
     logger.info(f"Fetching prices for {etf.ticker}")
 
@@ -194,15 +196,55 @@ async def get_prices(
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
     try:
+        # 1. DB 데이터 조회
         prices = collector.get_price_data(etf.ticker, start_date, end_date)
+
+        # 2. 데이터 범위 확인
+        data_range = collector.get_price_data_range(etf.ticker)
+
+        # 3. 데이터가 없거나 범위가 부족한 경우 자동 수집
+        should_collect = False
+        collection_days = 0
+
+        if not data_range:
+            # DB에 데이터가 전혀 없음
+            logger.info(f"No data in DB for {etf.ticker}, collecting {(end_date - start_date).days + 1} days")
+            should_collect = True
+            collection_days = (end_date - start_date).days + 1
+        elif data_range['min_date'] > start_date or data_range['max_date'] < end_date:
+            # 요청 범위가 DB 범위를 벗어남
+            logger.info(f"Requested range ({start_date} to {end_date}) exceeds DB range ({data_range['min_date']} to {data_range['max_date']})")
+            should_collect = True
+
+            # 부족한 기간 계산
+            if data_range['min_date'] > start_date:
+                collection_days = max(collection_days, (data_range['min_date'] - start_date).days)
+            if data_range['max_date'] < end_date:
+                collection_days = max(collection_days, (end_date - data_range['max_date']).days)
+
+            # 전체 범위로 다시 수집
+            collection_days = (end_date - start_date).days + 1
+
+        if should_collect:
+            logger.info(f"Auto-collecting {collection_days} days of price data for {etf.ticker}")
+            collected_count = collector.collect_and_save_prices(etf.ticker, days=collection_days)
+            logger.info(f"Auto-collected {collected_count} records for {etf.ticker}")
+
+            # 다시 조회
+            prices = collector.get_price_data(etf.ticker, start_date, end_date)
+
         logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
         return prices
+
     except sqlite3.Error as e:
         logger.error(f"Database error fetching prices for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred")
     except ValidationException as e:
         logger.error(f"Validation error fetching prices for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid date range or ticker")
+    except ScraperException as e:
+        logger.error(f"Scraper error auto-collecting prices for {etf.ticker}: {e}")
+        raise HTTPException(status_code=503, detail="Failed to collect missing data. Data source may be unavailable.")
     except Exception as e:
         logger.error(f"Unexpected error fetching prices for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch prices. Please try again later.")
@@ -268,7 +310,7 @@ async def get_trading_flow(
     collector: ETFDataCollector = Depends(get_collector)
 ):
     """
-    투자자별 매매동향 데이터 조회
+    투자자별 매매동향 데이터 조회 (자동 수집 지원)
 
     - **etf**: 종목 정보 (자동 주입, 검증됨)
     - **start_date**: 시작 날짜 (선택, 기본: 7일 전)
@@ -276,12 +318,44 @@ async def get_trading_flow(
 
     Returns:
         매매동향 데이터 리스트 (개인, 기관, 외국인 순매수)
+
+    Notes:
+        - 데이터 부족 시 자동 수집 (최대 30초 소요)
     """
     # 날짜 기본값 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
     try:
+        # 1. DB 데이터 조회
         trading_data = collector.get_trading_flow_data(etf.ticker, start_date, end_date)
+
+        # 2. 데이터 범위 확인
+        data_range = collector.get_trading_flow_data_range(etf.ticker)
+
+        # 3. 데이터가 없거나 범위가 부족한 경우 자동 수집
+        should_collect = False
+        collection_days = 0
+
+        if not data_range:
+            # DB에 데이터가 전혀 없음
+            logger.info(f"No trading flow data in DB for {etf.ticker}, collecting {(end_date - start_date).days + 1} days")
+            should_collect = True
+            collection_days = (end_date - start_date).days + 1
+        elif data_range['min_date'] > start_date or data_range['max_date'] < end_date:
+            # 요청 범위가 DB 범위를 벗어남
+            logger.info(f"Requested trading flow range ({start_date} to {end_date}) exceeds DB range ({data_range['min_date']} to {data_range['max_date']})")
+            should_collect = True
+
+            # 전체 범위로 다시 수집
+            collection_days = (end_date - start_date).days + 1
+
+        if should_collect:
+            logger.info(f"Auto-collecting {collection_days} days of trading flow data for {etf.ticker}")
+            collected_count = collector.collect_and_save_trading_flow(etf.ticker, days=collection_days)
+            logger.info(f"Auto-collected {collected_count} trading flow records for {etf.ticker}")
+
+            # 다시 조회
+            trading_data = collector.get_trading_flow_data(etf.ticker, start_date, end_date)
 
         if not trading_data:
             logger.warning(f"No trading flow data found for {etf.ticker} between {start_date} and {end_date}")
@@ -296,6 +370,9 @@ async def get_trading_flow(
     except ValidationException as e:
         logger.error(f"Validation error fetching trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid date range or ticker")
+    except ScraperException as e:
+        logger.error(f"Scraper error auto-collecting trading flow for {etf.ticker}: {e}")
+        raise HTTPException(status_code=503, detail="Failed to collect missing data. Data source may be unavailable.")
     except Exception as e:
         logger.error(f"Unexpected error fetching trading flow for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve trading flow. Please try again later.")

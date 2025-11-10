@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { etfApi, newsApi } from '../services/api'
 import PageHeader from '../components/common/PageHeader'
 import Spinner from '../components/common/Spinner'
+import LoadingIndicator from '../components/common/LoadingIndicator'
 import PriceChart from '../components/charts/PriceChart'
 import TradingFlowChart from '../components/charts/TradingFlowChart'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
@@ -203,10 +204,11 @@ export default function ETFDetail() {
     },
   })
 
-  // 가격 데이터 조회
+  // 가격 데이터 조회 (자동 수집 지원)
   const {
     data: pricesData,
     isLoading: pricesLoading,
+    isFetching: pricesFetching,
     error: pricesError,
     refetch: refetchPrices
   } = useQuery({
@@ -219,13 +221,17 @@ export default function ETFDetail() {
       return response.data
     },
     enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: 1 * 60 * 1000, // 1분
+    staleTime: 0, // 항상 최신 데이터 확인 (자동 수집을 위해)
+    cacheTime: 5 * 60 * 1000, // 5분 캐시
+    retry: 1, // 실패 시 1회 재시도
+    retryDelay: 1000, // 1초 후 재시도
   })
 
-  // 매매 동향 데이터 조회
+  // 매매 동향 데이터 조회 (자동 수집 지원)
   const {
     data: tradingFlowData,
     isLoading: tradingFlowLoading,
+    isFetching: tradingFlowFetching,
     error: tradingFlowError,
     refetch: refetchTradingFlow
   } = useQuery({
@@ -238,7 +244,10 @@ export default function ETFDetail() {
       return response.data
     },
     enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: 1 * 60 * 1000, // 1분
+    staleTime: 0, // 항상 최신 데이터 확인 (자동 수집을 위해)
+    cacheTime: 5 * 60 * 1000, // 5분 캐시
+    retry: 1, // 실패 시 1회 재시도
+    retryDelay: 1000, // 1초 후 재시도
   })
 
   // 날짜 범위 변경 핸들러
@@ -370,10 +379,14 @@ export default function ETFDetail() {
       {/* 차트 섹션 */}
       <div className="space-y-4 mb-4">
         {/* 가격 차트 */}
-        <div className="card">
+        <div className="card relative">
           <h3 className="text-lg font-semibold mb-3">가격 차트</h3>
-          {pricesLoading ? (
-            <ChartSkeleton height={400} />
+          {pricesLoading || pricesFetching ? (
+            <LoadingIndicator
+              isLoading={true}
+              message="가격 데이터를 불러오는 중..."
+              subMessage={pricesFetching && !pricesLoading ? "데이터를 수집하고 있습니다. 최대 30초가 소요될 수 있습니다." : ""}
+            />
           ) : pricesError ? (
             <ErrorFallback error={pricesError} onRetry={refetchPrices} />
           ) : (
@@ -382,10 +395,14 @@ export default function ETFDetail() {
         </div>
 
         {/* 매매 동향 차트 */}
-        <div className="card">
+        <div className="card relative">
           <h3 className="text-lg font-semibold mb-3">투자자별 매매 동향</h3>
-          {tradingFlowLoading ? (
-            <ChartSkeleton height={400} />
+          {tradingFlowLoading || tradingFlowFetching ? (
+            <LoadingIndicator
+              isLoading={true}
+              message="매매 동향 데이터를 불러오는 중..."
+              subMessage={tradingFlowFetching && !tradingFlowLoading ? "데이터를 수집하고 있습니다. 최대 30초가 소요될 수 있습니다." : ""}
+            />
           ) : tradingFlowError ? (
             <ErrorFallback error={tradingFlowError} onRetry={refetchTradingFlow} />
           ) : (
