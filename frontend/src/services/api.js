@@ -161,4 +161,19 @@ export const healthApi = {
   check: () => api.get('/health'),
 }
 
+// Settings API 서비스
+export const settingsApi = {
+  // 종목 추가
+  createStock: (data) => api.post('/settings/stocks', data),
+
+  // 종목 수정
+  updateStock: (ticker, data) => api.put(`/settings/stocks/${ticker}`, data),
+
+  // 종목 삭제
+  deleteStock: (ticker) => api.delete(`/settings/stocks/${ticker}`),
+
+  // 종목 유효성 검증 (네이버 금융 스크래핑)
+  validateTicker: (ticker) => api.get(`/settings/stocks/${ticker}/validate`),
+}
+
 export default api

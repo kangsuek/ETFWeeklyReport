@@ -10,9 +10,14 @@ from typing import Dict, Any
 import logging
 from app.models import StockCreate, StockUpdate, StockDeleteResponse
 from app.utils import stocks_manager
+from app.services.ticker_scraper import TickerScraper
+from app.exceptions import ScraperException
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Initialize ticker scraper
+ticker_scraper = TickerScraper()
 
 
 @router.post("/stocks", status_code=201)
@@ -224,8 +229,6 @@ async def validate_ticker(
     """
     Validate a ticker code and fetch basic information from Naver Finance
 
-    This endpoint will be implemented in Task 1.3 (ticker_scraper.py)
-
     **Path Parameters:**
     - ticker: Stock ticker code (e.g., "005930")
 
@@ -249,12 +252,21 @@ async def validate_ticker(
     - 500: Scraping error
 
     **Notes:**
-    - This is a placeholder for Task 1.3
-    - Will scrape data from Naver Finance
-    - Returns data in stocks.json format
+    - Scrapes data from Naver Finance
+    - Returns data in stocks.json format ready for use
     """
-    # Placeholder for Task 1.3
-    raise HTTPException(
-        status_code=501,
-        detail="Ticker validation not yet implemented. See Task 1.3."
-    )
+    try:
+        logger.info(f"Validating ticker: {ticker}")
+
+        # Scrape ticker info from Naver Finance
+        stock_info = ticker_scraper.scrape_ticker_info(ticker)
+
+        logger.info(f"Successfully validated ticker {ticker}: {stock_info.get('name')}")
+        return stock_info
+
+    except ScraperException as e:
+        logger.error(f"Failed to validate ticker {ticker}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error validating ticker {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to validate ticker")

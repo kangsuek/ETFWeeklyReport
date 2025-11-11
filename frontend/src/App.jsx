@@ -5,6 +5,7 @@ import Footer from './components/layout/Footer'
 import Dashboard from './pages/Dashboard'
 import ETFDetail from './pages/ETFDetail'
 import Comparison from './pages/Comparison'
+import Settings from './pages/Settings'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/etf/:ticker" element={<ETFDetail />} />
               <Route path="/compare" element={<Comparison />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
           <Footer />
