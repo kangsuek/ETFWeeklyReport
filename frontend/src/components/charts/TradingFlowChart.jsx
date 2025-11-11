@@ -115,8 +115,10 @@ export const formatTradingFlowData = (data) => {
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
  * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
+ * @param {React.RefObject} scrollRef - 스크롤 컨테이너 ref (차트 동기화용)
+ * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
-const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400, dateRange = '7d' }) {
+const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400, dateRange = '7d', scrollRef, onScroll }) {
   // 컨테이너 너비 측정
   const { containerRef, width: containerWidth } = useContainerWidth()
 
@@ -198,9 +200,15 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
   }, [is7Days, containerWidth, dataCount])
   
   return (
-    <div 
-      ref={containerRef}
+    <div
+      ref={(node) => {
+        containerRef.current = node
+        if (scrollRef) {
+          scrollRef.current = node
+        }
+      }}
       className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
+      onScroll={onScroll}
     >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
         <ResponsiveContainer width="100%" height={height}>
