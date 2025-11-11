@@ -14,21 +14,14 @@
 #### 코드 패턴
 
 ```python
-# 함수 작성 패턴
-async def function_name(
-    param: Type
-) -> ReturnType:
-    """Docstring 필수 (Args, Returns, Raises 포함)"""
+async def function_name(param: Type) -> ReturnType:
+    """Docstring 필수"""
     try:
-        # 비즈니스 로직
         return result
     except Exception as e:
         logger.error(f"에러: {e}")
         return None
 ```
-
-**실제 구현 예시**: 
-- `backend/app/services/data_collector.py`의 `fetch_naver_finance_prices()` 참조
 
 #### 함수 작성 규칙
 
@@ -52,23 +45,16 @@ async def function_name(
 #### 컴포넌트 패턴
 
 ```javascript
-// React Query 사용 패턴
 export default function Component({ props }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['key', props.id],
     queryFn: () => api.getData(props.id),
-    staleTime: 5 * 60 * 1000, // 5분
   })
-
   if (isLoading) return <Spinner />
   if (error) return <Error message={error.message} />
-  
   return <div>{/* UI */}</div>
 }
 ```
-
-**실제 구현 예시**: 
-- `frontend/src/components/etf/ETFCard.jsx` 참조
 
 #### 컴포넌트 작성 규칙
 
@@ -88,44 +74,25 @@ export default function Component({ props }) {
 
 ```
 backend/app/
-├── routers/              # API 엔드포인트 (라우팅)
-│   └── etfs.py          # GET, POST 등 HTTP 메서드 정의
-├── services/            # 비즈니스 로직 (순수 Python)
-│   └── data_collector.py # 외부 API 호출, 데이터 가공
-├── models.py            # Pydantic 모델 (데이터 검증)
-├── database.py          # DB 연결 및 쿼리
-└── main.py              # FastAPI 앱 초기화
+├── routers/      # API 엔드포인트
+├── services/      # 비즈니스 로직
+├── models.py     # Pydantic 모델
+├── database.py   # DB 연결
+└── main.py       # FastAPI 앱
 ```
 
-**역할 분리:**
-- `routers/`: HTTP 요청/응답 처리만
-- `services/`: 실제 로직 구현
-- `models.py`: 데이터 구조 정의
-- `database.py`: DB 작업
+**역할**: routers(HTTP) → services(로직) → database(DB)
 
 ### 프론트엔드 파일 구조
 
 ```
 frontend/src/
-├── pages/               # 라우트 레벨 컴포넌트
-│   └── Dashboard.jsx    # /로 접근
-├── components/          # 재사용 컴포넌트
-│   ├── layout/         # 레이아웃 (Header, Footer)
-│   ├── etf/            # ETF 관련 컴포넌트
-│   └── common/         # 범용 컴포넌트 (Button, Spinner)
-├── hooks/              # Custom Hooks
-│   └── useETFData.js   # ETF 데이터 조회 훅
-├── services/           # API 클라이언트
-│   └── api.js          # Axios 인스턴스
-└── utils/              # 유틸리티 함수
-    └── formatters.js   # 날짜/금액 포맷팅
+├── pages/        # 라우트 컴포넌트
+├── components/   # 재사용 컴포넌트 (layout, etf, common)
+├── hooks/        # Custom Hooks
+├── services/     # API 클라이언트
+└── utils/        # 유틸리티 함수
 ```
-
-**컴포넌트 분류:**
-- `pages/`: URL 라우트와 1:1 매칭
-- `components/`: 페이지에서 사용되는 부품
-- `hooks/`: 재사용 가능한 로직
-- `services/`: 외부 통신
 
 ---
 
@@ -199,16 +166,7 @@ footer (optional)
 - `test`: 테스트 추가
 - `chore`: 빌드/설정 변경
 
-**예시:**
-
-```
-feat(backend): ETF 가격 데이터 수집 기능 추가
-
-FinanceDataReader를 사용하여 네이버 증권에서
-ETF 가격 데이터를 수집하는 기능을 구현했습니다.
-
-Closes #15
-```
+**예시**: `feat(backend): ETF 가격 데이터 수집 기능 추가`
 
 ---
 
@@ -219,57 +177,9 @@ Closes #15
 
 ### 테스트 정책
 
-1. **테스트 우선 개발 (Test-First)**
-   - 기능 구현 전 또는 동시에 테스트 작성
-   - 모든 테스트 통과 전까지 다음 기능 개발 금지
-
-2. **커버리지 목표**
-   - 백엔드: 최소 80%
-   - 프론트엔드: 최소 70%
-   - Critical Path: 100%
-
-3. **테스트 종류**
-   - 유닛 테스트: 개별 함수/메서드
-   - 통합 테스트: API 엔드포인트
-   - E2E 테스트: 전체 사용자 플로우
-
-### 백엔드 테스트 (pytest)
-
-```python
-# 테스트 구조 패턴 (Given-When-Then)
-def test_function_name():
-    # Given: 테스트 데이터 준비
-    ticker = "487240"
-    
-    # When: 함수 실행
-    result = function_to_test(ticker)
-    
-    # Then: 결과 검증
-    assert result is not None
-    assert result.ticker == ticker
-```
-
-**실제 테스트 예시**: 
-- `backend/tests/test_data_collector.py` 참조
-
-### 프론트엔드 테스트 (React Testing Library)
-
-```javascript
-// 테스트 구조 패턴
-test('renders component', () => {
-  // Given: 테스트 데이터
-  const props = { ticker: '487240', name: 'ETF Name' }
-  
-  // When: 컴포넌트 렌더링
-  render(<Component {...props} />)
-  
-  // Then: 결과 검증
-  expect(screen.getByText('ETF Name')).toBeInTheDocument()
-})
-```
-
-**실제 테스트 예시**: 
-- `frontend/src/components/etf/ETFCard.test.jsx` 참조
+- **커버리지 목표**: 백엔드 80%, 프론트엔드 70%, Critical Path 100%
+- **테스트 종류**: 유닛 테스트, 통합 테스트, E2E 테스트
+- **패턴**: Given-When-Then 구조 사용
 
 ---
 
@@ -285,10 +195,6 @@ test('renders component', () => {
 - 재시도 로직: Exponential Backoff 사용
 - Rate Limiting: 요청 간 최소 간격 보장
 
-**실제 구현**: 
-- `backend/app/utils/retry.py` (재시도 로직)
-- `backend/app/utils/rate_limiter.py` (Rate Limiter)
-
 ---
 
 ## 성능 최적화
@@ -302,8 +208,6 @@ test('renders component', () => {
 - React.memo: 불필요한 리렌더링 방지
 - Code Splitting: `React.lazy()` 사용
 - 이미지 최적화: `loading="lazy"`, width/height 지정
-
-**실제 구현 예시**: 코드베이스 참조
 
 ---
 
@@ -328,8 +232,6 @@ test('renders component', () => {
 ### 금액/날짜 포맷팅
 - `Intl.NumberFormat`: 금액 포맷팅 (한국어, KRW)
 - `Intl.DateTimeFormat`: 날짜 포맷팅 (한국어)
-
-**실제 구현**: `frontend/src/utils/` 참조
 
 ---
 

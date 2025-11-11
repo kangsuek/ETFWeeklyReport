@@ -66,17 +66,7 @@ Content-Type: application/json
     "ticker": "487240",
     "name": "삼성 KODEX AI전력핵심설비 ETF",
     "type": "ETF",
-    "theme": "AI/전력",
-    "launch_date": "2024-03-15",
-    "expense_ratio": 0.0045
-  },
-  {
-    "ticker": "042660",
-    "name": "한화오션",
-    "type": "STOCK",
-    "theme": "조선/방산",
-    "launch_date": null,
-    "expense_ratio": null
+    "theme": "AI/전력"
   }
 ]
 ```
@@ -100,9 +90,7 @@ Content-Type: application/json
   "ticker": "487240",
   "name": "삼성 KODEX AI전력핵심설비 ETF",
   "type": "ETF",
-  "theme": "AI/전력",
-  "launch_date": "2024-03-15",
-  "expense_ratio": 0.0045
+  "theme": "AI/전력"
 }
 ```
 
@@ -140,21 +128,9 @@ GET /api/etfs/042660/prices?start_date=2025-10-01&end_date=2025-11-01
 [
   {
     "date": "2025-11-07",
-    "open_price": 24350.0,
-    "high_price": 25810.0,
-    "low_price": 24350.0,
     "close_price": 25695.0,
     "volume": 1705721,
     "daily_change_pct": -0.27
-  },
-  {
-    "date": "2025-11-06",
-    "open_price": 26705.0,
-    "high_price": 26965.0,
-    "low_price": 25410.0,
-    "close_price": 25765.0,
-    "volume": 8225769,
-    "daily_change_pct": 0.8
   }
 ]
 ```
@@ -212,18 +188,6 @@ POST /api/etfs/042660/collect?days=5
 - `404`: 종목을 찾을 수 없음
 - `500`: 데이터 수집 실패
 
-**사용 예시:**
-
-```bash
-# cURL
-curl -X POST "http://localhost:8000/api/etfs/487240/collect?days=10"
-
-# Python requests
-import requests
-response = requests.post("http://localhost:8000/api/etfs/487240/collect?days=10")
-print(response.json())
-```
-
 ---
 
 ### 6. 투자자별 매매 동향 조회 (Phase 2)
@@ -250,12 +214,6 @@ print(response.json())
     "individual_net": -15000000,
     "institutional_net": 8000000,
     "foreign_net": 7000000
-  },
-  {
-    "date": "2025-10-31",
-    "individual_net": 5000000,
-    "institutional_net": -3000000,
-    "foreign_net": -2000000
   }
 ]
 ```
@@ -302,13 +260,11 @@ ETF의 주요 성과 지표 조회
 
 ---
 
-### 8. ETF 관련 뉴스 조회 (Phase 2) ⚠️ **Mock 구현**
-
-> **⚠️ 현재 제한사항**: Naver 뉴스는 JavaScript 동적 로딩을 사용하여, `requests` + `BeautifulSoup`만으로는 실시간 스크래핑이 불가능합니다. 현재는 **Mock 데이터**로 구현되어 있으며, 실제 스크래핑을 위해서는 Selenium 또는 Playwright 도입이 필요합니다. (Phase 3 또는 별도 이슈)
+### 8. ETF 관련 뉴스 조회 (Phase 2)
 
 #### GET `/api/news/{ticker}`
 
-ETF 테마 관련 뉴스 조회 (Mock 데이터)
+ETF 테마 관련 뉴스 조회
 
 **Path Parameters:**
 
@@ -326,23 +282,15 @@ ETF 테마 관련 뉴스 조회 (Mock 데이터)
   {
     "date": "2025-11-01",
     "title": "AI 데이터센터 투자 급증... 전력주 주목",
-    "url": "https://news.naver.com/...",
     "source": "매일경제",
     "relevance_score": 0.85
-  },
-  {
-    "date": "2025-10-31",
-    "title": "엔비디아, 차세대 AI 칩 발표",
-    "url": "https://news.naver.com/...",
-    "source": "한국경제",
-    "relevance_score": 0.72
   }
 ]
 ```
 
 #### POST `/api/news/{ticker}/collect`
 
-ETF 테마 관련 뉴스 수집 트리거 (Mock 데이터)
+ETF 테마 관련 뉴스 수집 트리거
 
 **Path Parameters:**
 
@@ -363,11 +311,6 @@ ETF 테마 관련 뉴스 수집 트리거 (Mock 데이터)
 }
 ```
 
-**설명:**
-
-- 해당 ETF의 테마 키워드를 기반으로 뉴스를 수집합니다 (현재 Mock).
-- 중복 URL은 자동으로 제거됩니다.
-- 수집된 뉴스는 관련도 점수와 함께 저장됩니다.
 
 ---
 
@@ -393,25 +336,12 @@ GET /api/etfs/compare?tickers=480450,456600&start_date=2025-10-01
 
 ```json
 {
-  "tickers": ["480450", "456600"],
-  "period": {
-    "start": "2025-10-01",
-    "end": "2025-11-01"
-  },
   "comparison": [
     {
       "ticker": "480450",
       "name": "KODEX AI전력핵심설비",
       "return": 8.5,
-      "volatility": 18.5,
-      "sharpe_ratio": 1.2
-    },
-    {
-      "ticker": "456600",
-      "name": "SOL 조선TOP3플러스",
-      "return": 12.3,
-      "volatility": 22.1,
-      "sharpe_ratio": 1.4
+      "volatility": 18.5
     }
   ]
 }
