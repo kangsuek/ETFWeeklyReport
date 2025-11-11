@@ -30,6 +30,12 @@
 - ✅ 차트 반응형 처리, 성능 최적화 (145.57 kB gzip)
 - ✅ 차트 X축 길이 통일, 스크롤 동기화
 
+### Phase 4.5 Step 1: 백엔드 종목 관리 API (진행 중 - 2025-11-11)
+- ✅ Task 1.1 완료: stocks.json 관리 유틸리티
+- ✅ Task 1.2 완료: 종목 추가/수정/삭제 API 엔드포인트
+- ⏳ Task 1.3 진행 예정: 네이버 금융 종목 정보 스크래핑
+- ⏳ Task 1.4 진행 예정: 테스트 작성
+
 > **상세 달성 내용**: [PROGRESS.md](./PROGRESS.md) 참조
 
 ---
@@ -211,53 +217,59 @@ main.py startup event
 4. ✅ **CASCADE 삭제 통계**: 삭제된 레코드 수 반환
 5. ✅ **서버 재시작 동기화**: startup event에서 자동 동기화
 
-### Step 1: 백엔드 - 종목 관리 API 구현 (약 2시간)
+### Step 1: 백엔드 - 종목 관리 API 구현 (진행 중)
 
-#### Task 1.1: stocks.json 관리 유틸리티 (0.5시간)
-- [ ] `app/utils/stocks_manager.py` 유틸리티 생성
-  - [ ] `load_stocks()` - stocks.json 파일 읽기 (기존 `Config.get_stock_config()` 활용)
-  - [ ] `save_stocks(stocks_dict)` - stocks.json 파일 쓰기
-    - [ ] **자동 백업**: `stocks.json.backup.YYYYMMDD_HHMMSS` 형식
-    - [ ] **원자적 쓰기**: 임시 파일에 쓰고 rename (데이터 손실 방지)
-    - [ ] **JSON 포매팅**: indent=2, ensure_ascii=False (한글 유지)
-  - [ ] `validate_stock_data(stock_dict)` - 종목 데이터 검증
-    - [ ] 필수 필드 체크: ticker, name, type, theme
-    - [ ] 타입 검증: ETF는 launch_date, expense_ratio 필수
-    - [ ] 날짜 형식 검증: YYYY-MM-DD
-  - [ ] `sync_stocks_to_db()` - stocks.json → DB 동기화
-    - [ ] **기존 `init_db()` 로직 활용** (중복 방지)
-    - [ ] INSERT OR REPLACE 사용
-    - [ ] **Config 캐시 갱신**: `Config.reload_stock_config()` 호출
-- [ ] **서버 시작 시 자동 동기화** (`main.py`의 startup event)
-  - [ ] 기존 `init_db()` 다음에 `sync_stocks_to_db()` 호출
+**현재 진행 상황**:
+- ✅ Task 1.1 완료: stocks.json 관리 유틸리티
+- ✅ Task 1.2 완료: 종목 추가/수정/삭제 API 엔드포인트
+- ⏳ Task 1.3 진행 예정: 네이버 금융 종목 정보 스크래핑
+- ⏳ Task 1.4 진행 예정: 테스트 작성
 
-#### Task 1.2: 종목 추가/수정/삭제 API 엔드포인트 (1시간)
+#### Task 1.1: stocks.json 관리 유틸리티 ✅ (완료 - 2025-11-11)
+- [x] `app/utils/stocks_manager.py` 유틸리티 생성
+  - [x] `load_stocks()` - stocks.json 파일 읽기 (기존 `Config.get_stock_config()` 활용)
+  - [x] `save_stocks(stocks_dict)` - stocks.json 파일 쓰기
+    - [x] **자동 백업**: `stocks.json.backup.YYYYMMDD_HHMMSS` 형식
+    - [x] **원자적 쓰기**: 임시 파일에 쓰고 rename (데이터 손실 방지)
+    - [x] **JSON 포매팅**: indent=2, ensure_ascii=False (한글 유지)
+  - [x] `validate_stock_data(stock_dict)` - 종목 데이터 검증
+    - [x] 필수 필드 체크: ticker, name, type, theme
+    - [x] 타입 검증: ETF는 launch_date, expense_ratio 필수
+    - [x] 날짜 형식 검증: YYYY-MM-DD
+  - [x] `sync_stocks_to_db()` - stocks.json → DB 동기화
+    - [x] **기존 `init_db()` 로직 활용** (중복 방지)
+    - [x] INSERT OR REPLACE 사용
+    - [x] **Config 캐시 갱신**: `Config.reload_stock_config()` 호출
+- [x] **서버 시작 시 자동 동기화** (`main.py`의 startup event)
+  - [x] 기존 `init_db()` 다음에 `sync_stocks_to_db()` 호출
+
+#### Task 1.2: 종목 추가/수정/삭제 API 엔드포인트 ✅ (완료 - 2025-11-11)
 
 **⚠️ 중요 설계 결정**: `POST /api/etfs`를 `POST /api/settings/stocks`로 변경
 - 이유: 기존 `GET /api/etfs`는 조회용, CRUD는 Settings 전용 엔드포인트로 분리
 - `/api/settings/stocks` - 종목 관리 전용 (Create, Update, Delete)
 - `/api/etfs` - 조회 전용 (Read only, 캐시 가능)
 
-- [ ] **새 라우터 추가**: `app/routers/settings.py`
-- [ ] `POST /api/settings/stocks` - 새 종목 추가
-  - [ ] Request Body: `{ ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords }`
-  - [ ] 중복 티커 체크 (stocks.json, DB 모두)
-  - [ ] 데이터 검증 (Pydantic 모델)
-  - [ ] **stocks.json 파일에 추가** (stocks_manager.save_stocks 호출)
-  - [ ] **DB 동기화** (stocks_manager.sync_stocks_to_db)
-  - [ ] **Config 캐시 갱신** (Config.reload_stock_config)
-  - [ ] 응답: 생성된 종목 정보 반환
-- [ ] `PUT /api/settings/stocks/{ticker}` - 종목 정보 수정
-  - [ ] 존재하는 티커만 수정 가능 (404 반환)
-  - [ ] 부분 업데이트 지원 (PATCH 스타일)
-  - [ ] **stocks.json 파일 수정**
-  - [ ] **DB 동기화 + Config 캐시 갱신**
-- [ ] `DELETE /api/settings/stocks/{ticker}` - 종목 삭제
-  - [ ] **stocks.json 파일에서 제거**
-  - [ ] **DB CASCADE 삭제** (관련 prices, news, trading_flow 데이터)
-    - [ ] 삭제된 레코드 수 카운트
-  - [ ] **Config 캐시 갱신**
-  - [ ] 응답: 삭제된 데이터 통계 반환
+- [x] **새 라우터 추가**: `app/routers/settings.py`
+- [x] `POST /api/settings/stocks` - 새 종목 추가
+  - [x] Request Body: `{ ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords }`
+  - [x] 중복 티커 체크 (stocks.json, DB 모두)
+  - [x] 데이터 검증 (Pydantic 모델)
+  - [x] **stocks.json 파일에 추가** (stocks_manager.save_stocks 호출)
+  - [x] **DB 동기화** (stocks_manager.sync_stocks_to_db)
+  - [x] **Config 캐시 갱신** (Config.reload_stock_config)
+  - [x] 응답: 생성된 종목 정보 반환
+- [x] `PUT /api/settings/stocks/{ticker}` - 종목 정보 수정
+  - [x] 존재하는 티커만 수정 가능 (404 반환)
+  - [x] 부분 업데이트 지원 (PATCH 스타일)
+  - [x] **stocks.json 파일 수정**
+  - [x] **DB 동기화 + Config 캐시 갱신**
+- [x] `DELETE /api/settings/stocks/{ticker}` - 종목 삭제
+  - [x] **stocks.json 파일에서 제거**
+  - [x] **DB CASCADE 삭제** (관련 prices, news, trading_flow 데이터)
+    - [x] 삭제된 레코드 수 카운트
+  - [x] **Config 캐시 갱신**
+  - [x] 응답: 삭제된 데이터 통계 반환
     ```json
     {
       "ticker": "005930",
@@ -321,7 +333,7 @@ main.py startup event
   - [ ] 존재하지 않는 종목 테스트
   - [ ] ETF/STOCK 타입 감지 테스트
   - [ ] 키워드 생성 테스트
-- [ ] `test_etfs_crud.py` - CRUD 엔드포인트 테스트
+- [ ] `test_settings_api.py` - CRUD 엔드포인트 테스트
   - [ ] 종목 추가 테스트 (성공, 중복, 검증 실패)
   - [ ] 종목 수정 테스트 (성공, 404)
   - [ ] 종목 삭제 테스트 (성공, CASCADE)
@@ -835,6 +847,3 @@ main.py startup event
 - [ ] 다국어 지원 (i18n)
 
 ---
-
-**Last Updated**: 2025-11-11 (Phase 4.5 및 Phase 5 계획 수립 완료)
-
