@@ -298,7 +298,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
       return {
         barSize: undefined, // Recharts 기본값 사용
         chartPixelWidth: Math.max(800, dataCount * minDataSpacing),
-        barCategoryGap: undefined,
+        barCategoryGap: dataCount > 30 ? "1%" : dataCount > 15 ? "2%" : "5%",
         shouldShowScroll: true
       }
     }
