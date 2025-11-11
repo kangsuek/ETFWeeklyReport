@@ -2,74 +2,169 @@ import { http, HttpResponse } from 'msw'
 
 const BASE_URL = 'http://localhost:8000/api'
 
-// Mock data
+// Mock data - 6개 종목
 const mockETFData = [
   {
-    code: '487240',
+    ticker: '487240',
     name: '삼성 KODEX AI전력핵심설비 ETF',
-    current_price: 15250,
-    change_rate: 2.34,
-    volume: 1250000,
-    market_cap: '5조 3000억',
-    last_updated: '2025-11-10T09:00:00',
+    type: 'ETF',
+    theme: 'AI & 전력 인프라',
+    expense_ratio: 0.45,
+    listing_date: '2024-03-15',
   },
   {
-    code: '466920',
+    ticker: '466920',
     name: '신한 SOL 조선TOP3플러스 ETF',
-    current_price: 12800,
-    change_rate: -1.15,
-    volume: 980000,
-    market_cap: '2조 8000억',
-    last_updated: '2025-11-10T09:00:00',
+    type: 'ETF',
+    theme: '조선/해운',
+    expense_ratio: 0.40,
+    listing_date: '2023-08-20',
   },
-]
-
-const mockStockData = [
   {
-    code: '042660',
+    ticker: '0020H0',
+    name: '미래에셋 TIGER AI반도체핵심장비Solactive',
+    type: 'ETF',
+    theme: 'AI 반도체',
+    expense_ratio: 0.50,
+    listing_date: '2024-01-10',
+  },
+  {
+    ticker: '442320',
+    name: '미래에셋 TIGER 2차전지소재Fn',
+    type: 'ETF',
+    theme: '2차 전지',
+    expense_ratio: 0.45,
+    listing_date: '2022-12-05',
+  },
+  {
+    ticker: '042660',
     name: '한화오션',
-    current_price: 45300,
-    change_rate: 3.21,
-    volume: 2340000,
-    market_cap: '12조 5000억',
-    last_updated: '2025-11-10T09:00:00',
+    type: 'STOCK',
+    theme: '조선/방산',
+    expense_ratio: null,
+    listing_date: '1978-06-29',
   },
   {
-    code: '034020',
+    ticker: '034020',
     name: '두산에너빌리티',
-    current_price: 28900,
-    change_rate: 1.89,
-    volume: 1890000,
-    market_cap: '8조 2000억',
-    last_updated: '2025-11-10T09:00:00',
+    type: 'STOCK',
+    theme: '발전/에너지',
+    expense_ratio: null,
+    listing_date: '2021-10-06',
   },
 ]
 
-const mockHistoricalData = [
+const mockPricesData = [
   {
     date: '2025-11-04',
-    close_price: 14950,
-    volume: 1100000,
+    open_price: 14700,
+    high_price: 14900,
+    low_price: 14650,
+    close_price: 14800,
+    volume: 1050000,
+    daily_change_pct: 0.68,
   },
   {
     date: '2025-11-05',
-    close_price: 15100,
-    volume: 1200000,
+    open_price: 14800,
+    high_price: 15000,
+    low_price: 14750,
+    close_price: 14900,
+    volume: 1100000,
+    daily_change_pct: 0.68,
   },
   {
     date: '2025-11-06',
-    close_price: 15050,
+    open_price: 14900,
+    high_price: 15100,
+    low_price: 14850,
+    close_price: 15000,
     volume: 1150000,
+    daily_change_pct: 0.67,
   },
   {
     date: '2025-11-07',
-    close_price: 15200,
-    volume: 1300000,
+    open_price: 15000,
+    high_price: 15200,
+    low_price: 14900,
+    close_price: 15100,
+    volume: 1200000,
+    daily_change_pct: 0.67,
   },
   {
     date: '2025-11-10',
+    open_price: 15100,
+    high_price: 15300,
+    low_price: 15000,
     close_price: 15250,
     volume: 1250000,
+    daily_change_pct: 0.99,
+  },
+]
+
+const mockTradingFlowData = [
+  {
+    date: '2025-11-04',
+    individual_net: -5000000,
+    institutional_net: 3000000,
+    foreign_net: 2000000,
+  },
+  {
+    date: '2025-11-05',
+    individual_net: 10000000,
+    institutional_net: -4000000,
+    foreign_net: -6000000,
+  },
+  {
+    date: '2025-11-06',
+    individual_net: 8000000,
+    institutional_net: -3000000,
+    foreign_net: -5000000,
+  },
+  {
+    date: '2025-11-07',
+    individual_net: 12000000,
+    institutional_net: -6000000,
+    foreign_net: -6000000,
+  },
+  {
+    date: '2025-11-10',
+    individual_net: 15000000,
+    institutional_net: -8000000,
+    foreign_net: -7000000,
+  },
+]
+
+const mockNewsData = [
+  {
+    id: 1,
+    ticker: '487240',
+    title: 'AI 전력 수요 급증, ETF 상승세',
+    url: 'https://example.com/news/1',
+    source: 'Naver News',
+    date: '2025-11-10T09:00:00',
+    published_at: '2025-11-10T09:00:00',
+    relevance_score: 0.92,
+  },
+  {
+    id: 2,
+    ticker: '487240',
+    title: '데이터센터 전력 인프라 투자 확대',
+    url: 'https://example.com/news/2',
+    source: 'Naver News',
+    date: '2025-11-09T14:30:00',
+    published_at: '2025-11-09T14:30:00',
+    relevance_score: 0.85,
+  },
+  {
+    id: 3,
+    ticker: '042660',
+    title: '한화오션, 대형 선박 수주',
+    url: 'https://example.com/news/3',
+    source: 'Naver News',
+    date: '2025-11-10T10:00:00',
+    published_at: '2025-11-10T10:00:00',
+    relevance_score: 0.95,
   },
 ]
 
@@ -84,6 +179,43 @@ export const handlers = [
     return HttpResponse.json(mockETFData)
   }),
 
+  // GET /api/etfs/:ticker - 특정 ETF 상세
+  http.get(`${BASE_URL}/etfs/:ticker`, ({ params }) => {
+    const { ticker } = params
+    const etf = mockETFData.find(e => e.ticker === ticker)
+    if (etf) {
+      return HttpResponse.json(etf)
+    }
+    return new HttpResponse(null, { status: 404 })
+  }),
+
+  // GET /api/etfs/:ticker/prices - 가격 데이터
+  http.get(`${BASE_URL}/etfs/:ticker/prices`, ({ params }) => {
+    const { ticker } = params
+    // 특정 종목에 대한 가격 데이터 반환
+    return HttpResponse.json(mockPricesData)
+  }),
+
+  // GET /api/etfs/:ticker/trading-flow - 매매 동향
+  http.get(`${BASE_URL}/etfs/:ticker/trading-flow`, ({ params }) => {
+    const { ticker } = params
+    // 특정 종목에 대한 매매 동향 데이터 반환
+    return HttpResponse.json(mockTradingFlowData)
+  }),
+
+  // GET /api/news/:ticker - 뉴스 (ticker 포함)
+  http.get(`${BASE_URL}/news/:ticker`, ({ params }) => {
+    const { ticker } = params
+    // 특정 종목에 대한 뉴스 데이터 반환
+    const newsForTicker = mockNewsData.filter(news => news.ticker === ticker)
+    return HttpResponse.json(newsForTicker.length > 0 ? newsForTicker : mockNewsData.slice(0, 2))
+  }),
+
+  // GET /api/news - 전체 뉴스
+  http.get(`${BASE_URL}/news`, () => {
+    return HttpResponse.json(mockNewsData)
+  }),
+
   // GET /api/data/scheduler-status - 스케줄러 상태
   http.get(`${BASE_URL}/data/scheduler-status`, () => {
     return HttpResponse.json({
@@ -94,46 +226,53 @@ export const handlers = [
     })
   }),
 
-  // GET /api/etfs/:code/prices - 가격 데이터
-  http.get(`${BASE_URL}/etfs/:code/prices`, () => {
-    return HttpResponse.json(mockHistoricalData)
+  // GET /api/data/status - 수집 상태
+  http.get(`${BASE_URL}/data/status`, () => {
+    return HttpResponse.json({
+      total_tickers: 6,
+      completed: 6,
+      failed: 0,
+      status: 'completed',
+    })
   }),
 
-  // GET /api/etfs/:code/trading-flow - 매매 동향
-  http.get(`${BASE_URL}/etfs/:code/trading-flow`, () => {
-    return HttpResponse.json([
-      {
-        date: '2025-11-10',
-        individual_net: 15000000,
-        institutional_net: -8000000,
-        foreign_net: -7000000,
-      },
-    ])
+  // POST /api/etfs/:ticker/collect - 가격 데이터 수집
+  http.post(`${BASE_URL}/etfs/:ticker/collect`, () => {
+    return HttpResponse.json({
+      message: 'Price collection started',
+      status: 'success',
+    })
   }),
 
-  // GET /api/news/:code - 뉴스 (ticker 포함)
-  http.get(`${BASE_URL}/news/:code`, () => {
-    return HttpResponse.json([
-      {
-        id: 1,
-        title: 'AI 전력 수요 급증, ETF 상승세',
-        published_at: '2025-11-10T09:00:00',
-      },
-      {
-        id: 2,
-        title: '데이터센터 전력 인프라 투자 확대',
-        published_at: '2025-11-09T14:30:00',
-      },
-    ])
+  // POST /api/etfs/:ticker/collect-trading-flow - 매매 동향 수집
+  http.post(`${BASE_URL}/etfs/:ticker/collect-trading-flow`, () => {
+    return HttpResponse.json({
+      message: 'Trading flow collection started',
+      status: 'success',
+    })
   }),
 
-  // GET /api/etfs/:code - 특정 ETF 상세
-  http.get(`${BASE_URL}/etfs/:code`, ({ params }) => {
-    const { code } = params
-    const etf = mockETFData.find(e => e.code === code)
-    if (etf) {
-      return HttpResponse.json(etf)
-    }
-    return new HttpResponse(null, { status: 404 })
+  // POST /api/news/:ticker/collect - 뉴스 수집
+  http.post(`${BASE_URL}/news/:ticker/collect`, () => {
+    return HttpResponse.json({
+      message: 'News collection started',
+      status: 'success',
+    })
+  }),
+
+  // POST /api/data/collect-all - 전체 데이터 수집
+  http.post(`${BASE_URL}/data/collect-all`, () => {
+    return HttpResponse.json({
+      message: 'All data collection started',
+      status: 'success',
+    })
+  }),
+
+  // GET /api/health - Health check
+  http.get(`${BASE_URL}/health`, () => {
+    return HttpResponse.json({
+      status: 'ok',
+      version: '1.0.0',
+    })
   }),
 ]

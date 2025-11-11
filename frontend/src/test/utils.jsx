@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 
 // Custom render function with providers
 export function renderWithProviders(ui, options = {}) {
@@ -12,16 +12,17 @@ export function renderWithProviders(ui, options = {}) {
         },
       },
     }),
+    initialEntries = ['/'],
     ...renderOptions
   } = options
 
   function Wrapper({ children }) {
     return (
-      <BrowserRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={queryClient}>
           {children}
         </QueryClientProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
   }
 
