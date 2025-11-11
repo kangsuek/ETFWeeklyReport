@@ -9,6 +9,8 @@ export default function Dashboard() {
   const queryClient = useQueryClient()
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [sortBy, setSortBy] = useState('type') // 'type', 'name', 'theme'
+  const [sortDirection, setSortDirection] = useState('asc') // 'asc', 'desc'
 
   // 스케줄러 상태 조회 (마지막 수집 시각)
   const { data: schedulerStatus } = useQuery({
@@ -72,6 +74,63 @@ export default function Dashboard() {
       hour12: false
     })
   }
+
+  // 정렬 로직
+  const sortETFs = (data) => {
+    if (!data) return []
+
+    const sorted = [...data].sort((a, b) => {
+      let compareValue = 0
+
+      switch (sortBy) {
+        case 'type':
+          // STOCK이 ETF보다 먼저 오도록 (STOCK = 0, ETF = 1)
+          const typeOrder = { 'STOCK': 0, 'ETF': 1 }
+          compareValue = typeOrder[a.type] - typeOrder[b.type]
+          // 타입이 같으면 이름순으로 정렬
+          if (compareValue === 0) {
+            compareValue = a.name.localeCompare(b.name, 'ko-KR')
+          }
+          break
+
+        case 'name':
+          compareValue = a.name.localeCompare(b.name, 'ko-KR')
+          break
+
+        case 'theme':
+          const themeA = a.theme || ''
+          const themeB = b.theme || ''
+          compareValue = themeA.localeCompare(themeB, 'ko-KR')
+          // 테마가 같으면 이름순으로 정렬
+          if (compareValue === 0) {
+            compareValue = a.name.localeCompare(b.name, 'ko-KR')
+          }
+          break
+
+        default:
+          compareValue = 0
+      }
+
+      return sortDirection === 'asc' ? compareValue : -compareValue
+    })
+
+    return sorted
+  }
+
+  // 정렬 변경 핸들러
+  const handleSortChange = (newSortBy) => {
+    if (sortBy === newSortBy) {
+      // 같은 컬럼을 클릭하면 방향 전환
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // 다른 컬럼을 클릭하면 오름차순으로 시작
+      setSortBy(newSortBy)
+      setSortDirection('asc')
+    }
+  }
+
+  // 정렬된 데이터 가져오기
+  const sortedETFs = sortETFs(etfs)
 
   // 로딩 상태
   if (isLoading) {
@@ -162,6 +221,86 @@ export default function Dashboard() {
         }
       />
 
+      {/* 정렬 컨트롤 */}
+      <div className="mb-4 bg-white rounded-lg p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            <span className="text-sm font-medium text-gray-700">정렬:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 타입 정렬 */}
+            <button
+              onClick={() => handleSortChange('type')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                sortBy === 'type'
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-label="타입순 정렬"
+            >
+              타입
+              {sortBy === 'type' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {sortDirection === 'asc' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  )}
+                </svg>
+              )}
+            </button>
+
+            {/* 이름 정렬 */}
+            <button
+              onClick={() => handleSortChange('name')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                sortBy === 'name'
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-label="이름순 정렬"
+            >
+              이름
+              {sortBy === 'name' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {sortDirection === 'asc' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  )}
+                </svg>
+              )}
+            </button>
+
+            {/* 테마 정렬 */}
+            <button
+              onClick={() => handleSortChange('theme')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                sortBy === 'theme'
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-label="테마순 정렬"
+            >
+              테마
+              {sortBy === 'theme' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {sortDirection === 'asc' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  )}
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* 날짜 및 업데이트 정보 */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg p-4 shadow-sm">
         <div className="flex flex-col gap-2">
@@ -230,7 +369,7 @@ export default function Dashboard() {
 
       {/* 종목 그리드 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-        {etfs.map((etf) => (
+        {sortedETFs.map((etf) => (
           <ETFCard key={etf.ticker} etf={etf} />
         ))}
       </div>

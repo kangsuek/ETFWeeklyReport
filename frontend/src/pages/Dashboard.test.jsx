@@ -12,6 +12,7 @@ const mockETFsData = [
     ticker: '487240',
     name: '삼성 KODEX AI전력핵심설비 ETF',
     type: 'ETF',
+    theme: 'AI/전력 인프라',
     current_price: 15250,
     change_rate: 2.34,
   },
@@ -19,6 +20,7 @@ const mockETFsData = [
     ticker: '466920',
     name: '신한 SOL 조선TOP3플러스 ETF',
     type: 'ETF',
+    theme: '조선/친환경선박',
     current_price: 12800,
     change_rate: -1.15,
   },
@@ -26,8 +28,33 @@ const mockETFsData = [
     ticker: '042660',
     name: '한화오션',
     type: 'STOCK',
+    theme: '조선/방산/친환경선박',
     current_price: 45300,
     change_rate: 3.21,
+  },
+  {
+    ticker: '034020',
+    name: '두산에너빌리티',
+    type: 'STOCK',
+    theme: '원자력/전력플랜트/에너지',
+    current_price: 32400,
+    change_rate: 1.89,
+  },
+  {
+    ticker: '0020H0',
+    name: 'KoAct 글로벌양자컴퓨팅액티브 ETF',
+    type: 'ETF',
+    theme: '양자컴퓨팅/글로벌 혁신',
+    current_price: 9850,
+    change_rate: -0.45,
+  },
+  {
+    ticker: '442320',
+    name: 'KB RISE 글로벌원자력 iSelect ETF',
+    type: 'ETF',
+    theme: '글로벌 원자력/에너지 전환',
+    current_price: 11200,
+    change_rate: 2.15,
   },
 ]
 
@@ -192,5 +219,133 @@ describe('Dashboard', () => {
     })
 
     expect(screen.getByText(today)).toBeInTheDocument()
+  })
+
+  it('정렬 버튼을 렌더링한다', async () => {
+    renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // 정렬 버튼 확인
+    expect(screen.getByRole('button', { name: '타입순 정렬' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '이름순 정렬' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '테마순 정렬' })).toBeInTheDocument()
+  })
+
+  it('타입순으로 정렬한다 (기본값: STOCK 먼저)', async () => {
+    const { container } = renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // ETFCard들의 순서 확인 (기본값: 타입순)
+    const cards = container.querySelectorAll('[class*="bg-white"][class*="rounded-xl"]')
+
+    // 첫 번째와 두 번째 카드가 STOCK이어야 함
+    await waitFor(() => {
+      expect(screen.getByText('두산에너빌리티')).toBeInTheDocument()
+      expect(screen.getByText('한화오션')).toBeInTheDocument()
+    })
+  })
+
+  it('이름순으로 정렬한다', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // 이름순 정렬 버튼 클릭
+    const nameButton = screen.getByRole('button', { name: '이름순 정렬' })
+    await user.click(nameButton)
+
+    // 버튼이 활성화 상태로 변경되었는지 확인
+    await waitFor(() => {
+      expect(nameButton).toHaveClass('bg-primary-500')
+    })
+  })
+
+  it('테마순으로 정렬한다', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // 테마순 정렬 버튼 클릭
+    const themeButton = screen.getByRole('button', { name: '테마순 정렬' })
+    await user.click(themeButton)
+
+    // 버튼이 활성화 상태로 변경되었는지 확인
+    await waitFor(() => {
+      expect(themeButton).toHaveClass('bg-primary-500')
+    })
+  })
+
+  it('같은 정렬 버튼을 다시 클릭하면 정렬 방향이 바뀐다', async () => {
+    const user = userEvent.setup()
+    const { container } = renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // 타입순 버튼 클릭 (오름차순 -> 내림차순)
+    const typeButton = screen.getByRole('button', { name: '타입순 정렬' })
+
+    // 초기 상태: 오름차순 아이콘 확인 (위 방향 화살표)
+    let upArrow = container.querySelector('path[d="M5 15l7-7 7 7"]')
+    expect(upArrow).toBeInTheDocument()
+
+    // 첫 번째 클릭: 내림차순으로 변경
+    await user.click(typeButton)
+
+    // 내림차순 아이콘 확인 (아래 방향 화살표)
+    await waitFor(() => {
+      const downArrow = container.querySelector('path[d="M19 9l-7 7-7-7"]')
+      expect(downArrow).toBeInTheDocument()
+    })
+
+    // 다시 클릭하면 오름차순으로 변경
+    await user.click(typeButton)
+
+    await waitFor(() => {
+      upArrow = container.querySelector('path[d="M5 15l7-7 7 7"]')
+      expect(upArrow).toBeInTheDocument()
+    })
+  })
+
+  it('정렬 후에도 모든 종목이 표시된다', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Dashboard />)
+
+    // 데이터 로딩 대기
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+    })
+
+    // 이름순 정렬 클릭
+    const nameButton = screen.getByRole('button', { name: '이름순 정렬' })
+    await user.click(nameButton)
+
+    // 모든 종목이 여전히 표시되는지 확인
+    await waitFor(() => {
+      expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
+      expect(screen.getByText('신한 SOL 조선TOP3플러스 ETF')).toBeInTheDocument()
+      expect(screen.getByText('한화오션')).toBeInTheDocument()
+      expect(screen.getByText('두산에너빌리티')).toBeInTheDocument()
+      expect(screen.getByText('KoAct 글로벌양자컴퓨팅액티브 ETF')).toBeInTheDocument()
+      expect(screen.getByText('KB RISE 글로벌원자력 iSelect ETF')).toBeInTheDocument()
+    })
   })
 })
