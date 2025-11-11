@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import etfs, reports, news, data
+from app.routers import etfs, reports, news, data, settings
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 from app.config import Config
+from app.utils.stocks_manager import sync_stocks_to_db
 import logging
 from dotenv import load_dotenv
 
@@ -38,7 +39,12 @@ async def startup_event():
     logger.info("Initializing database...")
     init_db()
     logger.info("Database initialized successfully")
-    
+
+    # stocks.json → DB 자동 동기화
+    logger.info("Syncing stocks.json to database...")
+    synced_count = sync_stocks_to_db()
+    logger.info(f"Synced {synced_count} stocks from stocks.json to database")
+
     # 스케줄러 시작
     logger.info("Starting scheduler...")
     scheduler = get_scheduler()
@@ -58,6 +64,7 @@ app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
 app.include_router(data.router, prefix="/api/data", tags=["Data Collection"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
+app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 
 @app.get("/api/health")
 async def health_check():
