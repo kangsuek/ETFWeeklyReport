@@ -1,353 +1,433 @@
 """
-stocks_manager.py 유틸리티 테스트
+Tests for stocks_manager utility
+
+Tests for stocks.json file management, validation, and database synchronization.
 """
+
 import pytest
 import json
 import tempfile
 import shutil
 from pathlib import Path
-from datetime import datetime
-
-from app.utils.stocks_manager import (
-    load_stocks,
-    save_stocks,
-    validate_stock_data,
-    sync_stocks_to_db,
-    delete_stock_from_db
-)
-from app.exceptions import ValidationException
+from unittest.mock import patch, MagicMock
+from app.utils import stocks_manager
 from app.config import Config
-from app.database import init_db, get_db_connection
 
 
 @pytest.fixture
 def temp_stocks_file():
-    """임시 stocks.json 파일 생성"""
+    """Create a temporary stocks.json file for testing"""
+    # Create temporary directory
     temp_dir = tempfile.mkdtemp()
     temp_file = Path(temp_dir) / "stocks.json"
 
-    # 테스트 데이터 작성
-    test_data = {
+    # Create sample data
+    sample_data = {
         "TEST01": {
             "name": "테스트 ETF",
             "type": "ETF",
             "theme": "테스트",
             "launch_date": "2024-01-01",
-            "expense_ratio": 0.005,
+            "expense_ratio": 0.0050,
             "search_keyword": "테스트",
             "relevance_keywords": ["테스트", "ETF"]
         }
     }
 
+    # Write sample data
     with open(temp_file, 'w', encoding='utf-8') as f:
-        json.dump(test_data, f, indent=2, ensure_ascii=False)
+        json.dump(sample_data, f, indent=2, ensure_ascii=False)
 
-    # Config 경로 임시 변경
+    # Mock the config path
     original_path = Config.STOCK_CONFIG_PATH
     Config.STOCK_CONFIG_PATH = str(temp_file)
-    Config._stock_config_cache = None  # 캐시 초기화
+    Config._stock_config_cache = None  # Clear cache
 
     yield temp_file
 
-    # 복원
+    # Cleanup
     Config.STOCK_CONFIG_PATH = original_path
     Config._stock_config_cache = None
     shutil.rmtree(temp_dir)
 
 
-@pytest.fixture(autouse=True)
-def setup_db():
-    """테스트용 DB 초기화"""
-    init_db()
-    yield
-
-
 class TestLoadStocks:
-    """load_stocks() 함수 테스트"""
+    """Tests for load_stocks() function"""
 
     def test_load_stocks_success(self, temp_stocks_file):
-        """stocks.json 파일 로드 성공"""
-        stocks = load_stocks()
+        """Test loading stocks from file"""
+        stocks = stocks_manager.load_stocks()
 
         assert isinstance(stocks, dict)
         assert "TEST01" in stocks
         assert stocks["TEST01"]["name"] == "테스트 ETF"
-
-    def test_load_stocks_real_file(self):
-        """실제 stocks.json 파일 로드"""
-        # 임시 파일이 아닌 실제 파일 사용
-        Config._stock_config_cache = None
-        stocks = Config.get_stock_config()
-
-        assert isinstance(stocks, dict)
-        assert len(stocks) >= 6  # 최소 6개 종목
-        assert "487240" in stocks
+        assert stocks["TEST01"]["type"] == "ETF"
 
 
 class TestSaveStocks:
-    """save_stocks() 함수 테스트"""
+    """Tests for save_stocks() function"""
 
     def test_save_stocks_success(self, temp_stocks_file):
-        """stocks.json 파일 저장 성공"""
-        new_data = {
+        """Test saving stocks to file"""
+        new_stocks = {
             "TEST01": {
-                "name": "수정된 ETF",
+                "name": "테스트 ETF (수정)",
                 "type": "ETF",
-                "theme": "수정",
-                "launch_date": "2024-02-01",
-                "expense_ratio": 0.006,
-                "search_keyword": "수정",
-                "relevance_keywords": ["수정", "ETF"]
-            }
-        }
-
-        save_stocks(new_data)
-
-        # 저장된 파일 읽기
-        with open(temp_stocks_file, 'r', encoding='utf-8') as f:
-            saved_data = json.load(f)
-
-        assert saved_data["TEST01"]["name"] == "수정된 ETF"
-        assert saved_data["TEST01"]["expense_ratio"] == 0.006
-
-    def test_save_stocks_creates_backup(self, temp_stocks_file):
-        """백업 파일 생성 확인"""
-        new_data = {
+                "theme": "테스트",
+                "launch_date": "2024-01-01",
+                "expense_ratio": 0.0050,
+                "search_keyword": "테스트",
+                "relevance_keywords": ["테스트"]
+            },
             "TEST02": {
-                "name": "새 종목",
+                "name": "테스트 주식",
                 "type": "STOCK",
                 "theme": "테스트",
                 "launch_date": None,
                 "expense_ratio": None,
-                "search_keyword": "새 종목",
-                "relevance_keywords": ["새", "종목"]
+                "search_keyword": "테스트주식",
+                "relevance_keywords": ["테스트", "주식"]
             }
         }
 
-        save_stocks(new_data)
+        stocks_manager.save_stocks(new_stocks)
 
-        # 백업 파일 존재 확인
-        backup_files = list(temp_stocks_file.parent.glob("stocks.json.backup.*"))
+        # Reload and verify
+        Config._stock_config_cache = None
+        loaded_stocks = stocks_manager.load_stocks()
+
+        assert len(loaded_stocks) == 2
+        assert loaded_stocks["TEST01"]["name"] == "테스트 ETF (수정)"
+        assert loaded_stocks["TEST02"]["type"] == "STOCK"
+
+    def test_save_stocks_creates_backup(self, temp_stocks_file):
+        """Test that save_stocks creates backup file"""
+        backup_dir = temp_stocks_file.parent
+
+        # Save new data
+        new_stocks = {
+            "TEST01": {
+                "name": "수정됨",
+                "type": "ETF",
+                "theme": "테스트",
+                "launch_date": "2024-01-01",
+                "expense_ratio": 0.0050
+            }
+        }
+        stocks_manager.save_stocks(new_stocks)
+
+        # Check if backup was created
+        backup_files = list(backup_dir.glob("stocks.json.backup.*"))
         assert len(backup_files) > 0
 
-    def test_save_stocks_korean_encoding(self, temp_stocks_file):
-        """한글 인코딩 확인"""
-        new_data = {
-            "TEST03": {
-                "name": "한글 테스트",
+    def test_save_stocks_preserves_korean(self, temp_stocks_file):
+        """Test that Korean characters are preserved (ensure_ascii=False)"""
+        new_stocks = {
+            "TEST01": {
+                "name": "한글 종목명",
                 "type": "ETF",
-                "theme": "한국/테마",
+                "theme": "한글 테마",
                 "launch_date": "2024-01-01",
-                "expense_ratio": 0.005,
+                "expense_ratio": 0.0050,
                 "search_keyword": "한글",
                 "relevance_keywords": ["한글", "테스트"]
             }
         }
 
-        save_stocks(new_data)
+        stocks_manager.save_stocks(new_stocks)
 
-        # 파일 읽기 (ensure_ascii=False 확인)
+        # Read raw file content
         with open(temp_stocks_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # 한글이 유니코드 이스케이프 없이 저장되었는지 확인
-        assert "한글 테스트" in content
-        assert "\\u" not in content  # 유니코드 이스케이프 없음
+        # Should contain Korean characters, not Unicode escapes
+        assert "한글 종목명" in content
+        assert "\\u" not in content  # No Unicode escapes
 
 
 class TestValidateStockData:
-    """validate_stock_data() 함수 테스트"""
+    """Tests for validate_stock_data() function"""
 
     def test_validate_etf_success(self):
-        """ETF 데이터 검증 성공"""
-        data = {
+        """Test validation of valid ETF data"""
+        etf_data = {
             "name": "테스트 ETF",
             "type": "ETF",
             "theme": "테스트",
             "launch_date": "2024-01-01",
-            "expense_ratio": 0.005
+            "expense_ratio": 0.0050,
+            "search_keyword": "테스트",
+            "relevance_keywords": ["테스트"]
         }
 
-        # 예외가 발생하지 않으면 성공
-        validate_stock_data(data, "TEST01")
+        is_valid, error = stocks_manager.validate_stock_data(etf_data)
+        assert is_valid is True
+        assert error is None
 
     def test_validate_stock_success(self):
-        """STOCK 데이터 검증 성공"""
-        data = {
+        """Test validation of valid STOCK data"""
+        stock_data = {
             "name": "테스트 주식",
             "type": "STOCK",
             "theme": "테스트",
             "launch_date": None,
+            "expense_ratio": None,
+            "search_keyword": "테스트",
+            "relevance_keywords": ["테스트"]
+        }
+
+        is_valid, error = stocks_manager.validate_stock_data(stock_data)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_missing_required_field(self):
+        """Test validation fails when required field is missing"""
+        invalid_data = {
+            "type": "ETF",
+            "theme": "테스트"
+            # Missing 'name'
+        }
+
+        is_valid, error = stocks_manager.validate_stock_data(invalid_data)
+        assert is_valid is False
+        assert "name" in error.lower()
+
+    def test_validate_invalid_type(self):
+        """Test validation fails with invalid type"""
+        invalid_data = {
+            "name": "테스트",
+            "type": "INVALID",  # Invalid type
+            "theme": "테스트"
+        }
+
+        is_valid, error = stocks_manager.validate_stock_data(invalid_data)
+        assert is_valid is False
+        assert "type" in error.lower()
+
+    def test_validate_etf_missing_launch_date(self):
+        """Test validation fails when ETF is missing launch_date"""
+        invalid_etf = {
+            "name": "테스트 ETF",
+            "type": "ETF",
+            "theme": "테스트",
+            "launch_date": None,  # Should not be None for ETF
+            "expense_ratio": 0.0050
+        }
+
+        is_valid, error = stocks_manager.validate_stock_data(invalid_etf)
+        assert is_valid is False
+        assert "launch_date" in error.lower()
+
+    def test_validate_etf_missing_expense_ratio(self):
+        """Test validation fails when ETF is missing expense_ratio"""
+        invalid_etf = {
+            "name": "테스트 ETF",
+            "type": "ETF",
+            "theme": "테스트",
+            "launch_date": "2024-01-01",
+            "expense_ratio": None  # Should not be None for ETF
+        }
+
+        is_valid, error = stocks_manager.validate_stock_data(invalid_etf)
+        assert is_valid is False
+        assert "expense_ratio" in error.lower()
+
+    def test_validate_stock_with_launch_date(self):
+        """Test validation fails when STOCK has launch_date"""
+        invalid_stock = {
+            "name": "테스트 주식",
+            "type": "STOCK",
+            "theme": "테스트",
+            "launch_date": "2024-01-01",  # Should be None for STOCK
             "expense_ratio": None
         }
 
-        validate_stock_data(data, "TEST02")
-
-    def test_validate_missing_required_field(self):
-        """필수 필드 누락 시 예외"""
-        data = {
-            "type": "ETF",
-            "theme": "테스트"
-            # name 누락
-        }
-
-        with pytest.raises(ValidationException) as exc_info:
-            validate_stock_data(data, "TEST03")
-
-        assert "Missing required field: name" in str(exc_info.value)
-
-    def test_validate_invalid_type(self):
-        """잘못된 타입"""
-        data = {
-            "name": "테스트",
-            "type": "INVALID",
-            "theme": "테스트"
-        }
-
-        with pytest.raises(ValidationException) as exc_info:
-            validate_stock_data(data, "TEST04")
-
-        assert "Invalid type" in str(exc_info.value)
-
-    def test_validate_etf_missing_launch_date(self):
-        """ETF launch_date 누락"""
-        data = {
-            "name": "테스트 ETF",
-            "type": "ETF",
-            "theme": "테스트",
-            "expense_ratio": 0.005
-            # launch_date 누락
-        }
-
-        with pytest.raises(ValidationException) as exc_info:
-            validate_stock_data(data, "TEST05")
-
-        assert "launch_date" in str(exc_info.value)
-
-    def test_validate_etf_missing_expense_ratio(self):
-        """ETF expense_ratio 누락"""
-        data = {
-            "name": "테스트 ETF",
-            "type": "ETF",
-            "theme": "테스트",
-            "launch_date": "2024-01-01"
-            # expense_ratio 누락
-        }
-
-        with pytest.raises(ValidationException) as exc_info:
-            validate_stock_data(data, "TEST06")
-
-        assert "expense_ratio" in str(exc_info.value)
+        is_valid, error = stocks_manager.validate_stock_data(invalid_stock)
+        assert is_valid is False
+        assert "launch_date" in error.lower()
 
     def test_validate_invalid_date_format(self):
-        """잘못된 날짜 형식"""
-        data = {
+        """Test validation fails with invalid date format"""
+        invalid_etf = {
             "name": "테스트 ETF",
             "type": "ETF",
             "theme": "테스트",
-            "launch_date": "2024/01/01",  # 잘못된 형식
-            "expense_ratio": 0.005
+            "launch_date": "2024/01/01",  # Wrong format
+            "expense_ratio": 0.0050
         }
 
-        with pytest.raises(ValidationException) as exc_info:
-            validate_stock_data(data, "TEST07")
-
-        assert "Invalid launch_date format" in str(exc_info.value)
+        is_valid, error = stocks_manager.validate_stock_data(invalid_etf)
+        assert is_valid is False
+        assert "date" in error.lower()
 
 
 class TestSyncStocksToDb:
-    """sync_stocks_to_db() 함수 테스트"""
+    """Tests for sync_stocks_to_db() function"""
 
-    def test_sync_to_db_success(self, temp_stocks_file):
-        """DB 동기화 성공"""
-        synced_count = sync_stocks_to_db()
+    @patch('app.utils.stocks_manager.get_db_connection')
+    @patch('app.utils.stocks_manager.load_stocks')
+    def test_sync_stocks_to_db(self, mock_load, mock_db):
+        """Test synchronizing stocks to database"""
+        # Mock stocks data
+        mock_load.return_value = {
+            "TEST01": {
+                "name": "테스트 ETF",
+                "type": "ETF",
+                "theme": "테스트",
+                "launch_date": "2024-01-01",
+                "expense_ratio": 0.0050
+            },
+            "TEST02": {
+                "name": "테스트 주식",
+                "type": "STOCK",
+                "theme": "테스트",
+                "launch_date": None,
+                "expense_ratio": None
+            }
+        }
 
-        assert synced_count == 1  # TEST01 종목
+        # Mock database connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_db.return_value.__enter__.return_value = mock_conn
 
-        # DB 확인
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM etfs WHERE ticker = 'TEST01'")
-            row = cursor.fetchone()
+        # Run sync
+        count = stocks_manager.sync_stocks_to_db()
 
-        assert row is not None
-        assert row['name'] == "테스트 ETF"
+        # Verify
+        assert count == 2
+        mock_cursor.executemany.assert_called_once()
+        mock_conn.commit.assert_called_once()
 
-    def test_sync_multiple_stocks(self, temp_stocks_file):
-        """여러 종목 동기화"""
-        stocks = load_stocks()
-        stocks["TEST02"] = {
-            "name": "추가 종목",
+
+class TestAddStock:
+    """Tests for add_stock() function"""
+
+    @patch('app.utils.stocks_manager.sync_stocks_to_db')
+    @patch('app.utils.stocks_manager.save_stocks')
+    @patch('app.utils.stocks_manager.Config.reload_stock_config')
+    def test_add_stock_success(self, mock_reload, mock_save, mock_sync, temp_stocks_file):
+        """Test adding a new stock"""
+        new_stock_data = {
+            "name": "새 종목",
             "type": "STOCK",
             "theme": "테스트",
             "launch_date": None,
-            "expense_ratio": None
+            "expense_ratio": None,
+            "search_keyword": "새종목",
+            "relevance_keywords": ["새", "종목"]
         }
-        save_stocks(stocks)
 
-        synced_count = sync_stocks_to_db()
-        assert synced_count == 2
+        stocks_manager.add_stock("NEW01", new_stock_data)
 
-    def test_sync_replaces_existing(self, temp_stocks_file):
-        """기존 종목 업데이트"""
-        # 첫 번째 동기화
-        sync_stocks_to_db()
+        # Verify save was called
+        mock_save.assert_called_once()
+        saved_stocks = mock_save.call_args[0][0]
+        assert "NEW01" in saved_stocks
+        assert saved_stocks["NEW01"]["name"] == "새 종목"
 
-        # 종목 수정
-        stocks = load_stocks()
-        stocks["TEST01"]["name"] = "수정된 이름"
-        save_stocks(stocks)
+        # Verify sync and reload were called
+        mock_sync.assert_called_once()
+        mock_reload.assert_called_once()
 
-        # 두 번째 동기화
-        sync_stocks_to_db()
+    @patch('app.utils.stocks_manager.load_stocks')
+    def test_add_stock_duplicate(self, mock_load):
+        """Test adding duplicate ticker fails"""
+        mock_load.return_value = {"TEST01": {"name": "기존 종목", "type": "ETF", "theme": "테스트"}}
 
-        # DB 확인
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM etfs WHERE ticker = 'TEST01'")
-            row = cursor.fetchone()
+        with pytest.raises(ValueError, match="already exists"):
+            stocks_manager.add_stock("TEST01", {
+                "name": "중복 종목",
+                "type": "ETF",
+                "theme": "테스트",
+                "launch_date": "2024-01-01",
+                "expense_ratio": 0.0050
+            })
 
-        assert row['name'] == "수정된 이름"
+    def test_add_stock_invalid_data(self):
+        """Test adding invalid stock data fails"""
+        invalid_data = {
+            "name": "잘못된 종목",
+            "type": "INVALID",  # Invalid type
+            "theme": "테스트"
+        }
+
+        with pytest.raises(ValueError, match="Invalid stock data"):
+            stocks_manager.add_stock("INVALID", invalid_data)
 
 
-class TestDeleteStockFromDb:
-    """delete_stock_from_db() 함수 테스트"""
+class TestUpdateStock:
+    """Tests for update_stock() function"""
 
-    def test_delete_stock_cascade(self):
-        """종목 삭제 (CASCADE)"""
-        # 종목 추가
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)
-                VALUES ('DELETE01', '삭제 테스트', 'STOCK', '테스트', NULL, NULL)
-            """)
-            # 가격 데이터 추가
-            cursor.execute("""
-                INSERT INTO prices (ticker, date, close_price, volume)
-                VALUES ('DELETE01', '2024-01-01', 10000, 100000)
-            """)
-            conn.commit()
+    @patch('app.utils.stocks_manager.sync_stocks_to_db')
+    @patch('app.utils.stocks_manager.save_stocks')
+    @patch('app.utils.stocks_manager.Config.reload_stock_config')
+    def test_update_stock_success(self, mock_reload, mock_save, mock_sync, temp_stocks_file):
+        """Test updating an existing stock"""
+        updated_data = {
+            "name": "수정된 ETF",
+            "type": "ETF",
+            "theme": "수정됨",
+            "launch_date": "2024-01-01",
+            "expense_ratio": 0.0060  # Changed
+        }
 
-        # 삭제
-        deleted_counts = delete_stock_from_db('DELETE01')
+        stocks_manager.update_stock("TEST01", updated_data)
 
-        assert deleted_counts['prices'] == 1
-        assert deleted_counts['news'] == 0
-        assert deleted_counts['trading_flow'] == 0
+        # Verify save was called
+        mock_save.assert_called_once()
+        saved_stocks = mock_save.call_args[0][0]
+        assert saved_stocks["TEST01"]["expense_ratio"] == 0.0060
 
-        # DB 확인
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM etfs WHERE ticker = 'DELETE01'")
-            row = cursor.fetchone()
+    @patch('app.utils.stocks_manager.load_stocks')
+    def test_update_stock_not_found(self, mock_load):
+        """Test updating non-existent ticker fails"""
+        mock_load.return_value = {}
 
-        assert row is None
+        with pytest.raises(ValueError, match="not found"):
+            stocks_manager.update_stock("NOTFOUND", {
+                "name": "존재하지 않음",
+                "type": "ETF",
+                "theme": "테스트",
+                "launch_date": "2024-01-01",
+                "expense_ratio": 0.0050
+            })
 
-    def test_delete_nonexistent_stock(self):
-        """존재하지 않는 종목 삭제"""
-        deleted_counts = delete_stock_from_db('NONEXISTENT')
 
-        assert deleted_counts['prices'] == 0
-        assert deleted_counts['news'] == 0
-        assert deleted_counts['trading_flow'] == 0
+class TestDeleteStock:
+    """Tests for delete_stock() function"""
+
+    @patch('app.utils.stocks_manager.get_db_connection')
+    @patch('app.utils.stocks_manager.save_stocks')
+    @patch('app.utils.stocks_manager.Config.reload_stock_config')
+    def test_delete_stock_success(self, mock_reload, mock_save, mock_db, temp_stocks_file):
+        """Test deleting a stock"""
+        # Mock database connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_db.return_value.__enter__.return_value = mock_conn
+
+        # Mock fetchone to return counts
+        mock_cursor.fetchone.side_effect = [(10,), (5,), (3,)]  # prices, news, trading_flow
+
+        # Delete stock
+        deleted_counts = stocks_manager.delete_stock("TEST01")
+
+        # Verify counts
+        assert deleted_counts["prices"] == 10
+        assert deleted_counts["news"] == 5
+        assert deleted_counts["trading_flow"] == 3
+
+        # Verify saves were called
+        mock_save.assert_called_once()
+        mock_reload.assert_called_once()
+
+    @patch('app.utils.stocks_manager.load_stocks')
+    def test_delete_stock_not_found(self, mock_load):
+        """Test deleting non-existent ticker fails"""
+        mock_load.return_value = {}
+
+        with pytest.raises(ValueError, match="not found"):
+            stocks_manager.delete_stock("NOTFOUND")

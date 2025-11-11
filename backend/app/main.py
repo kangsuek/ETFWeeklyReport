@@ -4,7 +4,7 @@ from app.routers import etfs, reports, news, data, settings
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 from app.config import Config
-from app.utils.stocks_manager import sync_stocks_to_db
+from app.utils import stocks_manager
 import logging
 from dotenv import load_dotenv
 
@@ -41,9 +41,12 @@ async def startup_event():
     logger.info("Database initialized successfully")
 
     # stocks.json → DB 자동 동기화
-    logger.info("Syncing stocks.json to database...")
-    synced_count = sync_stocks_to_db()
-    logger.info(f"Synced {synced_count} stocks from stocks.json to database")
+    logger.info("Synchronizing stocks.json to database...")
+    try:
+        synced_count = stocks_manager.sync_stocks_to_db()
+        logger.info(f"Synchronized {synced_count} stocks to database")
+    except Exception as e:
+        logger.error(f"Failed to sync stocks to database: {e}", exc_info=True)
 
     # 스케줄러 시작
     logger.info("Starting scheduler...")

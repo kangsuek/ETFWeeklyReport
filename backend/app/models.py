@@ -46,18 +46,18 @@ class ETFDetailResponse(BaseModel):
     metrics: ETFMetrics
 
 # Settings API Models
-class StockCreateRequest(BaseModel):
+class StockCreate(BaseModel):
     """종목 추가 요청"""
-    ticker: str
+    ticker: str  # Stock ticker code (e.g., "005930")
     name: str
     type: str  # "ETF" or "STOCK"
     theme: str
-    launch_date: Optional[str] = None  # YYYY-MM-DD format (ETF only)
-    expense_ratio: Optional[float] = None  # ETF only
+    launch_date: Optional[str] = None  # YYYY-MM-DD format, required for ETF
+    expense_ratio: Optional[float] = None  # Required for ETF
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 
-class StockUpdateRequest(BaseModel):
+class StockUpdate(BaseModel):
     """종목 수정 요청 (부분 업데이트 지원)"""
     name: Optional[str] = None
     type: Optional[str] = None
@@ -71,14 +71,3 @@ class StockDeleteResponse(BaseModel):
     """종목 삭제 응답"""
     ticker: str
     deleted: dict  # {"prices": 150, "news": 20, "trading_flow": 30}
-
-class StockValidateResponse(BaseModel):
-    """종목 검증 응답 (stocks.json 형식)"""
-    ticker: str
-    name: str
-    type: str
-    theme: str
-    launch_date: Optional[str] = None
-    expense_ratio: Optional[float] = None
-    search_keyword: str
-    relevance_keywords: List[str]
