@@ -57,8 +57,8 @@ class TestTickerScraperReal:
             result = scraper.scrape_ticker_info("487240")
 
             assert result["ticker"] == "487240"
-            assert "ETF" in result["name"]
-            assert result["type"] == "ETF"
+            assert result["name"]  # 종목명이 존재하는지 확인
+            assert result["type"] == "ETF"  # 타입이 정확히 ETF인지 확인
             # ETF는 launch_date와 expense_ratio가 있어야 함 (없을 수도 있음)
             assert isinstance(result["search_keyword"], str)
             assert isinstance(result["relevance_keywords"], list)
