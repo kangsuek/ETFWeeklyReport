@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -180,6 +180,11 @@ export default function ETFDetail() {
     range: '7d'
   })
 
+  // 차트 스크롤 동기화를 위한 refs
+  const priceChartScrollRef = useRef(null)
+  const tradingFlowChartScrollRef = useRef(null)
+  const isScrollingSyncRef = useRef(false) // 무한 루프 방지 플래그
+
   // ETF 기본 정보 조회
   const { data: etf, isLoading: etfLoading, error: etfError } = useQuery({
     queryKey: ['etf', ticker],
@@ -239,6 +244,34 @@ export default function ETFDetail() {
   const handleDateRangeChange = (newRange) => {
     setDateRange(newRange)
   }
+
+  // 가격 차트 스크롤 핸들러 (투자자별 매매 동향 차트와 동기화)
+  const handlePriceChartScroll = useCallback(() => {
+    if (isScrollingSyncRef.current) return
+    if (!priceChartScrollRef.current || !tradingFlowChartScrollRef.current) return
+
+    isScrollingSyncRef.current = true
+    tradingFlowChartScrollRef.current.scrollLeft = priceChartScrollRef.current.scrollLeft
+
+    // 다음 프레임에서 플래그 해제
+    requestAnimationFrame(() => {
+      isScrollingSyncRef.current = false
+    })
+  }, [])
+
+  // 투자자별 매매 동향 차트 스크롤 핸들러 (가격 차트와 동기화)
+  const handleTradingFlowChartScroll = useCallback(() => {
+    if (isScrollingSyncRef.current) return
+    if (!priceChartScrollRef.current || !tradingFlowChartScrollRef.current) return
+
+    isScrollingSyncRef.current = true
+    priceChartScrollRef.current.scrollLeft = tradingFlowChartScrollRef.current.scrollLeft
+
+    // 다음 프레임에서 플래그 해제
+    requestAnimationFrame(() => {
+      isScrollingSyncRef.current = false
+    })
+  }, [])
 
   // 최근 가격 정보 계산
   const latestPrice = useMemo(() => {
@@ -375,7 +408,14 @@ export default function ETFDetail() {
           ) : pricesError ? (
             <ErrorFallback error={pricesError} onRetry={refetchPrices} />
           ) : (
-            <PriceChart data={pricesData} ticker={ticker} height={400} dateRange={dateRange.range} />
+            <PriceChart
+              data={pricesData}
+              ticker={ticker}
+              height={400}
+              dateRange={dateRange.range}
+              scrollRef={priceChartScrollRef}
+              onScroll={handlePriceChartScroll}
+            />
           )}
         </div>
 
@@ -391,7 +431,14 @@ export default function ETFDetail() {
           ) : tradingFlowError ? (
             <ErrorFallback error={tradingFlowError} onRetry={refetchTradingFlow} />
           ) : (
-            <TradingFlowChart data={tradingFlowData} ticker={ticker} height={400} dateRange={dateRange.range} />
+            <TradingFlowChart
+              data={tradingFlowData}
+              ticker={ticker}
+              height={400}
+              dateRange={dateRange.range}
+              scrollRef={tradingFlowChartScrollRef}
+              onScroll={handleTradingFlowChartScroll}
+            />
           )}
         </div>
       </div>

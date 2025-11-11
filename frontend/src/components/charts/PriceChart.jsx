@@ -164,8 +164,10 @@ const CustomTooltip = ({ active, payload }) => {
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
  * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
+ * @param {React.RefObject} scrollRef - 스크롤 컨테이너 ref (차트 동기화용)
+ * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
-const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, dateRange = '7d' }) {
+const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, dateRange = '7d', scrollRef, onScroll }) {
   // 이동평균선 표시 상태
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
@@ -303,9 +305,15 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
   }, [is7Days, containerWidth, dataCount])
 
   return (
-    <div 
-      ref={containerRef}
+    <div
+      ref={(node) => {
+        containerRef.current = node
+        if (scrollRef) {
+          scrollRef.current = node
+        }
+      }}
       className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
+      onScroll={onScroll}
     >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
         <ResponsiveContainer width="100%" height={height}>
