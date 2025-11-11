@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/format'
+import { useContainerWidth } from '../../hooks/useContainerWidth'
 
 /**
  * CustomLegend 컴포넌트
@@ -162,12 +163,16 @@ const CustomTooltip = ({ active, payload }) => {
  * @param {Array} data - 가격 데이터 배열
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
+ * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
  */
-const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400 }) {
+const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, dateRange = '7d' }) {
   // 이동평균선 표시 상태
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
   const [showMA20, setShowMA20] = useState(false)
+
+  // 컨테이너 너비 측정
+  const { containerRef, width: containerWidth } = useContainerWidth()
 
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => {
@@ -266,18 +271,48 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400 })
     return formatVolume(value)
   }
 
-  // 데이터 개수에 따라 차트 너비 계산
-  // 각 데이터 포인트당 최소 간격을 보장하여 스크롤이 필요한 경우 명확하게 표시
-  const minDataSpacing = 15 // 데이터 포인트당 최소 간격 (px)
-  const chartPixelWidth = Math.max(800, chartData.length * minDataSpacing)
+  const is7Days = dateRange === '7d' && chartData.length <= 7
+  const dataCount = chartData.length
+
+  // 동적 막대 두께 및 차트 너비 계산
+  const { barSize, chartPixelWidth, shouldShowScroll, barCategoryGap } = useMemo(() => {
+    const minDataSpacing = 30
+    
+    if (is7Days && dataCount > 0) {
+      const width = containerWidth > 0 ? containerWidth : (typeof window !== 'undefined' ? window.innerWidth - 200 : 800)
+      
+      const margin = 80
+      const availableWidth = width - margin
+      const calculatedBarSize = Math.max(30, Math.floor((availableWidth / dataCount) * 0.6))
+      const calculatedGap = Math.max(2, Math.floor((availableWidth / dataCount) * 0.15))
+      
+      return {
+        barSize: calculatedBarSize,
+        chartPixelWidth: width,
+        barCategoryGap: `${calculatedGap}px`,
+        shouldShowScroll: false
+      }
+    } else {
+      return {
+        barSize: undefined, // Recharts 기본값 사용
+        chartPixelWidth: Math.max(800, dataCount * minDataSpacing),
+        barCategoryGap: undefined,
+        shouldShowScroll: true
+      }
+    }
+  }, [is7Days, containerWidth, dataCount])
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div 
+      ref={containerRef}
+      className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
+    >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
         <ResponsiveContainer width="100%" height={height}>
           <ComposedChart
             data={chartData}
-            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            margin={{ top: 10, right: 15, left: 15, bottom: chartData.length > 15 ? 60 : 0 }}
+            barCategoryGap={barCategoryGap}
           >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
@@ -329,6 +364,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400 })
             dataKey="volume"
             opacity={0.4}
             name="거래량(막대)"
+            barSize={is7Days ? barSize : undefined}
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.volumeColor} />

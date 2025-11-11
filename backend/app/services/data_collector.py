@@ -752,13 +752,15 @@ class ETFDataCollector:
         base_delay=1.0,
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
-    def fetch_naver_trading_flow(self, ticker: str, days: int = 10) -> List[dict]:
+    def fetch_naver_trading_flow(self, ticker: str, days: int = 10, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[dict]:
         """
         Naver Finance에서 투자자별 매매동향 데이터 수집 (다중 페이지 지원)
 
         Args:
             ticker: 종목 코드
             days: 수집할 일수 (기본: 10일)
+            start_date: 시작 날짜 (선택, 지정 시 해당 날짜 이후 데이터만 수집)
+            end_date: 종료 날짜 (선택, 지정 시 해당 날짜까지 데이터만 수집)
 
         Returns:
             수집된 매매동향 데이터 리스트
@@ -767,10 +769,20 @@ class ETFDataCollector:
         page = 1
         # 페이지당 약 10개 데이터, 여유있게 2페이지 추가
         max_pages = (days // 10) + 2
+        
+        # 날짜 범위가 지정된 경우, 실제 필요한 최대 데이터 수 계산
+        # (주말 제외를 고려하여 days보다 작을 수 있음)
+        target_count = days
+        if start_date and end_date:
+            # 날짜 범위 내의 실제 거래일 수를 대략적으로 계산 (주말 제외)
+            # 최대 days일이지만, 주말이 포함되면 더 적을 수 있음
+            target_count = days  # 여전히 days를 목표로 하되, 날짜 범위를 벗어나면 종료
 
-        logger.info(f"Fetching trading flow from Naver Finance for {ticker} (target: {days} days, max pages: {max_pages})")
+        logger.info(f"Fetching trading flow from Naver Finance for {ticker} (target: {target_count} days, max pages: {max_pages}, date range: {start_date} to {end_date})")
 
-        while len(trading_data) < days and page <= max_pages:
+        should_stop = False  # 전체 루프 종료 플래그
+
+        while len(trading_data) < target_count and page <= max_pages and not should_stop:
             try:
                 # Naver Finance 투자자별 매매동향 페이지 (페이지 파라미터 포함)
                 url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
@@ -797,7 +809,7 @@ class ETFDataCollector:
 
                 for row in rows:
                     # 이미 충분한 데이터를 수집했으면 중단
-                    if len(trading_data) >= days:
+                    if len(trading_data) >= target_count:
                         break
 
                     cols = row.find_all('td')
@@ -814,6 +826,18 @@ class ETFDataCollector:
 
                         # 날짜 파싱 (YYYY.MM.DD 형식)
                         trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
+
+                        # 날짜 범위 필터링 (지정된 경우)
+                        if start_date and trade_date < start_date:
+                            # 시작 날짜 이전 데이터를 만나면 더 이상 필요한 데이터가 없음
+                            # (Naver Finance는 최신순으로 데이터 제공)
+                            if len(trading_data) > 0:
+                                # 이미 일부 데이터를 수집했으면 전체 루프 종료
+                                should_stop = True
+                                break
+                            continue  # 시작 날짜 이전 데이터는 건너뜀
+                        if end_date and trade_date > end_date:
+                            continue  # 종료 날짜 이후 데이터는 건너뜀 (더 오래된 데이터가 나올 수 있으므로 계속 진행)
 
                         # 투자자별 순매수 추출 (천주 단위)
                         # 기관 (5번 컬럼)
@@ -986,21 +1010,23 @@ class ETFDataCollector:
 
         return saved_count
 
-    def collect_and_save_trading_flow(self, ticker: str, days: int = 10) -> int:
+    def collect_and_save_trading_flow(self, ticker: str, days: int = 10, start_date: Optional[date] = None, end_date: Optional[date] = None) -> int:
         """
         매매동향 데이터를 수집하고 저장
         
         Args:
             ticker: 종목 코드
             days: 수집할 일수
+            start_date: 시작 날짜 (선택)
+            end_date: 종료 날짜 (선택)
         
         Returns:
             저장된 레코드 수
         """
-        logger.info(f"Starting trading flow collection for {ticker} (last {days} days)")
+        logger.info(f"Starting trading flow collection for {ticker} (last {days} days, date range: {start_date} to {end_date})")
         
         # 데이터 수집
-        trading_data = self.fetch_naver_trading_flow(ticker, days)
+        trading_data = self.fetch_naver_trading_flow(ticker, days, start_date, end_date)
         
         if not trading_data:
             logger.warning(f"No trading flow data collected for {ticker}")

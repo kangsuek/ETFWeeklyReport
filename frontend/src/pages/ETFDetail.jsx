@@ -375,7 +375,7 @@ export default function ETFDetail() {
           ) : pricesError ? (
             <ErrorFallback error={pricesError} onRetry={refetchPrices} />
           ) : (
-            <PriceChart data={pricesData} ticker={ticker} height={400} />
+            <PriceChart data={pricesData} ticker={ticker} height={400} dateRange={dateRange.range} />
           )}
         </div>
 
@@ -391,7 +391,7 @@ export default function ETFDetail() {
           ) : tradingFlowError ? (
             <ErrorFallback error={tradingFlowError} onRetry={refetchTradingFlow} />
           ) : (
-            <TradingFlowChart data={tradingFlowData} ticker={ticker} height={400} />
+            <TradingFlowChart data={tradingFlowData} ticker={ticker} height={400} dateRange={dateRange.range} />
           )}
         </div>
       </div>

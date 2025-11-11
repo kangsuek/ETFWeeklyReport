@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { getNetBuyingColor } from '../../utils/format'
+import { useContainerWidth } from '../../hooks/useContainerWidth'
 
 /**
  * 천 원 단위 순매수/순매도 포맷팅
@@ -113,8 +114,12 @@ export const formatTradingFlowData = (data) => {
  * @param {Array} data - 매매 동향 데이터 배열
  * @param {string} ticker - 종목 코드
  * @param {number} height - 차트 높이 (기본값: 400)
+ * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
  */
-const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400 }) {
+const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400, dateRange = '7d' }) {
+  // 컨테이너 너비 측정
+  const { containerRef, width: containerWidth } = useContainerWidth()
+
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => formatTradingFlowData(data), [data])
 
@@ -163,20 +168,47 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
     return `${value.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}천`
   }
 
-  // 데이터 개수에 따라 차트 너비 계산
-  // 각 막대당 최소 30px 간격을 보장하여 스크롤이 필요한 경우 명확하게 표시
-  const minBarSpacing = 30 // 막대당 최소 간격
-  const chartPixelWidth = Math.max(800, chartData.length * minBarSpacing)
+  const is7Days = dateRange === '7d' && chartData.length <= 7
+  const dataCount = chartData.length
+
+  // 동적 막대 두께 및 차트 너비 계산
+  const { barSize, chartPixelWidth, barCategoryGap, shouldShowScroll } = useMemo(() => {
+    const minBarSpacing = 30
+    
+    if (is7Days) {
+      const width = containerWidth > 0 ? containerWidth : (typeof window !== 'undefined' ? window.innerWidth - 200 : 800)
+      const margin = 80
+      const availableWidth = width - margin
+      const calculatedBarSize = Math.max(15, Math.floor((availableWidth / dataCount) * 0.6))
+      const calculatedGap = Math.max(2, Math.floor((availableWidth / dataCount) * 0.15))
+      return {
+        barSize: calculatedBarSize,
+        chartPixelWidth: width,
+        barCategoryGap: `${calculatedGap}px`,
+        shouldShowScroll: false
+      }
+    } else {
+      return {
+        barSize: undefined, // Recharts 기본값 사용
+        chartPixelWidth: Math.max(800, dataCount * minBarSpacing),
+        barCategoryGap: dataCount > 30 ? "1%" : dataCount > 15 ? "2%" : "5%",
+        shouldShowScroll: true
+      }
+    }
+  }, [is7Days, containerWidth, dataCount])
   
   return (
-    <div className="w-full overflow-x-auto">
+    <div 
+      ref={containerRef}
+      className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
+    >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
         <ResponsiveContainer width="100%" height={height}>
           <BarChart
             data={chartData}
-            margin={{ top: 10, right: 30, left: 20, bottom: chartData.length > 15 ? 60 : 0 }}
+            margin={{ top: 10, right: 15, left: 15, bottom: chartData.length > 15 ? 60 : 0 }}
             stackOffset="sign"
-            barCategoryGap={chartData.length > 30 ? "1%" : chartData.length > 15 ? "2%" : "5%"}
+            barCategoryGap={barCategoryGap}
             barGap={0}
           >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -211,18 +243,21 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
             fill="#3b82f6"
             name="개인"
             stackId="stack"
+            barSize={barSize}
           />
           <Bar
             dataKey="institutional_net"
             fill="#10b981"
             name="기관"
             stackId="stack"
+            barSize={barSize}
           />
           <Bar
             dataKey="foreign_net"
             fill="#f59e0b"
             name="외국인"
             stackId="stack"
+            barSize={barSize}
           />
           </BarChart>
         </ResponsiveContainer>

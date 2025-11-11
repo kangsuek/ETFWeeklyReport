@@ -351,7 +351,13 @@ async def get_trading_flow(
 
         if should_collect:
             logger.info(f"Auto-collecting {collection_days} days of trading flow data for {etf.ticker}")
-            collected_count = collector.collect_and_save_trading_flow(etf.ticker, days=collection_days)
+            # 날짜 범위를 지정하여 수집 (오늘 날짜 데이터가 없어도 요청 범위까지 수집 시도)
+            collected_count = collector.collect_and_save_trading_flow(
+                etf.ticker, 
+                days=collection_days,
+                start_date=start_date,
+                end_date=end_date
+            )
             logger.info(f"Auto-collected {collected_count} trading flow records for {etf.ticker}")
 
             # 다시 조회
