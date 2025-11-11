@@ -89,13 +89,14 @@ describe('TradingFlowChart', () => {
     expect(responsiveContainer).toHaveStyle({ height: `${customHeight}px` })
   })
 
-  it('기본 높이(400px)로 렌더링된다', () => {
+  it('반응형 높이로 렌더링된다 (기본값)', () => {
     const { container } = render(
       <TradingFlowChart data={mockTradingFlowData} ticker="487240" />
     )
 
     const responsiveContainer = container.querySelector('.recharts-responsive-container')
-    expect(responsiveContainer).toHaveStyle({ height: '400px' })
+    // 반응형 높이는 useWindowSize 훅에서 계산되므로, 존재 여부만 확인
+    expect(responsiveContainer).toBeInTheDocument()
   })
 
   it('3개의 투자자 유형 막대를 렌더링한다', () => {
@@ -168,13 +169,13 @@ describe('TradingFlowChart', () => {
 })
 
 describe('formatTradingFlowData', () => {
-  it('데이터를 억 원 단위로 변환한다', () => {
+  it('데이터를 천 원 단위로 변환한다', () => {
     const rawData = [
       {
-        date: '2025-11-01',
-        individual_net: 100000000000, // 1000억
-        institutional_net: -50000000000, // -500억
-        foreign_net: 25000000000, // 250억
+        date: '2025-11-03', // 월요일
+        individual_net: 1000000, // 100만원 → 1000천원
+        institutional_net: -500000, // -50만원 → -500천원
+        foreign_net: 250000, // 25만원 → 250천원
       },
     ]
 
@@ -189,19 +190,19 @@ describe('formatTradingFlowData', () => {
   it('날짜를 오름차순으로 정렬한다', () => {
     const rawData = [
       {
-        date: '2025-11-05',
+        date: '2025-11-05', // 수요일
         individual_net: 10000000000,
         institutional_net: 10000000000,
         foreign_net: 10000000000,
       },
       {
-        date: '2025-11-01',
+        date: '2025-11-03', // 월요일
         individual_net: 20000000000,
         institutional_net: 20000000000,
         foreign_net: 20000000000,
       },
       {
-        date: '2025-11-03',
+        date: '2025-11-04', // 화요일
         individual_net: 30000000000,
         institutional_net: 30000000000,
         foreign_net: 30000000000,
@@ -211,8 +212,8 @@ describe('formatTradingFlowData', () => {
     const result = formatTradingFlowData(rawData)
 
     expect(result).toHaveLength(3)
-    expect(result[0].date).toBe('2025-11-01')
-    expect(result[1].date).toBe('2025-11-03')
+    expect(result[0].date).toBe('2025-11-03')
+    expect(result[1].date).toBe('2025-11-04')
     expect(result[2].date).toBe('2025-11-05')
   })
 
@@ -234,19 +235,19 @@ describe('formatTradingFlowData', () => {
   it('소수점을 올바르게 처리한다', () => {
     const rawData = [
       {
-        date: '2025-11-01',
-        individual_net: 123456789, // 약 1.23억
-        institutional_net: -987654321, // 약 -9.88억
-        foreign_net: 555555555, // 약 5.56억
+        date: '2025-11-04', // 화요일
+        individual_net: 123456, // 123,456원 → 123.456천원
+        institutional_net: -987654, // -987,654원 → -987.654천원
+        foreign_net: 555555, // 555,555원 → 555.555천원
       },
     ]
 
     const result = formatTradingFlowData(rawData)
 
     expect(result).toHaveLength(1)
-    expect(result[0].individual_net).toBeCloseTo(1.23, 2)
-    expect(result[0].institutional_net).toBeCloseTo(-9.88, 2)
-    expect(result[0].foreign_net).toBeCloseTo(5.56, 2)
+    expect(result[0].individual_net).toBeCloseTo(123.456, 2)
+    expect(result[0].institutional_net).toBeCloseTo(-987.654, 2)
+    expect(result[0].foreign_net).toBeCloseTo(555.555, 2)
   })
 })
 
@@ -279,10 +280,10 @@ describe('TradingFlowChart 데이터 처리', () => {
   it('순매수(양수) 데이터를 올바르게 처리한다', () => {
     const positiveData = [
       {
-        date: '2025-11-01',
-        individual_net: 100000000000,
-        institutional_net: 50000000000,
-        foreign_net: 25000000000,
+        date: '2025-11-03', // 월요일
+        individual_net: 1000000, // 100만원
+        institutional_net: 500000, // 50만원
+        foreign_net: 250000, // 25만원
       },
     ]
 
@@ -297,10 +298,10 @@ describe('TradingFlowChart 데이터 처리', () => {
   it('순매도(음수) 데이터를 올바르게 처리한다', () => {
     const negativeData = [
       {
-        date: '2025-11-01',
-        individual_net: -100000000000,
-        institutional_net: -50000000000,
-        foreign_net: -25000000000,
+        date: '2025-11-03', // 월요일
+        individual_net: -1000000, // -100만원
+        institutional_net: -500000, // -50만원
+        foreign_net: -250000, // -25만원
       },
     ]
 

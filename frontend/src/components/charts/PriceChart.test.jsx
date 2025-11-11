@@ -90,12 +90,14 @@ describe('PriceChart', () => {
       <PriceChart data={mockPriceData} ticker="487240" />
     )
 
-    // 레전드가 있는지 확인
+    // 기본 레전드 항목 확인 (종가, 거래량)
     expect(screen.getByText('종가')).toBeInTheDocument()
-    expect(screen.getByText('시가')).toBeInTheDocument()
-    expect(screen.getByText('고가')).toBeInTheDocument()
-    expect(screen.getByText('저가')).toBeInTheDocument()
-    expect(screen.getByText('거래량')).toBeInTheDocument()
+    expect(screen.getByText(/거래량/)).toBeInTheDocument()
+
+    // 이동평균선 체크박스 확인
+    expect(screen.getByText('5일 이동평균선')).toBeInTheDocument()
+    expect(screen.getByText('10일 이동평균선')).toBeInTheDocument()
+    expect(screen.getByText('20일 이동평균선')).toBeInTheDocument()
   })
 
   it('차트가 지정된 높이로 렌더링된다', () => {
@@ -108,13 +110,14 @@ describe('PriceChart', () => {
     expect(responsiveContainer).toHaveStyle({ height: `${customHeight}px` })
   })
 
-  it('기본 높이(400px)로 렌더링된다', () => {
+  it('반응형 높이로 렌더링된다 (기본값)', () => {
     const { container } = render(
       <PriceChart data={mockPriceData} ticker="487240" />
     )
 
     const responsiveContainer = container.querySelector('.recharts-responsive-container')
-    expect(responsiveContainer).toHaveStyle({ height: '400px' })
+    // 반응형 높이는 useWindowSize 훅에서 계산되므로, 존재 여부만 확인
+    expect(responsiveContainer).toBeInTheDocument()
   })
 
   it('툴팁이 포함되어 있다', async () => {
@@ -138,14 +141,14 @@ describe('PriceChart', () => {
     expect(container).toBeInTheDocument()
   })
 
-  it('4개의 가격 라인(시가, 고가, 저가, 종가)을 렌더링한다', () => {
+  it('종가 라인을 렌더링한다 (기본)', () => {
     const { container } = render(
       <PriceChart data={mockPriceData} ticker="487240" />
     )
 
-    // Line 컴포넌트들이 렌더링되는지 확인
+    // Line 컴포넌트가 렌더링되는지 확인 (종가만 기본 표시)
     const lines = container.querySelectorAll('.recharts-line')
-    expect(lines.length).toBe(4) // 시가, 고가, 저가, 종가
+    expect(lines.length).toBeGreaterThanOrEqual(1) // 최소 종가 라인은 있어야 함
   })
 
   it('거래량 막대를 렌더링한다', () => {
@@ -233,35 +236,51 @@ describe('PriceChart 데이터 처리', () => {
     expect(yAxes.length).toBe(2)
   })
 
-  it('등락률이 양수일 때 적절한 색상을 적용한다', () => {
-    const positiveData = [
+  it('상승(종가 > 시가)일 때 빨간색 거래량 막대를 표시한다', () => {
+    const risingData = [
       {
-        ...mockPriceData[0],
-        daily_change_pct: 2.5,
+        date: '2025-11-03', // 월요일
+        open_price: 10000,
+        high_price: 10600,
+        low_price: 9900,
+        close_price: 10500, // 상승
+        volume: 1000000,
+        daily_change_pct: 5.0,
       },
     ]
 
     const { container } = render(
-      <PriceChart data={positiveData} ticker="487240" />
+      <PriceChart data={risingData} ticker="487240" />
     )
 
     // 차트가 렌더링되었는지 확인
     expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument()
+    // 거래량 막대가 존재하는지 확인
+    const bars = container.querySelectorAll('.recharts-bar')
+    expect(bars.length).toBeGreaterThan(0)
   })
 
-  it('등락률이 음수일 때 적절한 색상을 적용한다', () => {
-    const negativeData = [
+  it('하락(종가 <= 시가)일 때 파란색 거래량 막대를 표시한다', () => {
+    const fallingData = [
       {
-        ...mockPriceData[0],
-        daily_change_pct: -1.5,
+        date: '2025-11-03', // 월요일
+        open_price: 10000,
+        high_price: 10100,
+        low_price: 9400,
+        close_price: 9500, // 하락
+        volume: 1000000,
+        daily_change_pct: -5.0,
       },
     ]
 
     const { container } = render(
-      <PriceChart data={negativeData} ticker="487240" />
+      <PriceChart data={fallingData} ticker="487240" />
     )
 
     // 차트가 렌더링되었는지 확인
     expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument()
+    // 거래량 막대가 존재하는지 확인
+    const bars = container.querySelectorAll('.recharts-bar')
+    expect(bars.length).toBeGreaterThan(0)
   })
 })

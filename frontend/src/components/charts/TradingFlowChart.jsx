@@ -13,6 +13,8 @@ import {
 import { format } from 'date-fns'
 import { getNetBuyingColor } from '../../utils/format'
 import { useContainerWidth } from '../../hooks/useContainerWidth'
+import { useWindowSize } from '../../hooks/useWindowSize'
+import { sampleData, validateChartData } from '../../utils/chartUtils'
 
 /**
  * 천 원 단위 순매수/순매도 포맷팅
@@ -91,7 +93,14 @@ const CustomTooltip = ({ active, payload }) => {
 export const formatTradingFlowData = (data) => {
   if (!data || data.length === 0) return []
 
-  return data
+  // 데이터 검증
+  const validation = validateChartData(data, ['date', 'individual_net', 'institutional_net', 'foreign_net'])
+  if (!validation.isValid) {
+    console.error('[TradingFlowChart] 데이터 검증 실패:', validation.error)
+    return []
+  }
+
+  const formattedData = data
     .filter((item) => {
       // 주말 데이터 제외 (토요일=6, 일요일=0)
       const dayOfWeek = new Date(item.date).getDay()
@@ -105,6 +114,9 @@ export const formatTradingFlowData = (data) => {
       foreign_net: item.foreign_net / 1000,
     }))
     .sort((a, b) => new Date(a.date) - new Date(b.date)) // 날짜 오름차순 정렬
+
+  // 대용량 데이터 샘플링 (200개 이상일 경우)
+  return sampleData(formattedData, 200)
 }
 
 /**
@@ -113,14 +125,18 @@ export const formatTradingFlowData = (data) => {
  *
  * @param {Array} data - 매매 동향 데이터 배열
  * @param {string} ticker - 종목 코드
- * @param {number} height - 차트 높이 (기본값: 400)
+ * @param {number} height - 차트 높이 (기본값: null, null이면 반응형)
  * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
  * @param {React.RefObject} scrollRef - 스크롤 컨테이너 ref (차트 동기화용)
  * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
-const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = 400, dateRange = '7d', scrollRef, onScroll }) {
+const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, height = null, dateRange = '7d', scrollRef, onScroll }) {
   // 컨테이너 너비 측정
   const { containerRef, width: containerWidth } = useContainerWidth()
+
+  // 반응형 차트 높이
+  const { chartHeight: responsiveHeight } = useWindowSize()
+  const finalHeight = height || responsiveHeight
 
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => formatTradingFlowData(data), [data])
@@ -130,7 +146,9 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
     return (
       <div
         className="flex items-center justify-center bg-gray-50 rounded-lg"
-        style={{ height: `${height}px` }}
+        style={{ height: `${finalHeight}px` }}
+        role="img"
+        aria-label="투자자별 매매 동향 차트 - 데이터 없음"
       >
         <p className="text-gray-500">표시할 매매 동향 데이터가 없습니다.</p>
       </div>
@@ -209,9 +227,11 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
       }}
       className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
       onScroll={onScroll}
+      role="img"
+      aria-label={`${ticker} 투자자별 매매 동향 차트`}
     >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={finalHeight}>
           <BarChart
             data={chartData}
             margin={{ top: 10, right: 15, left: 15, bottom: chartData.length > 15 ? 60 : 0 }}

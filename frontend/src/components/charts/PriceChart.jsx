@@ -14,6 +14,8 @@ import {
 import { format } from 'date-fns'
 import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/format'
 import { useContainerWidth } from '../../hooks/useContainerWidth'
+import { useWindowSize } from '../../hooks/useWindowSize'
+import { sampleData, validateChartData } from '../../utils/chartUtils'
 
 /**
  * CustomLegend 컴포넌트
@@ -162,12 +164,12 @@ const CustomTooltip = ({ active, payload }) => {
  *
  * @param {Array} data - 가격 데이터 배열
  * @param {string} ticker - 종목 코드
- * @param {number} height - 차트 높이 (기본값: 400)
+ * @param {number} height - 차트 높이 (기본값: null, null이면 반응형)
  * @param {string} dateRange - 조회 기간 ('7d', '1m', '3m', 'custom')
  * @param {React.RefObject} scrollRef - 스크롤 컨테이너 ref (차트 동기화용)
  * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
-const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, dateRange = '7d', scrollRef, onScroll }) {
+const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, dateRange = '7d', scrollRef, onScroll }) {
   // 이동평균선 표시 상태
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
@@ -176,9 +178,20 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
   // 컨테이너 너비 측정
   const { containerRef, width: containerWidth } = useContainerWidth()
 
+  // 반응형 차트 높이
+  const { chartHeight: responsiveHeight } = useWindowSize()
+  const finalHeight = height || responsiveHeight
+
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return []
+
+    // 데이터 검증
+    const validation = validateChartData(data, ['date', 'close_price', 'volume'])
+    if (!validation.isValid) {
+      console.error('[PriceChart] 데이터 검증 실패:', validation.error)
+      return []
+    }
 
     // 주말 데이터 제외 (토요일=6, 일요일=0)
     const filteredData = data.filter(p => {
@@ -189,11 +202,14 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
     // 날짜 오름차순 정렬 (오래된 날짜 → 최신 날짜)
     const sortedData = filteredData.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-    // 이동평균선 계산 함수
+    // 대용량 데이터 샘플링 (200개 이상일 경우)
+    const sampledData = sampleData(sortedData, 200)
+
+    // 이동평균선 계산 함수 (샘플링된 데이터 기준)
     const calculateMA = (period) => {
-      return sortedData.map((item, index) => {
+      return sampledData.map((item, index) => {
         if (index < period - 1) return null
-        const sum = sortedData
+        const sum = sampledData
           .slice(index - period + 1, index + 1)
           .reduce((acc, p) => acc + p.close_price, 0)
         return sum / period
@@ -205,7 +221,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
     const ma10 = calculateMA(10)
     const ma20 = calculateMA(20)
 
-    return sortedData.map((item, index) => {
+    return sampledData.map((item, index) => {
       // 상승(종가 > 시가): 빨간색, 하락(종가 <= 시가): 파란색
       const isRising = item.close_price > item.open_price
       const volumeColor = isRising ? '#ef4444' : '#3b82f6'
@@ -227,7 +243,9 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
     return (
       <div
         className="flex items-center justify-center bg-gray-50 rounded-lg"
-        style={{ height: `${height}px` }}
+        style={{ height: `${finalHeight}px` }}
+        role="img"
+        aria-label="가격 차트 - 데이터 없음"
       >
         <p className="text-gray-500">표시할 가격 데이터가 없습니다.</p>
       </div>
@@ -314,9 +332,11 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = 400, d
       }}
       className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
       onScroll={onScroll}
+      role="img"
+      aria-label={`${ticker} 가격 차트`}
     >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={finalHeight}>
           <ComposedChart
             data={chartData}
             margin={{ top: 10, right: 15, left: 15, bottom: chartData.length > 15 ? 60 : 0 }}

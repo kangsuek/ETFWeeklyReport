@@ -397,8 +397,8 @@ export default function ETFDetail() {
       {/* 차트 섹션 */}
       <div className="space-y-4 mb-4">
         {/* 가격 차트 */}
-        <div className="card relative">
-          <h3 className="text-lg font-semibold mb-3">가격 차트</h3>
+        <div className="bg-white rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl relative">
+          <h3 className="text-lg font-semibold mb-2">가격 차트</h3>
           {pricesLoading || pricesFetching ? (
             <LoadingIndicator
               isLoading={true}
@@ -411,7 +411,6 @@ export default function ETFDetail() {
             <PriceChart
               data={pricesData}
               ticker={ticker}
-              height={400}
               dateRange={dateRange.range}
               scrollRef={priceChartScrollRef}
               onScroll={handlePriceChartScroll}
@@ -420,8 +419,8 @@ export default function ETFDetail() {
         </div>
 
         {/* 매매 동향 차트 */}
-        <div className="card relative">
-          <h3 className="text-lg font-semibold mb-3">투자자별 매매 동향</h3>
+        <div className="bg-white rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl relative">
+          <h3 className="text-lg font-semibold mb-2">투자자별 매매 동향</h3>
           {tradingFlowLoading || tradingFlowFetching ? (
             <LoadingIndicator
               isLoading={true}
@@ -434,7 +433,6 @@ export default function ETFDetail() {
             <TradingFlowChart
               data={tradingFlowData}
               ticker={ticker}
-              height={400}
               dateRange={dateRange.range}
               scrollRef={tradingFlowChartScrollRef}
               onScroll={handleTradingFlowChartScroll}
