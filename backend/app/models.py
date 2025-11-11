@@ -44,3 +44,30 @@ class ETFDetailResponse(BaseModel):
     trading_flow: List[TradingFlow]
     news: List[News]
     metrics: ETFMetrics
+
+# Stock Management Models (for Settings API)
+class StockCreate(BaseModel):
+    """Model for creating a new stock/ETF"""
+    ticker: str  # Stock ticker code (e.g., "005930")
+    name: str
+    type: str  # "ETF" or "STOCK"
+    theme: str
+    launch_date: Optional[str] = None  # YYYY-MM-DD format, required for ETF
+    expense_ratio: Optional[float] = None  # Required for ETF
+    search_keyword: Optional[str] = None
+    relevance_keywords: Optional[List[str]] = None
+
+class StockUpdate(BaseModel):
+    """Model for updating an existing stock/ETF (partial update)"""
+    name: Optional[str] = None
+    type: Optional[str] = None
+    theme: Optional[str] = None
+    launch_date: Optional[str] = None
+    expense_ratio: Optional[float] = None
+    search_keyword: Optional[str] = None
+    relevance_keywords: Optional[List[str]] = None
+
+class StockDeleteResponse(BaseModel):
+    """Response model for stock deletion"""
+    ticker: str
+    deleted: dict  # {"prices": 150, "news": 20, "trading_flow": 30}

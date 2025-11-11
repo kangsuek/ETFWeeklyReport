@@ -1,0 +1,318 @@
+"""
+Stock configuration file (stocks.json) management utilities
+
+This module provides utilities for managing the stocks.json file,
+which is the single source of truth for stock/ETF ticker information.
+"""
+
+import json
+import shutil
+import logging
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Any, Optional
+from app.config import Config
+from app.database import get_db_connection
+
+logger = logging.getLogger(__name__)
+
+
+def load_stocks() -> Dict[str, Any]:
+    """
+    Load stock configuration from stocks.json file
+
+    Returns:
+        Dict[str, Any]: Stock configuration with ticker as key
+
+    Raises:
+        FileNotFoundError: If stocks.json file does not exist
+        json.JSONDecodeError: If JSON parsing fails
+    """
+    return Config.get_stock_config()
+
+
+def save_stocks(stocks_dict: Dict[str, Any]) -> None:
+    """
+    Save stock configuration to stocks.json file with automatic backup
+
+    Features:
+    - Automatic backup with timestamp (stocks.json.backup.YYYYMMDD_HHMMSS)
+    - Atomic write (write to temp file, then rename)
+    - JSON formatting (indent=2, ensure_ascii=False for Korean characters)
+
+    Args:
+        stocks_dict: Stock configuration dictionary
+
+    Raises:
+        IOError: If file write fails
+    """
+    config_path = Path(Config.STOCK_CONFIG_PATH)
+
+    # Create backup if file exists
+    if config_path.exists():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = config_path.parent / f"stocks.json.backup.{timestamp}"
+        shutil.copy2(config_path, backup_path)
+        logger.info(f"Created backup: {backup_path}")
+
+    # Atomic write: write to temp file, then rename
+    temp_path = config_path.parent / "stocks.json.tmp"
+
+    try:
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            json.dump(stocks_dict, f, indent=2, ensure_ascii=False)
+
+        # Atomic rename
+        temp_path.replace(config_path)
+        logger.info(f"Saved {len(stocks_dict)} stocks to {config_path}")
+
+    except Exception as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            temp_path.unlink()
+        logger.error(f"Failed to save stocks.json: {e}")
+        raise
+
+
+def validate_stock_data(stock_dict: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    """
+    Validate stock/ETF data structure
+
+    Validation rules:
+    - Required fields: name, type, theme
+    - Type must be "ETF" or "STOCK"
+    - ETF must have launch_date and expense_ratio
+    - STOCK must have launch_date=null and expense_ratio=null
+    - launch_date format: YYYY-MM-DD (if not null)
+    - expense_ratio must be float (if not null)
+
+    Args:
+        stock_dict: Stock data dictionary
+
+    Returns:
+        tuple[bool, Optional[str]]: (is_valid, error_message)
+    """
+    # Required fields
+    required_fields = ["name", "type", "theme"]
+    for field in required_fields:
+        if field not in stock_dict:
+            return False, f"Missing required field: {field}"
+
+    # Type validation
+    stock_type = stock_dict.get("type")
+    if stock_type not in ["ETF", "STOCK"]:
+        return False, f"Invalid type: {stock_type}. Must be 'ETF' or 'STOCK'"
+
+    # ETF-specific validation
+    if stock_type == "ETF":
+        if "launch_date" not in stock_dict or stock_dict["launch_date"] is None:
+            return False, "ETF must have launch_date"
+        if "expense_ratio" not in stock_dict or stock_dict["expense_ratio"] is None:
+            return False, "ETF must have expense_ratio"
+
+        # Validate date format (YYYY-MM-DD)
+        launch_date = stock_dict["launch_date"]
+        try:
+            datetime.strptime(launch_date, "%Y-%m-%d")
+        except ValueError:
+            return False, f"Invalid launch_date format: {launch_date}. Expected YYYY-MM-DD"
+
+        # Validate expense_ratio is numeric
+        try:
+            float(stock_dict["expense_ratio"])
+        except (ValueError, TypeError):
+            return False, f"Invalid expense_ratio: {stock_dict['expense_ratio']}. Must be a number"
+
+    # STOCK-specific validation
+    elif stock_type == "STOCK":
+        if stock_dict.get("launch_date") is not None:
+            return False, "STOCK must have launch_date=null"
+        if stock_dict.get("expense_ratio") is not None:
+            return False, "STOCK must have expense_ratio=null"
+
+    return True, None
+
+
+def sync_stocks_to_db() -> int:
+    """
+    Synchronize stocks.json to database (etfs table)
+
+    This function:
+    1. Loads stocks from stocks.json
+    2. Inserts or replaces them in the database
+    3. Does NOT delete stocks that are in DB but not in stocks.json
+       (that should be done explicitly via DELETE endpoint)
+
+    Returns:
+        int: Number of stocks synchronized
+
+    Note:
+        This function should be called:
+        - On server startup (after init_db)
+        - After any CRUD operation on stocks.json
+    """
+    stocks = load_stocks()
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        etfs_data = []
+        for ticker, info in stocks.items():
+            etfs_data.append((
+                ticker,
+                info.get("name"),
+                info.get("type"),
+                info.get("theme"),
+                info.get("launch_date"),
+                info.get("expense_ratio")
+            ))
+
+        cursor.executemany("""
+            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, etfs_data)
+
+        conn.commit()
+
+    logger.info(f"Synchronized {len(stocks)} stocks to database")
+    return len(stocks)
+
+
+def add_stock(ticker: str, stock_data: Dict[str, Any]) -> None:
+    """
+    Add a new stock to stocks.json and sync to database
+
+    Args:
+        ticker: Stock ticker code (e.g., "005930")
+        stock_data: Stock information dictionary
+
+    Raises:
+        ValueError: If stock_data is invalid or ticker already exists
+    """
+    # Validate data
+    is_valid, error_msg = validate_stock_data(stock_data)
+    if not is_valid:
+        raise ValueError(f"Invalid stock data: {error_msg}")
+
+    # Load current stocks
+    stocks = load_stocks()
+
+    # Check for duplicates
+    if ticker in stocks:
+        raise ValueError(f"Stock with ticker {ticker} already exists")
+
+    # Add new stock
+    stocks[ticker] = stock_data
+
+    # Save to file
+    save_stocks(stocks)
+
+    # Sync to database
+    sync_stocks_to_db()
+
+    # Reload cache
+    Config.reload_stock_config()
+
+    logger.info(f"Added stock: {ticker}")
+
+
+def update_stock(ticker: str, stock_data: Dict[str, Any]) -> None:
+    """
+    Update an existing stock in stocks.json and sync to database
+
+    Args:
+        ticker: Stock ticker code
+        stock_data: Updated stock information dictionary
+
+    Raises:
+        ValueError: If stock_data is invalid or ticker does not exist
+    """
+    # Validate data
+    is_valid, error_msg = validate_stock_data(stock_data)
+    if not is_valid:
+        raise ValueError(f"Invalid stock data: {error_msg}")
+
+    # Load current stocks
+    stocks = load_stocks()
+
+    # Check if stock exists
+    if ticker not in stocks:
+        raise ValueError(f"Stock with ticker {ticker} not found")
+
+    # Update stock
+    stocks[ticker] = stock_data
+
+    # Save to file
+    save_stocks(stocks)
+
+    # Sync to database
+    sync_stocks_to_db()
+
+    # Reload cache
+    Config.reload_stock_config()
+
+    logger.info(f"Updated stock: {ticker}")
+
+
+def delete_stock(ticker: str) -> Dict[str, int]:
+    """
+    Delete a stock from stocks.json and cascade delete from database
+
+    Args:
+        ticker: Stock ticker code
+
+    Returns:
+        Dict[str, int]: Deleted record counts by table
+            {
+                "prices": 150,
+                "news": 20,
+                "trading_flow": 30
+            }
+
+    Raises:
+        ValueError: If ticker does not exist
+    """
+    # Load current stocks
+    stocks = load_stocks()
+
+    # Check if stock exists
+    if ticker not in stocks:
+        raise ValueError(f"Stock with ticker {ticker} not found")
+
+    # Remove from stocks.json
+    del stocks[ticker]
+
+    # Save to file
+    save_stocks(stocks)
+
+    # CASCADE delete from database
+    deleted_counts = {}
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Count and delete prices
+        cursor.execute("SELECT COUNT(*) FROM prices WHERE ticker = ?", (ticker,))
+        deleted_counts["prices"] = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM prices WHERE ticker = ?", (ticker,))
+
+        # Count and delete news
+        cursor.execute("SELECT COUNT(*) FROM news WHERE ticker = ?", (ticker,))
+        deleted_counts["news"] = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM news WHERE ticker = ?", (ticker,))
+
+        # Count and delete trading_flow
+        cursor.execute("SELECT COUNT(*) FROM trading_flow WHERE ticker = ?", (ticker,))
+        deleted_counts["trading_flow"] = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM trading_flow WHERE ticker = ?", (ticker,))
+
+        # Delete from etfs table
+        cursor.execute("DELETE FROM etfs WHERE ticker = ?", (ticker,))
+
+        conn.commit()
+
+    # Reload cache
+    Config.reload_stock_config()
+
+    logger.info(f"Deleted stock {ticker} and related data: {deleted_counts}")
+    return deleted_counts

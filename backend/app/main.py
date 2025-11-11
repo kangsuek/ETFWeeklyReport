@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import etfs, reports, news, data
+from app.routers import etfs, reports, news, data, settings
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 from app.config import Config
+from app.utils import stocks_manager
 import logging
 from dotenv import load_dotenv
 
@@ -38,7 +39,15 @@ async def startup_event():
     logger.info("Initializing database...")
     init_db()
     logger.info("Database initialized successfully")
-    
+
+    # Sync stocks.json to database
+    logger.info("Synchronizing stocks.json to database...")
+    try:
+        synced_count = stocks_manager.sync_stocks_to_db()
+        logger.info(f"Synchronized {synced_count} stocks to database")
+    except Exception as e:
+        logger.error(f"Failed to sync stocks to database: {e}", exc_info=True)
+
     # 스케줄러 시작
     logger.info("Starting scheduler...")
     scheduler = get_scheduler()
@@ -58,6 +67,7 @@ app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
 app.include_router(data.router, prefix="/api/data", tags=["Data Collection"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
+app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 
 @app.get("/api/health")
 async def health_check():
