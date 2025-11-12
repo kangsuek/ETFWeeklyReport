@@ -9,6 +9,8 @@ class ETF(BaseModel):
     theme: Optional[str] = None
     launch_date: Optional[date] = None
     expense_ratio: Optional[float] = None
+    search_keyword: Optional[str] = None
+    relevance_keywords: Optional[List[str]] = None
 
 class PriceData(BaseModel):
     date: date

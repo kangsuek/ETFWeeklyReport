@@ -350,20 +350,41 @@ class ETFDataCollector:
     
     def get_all_etfs(self) -> List[ETF]:
         """Get list of all ETFs from database"""
+        import json
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
-            return [ETF(**dict(row)) for row in rows]
+
+            etfs = []
+            for row in rows:
+                row_dict = dict(row)
+                # relevance_keywords를 JSON 문자열에서 리스트로 파싱
+                if row_dict.get('relevance_keywords'):
+                    try:
+                        row_dict['relevance_keywords'] = json.loads(row_dict['relevance_keywords'])
+                    except json.JSONDecodeError:
+                        row_dict['relevance_keywords'] = []
+                etfs.append(ETF(**row_dict))
+
+            return etfs
     
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""
+        import json
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
             row = cursor.fetchone()
             if row:
-                return ETF(**dict(row))
+                row_dict = dict(row)
+                # relevance_keywords를 JSON 문자열에서 리스트로 파싱
+                if row_dict.get('relevance_keywords'):
+                    try:
+                        row_dict['relevance_keywords'] = json.loads(row_dict['relevance_keywords'])
+                    except json.JSONDecodeError:
+                        row_dict['relevance_keywords'] = []
+                return ETF(**row_dict)
             return None
     
     def get_price_data_range(self, ticker: str) -> Optional[Dict[str, date]]:

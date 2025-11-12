@@ -59,7 +59,9 @@ def init_db():
             type TEXT NOT NULL,
             theme TEXT,
             launch_date DATE,
-            expense_ratio REAL
+            expense_ratio REAL,
+            search_keyword TEXT,
+            relevance_keywords TEXT
         )
     """)
     
@@ -126,22 +128,28 @@ def init_db():
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []
-    
+
     for ticker, info in stock_config.items():
+        # relevance_keywords를 JSON 문자열로 변환
+        import json
+        relevance_keywords_json = json.dumps(info.get("relevance_keywords", []), ensure_ascii=False) if info.get("relevance_keywords") else None
+
         etfs_data.append((
             ticker,
             info.get("name"),
             info.get("type"),
             info.get("theme"),
             info.get("launch_date"),
-            info.get("expense_ratio")
+            info.get("expense_ratio"),
+            info.get("search_keyword"),
+            relevance_keywords_json
         ))
-    
+
     logger.info(f"Loading {len(etfs_data)} stocks from configuration")
-    
+
     cursor.executemany("""
-        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, etfs_data)
     
     conn.commit()

@@ -158,18 +158,23 @@ def sync_stocks_to_db() -> int:
 
         etfs_data = []
         for ticker, info in stocks.items():
+            # relevance_keywords를 JSON 문자열로 변환
+            relevance_keywords_json = json.dumps(info.get("relevance_keywords", []), ensure_ascii=False) if info.get("relevance_keywords") else None
+
             etfs_data.append((
                 ticker,
                 info.get("name"),
                 info.get("type"),
                 info.get("theme"),
                 info.get("launch_date"),
-                info.get("expense_ratio")
+                info.get("expense_ratio"),
+                info.get("search_keyword"),
+                relevance_keywords_json
             ))
 
         cursor.executemany("""
-            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, etfs_data)
 
         conn.commit()

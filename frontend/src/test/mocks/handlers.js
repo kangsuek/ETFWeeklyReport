@@ -275,4 +275,91 @@ export const handlers = [
       version: '1.0.0',
     })
   }),
+
+  // Settings API Handlers
+
+  // POST /api/settings/stocks - 종목 추가
+  http.post(`${BASE_URL}/settings/stocks`, async ({ request }) => {
+    const body = await request.json()
+    const { ticker } = body
+
+    // 중복 티커 체크
+    const exists = mockETFData.find(e => e.ticker === ticker)
+    if (exists) {
+      return new HttpResponse(
+        JSON.stringify({ detail: '이미 존재하는 티커 코드입니다.' }),
+        { status: 400 }
+      )
+    }
+
+    // 새 종목 추가 (실제로는 mockETFData에 추가하지 않음 - 테스트용)
+    return HttpResponse.json(body, { status: 201 })
+  }),
+
+  // PUT /api/settings/stocks/:ticker - 종목 수정
+  http.put(`${BASE_URL}/settings/stocks/:ticker`, async ({ params, request }) => {
+    const { ticker } = params
+    const body = await request.json()
+
+    const exists = mockETFData.find(e => e.ticker === ticker)
+    if (!exists) {
+      return new HttpResponse(
+        JSON.stringify({ detail: '종목을 찾을 수 없습니다.' }),
+        { status: 404 }
+      )
+    }
+
+    // 수정된 종목 정보 반환
+    return HttpResponse.json({ ...exists, ...body })
+  }),
+
+  // DELETE /api/settings/stocks/:ticker - 종목 삭제
+  http.delete(`${BASE_URL}/settings/stocks/:ticker`, ({ params }) => {
+    const { ticker } = params
+
+    const exists = mockETFData.find(e => e.ticker === ticker)
+    if (!exists) {
+      return new HttpResponse(
+        JSON.stringify({ detail: '종목을 찾을 수 없습니다.' }),
+        { status: 404 }
+      )
+    }
+
+    // CASCADE 삭제 통계 반환
+    return HttpResponse.json({
+      ticker: ticker,
+      deleted: {
+        prices: 150,
+        news: 20,
+        trading_flow: 30,
+      },
+    })
+  }),
+
+  // GET /api/settings/stocks/:ticker/validate - 종목 검증 (네이버 스크래핑)
+  http.get(`${BASE_URL}/settings/stocks/:ticker/validate`, ({ params }) => {
+    const { ticker } = params
+
+    // 존재하지 않는 종목 시뮬레이션
+    if (ticker === '999999') {
+      return new HttpResponse(
+        JSON.stringify({ detail: '종목을 찾을 수 없습니다.' }),
+        { status: 404 }
+      )
+    }
+
+    // 정상적인 종목 정보 반환 (stocks.json 형식)
+    return HttpResponse.json({
+      ticker: ticker,
+      name: ticker === '005930' ? '삼성전자' : 'KODEX 테스트 ETF',
+      type: ticker.length === 6 ? 'ETF' : 'STOCK',
+      theme: ticker === '005930' ? '반도체/전자' : 'AI/반도체',
+      launch_date: ticker.length === 6 ? '2024-01-01' : null,
+      expense_ratio: ticker.length === 6 ? '0.45' : null,
+      search_keyword: ticker === '005930' ? '삼성전자' : 'KODEX',
+      relevance_keywords: ticker === '005930'
+        ? ['삼성전자', '반도체', '전자', 'IT']
+        : ['ETF', 'AI', '반도체'],
+    })
+  }),
 ]
