@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS = {
     interval: 30000, // 30초 (milliseconds)
   },
   defaultDateRange: '1M', // "7D" | "1M" | "3M"
-  theme: 'light', // "light" | "dark"
+  theme: 'light', // "light" | "dark" | "system"
   display: {
     showVolume: true,
     showTradingFlow: true,
@@ -49,7 +49,7 @@ function validateSettings(settings) {
   }
 
   // theme 검증
-  if (['light', 'dark'].includes(settings.theme)) {
+  if (['light', 'dark', 'system'].includes(settings.theme)) {
     validated.theme = settings.theme
   }
 
@@ -102,15 +102,94 @@ function saveSettingsToStorage(settings) {
 const SettingsContext = createContext(null)
 
 /**
+ * 시스템 테마 감지 (prefers-color-scheme 미디어 쿼리)
+ */
+function getSystemTheme() {
+  if (typeof window === 'undefined') return 'light'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+/**
+ * 실제 적용할 테마 계산 (system인 경우 시스템 설정 반영)
+ */
+function getEffectiveTheme(theme) {
+  if (theme === 'system') {
+    return getSystemTheme()
+  }
+  return theme
+}
+
+/**
+ * HTML 태그에 테마 클래스 적용
+ */
+function applyTheme(theme) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  const body = document.body
+  const effectiveTheme = getEffectiveTheme(theme)
+  
+  // 기존 dark 클래스 제거 후 추가/제거 (확실한 적용을 위해)
+  root.classList.remove('dark')
+  
+  if (effectiveTheme === 'dark') {
+    root.classList.add('dark')
+  }
+  
+  // 디버깅용 (개발 환경에서만)
+  if (import.meta.env.DEV) {
+    const computedStyle = window.getComputedStyle(body)
+    const appDiv = document.querySelector('#root > div')
+    const appBg = appDiv ? window.getComputedStyle(appDiv).backgroundColor : 'N/A'
+    console.log('[Theme] Applied theme:', theme, '→ Effective:', effectiveTheme, '→ Has dark class:', root.classList.contains('dark'), '→ Body bg:', computedStyle.backgroundColor, '→ App bg:', appBg)
+  }
+}
+
+/**
  * Settings Provider 컴포넌트
  */
 export function SettingsProvider({ children }) {
-  const [settings, setSettings] = useState(loadSettingsFromStorage)
+  const [settings, setSettings] = useState(() => {
+    const loadedSettings = loadSettingsFromStorage()
+    // 초기 로드 시 즉시 테마 적용
+    if (typeof document !== 'undefined') {
+      applyTheme(loadedSettings.theme)
+    }
+    return loadedSettings
+  })
 
   // 설정 변경 시 LocalStorage에 저장
   useEffect(() => {
     saveSettingsToStorage(settings)
   }, [settings])
+
+  // 테마 변경 시 즉시 적용
+  useEffect(() => {
+    applyTheme(settings.theme)
+  }, [settings.theme])
+
+  // 시스템 테마 변경 감지 (theme이 'system'인 경우)
+  useEffect(() => {
+    if (settings.theme !== 'system') return
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => {
+      applyTheme('system')
+    }
+
+    // 초기 적용
+    applyTheme('system')
+
+    // 최신 브라우저
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    } 
+    // 구형 브라우저 지원
+    else if (mediaQuery.addListener) {
+      mediaQuery.addListener(handleChange)
+      return () => mediaQuery.removeListener(handleChange)
+    }
+  }, [settings.theme])
 
   /**
    * 설정 업데이트

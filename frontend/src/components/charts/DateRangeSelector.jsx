@@ -91,11 +91,14 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
     });
   };
 
-  // 초기 기본값 설정
+  // 초기 기본값 설정 및 defaultRange prop 변경 시 반영
   useEffect(() => {
-    handlePresetClick(defaultRange);
+    // 커스텀 범위가 아닌 경우에만 자동으로 설정값 반영
+    if (defaultRange !== 'custom') {
+      handlePresetClick(defaultRange);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [defaultRange]);
 
   const presetButtons = [
     { label: '7일', value: '7d' },
@@ -105,7 +108,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
   ];
 
   return (
-    <div className="date-range-selector bg-white rounded-lg shadow p-4 mb-4">
+    <div className="date-range-selector bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4 transition-colors">
       {/* 프리셋 버튼 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
         {presetButtons.map(({ label, value }) => (
@@ -115,7 +118,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               selectedRange === value
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
             }`}
             type="button"
           >
@@ -129,7 +132,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
         <div className="border-t pt-4 mt-2">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[180px]">
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 시작 날짜
               </label>
               <input
@@ -137,11 +140,11 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
                 type="date"
                 value={startDate}
                 onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div className="flex-1 min-w-[180px]">
-              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 종료 날짜
               </label>
               <input
@@ -149,7 +152,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
                 type="date"
                 value={endDate}
                 onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <button
@@ -171,7 +174,7 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
 
       {/* 현재 선택된 기간 표시 */}
       {startDate && endDate && selectedRange !== 'custom' && (
-        <div className="mt-3 text-sm text-gray-600">
+        <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
           선택된 기간: {startDate} ~ {endDate}
         </div>
       )}

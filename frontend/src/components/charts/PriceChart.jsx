@@ -53,7 +53,7 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           className="w-4 h-4 cursor-pointer"
         />
         <span className="inline-block w-8 h-1" style={{ backgroundColor: '#8b5cf6' }}></span>
-        <span style={{ color: '#8b5cf6' }}>5일 이동평균선</span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#8b5cf6' }}>5일 이동평균선</span>
       </label>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -64,7 +64,7 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           className="w-4 h-4 cursor-pointer"
         />
         <span className="inline-block w-8 h-1" style={{ backgroundColor: '#10b981' }}></span>
-        <span style={{ color: '#10b981' }}>10일 이동평균선</span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#10b981' }}>10일 이동평균선</span>
       </label>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -75,7 +75,7 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           className="w-4 h-4 cursor-pointer"
         />
         <span className="inline-block w-8 h-1" style={{ backgroundColor: '#ef4444' }}></span>
-        <span style={{ color: '#ef4444' }}>20일 이동평균선</span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#ef4444' }}>20일 이동평균선</span>
       </label>
     </div>
   )
@@ -93,34 +93,34 @@ const CustomTooltip = ({ active, payload }) => {
   const data = payload[0].payload
 
   return (
-    <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
-      <p className="text-sm font-semibold mb-2">
+    <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg transition-colors">
+      <p className="text-sm font-semibold mb-2 text-gray-900 dark:text-gray-100">
         {data.date ? format(new Date(data.date), 'yyyy-MM-dd') : '-'}
       </p>
       <div className="space-y-1 text-xs">
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">종가:</span>
-          <span className="font-bold text-black">{formatPrice(data.close_price)}</span>
+          <span className="text-gray-600 dark:text-gray-400">종가:</span>
+          <span className="font-bold text-black dark:text-gray-100">{formatPrice(data.close_price)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">시가:</span>
-          <span className="font-semibold text-green-600">{formatPrice(data.open_price)}</span>
+          <span className="text-gray-600 dark:text-gray-400">시가:</span>
+          <span className="font-semibold text-green-600 dark:text-green-400">{formatPrice(data.open_price)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">고가:</span>
-          <span className="font-semibold text-red-600">{formatPrice(data.high_price)}</span>
+          <span className="text-gray-600 dark:text-gray-400">고가:</span>
+          <span className="font-semibold text-red-600 dark:text-red-400">{formatPrice(data.high_price)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">저가:</span>
-          <span className="font-semibold text-blue-600">{formatPrice(data.low_price)}</span>
+          <span className="text-gray-600 dark:text-gray-400">저가:</span>
+          <span className="font-semibold text-blue-600 dark:text-blue-400">{formatPrice(data.low_price)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">거래량:</span>
-          <span className="font-semibold">{formatVolume(data.volume)}</span>
+          <span className="text-gray-600 dark:text-gray-400">거래량:</span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{formatVolume(data.volume)}</span>
         </div>
         {data.daily_change_pct !== undefined && data.daily_change_pct !== null && (
           <div className="flex justify-between gap-4">
-            <span className="text-gray-600">등락률:</span>
+            <span className="text-gray-600 dark:text-gray-400">등락률:</span>
             <span
               className="font-semibold"
               style={{ color: getPriceChangeColorHex(data.daily_change_pct) }}
@@ -132,23 +132,23 @@ const CustomTooltip = ({ active, payload }) => {
         )}
         {/* 이동평균선 정보 */}
         {(data.ma5 || data.ma10 || data.ma20) && (
-          <div className="border-t border-gray-200 pt-1 mt-1">
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
             {data.ma5 && (
               <div className="flex justify-between gap-4">
-                <span className="text-purple-600">MA5:</span>
-                <span className="font-semibold text-purple-600">{formatPrice(data.ma5)}</span>
+                <span className="text-purple-600 dark:text-purple-400">MA5:</span>
+                <span className="font-semibold text-purple-600 dark:text-purple-400">{formatPrice(data.ma5)}</span>
               </div>
             )}
             {data.ma10 && (
               <div className="flex justify-between gap-4">
-                <span className="text-green-600">MA10:</span>
-                <span className="font-semibold text-green-600">{formatPrice(data.ma10)}</span>
+                <span className="text-green-600 dark:text-green-400">MA10:</span>
+                <span className="font-semibold text-green-600 dark:text-green-400">{formatPrice(data.ma10)}</span>
               </div>
             )}
             {data.ma20 && (
               <div className="flex justify-between gap-4">
-                <span className="text-red-600">MA20:</span>
-                <span className="font-semibold text-red-600">{formatPrice(data.ma20)}</span>
+                <span className="text-red-600 dark:text-red-400">MA20:</span>
+                <span className="font-semibold text-red-600 dark:text-red-400">{formatPrice(data.ma20)}</span>
               </div>
             )}
           </div>
@@ -242,12 +242,12 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
   if (!chartData || chartData.length === 0) {
     return (
       <div
-        className="flex items-center justify-center bg-gray-50 rounded-lg"
+        className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors"
         style={{ height: `${finalHeight}px` }}
         role="img"
         aria-label="가격 차트 - 데이터 없음"
       >
-        <p className="text-gray-500">표시할 가격 데이터가 없습니다.</p>
+        <p className="text-gray-500 dark:text-gray-400">표시할 가격 데이터가 없습니다.</p>
       </div>
     )
   }
@@ -369,6 +369,13 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
             content={<CustomTooltip />}
             cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '5 5' }}
             isAnimationActive={false}
+            wrapperStyle={{ outline: 'none' }}
+            contentStyle={{ 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              padding: 0,
+              boxShadow: 'none'
+            }}
           />
           <Legend
             wrapperStyle={{ paddingTop: '20px' }}

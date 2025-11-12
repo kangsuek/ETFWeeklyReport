@@ -121,15 +121,15 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transition-colors">
         {/* 헤더 */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-lg z-10">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 rounded-t-lg z-10 transition-colors">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
             {mode === 'create' ? '새 종목 추가' : '종목 수정'}
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
             disabled={isSubmitting}
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,7 +142,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
         <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
           {/* 티커 코드 + 자동 입력 버튼 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               티커 코드 <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -152,7 +152,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                 value={formData.ticker}
                 onChange={handleChange}
                 disabled={mode === 'edit' || isSubmitting}
-                className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 placeholder="예: 005930, 487240"
               />
               {mode === 'create' && (
@@ -192,7 +192,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
           {/* 종목명 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               종목명 <span className="text-red-500">*</span>
             </label>
             <input
@@ -201,15 +201,15 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               value={formData.name}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="예: 삼성전자, KODEX 2차전지산업"
             />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            {errors.name && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.name}</p>}
           </div>
 
           {/* 타입 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               타입 <span className="text-red-500">*</span>
             </label>
             <select
@@ -217,17 +217,17 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               value={formData.type}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               <option value="ETF">ETF</option>
               <option value="STOCK">STOCK</option>
             </select>
-            {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
+            {errors.type && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.type}</p>}
           </div>
 
           {/* 테마 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               테마 <span className="text-red-500">*</span>
             </label>
             <input
@@ -236,10 +236,10 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               value={formData.theme}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="예: 2차전지, 반도체, AI"
             />
-            {errors.theme && <p className="text-red-500 text-sm mt-1">{errors.theme}</p>}
+            {errors.theme && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.theme}</p>}
           </div>
 
           {/* ETF 전용 필드 */}
@@ -247,7 +247,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
             <>
               {/* 상장일 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   상장일 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -256,14 +256,14 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                   value={formData.launch_date}
                   onChange={handleChange}
                   disabled={isSubmitting}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
-                {errors.launch_date && <p className="text-red-500 text-sm mt-1">{errors.launch_date}</p>}
+                {errors.launch_date && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.launch_date}</p>}
               </div>
 
               {/* 운용보수 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   운용보수 (%) <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -273,17 +273,17 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                   value={formData.expense_ratio}
                   onChange={handleChange}
                   disabled={isSubmitting}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="예: 0.50"
                 />
-                {errors.expense_ratio && <p className="text-red-500 text-sm mt-1">{errors.expense_ratio}</p>}
+                {errors.expense_ratio && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.expense_ratio}</p>}
               </div>
             </>
           )}
 
           {/* 뉴스 검색 키워드 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               뉴스 검색 키워드
             </label>
             <input
@@ -292,17 +292,17 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               value={formData.search_keyword}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="예: 삼성전자"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               뉴스 수집 시 사용할 검색 키워드입니다.
             </p>
           </div>
 
           {/* 관련 키워드 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               관련 키워드
             </label>
             <input
@@ -310,21 +310,21 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               value={keywordsInput}
               onChange={handleKeywordsChange}
               disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="쉼표로 구분하여 입력 (예: 삼성전자, 반도체, 전자)"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               뉴스 관련성 판단에 사용할 키워드들을 쉼표로 구분하여 입력하세요.
             </p>
           </div>
 
           {/* 버튼 */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
             >
               취소
             </button>

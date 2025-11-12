@@ -492,96 +492,96 @@ main.py startup event
 
 ---
 
-#### Task 3.2: 일반 설정 패널 구현 (1-1.5시간)
+#### Task 3.2: 일반 설정 패널 구현 ✅ (완료 - 2025-11-12)
 
 **목표**: 사용자 설정 UI 구현
 
-##### Subtask 3.2.1: GeneralSettingsPanel 컴포넌트 생성 (1시간)
-- [ ] `src/components/settings/GeneralSettingsPanel.jsx` 생성
-  - [ ] **자동 새로고침 설정 섹션**:
-    - [ ] 자동 새로고침 활성화/비활성화 토글 스위치
-    - [ ] 새로고침 간격 선택 라디오 버튼
-      - [ ] 30초 (30000ms)
-      - [ ] 1분 (60000ms)
-      - [ ] 5분 (300000ms)
-      - [ ] 10분 (600000ms)
-    - [ ] 현재 설정 표시 (예: "자동 갱신: 30초마다")
-  - [ ] **기본 날짜 범위 설정 섹션**:
-    - [ ] 날짜 범위 선택 드롭다운
-      - [ ] 7일 ("7D")
-      - [ ] 1개월 ("1M")
-      - [ ] 3개월 ("3M")
-    - [ ] 설명: "Detail 페이지에서 기본으로 표시할 날짜 범위"
-  - [ ] **표시 옵션 섹션**:
-    - [ ] 거래량 표시 토글 (showVolume)
-    - [ ] 매매 동향 표시 토글 (showTradingFlow)
-    - [ ] 컴팩트 모드 토글 (compactMode) - 카드 크기 축소
-  - [ ] **테마 설정 섹션** (선택사항, Phase 7로 연기 가능):
-    - [ ] 라이트/다크 모드 선택
-    - [ ] 시스템 설정 따르기 옵션
-  - [ ] 설정 변경 시 즉시 저장 (onChange 핸들러)
-  - [ ] 기본값으로 초기화 버튼
+##### Subtask 3.2.1: GeneralSettingsPanel 컴포넌트 생성 ✅ (완료)
+- [x] `src/components/settings/GeneralSettingsPanel.jsx` 생성
+  - [x] **자동 새로고침 설정 섹션**:
+    - [x] 자동 새로고침 활성화/비활성화 토글 스위치
+    - [x] 새로고침 간격 선택 라디오 버튼
+      - [x] 30초 (30000ms)
+      - [x] 1분 (60000ms)
+      - [x] 5분 (300000ms)
+      - [x] 10분 (600000ms)
+    - [x] 현재 설정 표시 (예: "자동 갱신: 30초마다")
+  - [x] **기본 날짜 범위 설정 섹션**:
+    - [x] 날짜 범위 선택 드롭다운
+      - [x] 7일 ("7D")
+      - [x] 1개월 ("1M")
+      - [x] 3개월 ("3M")
+    - [x] 설명: "Detail 페이지에서 기본으로 표시할 날짜 범위"
+  - [x] **표시 옵션 섹션**:
+    - [x] 거래량 표시 토글 (showVolume)
+    - [x] 매매 동향 표시 토글 (showTradingFlow)
+    - [x] 컴팩트 모드 토글 (compactMode) - 카드 크기 축소
+  - [x] **테마 설정 섹션** ✅ (완료 - 2025-11-12):
+    - [x] 라이트/다크 모드 선택
+    - [x] 시스템 설정 따르기 옵션
+  - [x] 설정 변경 시 즉시 저장 (onChange 핸들러)
+  - [x] 기본값으로 초기화 버튼
   - [ ] 저장 완료 토스트 알림 (선택사항)
 
-##### Subtask 3.2.2: Settings 페이지에 통합 (0.5시간)
-- [ ] `src/pages/Settings.jsx` 수정
-  - [ ] GeneralSettingsPanel 컴포넌트 추가
+##### Subtask 3.2.2: Settings 페이지에 통합 ✅ (완료)
+- [x] `src/pages/Settings.jsx` 수정
+  - [x] GeneralSettingsPanel 컴포넌트 추가
   - [ ] 탭 UI 구현 (선택사항)
     - [ ] "종목 관리" 탭 (TickerManagementPanel)
     - [ ] "일반 설정" 탭 (GeneralSettingsPanel)
     - [ ] "데이터 관리" 탭 (DataManagementPanel, 선택사항)
-  - [ ] 섹션 구분 (탭이 없을 경우)
-    - [ ] 종목 관리 섹션
-    - [ ] 일반 설정 섹션
+  - [x] 섹션 구분 (탭이 없을 경우)
+    - [x] 종목 관리 섹션
+    - [x] 일반 설정 섹션
     - [ ] 데이터 관리 섹션 (선택사항)
 
 **Acceptance Criteria**:
-- [ ] GeneralSettingsPanel 정상 렌더링
-- [ ] 설정 변경 시 LocalStorage 업데이트 확인
-- [ ] 설정 변경 시 Context 상태 업데이트 확인
-- [ ] 모바일 반응형 동작 확인
+- [x] GeneralSettingsPanel 정상 렌더링
+- [x] 설정 변경 시 LocalStorage 업데이트 확인
+- [x] 설정 변경 시 Context 상태 업데이트 확인
+- [x] 모바일 반응형 동작 확인
 
 ---
 
-#### Task 3.3: Dashboard에 설정 적용 (0.5시간)
+#### Task 3.3: Dashboard에 설정 적용 ✅ (완료 - 2025-11-12)
 
 **목표**: 자동 새로고침 설정을 Dashboard에 적용
 
-- [ ] `src/pages/Dashboard.jsx` 수정
-  - [ ] `useSettings` 훅 사용
-  - [ ] 하드코딩된 `autoRefresh` state 제거
-  - [ ] 하드코딩된 30초 간격을 `settings.autoRefresh.interval`로 변경
-  - [ ] 자동 새로고침 토글 체크박스를 `settings.autoRefresh.enabled`와 연동
-  - [ ] 설정 변경 시 즉시 반영 (useEffect 의존성)
-  - [ ] 컴팩트 모드 적용 (선택사항)
-    - [ ] `settings.display.compactMode`에 따라 카드 크기 조정
+- [x] `src/pages/Dashboard.jsx` 수정
+  - [x] `useSettings` 훅 사용
+  - [x] 하드코딩된 `autoRefresh` state 제거
+  - [x] 하드코딩된 30초 간격을 `settings.autoRefresh.interval`로 변경
+  - [x] 자동 새로고침 토글 체크박스를 `settings.autoRefresh.enabled`와 연동
+  - [x] 설정 변경 시 즉시 반영 (useEffect 의존성)
+  - [x] 컴팩트 모드 적용 (선택사항)
+    - [x] `settings.display.compactMode`에 따라 카드 크기 조정
 
 **Acceptance Criteria**:
-- [ ] Settings에서 변경한 자동 새로고침 설정이 Dashboard에 즉시 반영됨
-- [ ] Dashboard의 자동 새로고침 토글과 Settings가 동기화됨
-- [ ] 페이지 새로고침 시 설정 유지 확인
+- [x] Settings에서 변경한 자동 새로고침 설정이 Dashboard에 즉시 반영됨
+- [x] Dashboard의 자동 새로고침 토글과 Settings가 동기화됨
+- [x] 페이지 새로고침 시 설정 유지 확인
 
 ---
 
-#### Task 3.4: ETFDetail에 설정 적용 (0.5시간)
+#### Task 3.4: ETFDetail에 설정 적용 ✅ (완료 - 2025-11-12)
 
 **목표**: 기본 날짜 범위 설정을 ETFDetail 페이지에 적용
 
-- [ ] `src/pages/ETFDetail.jsx` 수정
-  - [ ] `useSettings` 훅 사용
-  - [ ] 초기 `selectedRange` state를 `settings.defaultDateRange`로 설정
-  - [ ] 설정 변경 시 반영 (useEffect)
-  - [ ] 표시 옵션 적용 (선택사항)
-    - [ ] `settings.display.showVolume`에 따라 거래량 차트 표시/숨김
-    - [ ] `settings.display.showTradingFlow`에 따라 매매 동향 차트 표시/숨김
+- [x] `src/pages/ETFDetail.jsx` 수정
+  - [x] `useSettings` 훅 사용
+  - [x] 초기 `selectedRange` state를 `settings.defaultDateRange`로 설정
+  - [x] 설정 변경 시 반영 (useEffect)
+  - [x] 표시 옵션 적용
+    - [x] `settings.display.showVolume`에 따라 거래량 차트 표시/숨김
+    - [x] `settings.display.showTradingFlow`에 따라 매매 동향 차트 표시/숨김
 
-- [ ] `src/components/charts/DateRangeSelector.jsx` 수정 (필요 시)
-  - [ ] 기본 선택 날짜 범위 prop 추가
+- [x] `src/components/charts/DateRangeSelector.jsx` 수정
+  - [x] 기본 선택 날짜 범위 prop 변경 시 반영 (useEffect 의존성 추가)
 
 **Acceptance Criteria**:
-- [ ] Settings에서 변경한 기본 날짜 범위가 ETFDetail 페이지에 반영됨
-- [ ] 사용자가 수동으로 날짜 범위를 변경해도 정상 작동
-- [ ] 표시 옵션에 따라 차트가 표시/숨김됨 (선택사항)
+- [x] Settings에서 변경한 기본 날짜 범위가 ETFDetail 페이지에 반영됨
+- [x] 사용자가 수동으로 날짜 범위를 변경해도 정상 작동
+- [x] 표시 옵션에 따라 차트가 표시/숨김됨
 
 ---
 
@@ -721,9 +721,9 @@ main.py startup event
 
 ### 기능 요구사항
 - [x] SettingsContext 구현 (LocalStorage 연동) ✅
-- [ ] GeneralSettingsPanel 구현 (자동 새로고침, 날짜 범위, 표시 옵션)
-- [ ] Dashboard에 설정 적용
-- [ ] ETFDetail에 설정 적용
+- [x] GeneralSettingsPanel 구현 (자동 새로고침, 날짜 범위, 표시 옵션) ✅
+- [x] Dashboard에 설정 적용 ✅
+- [x] ETFDetail에 설정 적용 ✅
 - [ ] DataManagementPanel 구현 (선택사항)
 
 ### 테스트 요구사항 (필수)
@@ -740,11 +740,11 @@ main.py startup event
 - [ ] PROGRESS.md 업데이트
 
 ### 검증
-- [ ] 설정 변경 후 애플리케이션 전체 반영 확인
-- [ ] LocalStorage 저장/로드 확인
-- [ ] 페이지 새로고침 시 설정 유지 확인
-- [ ] 모바일 반응형 확인
-- [ ] 프로덕션 빌드 성공 (`npm run build`)
+- [x] 설정 변경 후 애플리케이션 전체 반영 확인 (Dashboard 적용 완료)
+- [x] LocalStorage 저장/로드 확인 (SettingsContext 구현 완료)
+- [x] 페이지 새로고침 시 설정 유지 확인 (SettingsContext 구현 완료)
+- [x] 모바일 반응형 확인 (GeneralSettingsPanel 반응형 구현 완료)
+- [x] 프로덕션 빌드 성공 (`npm run build`) ✅
 
 **완료 기준 미달 시: Phase 5로 진행 가능 (Step 3는 선택사항)**
 

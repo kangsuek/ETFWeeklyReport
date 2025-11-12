@@ -26,9 +26,9 @@ export default function LoadingIndicator({
 
       {/* 메시지 */}
       <div className="text-center">
-        <p className="text-lg font-medium text-gray-700 mb-2">{message}</p>
+        <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">{message}</p>
         {subMessage && (
-          <p className="text-sm text-gray-500">{subMessage}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{subMessage}</p>
         )}
       </div>
     </div>
@@ -36,7 +36,7 @@ export default function LoadingIndicator({
 
   if (overlay) {
     return (
-      <div className="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white dark:bg-gray-900 bg-opacity-90 dark:bg-opacity-90 flex items-center justify-center z-50 transition-colors">
         {content}
       </div>
     );

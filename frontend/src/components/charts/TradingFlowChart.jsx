@@ -47,13 +47,13 @@ const CustomTooltip = ({ active, payload }) => {
   const data = payload[0].payload
 
   return (
-    <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
-      <p className="text-sm font-semibold mb-2">
+    <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg transition-colors">
+      <p className="text-sm font-semibold mb-2 text-gray-900 dark:text-gray-100">
         {data.date ? format(new Date(data.date), 'yyyy년 MM월 dd일') : '-'}
       </p>
       <div className="space-y-1 text-xs">
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">개인:</span>
+          <span className="text-gray-600 dark:text-gray-400">개인:</span>
           <span
             className="font-semibold"
             style={{ color: getNetBuyingColor(data.individual_net * 1000) }}
@@ -62,7 +62,7 @@ const CustomTooltip = ({ active, payload }) => {
           </span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">기관:</span>
+          <span className="text-gray-600 dark:text-gray-400">기관:</span>
           <span
             className="font-semibold"
             style={{ color: getNetBuyingColor(data.institutional_net * 1000) }}
@@ -71,7 +71,7 @@ const CustomTooltip = ({ active, payload }) => {
           </span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600">외국인:</span>
+          <span className="text-gray-600 dark:text-gray-400">외국인:</span>
           <span
             className="font-semibold"
             style={{ color: getNetBuyingColor(data.foreign_net * 1000) }}
@@ -145,12 +145,12 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
   if (!chartData || chartData.length === 0) {
     return (
       <div
-        className="flex items-center justify-center bg-gray-50 rounded-lg"
+        className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors"
         style={{ height: `${finalHeight}px` }}
         role="img"
         aria-label="투자자별 매매 동향 차트 - 데이터 없음"
       >
-        <p className="text-gray-500">표시할 매매 동향 데이터가 없습니다.</p>
+        <p className="text-gray-500 dark:text-gray-400">표시할 매매 동향 데이터가 없습니다.</p>
       </div>
     )
   }
@@ -256,7 +256,16 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
             stroke="#6b7280"
             domain={yDomain}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip 
+            content={<CustomTooltip />}
+            wrapperStyle={{ outline: 'none' }}
+            contentStyle={{ 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              padding: 0,
+              boxShadow: 'none'
+            }}
+          />
           <Legend
             wrapperStyle={{ paddingTop: '20px' }}
             iconType="square"

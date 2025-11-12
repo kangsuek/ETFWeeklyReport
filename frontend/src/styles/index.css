@@ -4,7 +4,15 @@
 
 @layer base {
   body {
-    @apply text-gray-900 bg-gray-50;
+    color: #111827; /* text-gray-900 */
+    background-color: #f9fafb; /* bg-gray-50 */
+  }
+
+  /* 다크 모드 스타일 - html에 dark 클래스가 있을 때 */
+  html.dark body,
+  .dark body {
+    color: #f3f4f6; /* text-gray-100 */
+    background-color: #111827; /* bg-gray-900 */
   }
 
   html {
@@ -19,6 +27,11 @@
   /* Focus Styles for Accessibility */
   *:focus-visible {
     @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  }
+
+  html.dark *:focus-visible,
+  .dark *:focus-visible {
+    @apply ring-primary-400;
   }
 }
 
@@ -67,6 +80,11 @@
     @apply bg-white rounded-lg shadow-md p-6;
     @apply transition-all duration-300 ease-in-out;
     @apply hover:shadow-xl;
+  }
+
+  html.dark .card,
+  .dark .card {
+    @apply bg-gray-800 text-gray-100;
   }
 
   .card-interactive {

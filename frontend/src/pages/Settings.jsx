@@ -1,6 +1,6 @@
-import { useState } from 'react'
 import PageHeader from '../components/common/PageHeader'
 import TickerManagementPanel from '../components/settings/TickerManagementPanel'
+import GeneralSettingsPanel from '../components/settings/GeneralSettingsPanel'
 
 export default function Settings() {
   return (
@@ -13,6 +13,11 @@ export default function Settings() {
       {/* 종목 관리 섹션 */}
       <div className="mt-4 sm:mt-6">
         <TickerManagementPanel />
+      </div>
+
+      {/* 일반 설정 섹션 */}
+      <div className="mt-6 sm:mt-8">
+        <GeneralSettingsPanel />
       </div>
     </div>
   )

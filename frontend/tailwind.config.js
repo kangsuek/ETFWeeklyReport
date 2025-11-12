@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,jsx}",
   ],
+  darkMode: 'class', // 클래스 기반 다크 모드
   theme: {
     extend: {
       colors: {

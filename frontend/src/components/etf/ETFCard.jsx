@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { etfApi, newsApi } from '../../services/api'
 
-export default function ETFCard({ etf }) {
+export default function ETFCard({ etf, compactMode = false }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
   // 최신 가격 데이터 조회 (5일치 - 주간 수익률 및 차트용)
   const { data: prices, isLoading: pricesLoading } = useQuery({
@@ -153,7 +153,8 @@ export default function ETFCard({ etf }) {
               y1={0}
               x2={candle.x}
               y2={height}
-              stroke="#e5e7eb"
+              stroke="currentColor"
+              className="text-gray-200 dark:text-gray-700"
               strokeWidth="0.5"
               strokeDasharray="2,2"
             />
@@ -209,7 +210,7 @@ export default function ETFCard({ etf }) {
 
         {/* 툴팁 */}
         {hoveredPoint !== null && candles[hoveredPoint] && (
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-10 pointer-events-none">
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 dark:bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10 pointer-events-none border border-gray-700 dark:border-gray-600">
             <div className="font-semibold mb-1">{formatChartDate(candles[hoveredPoint].data.date)}</div>
             <div className="grid grid-cols-2 gap-x-2 text-xs">
               <div className="text-gray-300">시가:</div>
@@ -232,11 +233,11 @@ export default function ETFCard({ etf }) {
 
   return (
     <Link to={`/etf/${etf.ticker}`} className="block group">
-      <div className="card-interactive animate-fadeInUp">
+      <div className={`card-interactive animate-fadeInUp ${compactMode ? 'p-3' : ''}`}>
         {/* 헤더: 종목명 + 타입 뱃지 */}
         <div className="mb-3">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-bold flex-1 leading-tight group-hover:text-primary-600 transition-colors">
+            <h3 className="text-lg font-bold flex-1 leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors text-gray-900 dark:text-gray-100">
               {etf.name}
             </h3>
             <span className={`badge ${
@@ -245,7 +246,7 @@ export default function ETFCard({ etf }) {
               {etf.type}
             </span>
           </div>
-          <p className="text-sm text-gray-600">{etf.theme}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{etf.theme}</p>
         </div>
 
         {/* 가격 정보 */}
@@ -256,10 +257,10 @@ export default function ETFCard({ etf }) {
             <div className="skeleton-text h-4 w-1/2"></div>
           </div>
         ) : latestPrice ? (
-          <div className="mb-4 py-3 border-t border-b border-gray-100">
+          <div className="mb-4 py-3 border-t border-b border-gray-100 dark:border-gray-700">
             {/* 종가 & 등락률 */}
             <div className="flex items-baseline justify-between mb-2">
-              <span className="text-2xl font-bold">{formatPrice(latestPrice.close_price)}</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</span>
               <span className={`text-sm font-semibold ${getChangeColor(latestPrice.daily_change_pct)}`}>
                 {formatChange(latestPrice.daily_change_pct)}
               </span>
@@ -268,21 +269,21 @@ export default function ETFCard({ etf }) {
             {/* 시가/고가/저가 */}
             <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
               <div>
-                <span className="text-gray-500">시가</span>
-                <div className="font-medium">{formatPrice(latestPrice.open_price)}</div>
+                <span className="text-gray-500 dark:text-gray-400">시가</span>
+                <div className="font-medium text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.open_price)}</div>
               </div>
               <div>
-                <span className="text-gray-500">고가</span>
-                <div className="font-medium text-red-600">{formatPrice(latestPrice.high_price)}</div>
+                <span className="text-gray-500 dark:text-gray-400">고가</span>
+                <div className="font-medium text-red-600 dark:text-red-400">{formatPrice(latestPrice.high_price)}</div>
               </div>
               <div>
-                <span className="text-gray-500">저가</span>
-                <div className="font-medium text-blue-600">{formatPrice(latestPrice.low_price)}</div>
+                <span className="text-gray-500 dark:text-gray-400">저가</span>
+                <div className="font-medium text-blue-600 dark:text-blue-400">{formatPrice(latestPrice.low_price)}</div>
               </div>
             </div>
 
             {/* 거래량 & 주간수익률 */}
-            <div className="flex justify-between text-xs text-gray-500 border-t border-gray-100 pt-2">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-2">
               <span>거래량: {formatVolume(latestPrice.volume)}</span>
               {weeklyReturn !== null && (
                 <span className={`font-semibold ${getChangeColor(weeklyReturn)}`}>
@@ -292,36 +293,36 @@ export default function ETFCard({ etf }) {
             </div>
 
             {/* 미니 차트 (전체 너비) */}
-            <div className="mt-2 pt-2 border-t border-gray-100">
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
               {renderMiniChart()}
             </div>
           </div>
         ) : (
-          <div className="py-4 text-center text-sm text-gray-400">
+          <div className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
             가격 정보 없음
           </div>
         )}
 
         {/* 매매 동향 */}
         {latestTradingFlow && (
-          <div className="mb-3 pb-3 border-b border-gray-100">
-            <div className="text-xs text-gray-500 mb-1">매매 동향 ({latestTradingFlow.date})</div>
+          <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">매매 동향 ({latestTradingFlow.date})</div>
             <div className="grid grid-cols-3 gap-1 text-xs">
               <div className="text-center">
-                <div className="text-gray-500">개인</div>
-                <div className={`font-semibold ${latestTradingFlow.individual_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                <div className="text-gray-500 dark:text-gray-400">개인</div>
+                <div className={`font-semibold ${latestTradingFlow.individual_net > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                   {formatTradingValue(latestTradingFlow.individual_net)}
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-gray-500">기관</div>
-                <div className={`font-semibold ${latestTradingFlow.institutional_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                <div className="text-gray-500 dark:text-gray-400">기관</div>
+                <div className={`font-semibold ${latestTradingFlow.institutional_net > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                   {formatTradingValue(latestTradingFlow.institutional_net)}
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-gray-500">외국인</div>
-                <div className={`font-semibold ${latestTradingFlow.foreign_net > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                <div className="text-gray-500 dark:text-gray-400">외국인</div>
+                <div className={`font-semibold ${latestTradingFlow.foreign_net > 0 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                   {formatTradingValue(latestTradingFlow.foreign_net)}
                 </div>
               </div>
@@ -331,17 +332,17 @@ export default function ETFCard({ etf }) {
 
         {/* 뉴스 */}
         {news && news.length > 0 && (
-          <div className="mb-3 pb-3 border-b border-gray-100">
+          <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-gray-500">최근 뉴스</span>
+              <span className="text-gray-500 dark:text-gray-400">최근 뉴스</span>
               <span className="badge badge-primary">{news.length}건</span>
             </div>
-            <div className="text-xs text-gray-600 truncate-2-lines">{news[0].title}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-300 truncate-2-lines">{news[0].title}</div>
           </div>
         )}
 
         {/* 하단 정보 */}
-        <div className="flex justify-between items-center text-xs text-gray-500">
+        <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
           <span>{etf.ticker}</span>
           {etf.expense_ratio && <span>수수료: {etf.expense_ratio}%</span>}
         </div>
