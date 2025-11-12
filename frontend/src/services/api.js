@@ -154,6 +154,12 @@ export const dataApi = {
 
   // 스케줄러 상태 조회 (마지막 수집 시간 포함)
   getSchedulerStatus: () => api.get('/data/scheduler-status'),
+
+  // 데이터베이스 통계 조회
+  getStats: () => api.get('/data/stats'),
+
+  // 데이터베이스 초기화 (위험!)
+  reset: () => api.delete('/data/reset'),
 }
 
 // Health Check API

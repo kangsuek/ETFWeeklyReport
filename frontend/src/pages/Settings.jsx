@@ -1,6 +1,7 @@
 import PageHeader from '../components/common/PageHeader'
 import TickerManagementPanel from '../components/settings/TickerManagementPanel'
 import GeneralSettingsPanel from '../components/settings/GeneralSettingsPanel'
+import DataManagementPanel from '../components/settings/DataManagementPanel'
 
 export default function Settings() {
   return (
@@ -18,6 +19,11 @@ export default function Settings() {
       {/* 일반 설정 섹션 */}
       <div className="mt-6 sm:mt-8">
         <GeneralSettingsPanel />
+      </div>
+
+      {/* 데이터 관리 섹션 */}
+      <div className="mt-6 sm:mt-8">
+        <DataManagementPanel />
       </div>
     </div>
   )

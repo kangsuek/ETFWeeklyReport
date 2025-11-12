@@ -5,7 +5,7 @@
     "theme": "AI/전력 인프라",
     "launch_date": "2024-03-15",
     "expense_ratio": 0.0045,
-    "search_keyword": "AI 전력",
+    "search_keyword": "AI 전력 ETF",
     "relevance_keywords": [
       "AI",
       "전력",
@@ -14,8 +14,7 @@
       "디지털전환",
       "HD현대일렉트릭",
       "변압기",
-      "배전",
-      "반도체"
+      "배전"
     ]
   },
   "466920": {
@@ -24,17 +23,17 @@
     "theme": "조선/친환경선박",
     "launch_date": "2023-08-10",
     "expense_ratio": 0.005,
-    "search_keyword": "조선",
+    "search_keyword": "조선 ETF",
     "relevance_keywords": [
       "조선",
+      "ETF",
       "LNG선",
       "친환경선박",
       "HD한국조선해양",
       "한화오션",
       "HD현대중공업",
       "수주잔고",
-      "글로벌해운",
-      "선박"
+      "글로벌해운"
     ]
   },
   "0020H0": {
@@ -43,16 +42,17 @@
     "theme": "양자컴퓨팅/글로벌 혁신",
     "launch_date": "2024-05-20",
     "expense_ratio": 0.007,
-    "search_keyword": "양자컴퓨팅",
+    "search_keyword": "글로벌 양자컴퓨팅 ETF",
     "relevance_keywords": [
       "양자컴퓨팅",
-      "양자컴퓨터",
+      "퀀텀",
+      "ETF",
       "RGTI",
-      "Rigetti",
-      "IBM",
+      "Nvidia",
       "Google",
       "양자기술",
-      "큐비트"
+      "혁신기술주",
+      "미국기술주"
     ]
   },
   "442320": {
@@ -61,15 +61,13 @@
     "theme": "글로벌 원자력/에너지 전환",
     "launch_date": "2024-01-25",
     "expense_ratio": 0.0055,
-    "search_keyword": "원자력",
+    "search_keyword": "글로벌 원자력 ETF",
     "relevance_keywords": [
       "원자력",
-      "원전",
       "Uranium",
       "SMR",
       "두산에너빌리티",
-      "클린에너지",
-      "핵발전"
+      "클린에너지"
     ]
   },
   "042660": {

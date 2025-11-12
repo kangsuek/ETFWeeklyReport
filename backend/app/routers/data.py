@@ -189,3 +189,138 @@ async def get_scheduler_status():
         logger.error(f"Unexpected error getting scheduler status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get scheduler status. Please try again later.")
 
+
+@router.get("/stats")
+async def get_data_stats():
+    """
+    데이터베이스 통계 조회
+
+    각 테이블의 레코드 수와 마지막 수집 시간을 반환합니다.
+
+    **Example Response:**
+    ```json
+    {
+      "etfs": 6,
+      "prices": 1500,
+      "news": 250,
+      "trading_flow": 180,
+      "last_collection": "2025-11-12T10:30:00",
+      "database_size_mb": 2.5
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 500: 서버 오류
+    """
+    try:
+        from app.database import get_db_connection, DB_PATH
+        import os
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # 각 테이블의 레코드 수 조회
+            cursor.execute("SELECT COUNT(*) FROM etfs")
+            etfs_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM prices")
+            prices_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM news")
+            news_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM trading_flow")
+            trading_flow_count = cursor.fetchone()[0]
+
+            # 마지막 수집 시간 (스케줄러 상태에서 가져옴)
+            scheduler = get_scheduler()
+            status = scheduler.get_status()
+            last_collection = status.get("last_run")
+
+            # 데이터베이스 파일 크기 (MB)
+            db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0
+            db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
+
+            return {
+                "etfs": etfs_count,
+                "prices": prices_count,
+                "news": news_count,
+                "trading_flow": trading_flow_count,
+                "last_collection": last_collection,
+                "database_size_mb": db_size_mb
+            }
+    except sqlite3.Error as e:
+        logger.error(f"Database error getting stats: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except Exception as e:
+        logger.error(f"Unexpected error getting stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get stats. Please try again later.")
+
+
+@router.delete("/reset")
+async def reset_database():
+    """
+    데이터베이스 초기화 (위험!)
+
+    prices, news, trading_flow 테이블의 모든 데이터를 삭제합니다.
+    etfs 테이블은 유지됩니다.
+
+    **⚠️ 경고: 이 작업은 되돌릴 수 없습니다!**
+
+    **Example Response:**
+    ```json
+    {
+      "message": "Database reset successfully",
+      "deleted": {
+        "prices": 1500,
+        "news": 250,
+        "trading_flow": 180
+      }
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 500: 서버 오류
+    """
+    try:
+        from app.database import get_db_connection
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # 삭제 전 레코드 수 확인
+            cursor.execute("SELECT COUNT(*) FROM prices")
+            prices_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM news")
+            news_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM trading_flow")
+            trading_flow_count = cursor.fetchone()[0]
+
+            # 테이블 데이터 삭제 (etfs 제외)
+            cursor.execute("DELETE FROM prices")
+            cursor.execute("DELETE FROM news")
+            cursor.execute("DELETE FROM trading_flow")
+
+            conn.commit()
+
+            logger.warning(f"Database reset: deleted {prices_count} prices, {news_count} news, {trading_flow_count} trading_flow records")
+
+            return {
+                "message": "Database reset successfully",
+                "deleted": {
+                    "prices": prices_count,
+                    "news": news_count,
+                    "trading_flow": trading_flow_count
+                }
+            }
+    except sqlite3.Error as e:
+        logger.error(f"Database error during reset: {e}")
+        raise HTTPException(status_code=500, detail="Database error during reset")
+    except Exception as e:
+        logger.error(f"Unexpected error during reset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to reset database. Please try again later.")
+
