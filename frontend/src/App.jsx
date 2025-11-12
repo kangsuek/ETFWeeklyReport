@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SettingsProvider } from './contexts/SettingsContext'
 import Header from './components/layout/Header'
 import Footer from './components/layout/Footer'
 import Dashboard from './pages/Dashboard'
@@ -20,20 +21,22 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="flex flex-col min-h-screen bg-gray-50">
-          <Header />
-          <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/etf/:ticker" element={<ETFDetail />} />
-              <Route path="/compare" element={<Comparison />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </Router>
+      <SettingsProvider>
+        <Router>
+          <div className="flex flex-col min-h-screen bg-gray-50">
+            <Header />
+            <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/etf/:ticker" element={<ETFDetail />} />
+                <Route path="/compare" element={<Comparison />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </Router>
+      </SettingsProvider>
     </QueryClientProvider>
   )
 }

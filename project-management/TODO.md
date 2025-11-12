@@ -433,24 +433,362 @@ main.py startup event
 
 ---
 
-### Step 3: 추가 환경설정 옵션 (선택사항) (약 0.5-1시간)
+### Step 3: 추가 환경설정 옵션 (선택사항) (약 3-4시간)
 
-#### Task 3.1: 일반 설정 패널 (0.5시간)
-- [ ] `GeneralSettingsPanel.jsx` 컴포넌트 생성
-  - [ ] 자동 새로고침 간격 설정 (1분/5분/10분/꺼짐)
-  - [ ] 기본 날짜 범위 설정 (7일/1개월/3개월)
-  - [ ] 테마 설정 (라이트/다크 모드) - Phase 7로 연기 가능
-  - [ ] LocalStorage에 저장
+**목표**: 사용자 경험 개선을 위한 추가 환경 설정 옵션 구현
 
-#### Task 3.2: 데이터 관리 패널 (선택사항)
-- [ ] `DataManagementPanel.jsx` 컴포넌트 생성
-  - [ ] 전체 데이터 수집 트리거 버튼
-  - [ ] 데이터베이스 초기화 버튼 (위험)
-  - [ ] 데이터 통계 표시 (총 가격 레코드 수, 뉴스 수 등)
+**핵심 개념**:
+- **LocalStorage 기반 설정 저장**: 사용자 설정을 브라우저에 저장하여 페이지 새로고침 시에도 유지
+- **React Context API**: 전역 설정 상태 관리
+- **설정 즉시 반영**: 설정 변경 시 애플리케이션 전체에 즉시 반영
+
+**설정 스키마** (LocalStorage: `app_settings`):
+```json
+{
+  "autoRefresh": {
+    "enabled": true,
+    "interval": 30000  // milliseconds (30초/1분/5분/10분/꺼짐)
+  },
+  "defaultDateRange": "1M",  // "7D" | "1M" | "3M"
+  "theme": "light",  // "light" | "dark" (Phase 7로 연기 가능)
+  "display": {
+    "showVolume": true,
+    "showTradingFlow": true,
+    "compactMode": false
+  }
+}
+```
+
+---
+
+#### Task 3.1: 설정 관리 시스템 구현 ✅ (완료 - 2025-11-12)
+
+**목표**: 전역 설정 상태 관리 및 LocalStorage 연동
+
+##### Subtask 3.1.1: Settings Context 생성 ✅ (완료)
+- [x] `src/contexts/SettingsContext.jsx` 생성
+  - [x] `SettingsProvider` 컴포넌트
+    - [x] LocalStorage에서 초기 설정 로드
+    - [x] 기본값 정의 (DEFAULT_SETTINGS)
+    - [x] Context 상태 관리
+  - [x] `useSettings` 커스텀 훅
+    - [x] `settings` - 현재 설정 객체 반환
+    - [x] `updateSettings(key, value)` - 설정 업데이트 + LocalStorage 저장
+    - [x] `resetSettings()` - 기본값으로 초기화
+  - [x] 설정 스키마 및 유효성 검증
+    - [x] `validateSettings(settings)` - 설정 객체 검증
+    - [x] 잘못된 설정 시 기본값으로 폴백
+
+##### Subtask 3.1.2: App.jsx에 Context 적용 ✅ (완료)
+- [x] `src/App.jsx` 수정
+  - [x] `SettingsProvider`로 전체 앱 감싸기
+  - [x] 기존 컴포넌트에 설정 적용 준비
 
 **Acceptance Criteria**:
-- [ ] 설정 저장 및 불러오기 정상 작동
-- [ ] LocalStorage 사용
+- [x] SettingsContext 정상 작동
+- [x] LocalStorage 읽기/쓰기 정상 작동
+- [x] 설정 변경 시 Context 업데이트 확인
+- [x] 페이지 새로고침 시 설정 유지 확인
+
+---
+
+#### Task 3.2: 일반 설정 패널 구현 (1-1.5시간)
+
+**목표**: 사용자 설정 UI 구현
+
+##### Subtask 3.2.1: GeneralSettingsPanel 컴포넌트 생성 (1시간)
+- [ ] `src/components/settings/GeneralSettingsPanel.jsx` 생성
+  - [ ] **자동 새로고침 설정 섹션**:
+    - [ ] 자동 새로고침 활성화/비활성화 토글 스위치
+    - [ ] 새로고침 간격 선택 라디오 버튼
+      - [ ] 30초 (30000ms)
+      - [ ] 1분 (60000ms)
+      - [ ] 5분 (300000ms)
+      - [ ] 10분 (600000ms)
+    - [ ] 현재 설정 표시 (예: "자동 갱신: 30초마다")
+  - [ ] **기본 날짜 범위 설정 섹션**:
+    - [ ] 날짜 범위 선택 드롭다운
+      - [ ] 7일 ("7D")
+      - [ ] 1개월 ("1M")
+      - [ ] 3개월 ("3M")
+    - [ ] 설명: "Detail 페이지에서 기본으로 표시할 날짜 범위"
+  - [ ] **표시 옵션 섹션**:
+    - [ ] 거래량 표시 토글 (showVolume)
+    - [ ] 매매 동향 표시 토글 (showTradingFlow)
+    - [ ] 컴팩트 모드 토글 (compactMode) - 카드 크기 축소
+  - [ ] **테마 설정 섹션** (선택사항, Phase 7로 연기 가능):
+    - [ ] 라이트/다크 모드 선택
+    - [ ] 시스템 설정 따르기 옵션
+  - [ ] 설정 변경 시 즉시 저장 (onChange 핸들러)
+  - [ ] 기본값으로 초기화 버튼
+  - [ ] 저장 완료 토스트 알림 (선택사항)
+
+##### Subtask 3.2.2: Settings 페이지에 통합 (0.5시간)
+- [ ] `src/pages/Settings.jsx` 수정
+  - [ ] GeneralSettingsPanel 컴포넌트 추가
+  - [ ] 탭 UI 구현 (선택사항)
+    - [ ] "종목 관리" 탭 (TickerManagementPanel)
+    - [ ] "일반 설정" 탭 (GeneralSettingsPanel)
+    - [ ] "데이터 관리" 탭 (DataManagementPanel, 선택사항)
+  - [ ] 섹션 구분 (탭이 없을 경우)
+    - [ ] 종목 관리 섹션
+    - [ ] 일반 설정 섹션
+    - [ ] 데이터 관리 섹션 (선택사항)
+
+**Acceptance Criteria**:
+- [ ] GeneralSettingsPanel 정상 렌더링
+- [ ] 설정 변경 시 LocalStorage 업데이트 확인
+- [ ] 설정 변경 시 Context 상태 업데이트 확인
+- [ ] 모바일 반응형 동작 확인
+
+---
+
+#### Task 3.3: Dashboard에 설정 적용 (0.5시간)
+
+**목표**: 자동 새로고침 설정을 Dashboard에 적용
+
+- [ ] `src/pages/Dashboard.jsx` 수정
+  - [ ] `useSettings` 훅 사용
+  - [ ] 하드코딩된 `autoRefresh` state 제거
+  - [ ] 하드코딩된 30초 간격을 `settings.autoRefresh.interval`로 변경
+  - [ ] 자동 새로고침 토글 체크박스를 `settings.autoRefresh.enabled`와 연동
+  - [ ] 설정 변경 시 즉시 반영 (useEffect 의존성)
+  - [ ] 컴팩트 모드 적용 (선택사항)
+    - [ ] `settings.display.compactMode`에 따라 카드 크기 조정
+
+**Acceptance Criteria**:
+- [ ] Settings에서 변경한 자동 새로고침 설정이 Dashboard에 즉시 반영됨
+- [ ] Dashboard의 자동 새로고침 토글과 Settings가 동기화됨
+- [ ] 페이지 새로고침 시 설정 유지 확인
+
+---
+
+#### Task 3.4: ETFDetail에 설정 적용 (0.5시간)
+
+**목표**: 기본 날짜 범위 설정을 ETFDetail 페이지에 적용
+
+- [ ] `src/pages/ETFDetail.jsx` 수정
+  - [ ] `useSettings` 훅 사용
+  - [ ] 초기 `selectedRange` state를 `settings.defaultDateRange`로 설정
+  - [ ] 설정 변경 시 반영 (useEffect)
+  - [ ] 표시 옵션 적용 (선택사항)
+    - [ ] `settings.display.showVolume`에 따라 거래량 차트 표시/숨김
+    - [ ] `settings.display.showTradingFlow`에 따라 매매 동향 차트 표시/숨김
+
+- [ ] `src/components/charts/DateRangeSelector.jsx` 수정 (필요 시)
+  - [ ] 기본 선택 날짜 범위 prop 추가
+
+**Acceptance Criteria**:
+- [ ] Settings에서 변경한 기본 날짜 범위가 ETFDetail 페이지에 반영됨
+- [ ] 사용자가 수동으로 날짜 범위를 변경해도 정상 작동
+- [ ] 표시 옵션에 따라 차트가 표시/숨김됨 (선택사항)
+
+---
+
+#### Task 3.5: 데이터 관리 패널 구현 (선택사항) (0.5-1시간)
+
+**목표**: 데이터 수집 및 관리 기능 제공
+
+##### Subtask 3.5.1: DataManagementPanel 컴포넌트 생성
+- [ ] `src/components/settings/DataManagementPanel.jsx` 생성
+  - [ ] **데이터 통계 섹션**:
+    - [ ] 총 종목 수
+    - [ ] 총 가격 레코드 수 (API: `GET /api/data/stats`)
+    - [ ] 총 뉴스 수
+    - [ ] 총 매매 동향 레코드 수
+    - [ ] 마지막 수집 시간 (스케줄러 상태)
+    - [ ] 데이터베이스 크기 (선택사항)
+  - [ ] **데이터 수집 섹션**:
+    - [ ] "전체 데이터 수집" 버튼
+      - [ ] 클릭 시 `POST /api/data/collect` API 호출
+      - [ ] 로딩 스피너 표시
+      - [ ] 성공/실패 토스트 알림
+      - [ ] 수집 진행 상황 표시 (선택사항)
+    - [ ] "특정 기간 데이터 수집" 폼 (선택사항)
+      - [ ] 시작일/종료일 입력
+      - [ ] 종목 선택 (멀티 선택)
+  - [ ] **위험 작업 섹션** (빨간색 경고):
+    - [ ] "데이터베이스 초기화" 버튼
+      - [ ] 클릭 시 확인 모달 표시
+      - [ ] "정말 모든 데이터를 삭제하시겠습니까?" 경고
+      - [ ] 비밀번호 입력 (선택사항)
+      - [ ] `DELETE /api/data/reset` API 호출 (백엔드 구현 필요)
+      - [ ] 삭제 후 페이지 새로고침
+
+##### Subtask 3.5.2: 백엔드 API 추가 (필요 시)
+- [ ] `app/routers/data.py` 수정 (또는 새 라우터)
+  - [ ] `GET /api/data/stats` - 데이터 통계 조회
+    - [ ] 각 테이블의 레코드 수 카운트
+    - [ ] 응답 예시:
+      ```json
+      {
+        "etfs": 6,
+        "prices": 1500,
+        "news": 250,
+        "trading_flow": 180,
+        "last_collection": "2025-11-12T10:30:00"
+      }
+      ```
+  - [ ] `DELETE /api/data/reset` - 데이터베이스 초기화 (선택사항)
+    - [ ] **매우 위험**: 모든 데이터 삭제
+    - [ ] 인증 토큰 필요 (선택사항)
+    - [ ] `etfs` 테이블 제외 (stocks.json 동기화 유지)
+    - [ ] CASCADE 삭제 (prices, news, trading_flow)
+
+**Acceptance Criteria**:
+- [ ] 데이터 통계 정상 표시
+- [ ] 전체 데이터 수집 버튼 정상 작동
+- [ ] 데이터베이스 초기화 버튼 정상 작동 (선택사항)
+- [ ] 확인 모달 및 경고 메시지 표시
+
+---
+
+#### Task 3.6: 테스트 작성 (1시간)
+
+**목표**: 모든 새 기능에 대한 테스트 작성
+
+##### Subtask 3.6.1: SettingsContext 테스트
+- [ ] `src/contexts/SettingsContext.test.jsx` 생성
+  - [ ] Context Provider 렌더링 테스트
+  - [ ] `useSettings` 훅 테스트
+  - [ ] 설정 업데이트 테스트
+  - [ ] LocalStorage 읽기/쓰기 테스트
+  - [ ] 설정 초기화 테스트
+  - [ ] 잘못된 설정 폴백 테스트
+
+##### Subtask 3.6.2: GeneralSettingsPanel 테스트
+- [ ] `src/components/settings/GeneralSettingsPanel.test.jsx` 생성
+  - [ ] 기본 렌더링 테스트 (3개 테스트)
+  - [ ] 자동 새로고침 설정 변경 테스트 (5개 테스트)
+    - [ ] 토글 스위치 클릭
+    - [ ] 간격 선택 (30초/1분/5분/10분)
+    - [ ] 설정 저장 확인
+  - [ ] 날짜 범위 설정 변경 테스트 (3개 테스트)
+  - [ ] 표시 옵션 변경 테스트 (3개 테스트)
+  - [ ] 초기화 버튼 테스트 (2개 테스트)
+
+##### Subtask 3.6.3: DataManagementPanel 테스트 (선택사항)
+- [ ] `src/components/settings/DataManagementPanel.test.jsx` 생성
+  - [ ] 데이터 통계 렌더링 테스트 (5개 테스트)
+  - [ ] 데이터 수집 버튼 테스트 (3개 테스트)
+  - [ ] 데이터베이스 초기화 테스트 (3개 테스트)
+
+##### Subtask 3.6.4: 통합 테스트
+- [ ] `src/pages/Settings.test.jsx` 수정
+  - [ ] GeneralSettingsPanel 통합 테스트
+  - [ ] 탭 전환 테스트 (탭 UI 사용 시)
+  - [ ] 설정 변경 후 Dashboard 반영 테스트
+
+##### Subtask 3.6.5: MSW 핸들러 추가
+- [ ] `src/test/mocks/handlers.js` 수정
+  - [ ] `GET /api/data/stats` - Mock 데이터 통계
+  - [ ] `POST /api/data/collect` - Mock 데이터 수집 응답
+  - [ ] `DELETE /api/data/reset` - Mock 초기화 응답 (선택사항)
+
+**Acceptance Criteria**:
+- [ ] 모든 테스트 통과 (최소 20개 테스트)
+- [ ] 테스트 커버리지 70% 이상 유지
+- [ ] LocalStorage Mock 테스트 통과
+
+---
+
+#### Task 3.7: UI/UX 개선 및 최종 검증 (0.5시간)
+
+**목표**: 사용자 경험 개선 및 최종 테스트
+
+##### Subtask 3.7.1: UI 개선
+- [ ] 설정 변경 시 시각적 피드백 (토스트 알림 또는 체크 아이콘)
+- [ ] 로딩 상태 표시 (데이터 수집 시)
+- [ ] 에러 처리 및 폴백 UI
+- [ ] 접근성 개선 (ARIA 라벨, 키보드 네비게이션)
+
+##### Subtask 3.7.2: 최종 검증
+- [ ] 설정 변경 → Dashboard 반영 수동 테스트
+- [ ] 설정 변경 → ETFDetail 반영 수동 테스트
+- [ ] 페이지 새로고침 → 설정 유지 확인
+- [ ] 모바일 반응형 확인
+- [ ] 크로스 브라우저 테스트 (Chrome, Safari, Firefox)
+
+**Acceptance Criteria**:
+- [ ] 모든 설정 변경이 즉시 반영됨
+- [ ] 설정 변경 시 시각적 피드백 제공
+- [ ] 모바일 반응형 동작 확인
+- [ ] 접근성 체크리스트 통과
+
+---
+
+## Phase 4.5 Step 3 최종 완료 기준
+
+### 기능 요구사항
+- [x] SettingsContext 구현 (LocalStorage 연동) ✅
+- [ ] GeneralSettingsPanel 구현 (자동 새로고침, 날짜 범위, 표시 옵션)
+- [ ] Dashboard에 설정 적용
+- [ ] ETFDetail에 설정 적용
+- [ ] DataManagementPanel 구현 (선택사항)
+
+### 테스트 요구사항 (필수)
+- [ ] SettingsContext 테스트 (최소 8개 테스트)
+- [ ] GeneralSettingsPanel 테스트 (최소 16개 테스트)
+- [ ] DataManagementPanel 테스트 (선택사항, 11개 테스트)
+- [ ] 통합 테스트 (Settings 페이지)
+- [ ] **모든 테스트 100% 통과**
+- [ ] **테스트 커버리지 70% 이상 유지** (현재 81.98%)
+
+### 문서화
+- [ ] SettingsContext 사용법 문서화 (JSDoc)
+- [ ] 설정 스키마 문서화
+- [ ] PROGRESS.md 업데이트
+
+### 검증
+- [ ] 설정 변경 후 애플리케이션 전체 반영 확인
+- [ ] LocalStorage 저장/로드 확인
+- [ ] 페이지 새로고침 시 설정 유지 확인
+- [ ] 모바일 반응형 확인
+- [ ] 프로덕션 빌드 성공 (`npm run build`)
+
+**완료 기준 미달 시: Phase 5로 진행 가능 (Step 3는 선택사항)**
+
+---
+
+## 작업 우선순위
+
+1. **High Priority** (필수)
+   - SettingsContext 구현
+   - GeneralSettingsPanel 구현 (자동 새로고침, 날짜 범위)
+   - Dashboard/ETFDetail에 설정 적용
+   - 테스트 작성
+
+2. **Medium Priority** (권장)
+   - 표시 옵션 (거래량, 매매 동향, 컴팩트 모드)
+   - DataManagementPanel 구현 (데이터 통계, 수집 버튼)
+
+3. **Low Priority** (선택사항)
+   - 테마 설정 (다크 모드, Phase 7로 연기 가능)
+   - 데이터베이스 초기화 기능
+   - 탭 UI (섹션 구분으로 대체 가능)
+
+---
+
+## 리스크 및 대응 방안
+
+### 리스크 1: LocalStorage 용량 제한
+- **문제**: LocalStorage는 5-10MB 제한
+- **대응**: 설정 데이터만 저장 (매우 작음, ~1KB), 문제없음
+
+### 리스크 2: Context 렌더링 성능
+- **문제**: Context 변경 시 전체 컴포넌트 리렌더링
+- **대응**: useMemo, React.memo 사용, 설정 변경 빈도 낮음
+
+### 리스크 3: 시간 초과
+- **문제**: 예상 시간 초과 (3-4시간)
+- **대응**: DataManagementPanel을 Phase 7로 연기, 테마 설정 제외
+
+---
+
+**예상 총 소요 시간**: 3-4시간 (DataManagementPanel 포함 시 4-5시간)
+**목표 완료일**: 2025-11-13 (선택사항이므로 Phase 5와 병행 가능)
+
+**Step 3는 선택사항이므로 Phase 5 진행에 필수는 아닙니다.**
 
 ---
 
