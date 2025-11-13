@@ -51,7 +51,7 @@
 > **참고**: 상세 계획은 [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) 참조
 
 ### 6.2.1 불완전한 구현 완성
-- [ ] `data_collector.py:446` - TODO 주석 제거 및 주석 수정
+- [x] `data_collector.py:446` - TODO 주석 제거 및 주석 수정
 
 ### 6.2.2 하드코딩된 값 개선
 - [ ] `config.py:32-34` - SCRAPING_INTERVAL 상수화

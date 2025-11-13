@@ -442,8 +442,20 @@ class ETFDataCollector:
             return None
 
     def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[PriceData]:
-        """Get price data for date range"""
-        # TODO: Implement actual data collection from Naver Finance
+        """
+        데이터베이스에서 가격 데이터 조회
+        
+        지정된 날짜 범위의 가격 데이터를 데이터베이스에서 조회합니다.
+        데이터 수집은 collect_and_save_prices 메서드를 통해 별도로 수행됩니다.
+        
+        Args:
+            ticker: 종목 코드
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+        
+        Returns:
+            PriceData 리스트 (날짜 내림차순 정렬)
+        """
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}")
 
         with get_db_connection() as conn:
@@ -458,7 +470,20 @@ class ETFDataCollector:
             return [PriceData(**dict(row)) for row in rows]
     
     def get_trading_flow(self, ticker: str, start_date: date, end_date: date) -> List[TradingFlow]:
-        """Get trading flow data"""
+        """
+        데이터베이스에서 매매 동향 데이터 조회
+        
+        지정된 날짜 범위의 매매 동향 데이터를 데이터베이스에서 조회합니다.
+        데이터 수집은 collect_and_save_trading_flow 메서드를 통해 별도로 수행됩니다.
+        
+        Args:
+            ticker: 종목 코드
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+        
+        Returns:
+            TradingFlow 리스트 (날짜 내림차순 정렬)
+        """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
         
         with get_db_connection() as conn:
