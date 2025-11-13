@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useToast } from '../../contexts/ToastContext'
 import { dataApi } from '../../services/api'
 
 /**
@@ -8,6 +9,7 @@ import { dataApi } from '../../services/api'
  */
 export default function DataManagementPanel() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [isResetModalOpen, setIsResetModalOpen] = useState(false)
   const [collectionDays, setCollectionDays] = useState(10)
 
@@ -29,15 +31,16 @@ export default function DataManagementPanel() {
     },
     onSuccess: (data) => {
       // 성공 메시지 표시
-      alert(
-        `데이터 수집 완료!\n\n수집된 데이터:\n- 가격: ${data.result.total_price_records}건\n- 매매 동향: ${data.result.total_trading_flow_records}건\n- 뉴스: ${data.result.total_news_records}건\n\n최신 데이터를 반영합니다.`
+      toast.success(
+        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건`,
+        5000
       )
 
       // 모든 캐시 무효화하여 최신 데이터 반영
       queryClient.invalidateQueries()
     },
     onError: (error) => {
-      alert(`데이터 수집 실패: ${error.message}`)
+      toast.error(`데이터 수집 실패: ${error.message}`)
     },
   })
 
@@ -51,18 +54,19 @@ export default function DataManagementPanel() {
       setIsResetModalOpen(false)
 
       // 성공 메시지 표시
-      alert(
-        `데이터베이스 초기화 완료\n\n삭제된 데이터:\n- 가격: ${data.deleted.prices}건\n- 뉴스: ${data.deleted.news}건\n- 매매 동향: ${data.deleted.trading_flow}건\n\n페이지를 새로고침합니다.`
+      toast.success(
+        `데이터베이스 초기화 완료. 가격: ${data.deleted.prices}건, 뉴스: ${data.deleted.news}건, 매매 동향: ${data.deleted.trading_flow}건 삭제됨`,
+        5000
       )
 
       // 모든 React Query 캐시 삭제
       queryClient.clear()
 
       // 페이지 새로고침하여 모든 캐시 완전히 제거
-      window.location.reload()
+      setTimeout(() => window.location.reload(), 1000)
     },
     onError: (error) => {
-      alert(`데이터베이스 초기화 실패: ${error.message}`)
+      toast.error(`데이터베이스 초기화 실패: ${error.message}`)
       setIsResetModalOpen(false)
     },
   })

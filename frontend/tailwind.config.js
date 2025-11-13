@@ -151,6 +151,7 @@ export default {
         'fadeIn': 'fadeIn 0.3s ease-out',
         'slideDown': 'slideDown 0.3s ease-out',
         'slideUp': 'slideUp 0.3s ease-out',
+        'slide-in': 'slideIn 0.3s ease-out',
         'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'spin': 'spin 1s linear infinite',
       },
@@ -166,6 +167,10 @@ export default {
         slideUp: {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideIn: {
+          '0%': { opacity: '0', transform: 'translateX(100%)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         pulse: {
           '0%, 100%': { opacity: '1' },

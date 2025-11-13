@@ -144,6 +144,8 @@ export default function ETFCard({ etf, compactMode = false }) {
           className="w-full"
           style={{ height: `${height}px` }}
           onMouseLeave={() => setHoveredPoint(null)}
+          role="img"
+          aria-label={`최근 ${reversedPrices.length}일간 가격 차트`}
         >
           {/* 배경 일자 구분선 */}
           {candles.map((candle, i) => (
@@ -232,22 +234,30 @@ export default function ETFCard({ etf, compactMode = false }) {
   }
 
   return (
-    <Link to={`/etf/${etf.ticker}`} className="block group">
-      <div className={`card-interactive animate-fadeInUp ${compactMode ? 'p-3' : ''}`}>
+    <Link
+      to={`/etf/${etf.ticker}`}
+      className="block group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-lg"
+      aria-label={`${etf.name} 상세 정보 보기`}
+    >
+      <article className={`card-interactive animate-fadeInUp ${compactMode ? 'p-3' : ''}`}>
         {/* 헤더: 종목명 + 타입 뱃지 */}
-        <div className="mb-3">
+        <header className="mb-3">
           <div className="flex items-start justify-between mb-2">
             <h3 className="text-lg font-bold flex-1 leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors text-gray-900 dark:text-gray-100">
               {etf.name}
             </h3>
-            <span className={`badge ${
-              etf.type === 'ETF' ? 'badge-primary' : 'badge-info'
-            } ml-2 flex-shrink-0`}>
+            <span
+              className={`badge ${
+                etf.type === 'ETF' ? 'badge-primary' : 'badge-info'
+              } ml-2 flex-shrink-0`}
+              role="status"
+              aria-label={`상품 유형: ${etf.type}`}
+            >
               {etf.type}
             </span>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">{etf.theme}</p>
-        </div>
+        </header>
 
         {/* 가격 정보 */}
         {isLoading ? (
@@ -342,11 +352,11 @@ export default function ETFCard({ etf, compactMode = false }) {
         )}
 
         {/* 하단 정보 */}
-        <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-          <span>{etf.ticker}</span>
-          {etf.expense_ratio && <span>수수료: {etf.expense_ratio}%</span>}
-        </div>
-      </div>
+        <footer className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+          <span aria-label={`종목 코드: ${etf.ticker}`}>{etf.ticker}</span>
+          {etf.expense_ratio && <span aria-label={`운용 수수료: ${etf.expense_ratio}퍼센트`}>수수료: {etf.expense_ratio}%</span>}
+        </footer>
+      </article>
     </Link>
   )
 }
