@@ -17,7 +17,7 @@ import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/f
 import { useContainerWidth } from '../../hooks/useContainerWidth'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { sampleData, validateChartData } from '../../utils/chartUtils'
-import { COLORS } from '../../constants'
+import { COLORS, MAX_CHART_POINTS } from '../../constants'
 
 /**
  * CustomLegend 컴포넌트
@@ -203,8 +203,8 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
     // 날짜 오름차순 정렬 (오래된 날짜 → 최신 날짜)
     const sortedData = filteredData.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-    // 대용량 데이터 샘플링 (200개 이상일 경우)
-    const sampledData = sampleData(sortedData, 200)
+    // 대용량 데이터 샘플링 (MAX_CHART_POINTS개 이상일 경우)
+    const sampledData = sampleData(sortedData, MAX_CHART_POINTS)
 
     // 이동평균선 계산 함수 (샘플링된 데이터 기준)
     const calculateMA = (period) => {

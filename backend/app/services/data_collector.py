@@ -276,6 +276,8 @@ class ETFDataCollector:
     def save_price_data(self, price_data: List[dict]) -> int:
         """
         가격 데이터를 데이터베이스에 저장 (검증 및 정제 포함)
+        
+        벌크 insert를 사용하여 성능 최적화
 
         Args:
             price_data: 저장할 가격 데이터 리스트
@@ -286,42 +288,49 @@ class ETFDataCollector:
         if not price_data:
             return 0
 
-        saved_count = 0
+        # 모든 데이터를 먼저 검증하고 정제
+        valid_data = []
+        for data in price_data:
+            # 데이터 검증
+            is_valid, error_msg = self.validate_price_data(data)
+            if not is_valid:
+                logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
+                continue
 
+            # 데이터 정제
+            cleaned_data = self.clean_price_data(data)
+            valid_data.append(cleaned_data)
+
+        if not valid_data:
+            logger.warning("No valid price data to save after validation")
+            return 0
+
+        # 벌크 insert 수행
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                for data in price_data:
-                    # 데이터 검증
-                    is_valid, error_msg = self.validate_price_data(data)
-                    if not is_valid:
-                        logger.warning(f"Skipping invalid data for {data.get('ticker')} on {data.get('date')}: {error_msg}")
-                        continue
-
-                    # 데이터 정제
-                    cleaned_data = self.clean_price_data(data)
-
-                    try:
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO prices
-                            (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            cleaned_data['ticker'],
-                            cleaned_data['date'],
-                            cleaned_data['open_price'],
-                            cleaned_data['high_price'],
-                            cleaned_data['low_price'],
-                            cleaned_data['close_price'],
-                            cleaned_data['volume'],
-                            cleaned_data['daily_change_pct']
-                        ))
-                        saved_count += 1
-                    except Exception as e:
-                        logger.error(f"Failed to save price data for {cleaned_data.get('ticker')} on {cleaned_data.get('date')}: {e}")
+                # executemany를 사용한 벌크 insert
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO prices
+                    (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    (
+                        data['ticker'],
+                        data['date'],
+                        data['open_price'],
+                        data['high_price'],
+                        data['low_price'],
+                        data['close_price'],
+                        data['volume'],
+                        data['daily_change_pct']
+                    )
+                    for data in valid_data
+                ])
 
                 conn.commit()
-                logger.info(f"Saved {saved_count} price records to database")
+                saved_count = len(valid_data)
+                logger.info(f"Saved {saved_count} price records to database (bulk insert)")
 
             except Exception as e:
                 conn.rollback()
@@ -1074,32 +1083,29 @@ class ETFDataCollector:
             logger.warning("No valid trading flow data after validation")
             return 0
 
-        saved_count = 0
-
+        # 벌크 insert 수행
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                for data in valid_data:
-                    try:
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO trading_flow
-                            (ticker, date, individual_net, institutional_net, foreign_net)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (
-                            data['ticker'],
-                            data['date'],
-                            data.get('individual_net'),
-                            data.get('institutional_net'),
-                            data.get('foreign_net')
-                        ))
-                        saved_count += 1
-
-                    except Exception as e:
-                        logger.error(f"Failed to save trading flow record: {e}")
-                        continue
+                # executemany를 사용한 벌크 insert
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO trading_flow
+                    (ticker, date, individual_net, institutional_net, foreign_net)
+                    VALUES (?, ?, ?, ?, ?)
+                """, [
+                    (
+                        data['ticker'],
+                        data['date'],
+                        data.get('individual_net'),
+                        data.get('institutional_net'),
+                        data.get('foreign_net')
+                    )
+                    for data in valid_data
+                ])
 
                 conn.commit()
-                logger.info(f"Saved {saved_count} trading flow records")
+                saved_count = len(valid_data)
+                logger.info(f"Saved {saved_count} trading flow records (bulk insert)")
 
             except Exception as e:
                 logger.error(f"Database error saving trading flow: {e}")

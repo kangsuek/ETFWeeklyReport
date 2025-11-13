@@ -16,7 +16,7 @@ import { getNetBuyingColor } from '../../utils/format'
 import { useContainerWidth } from '../../hooks/useContainerWidth'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { sampleData, validateChartData } from '../../utils/chartUtils'
-import { COLORS } from '../../constants'
+import { COLORS, MAX_CHART_POINTS } from '../../constants'
 
 /**
  * 천 원 단위 순매수/순매도 포맷팅
@@ -116,8 +116,8 @@ export const formatTradingFlowData = (data) => {
     }))
     .sort((a, b) => new Date(a.date) - new Date(b.date)) // 날짜 오름차순 정렬
 
-  // 대용량 데이터 샘플링 (200개 이상일 경우)
-  return sampleData(formattedData, 200)
+  // 대용량 데이터 샘플링 (MAX_CHART_POINTS개 이상일 경우)
+  return sampleData(formattedData, MAX_CHART_POINTS)
 }
 
 /**

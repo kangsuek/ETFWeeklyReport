@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { etfApi, dataApi } from '../services/api'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
@@ -77,11 +77,23 @@ export default function Dashboard() {
     })
   }
 
-  // 정렬 로직
-  const sortETFs = (data) => {
-    if (!data) return []
+  // 정렬 변경 핸들러
+  const handleSortChange = (newSortBy) => {
+    if (sortBy === newSortBy) {
+      // 같은 컬럼을 클릭하면 방향 전환
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // 다른 컬럼을 클릭하면 오름차순으로 시작
+      setSortBy(newSortBy)
+      setSortDirection('asc')
+    }
+  }
 
-    const sorted = [...data].sort((a, b) => {
+  // 정렬된 데이터 가져오기 (메모이제이션)
+  const sortedETFs = useMemo(() => {
+    if (!etfs) return []
+
+    const sorted = [...etfs].sort((a, b) => {
       let compareValue = 0
 
       switch (sortBy) {
@@ -117,22 +129,7 @@ export default function Dashboard() {
     })
 
     return sorted
-  }
-
-  // 정렬 변경 핸들러
-  const handleSortChange = (newSortBy) => {
-    if (sortBy === newSortBy) {
-      // 같은 컬럼을 클릭하면 방향 전환
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      // 다른 컬럼을 클릭하면 오름차순으로 시작
-      setSortBy(newSortBy)
-      setSortDirection('asc')
-    }
-  }
-
-  // 정렬된 데이터 가져오기
-  const sortedETFs = sortETFs(etfs)
+  }, [etfs, sortBy, sortDirection])
 
   // 로딩 상태
   if (isLoading) {

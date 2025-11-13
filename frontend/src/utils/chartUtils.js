@@ -2,15 +2,17 @@
  * 차트 유틸리티 함수 모음
  */
 
+import { MAX_CHART_POINTS } from '../constants'
+
 /**
  * 대용량 데이터 샘플링 함수
  * 1000개 이상의 데이터 포인트가 있을 때 매 n번째 포인트만 선택하여 성능 최적화
  *
  * @param {Array} data - 원본 데이터 배열
- * @param {number} maxPoints - 최대 표시할 포인트 수 (기본값: 200)
+ * @param {number} maxPoints - 최대 표시할 포인트 수 (기본값: MAX_CHART_POINTS)
  * @returns {Array} - 샘플링된 데이터 배열
  */
-export function sampleData(data, maxPoints = 200) {
+export function sampleData(data, maxPoints = MAX_CHART_POINTS) {
   if (!data || data.length === 0) return []
   if (data.length <= maxPoints) return data
 

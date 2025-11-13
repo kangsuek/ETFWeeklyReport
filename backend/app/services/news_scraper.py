@@ -309,6 +309,9 @@ class NewsScraper:
     def save_news_data(self, ticker: str, news_data: List[dict]) -> int:
         """
         뉴스 데이터를 데이터베이스에 저장
+        
+        벌크 insert를 사용하여 성능 최적화
+        중복 체크는 먼저 수행하고, 새로운 뉴스만 벌크 insert
 
         Args:
             ticker: 종목 코드
@@ -321,40 +324,45 @@ class NewsScraper:
             logger.warning("No news data to save")
             return 0
 
-        saved_count = 0
-
+        # 중복 체크 및 새로운 뉴스만 필터링
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                for news in news_data:
-                    try:
-                        # 중복 체크 (ticker + url)
-                        cursor.execute("""
-                            SELECT id FROM news WHERE ticker = ? AND url = ?
-                        """, (ticker, news['url']))
+                # 기존 뉴스 URL 조회 (중복 체크)
+                cursor.execute("""
+                    SELECT url FROM news WHERE ticker = ?
+                """, (ticker,))
+                existing_urls = {row[0] for row in cursor.fetchall()}
 
-                        if cursor.fetchone():
-                            continue  # 이미 존재하면 건너뜀
+                # 새로운 뉴스만 필터링
+                new_news = [
+                    news for news in news_data
+                    if news.get('url') and news['url'] not in existing_urls
+                ]
 
-                        cursor.execute("""
-                            INSERT INTO news (ticker, date, title, url, source, relevance_score)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (
-                            ticker,
-                            news['date'],
-                            news['title'],
-                            news['url'],
-                            news['source'],
-                            news.get('relevance_score', 0.5)
-                        ))
-                        saved_count += 1
+                if not new_news:
+                    logger.info(f"No new news records to save for {ticker} (all duplicates)")
+                    return 0
 
-                    except Exception as e:
-                        logger.error(f"Failed to save news record: {e}")
-                        continue
+                # 벌크 insert 수행
+                cursor.executemany("""
+                    INSERT INTO news (ticker, date, title, url, source, relevance_score)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, [
+                    (
+                        ticker,
+                        news['date'],
+                        news['title'],
+                        news['url'],
+                        news['source'],
+                        news.get('relevance_score', 0.5)
+                    )
+                    for news in new_news
+                ])
 
                 conn.commit()
-                logger.info(f"Saved {saved_count} news records for {ticker}")
+                saved_count = len(new_news)
+                logger.info(f"Saved {saved_count} news records for {ticker} (bulk insert)")
 
             except Exception as e:
                 logger.error(f"Database error saving news: {e}")
