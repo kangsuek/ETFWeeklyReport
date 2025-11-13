@@ -37,14 +37,14 @@ See CLAUDE.md for full project documentation index.
 
 ## File Organization
 - Static docs: docs/
-- Progress tracking: project-management/
+- Progress tracking: docs/project-management/
 - Backend code: backend/
 - Frontend code: frontend/
 
 ## Key Documents
 1. CLAUDE.md - Project index (read first)
 2. docs/DEFINITION_OF_DONE.md - Completion criteria
-3. project-management/TODO.md - Current tasks
+3. docs/project-management/TODO.md - Current tasks
 4. docs/DEVELOPMENT_GUIDE.md - Coding standards
 
 ## Workflow
@@ -54,6 +54,41 @@ See CLAUDE.md for full project documentation index.
 4. Update documentation
 5. Mark task complete in TODO.md
 6. Log in PROGRESS.md
+
+## Document Reading Strategy (자동 판단)
+
+### Always Read First (필수 4개)
+When starting any task, always read these documents first:
+1. CLAUDE.md - Project index
+2. README.md - Project overview
+3. docs/project-management/TODO.md - Current tasks
+4. docs/DEFINITION_OF_DONE.md - Completion criteria
+
+### Read Based on Task Type (작업 유형별 자동 판단)
+
+**Frontend Component Development:**
+- If code style needed → docs/DEVELOPMENT_GUIDE.md
+- If architecture context needed → docs/ARCHITECTURE.md
+
+**Backend API Development:**
+- Always → docs/API_SPECIFICATION.md
+- If architecture context needed → docs/ARCHITECTURE.md
+
+**Database Changes:**
+- Always → docs/DATABASE_SCHEMA.md
+
+**Bug Fixes:**
+- Usually only the 4 required documents are sufficient
+- Read additional docs only if specific context is needed
+
+**Architecture Changes:**
+- Always → docs/ARCHITECTURE.md
+- If needed → docs/TECH_STACK.md
+
+### Principle
+- Start with minimum required documents (~5,265 tokens)
+- Read additional documents only when needed during implementation
+- Don't read all documents upfront - be selective based on task type
 
 ## Quality Gates
 - All tests must pass (100%)

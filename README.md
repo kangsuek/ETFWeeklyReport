@@ -43,7 +43,7 @@ npm install && npm run dev
 - [시스템 아키텍처](./docs/ARCHITECTURE.md)
 - [API 명세서](./docs/API_SPECIFICATION.md)
 - [완료 기준](./docs/DEFINITION_OF_DONE.md)
-- [할 일 목록](./project-management/TODO.md)
+- [할 일 목록](./docs/project-management/TODO.md)
 
 ## 🔧 기술 스택
 - **Backend**: FastAPI, Python 3.10+

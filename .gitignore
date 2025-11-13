@@ -36,3 +36,10 @@ build/
 .DS_Store
 Thumbs.db
 
+# Logs
+logs/
+*.log
+
+# Coverage reports
+htmlcov/
+coverage/

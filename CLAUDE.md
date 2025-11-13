@@ -5,7 +5,7 @@
 ## 핵심 문서 (필수)
 
 1. **[README.md](./README.md)** - 프로젝트 개요, 종목 목록
-2. **[TODO.md](./project-management/TODO.md)** - 현재 작업 목록
+2. **[TODO.md](./docs/project-management/TODO.md)** - 현재 작업 목록
 3. **[DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)** - 작업 완료 기준, 테스트 정책
 
 ## 참조 문서
@@ -17,5 +17,5 @@
 - **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드
 - **[RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md)** - 실행 가이드
 - **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정
-- **[PROGRESS.md](./project-management/PROGRESS.md)** - 진행 상황
-- **[MILESTONES.md](./project-management/MILESTONES.md)** - 마일스톤
+- **[PROGRESS.md](./docs/project-management/PROGRESS.md)** - 진행 상황
+- **[MILESTONES.md](./docs/project-management/MILESTONES.md)** - 마일스톤

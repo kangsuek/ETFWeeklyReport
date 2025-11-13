@@ -6,8 +6,8 @@
 echo "🚀 개발 서버 시작 중..."
 echo ""
 
-# 프로젝트 루트 디렉토리
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# 프로젝트 루트 디렉토리 (스크립트가 scripts/ 폴더에 있으므로 상위 디렉토리로 이동)
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 백엔드 서버 시작
 echo "  - 백엔드 서버 시작 중 (포트 8000)..."
@@ -56,5 +56,5 @@ echo "  - Swagger UI:  http://localhost:8000/docs"
 echo ""
 echo "💡 팁:"
 echo "  - 로그 확인: tail -f backend.log  또는  tail -f frontend.log"
-echo "  - 서버 종료: ./stop-servers.sh"
+echo "  - 서버 종료: ./scripts/stop-servers.sh"
 echo ""
