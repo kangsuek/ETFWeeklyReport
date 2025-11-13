@@ -96,12 +96,16 @@ export function calculateStats(data) {
   const highPriceData = data.find((d) => d.close_price === highPrice)
   const lowPriceData = data.find((d) => d.close_price === lowPrice)
 
+  // 현재가 (가장 최신 종가)
+  const currentPrice = data[0]?.close_price || 0
+
   return {
     periodReturn,
     annualizedReturn,
     highPrice,
     lowPrice,
     avgPrice,
+    currentPrice,
     highPriceDate: highPriceData?.date,
     lowPriceDate: lowPriceData?.date,
     tradingDays: data.length,

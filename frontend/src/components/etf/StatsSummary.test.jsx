@@ -150,17 +150,29 @@ describe('StatsSummary', () => {
 
   describe('가격 범위 계산', () => {
     it('최고가를 정확하게 표시한다', () => {
-      renderWithProviders(<StatsSummary data={mockPriceData} />)
+      const { container } = renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      expect(screen.getByText('최고가')).toBeInTheDocument()
-      expect(screen.getByText('11,000')).toBeInTheDocument() // 최고가: 11000
+      // 최고가 레이블이 여러 개 있으므로 getAllByText 사용
+      const highPriceLabels = screen.getAllByText('최고가')
+      expect(highPriceLabels.length).toBeGreaterThan(0)
+      
+      // 최고가 값 확인 (빨강색 클래스와 함께 - text-sm 크기인 위쪽 최고가)
+      const highPriceElements = container.querySelectorAll('.text-red-600')
+      const highPriceText = Array.from(highPriceElements).find(el => el.textContent.includes('11,000'))
+      expect(highPriceText).toBeInTheDocument()
     })
 
     it('최저가를 정확하게 표시한다', () => {
-      renderWithProviders(<StatsSummary data={mockPriceData} />)
+      const { container } = renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      expect(screen.getByText('최저가')).toBeInTheDocument()
-      expect(screen.getByText('10,000')).toBeInTheDocument() // 최저가: 10000
+      // 최저가 레이블이 여러 개 있으므로 getAllByText 사용
+      const lowPriceLabels = screen.getAllByText('최저가')
+      expect(lowPriceLabels.length).toBeGreaterThan(0)
+      
+      // 최저가 값 확인 (파랑색 클래스와 함께 - text-sm 크기인 위쪽 최저가)
+      const lowPriceElements = container.querySelectorAll('.text-blue-600')
+      const lowPriceText = Array.from(lowPriceElements).find(el => el.textContent.includes('10,000'))
+      expect(lowPriceText).toBeInTheDocument()
     })
 
     it('최고가와 최저가의 날짜를 괄호 안에 표시한다', () => {
@@ -172,10 +184,13 @@ describe('StatsSummary', () => {
       expect(screen.getByText(/\(11-01\)/)).toBeInTheDocument()
     })
 
-    it('평균가 진행률 바를 표시한다', () => {
+    it('현재가를 가격 범위 바에 표시한다', () => {
       renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      expect(screen.getByText('평균가')).toBeInTheDocument()
+      expect(screen.getByText('현재가')).toBeInTheDocument()
+      // 현재가 값 확인 (회색 클래스와 함께 - 가격 범위 바의 현재가)
+      const currentPriceValues = screen.getAllByText('11,000')
+      expect(currentPriceValues.length).toBeGreaterThan(0)
     })
 
     it('최고가는 빨강색으로 표시된다', () => {
@@ -265,25 +280,22 @@ describe('StatsSummary', () => {
     })
   })
 
-  describe('진행률 바', () => {
-    it('진행률 바가 올바른 퍼센트로 표시된다', () => {
+  describe('가격 범위 바', () => {
+    it('가격 범위 바에 현재가 마커가 표시된다', () => {
       const { container } = renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      // 진행률 바 요소 확인
-      const progressBars = container.querySelectorAll('.bg-blue-500')
-      expect(progressBars.length).toBeGreaterThan(0)
+      // 현재가 마커 요소 확인 (세로선)
+      const markers = container.querySelectorAll('.bg-gray-900, .bg-gray-100')
+      expect(markers.length).toBeGreaterThan(0)
     })
 
-    it('진행률이 0-100% 범위 내에 있다', () => {
-      const { container } = renderWithProviders(<StatsSummary data={mockPriceData} />)
+    it('최저가, 현재가, 최고가가 모두 표시된다', () => {
+      renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      const progressBars = container.querySelectorAll('.bg-blue-500')
-      progressBars.forEach((bar) => {
-        const width = bar.style.width
-        const percentage = parseFloat(width)
-        expect(percentage).toBeGreaterThanOrEqual(0)
-        expect(percentage).toBeLessThanOrEqual(100)
-      })
+      // 여러 개의 레이블이 있으므로 getAllByText 사용
+      expect(screen.getAllByText('최저가').length).toBeGreaterThan(0)
+      expect(screen.getByText('현재가')).toBeInTheDocument()
+      expect(screen.getAllByText('최고가').length).toBeGreaterThan(0)
     })
   })
 })

@@ -73,6 +73,75 @@ ProgressBar.propTypes = {
 }
 
 /**
+ * PriceRangeBar 컴포넌트
+ * 가격 범위를 막대 형태로 표시 (최저가 ---|현재가----- 최고가)
+ */
+const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, formatPrice }) => {
+  // 현재가가 범위를 벗어나는 경우 처리
+  const clampedCurrentPrice = Math.max(minPrice, Math.min(maxPrice, currentPrice))
+  const percentage = ((clampedCurrentPrice - minPrice) / (maxPrice - minPrice)) * 100
+
+  // 현재가 레이블이 최저가/최고가와 겹치지 않도록 위치 조정
+  const currentLabelLeft = Math.max(15, Math.min(85, percentage)) // 최소 15%, 최대 85%
+
+  return (
+    <div className="relative">
+      {/* 막대 */}
+      <div className="relative w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mb-2">
+        {/* 전체 막대 배경 */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-200 via-gray-200 to-red-200 dark:from-blue-800 dark:via-gray-600 dark:to-red-800"></div>
+        
+        {/* 현재가 마커 */}
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-gray-900 dark:bg-gray-100 z-10"
+          style={{ left: `${percentage}%`, transform: 'translateX(-50%)' }}
+        >
+          {/* 마커 상단 화살표 */}
+          <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-b-[4px] border-transparent border-b-gray-900 dark:border-b-gray-100"></div>
+        </div>
+      </div>
+
+      {/* 가격 레이블 (아래쪽) */}
+      <div className="relative flex items-start justify-between" style={{ minHeight: '3rem' }}>
+        {/* 최저가 (왼쪽) */}
+        <div className="flex flex-col items-start">
+          <span className="text-xs text-gray-500 dark:text-gray-400">최저가</span>
+          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+            {formatPrice(minPrice)}
+          </span>
+        </div>
+
+        {/* 현재가 (중간 위치) */}
+        <div 
+          className="flex flex-col items-center absolute"
+          style={{ left: `${currentLabelLeft}%`, transform: 'translateX(-50%)' }}
+        >
+          <span className="text-xs text-gray-500 dark:text-gray-400">현재가</span>
+          <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+            {formatPrice(currentPrice)}
+          </span>
+        </div>
+
+        {/* 최고가 (오른쪽) */}
+        <div className="flex flex-col items-end">
+          <span className="text-xs text-gray-500 dark:text-gray-400">최고가</span>
+          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+            {formatPrice(maxPrice)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+PriceRangeBar.propTypes = {
+  currentPrice: PropTypes.number.isRequired,
+  minPrice: PropTypes.number.isRequired,
+  maxPrice: PropTypes.number.isRequired,
+  formatPrice: PropTypes.func.isRequired,
+}
+
+/**
  * StatsSummary 컴포넌트
  * 가격 데이터의 통계 요약을 카드 형태로 표시
  *
@@ -156,12 +225,11 @@ export default function StatsSummary({ data = [] }) {
           </span>
         </div>
         <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-600">
-          <ProgressBar
-            value={stats.avgPrice}
-            min={stats.lowPrice}
-            max={stats.highPrice}
-            label="평균가"
-            formatValue={formatPrice}
+          <PriceRangeBar
+            currentPrice={stats.currentPrice}
+            minPrice={stats.lowPrice}
+            maxPrice={stats.highPrice}
+            formatPrice={formatPrice}
           />
         </div>
       </StatCard>
