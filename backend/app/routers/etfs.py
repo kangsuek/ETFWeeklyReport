@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import date, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics
 from app.services.data_collector import ETFDataCollector
+from app.services.comparison_service import ComparisonService
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.dependencies import get_etf_or_404, get_collector
@@ -64,6 +65,114 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
     except Exception as e:
         logger.error(f"Unexpected error fetching ETFs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/compare")
+async def compare_etfs(
+    tickers: str = Query(..., description="Comma-separated ticker codes (2-6 tickers)"),
+    start_date: Optional[date] = Query(default=None, description="Start date (default: 30 days ago)"),
+    end_date: Optional[date] = Query(default=None, description="End date (default: today)")
+):
+    """
+    종목 비교 분석
+
+    여러 종목의 가격 변화를 비교하고 통계 지표를 제공합니다.
+
+    **Query Parameters:**
+    - tickers: 쉼표로 구분된 종목 코드 (2-6개, 예: "487240,466920,042660")
+    - start_date: 조회 시작 날짜 (선택, 기본값: 30일 전)
+    - end_date: 조회 종료 날짜 (선택, 기본값: 오늘)
+
+    **Example Request:**
+    ```
+    GET /api/etfs/compare?tickers=487240,466920,042660&start_date=2025-10-01&end_date=2025-11-13
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "normalized_prices": {
+        "dates": ["2025-10-01", "2025-10-02", ...],
+        "data": {
+          "487240": [100, 102.5, 98.3, ...],
+          "466920": [100, 101.2, 99.8, ...],
+          "042660": [100, 103.1, 105.2, ...]
+        }
+      },
+      "statistics": {
+        "487240": {
+          "period_return": 12.5,
+          "annualized_return": 45.2,
+          "volatility": 25.3,
+          "max_drawdown": -8.2,
+          "sharpe_ratio": 1.67,
+          "data_points": 30
+        },
+        ...
+      },
+      "correlation_matrix": {
+        "tickers": ["487240", "466920", "042660"],
+        "matrix": [
+          [1.0, 0.85, 0.72],
+          [0.85, 1.0, 0.68],
+          [0.72, 0.68, 1.0]
+        ]
+      }
+    }
+    ```
+
+    **Response Fields:**
+    - normalized_prices: 정규화된 가격 (시작일 = 100)
+      - dates: 날짜 배열
+      - data: 종목별 정규화 가격 배열
+    - statistics: 종목별 통계
+      - period_return: 기간 수익률 (%)
+      - annualized_return: 연환산 수익률 (%)
+      - volatility: 연환산 변동성 (%)
+      - max_drawdown: 최대 낙폭 (%)
+      - sharpe_ratio: 샤프 비율
+      - data_points: 데이터 개수
+    - correlation_matrix: 상관관계 행렬
+      - tickers: 종목 코드 배열
+      - matrix: 상관계수 행렬 (2차원 배열)
+
+    **Status Codes:**
+    - 200: 성공
+    - 400: 잘못된 요청 (티커 개수, 날짜 범위 등)
+    - 500: 서버 오류
+
+    **Notes:**
+    - 최소 2개, 최대 6개 종목 비교 가능
+    - 최대 조회 기간: 1년 (365일)
+    - 데이터가 없는 종목은 결과에서 제외
+    - 상관관계는 일일 수익률 기준으로 계산
+    """
+    try:
+        # 티커 파싱 (쉼표로 구분)
+        ticker_list = [t.strip() for t in tickers.split(',') if t.strip()]
+
+        # 날짜 기본값 설정
+        start_date, end_date = apply_default_dates(start_date, end_date, default_days=30)
+
+        logger.info(f"Comparing tickers: {ticker_list}, date range: {start_date} to {end_date}")
+
+        # 비교 서비스 생성 및 실행
+        comparison_service = ComparisonService()
+        result = comparison_service.get_comparison_data(ticker_list, start_date, end_date)
+
+        logger.info(f"Comparison completed for {len(ticker_list)} tickers")
+        return result
+
+    except ValidationException as e:
+        logger.error(f"Validation error in compare_etfs: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.Error as e:
+        logger.error(f"Database error in compare_etfs: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred")
+    except Exception as e:
+        logger.error(f"Unexpected error in compare_etfs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to compare ETFs. Please try again later.")
+
 
 @router.get("/{ticker}", response_model=ETF)
 async def get_etf(etf: ETF = Depends(get_etf_or_404)):

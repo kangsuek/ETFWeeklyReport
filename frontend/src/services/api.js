@@ -104,6 +104,11 @@ export const etfApi = {
   // 매매 동향 수집 트리거
   collectTradingFlow: (ticker, days = 10) =>
     api.post(`/etfs/${ticker}/collect-trading-flow`, null, { params: { days } }),
+
+  // 종목 비교
+  compare: (params = {}) => {
+    return api.get('/etfs/compare', { params })
+  },
 }
 
 // News API 서비스
@@ -182,4 +187,19 @@ export const settingsApi = {
   validateTicker: (ticker) => api.get(`/settings/stocks/${ticker}/validate`),
 }
 
-export default api
+// 단순화된 API 인터페이스
+export const apiService = {
+  getETFs: async () => {
+    const response = await etfApi.getAll()
+    return response.data
+  },
+  compareETFs: async (params) => {
+    const response = await etfApi.compare(params)
+    return response.data
+  },
+}
+
+// 통합 API 객체 (편의를 위해 export)
+export { api }
+
+export default apiService

@@ -204,37 +204,196 @@ class TestErrorHandling:
         assert response.status_code == 422
 
 
+class TestComparisonEndpoint:
+    """Comparison endpoint tests"""
+
+    def test_compare_etfs_success(self):
+        """Test GET /api/etfs/compare with valid tickers"""
+        # First, collect data for multiple tickers
+        tickers = ["487240", "466920", "042660"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=30")
+
+        # Compare tickers
+        tickers_str = ",".join(tickers)
+        start_date = (date.today() - timedelta(days=20)).isoformat()
+        end_date = date.today().isoformat()
+
+        response = client.get(
+            f"/api/etfs/compare?tickers={tickers_str}&start_date={start_date}&end_date={end_date}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Check response structure
+        assert "normalized_prices" in data
+        assert "statistics" in data
+        assert "correlation_matrix" in data
+
+        # Check normalized_prices structure
+        assert "dates" in data["normalized_prices"]
+        assert "data" in data["normalized_prices"]
+        assert isinstance(data["normalized_prices"]["dates"], list)
+        assert isinstance(data["normalized_prices"]["data"], dict)
+
+        # Check statistics structure
+        for ticker in tickers:
+            if ticker in data["statistics"]:
+                stats = data["statistics"][ticker]
+                assert "period_return" in stats
+                assert "annualized_return" in stats
+                assert "volatility" in stats
+                assert "max_drawdown" in stats
+                assert "sharpe_ratio" in stats
+                assert "data_points" in stats
+
+        # Check correlation_matrix structure
+        assert "tickers" in data["correlation_matrix"]
+        assert "matrix" in data["correlation_matrix"]
+
+    def test_compare_two_tickers(self):
+        """Test comparison with minimum (2) tickers"""
+        tickers = ["487240", "466920"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=30")
+
+        tickers_str = ",".join(tickers)
+        response = client.get(f"/api/etfs/compare?tickers={tickers_str}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "normalized_prices" in data
+        assert "statistics" in data
+
+    def test_compare_six_tickers(self):
+        """Test comparison with maximum (6) tickers"""
+        tickers = ["487240", "466920", "0020H0", "442320", "042660", "034020"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=30")
+
+        tickers_str = ",".join(tickers)
+        response = client.get(f"/api/etfs/compare?tickers={tickers_str}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "normalized_prices" in data
+
+    def test_compare_one_ticker_error(self):
+        """Test comparison with only 1 ticker (should fail)"""
+        response = client.get("/api/etfs/compare?tickers=487240")
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "at least 2" in data["detail"].lower()
+
+    def test_compare_too_many_tickers_error(self):
+        """Test comparison with more than 6 tickers (should fail)"""
+        tickers = ["487240", "466920", "0020H0", "442320", "042660", "034020", "123456"]
+        tickers_str = ",".join(tickers)
+
+        response = client.get(f"/api/etfs/compare?tickers={tickers_str}")
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "maximum 6" in data["detail"].lower()
+
+    def test_compare_invalid_date_range(self):
+        """Test comparison with invalid date range (start > end)"""
+        tickers_str = "487240,466920"
+        start_date = date.today().isoformat()
+        end_date = (date.today() - timedelta(days=10)).isoformat()
+
+        response = client.get(
+            f"/api/etfs/compare?tickers={tickers_str}&start_date={start_date}&end_date={end_date}"
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+
+    def test_compare_date_range_too_long(self):
+        """Test comparison with date range exceeding 1 year"""
+        tickers_str = "487240,466920"
+        start_date = (date.today() - timedelta(days=400)).isoformat()
+        end_date = date.today().isoformat()
+
+        response = client.get(
+            f"/api/etfs/compare?tickers={tickers_str}&start_date={start_date}&end_date={end_date}"
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "365" in data["detail"] or "1 year" in data["detail"].lower()
+
+    def test_compare_default_dates(self):
+        """Test comparison with default date range (30 days)"""
+        tickers = ["487240", "466920"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=35")
+
+        tickers_str = ",".join(tickers)
+        response = client.get(f"/api/etfs/compare?tickers={tickers_str}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "normalized_prices" in data
+
+    def test_compare_normalized_prices_start_at_100(self):
+        """Test that normalized prices start at 100 for all tickers"""
+        tickers = ["487240", "466920"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=30")
+
+        tickers_str = ",".join(tickers)
+        response = client.get(f"/api/etfs/compare?tickers={tickers_str}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Check that first non-None value is 100 for each ticker
+        for ticker in tickers:
+            if ticker in data["normalized_prices"]["data"]:
+                prices = data["normalized_prices"]["data"][ticker]
+                first_price = next((p for p in prices if p is not None), None)
+                if first_price is not None:
+                    assert abs(first_price - 100.0) < 0.01  # Allow small floating point error
+
+
 @pytest.mark.integration
 class TestEndToEndFlow:
     """End-to-end integration tests"""
-    
+
     def test_complete_flow_collect_and_retrieve(self):
         """Test complete flow: collect data -> retrieve data"""
         ticker = "487240"
-        
+
         # Step 1: Collect data
         collect_response = client.post(f"/api/etfs/{ticker}/collect?days=5")
         assert collect_response.status_code == 200
         collected = collect_response.json()["collected"]
-        
+
         # Step 2: Retrieve data
         prices_response = client.get(f"/api/etfs/{ticker}/prices")
         assert prices_response.status_code == 200
         prices = prices_response.json()
-        
+
         # Should have some data
         assert len(prices) > 0
-        
+
         # Step 3: Get ETF info
         etf_response = client.get(f"/api/etfs/{ticker}")
         assert etf_response.status_code == 200
         etf = etf_response.json()
         assert etf["ticker"] == ticker
-    
+
     def test_multiple_stocks_collection(self):
         """Test collecting data for multiple stocks"""
         tickers = ["487240", "466920", "042660"]
-        
+
         for ticker in tickers:
             response = client.post(f"/api/etfs/{ticker}/collect?days=3")
             assert response.status_code == 200
