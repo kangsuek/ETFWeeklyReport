@@ -98,6 +98,7 @@ export function calculateStats(data) {
 
   // 현재가 (가장 최신 종가)
   const currentPrice = data[0]?.close_price || 0
+  const currentPriceDate = data[0]?.date
 
   return {
     periodReturn,
@@ -106,6 +107,7 @@ export function calculateStats(data) {
     lowPrice,
     avgPrice,
     currentPrice,
+    currentPriceDate,
     highPriceDate: highPriceData?.date,
     lowPriceDate: lowPriceData?.date,
     tradingDays: data.length,

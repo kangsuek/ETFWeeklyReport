@@ -178,16 +178,19 @@ describe('StatsSummary', () => {
     it('최고가와 최저가의 날짜를 괄호 안에 표시한다', () => {
       renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      // 최고가 날짜: 2025-11-05 -> (11-05)
-      expect(screen.getByText(/\(11-05\)/)).toBeInTheDocument()
-      // 최저가 날짜: 2025-11-01 -> (11-01)
-      expect(screen.getByText(/\(11-01\)/)).toBeInTheDocument()
+      // 최고가 날짜: 2025-11-05 -> (11-05) - 여러 곳에 표시되므로 getAllByText 사용
+      const highPriceDates = screen.getAllByText(/\(11-05\)/)
+      expect(highPriceDates.length).toBeGreaterThan(0)
+      // 최저가 날짜: 2025-11-01 -> (11-01) - 여러 곳에 표시되므로 getAllByText 사용
+      const lowPriceDates = screen.getAllByText(/\(11-01\)/)
+      expect(lowPriceDates.length).toBeGreaterThan(0)
     })
 
     it('현재가를 가격 범위 바에 표시한다', () => {
       renderWithProviders(<StatsSummary data={mockPriceData} />)
 
-      expect(screen.getByText('현재가')).toBeInTheDocument()
+      // 현재가 레이블 (날짜 포함 가능)
+      expect(screen.getByText(/현재가/)).toBeInTheDocument()
       // 현재가 값 확인 (회색 클래스와 함께 - 가격 범위 바의 현재가)
       const currentPriceValues = screen.getAllByText('11,000')
       expect(currentPriceValues.length).toBeGreaterThan(0)
@@ -293,9 +296,9 @@ describe('StatsSummary', () => {
       renderWithProviders(<StatsSummary data={mockPriceData} />)
 
       // 여러 개의 레이블이 있으므로 getAllByText 사용
-      expect(screen.getAllByText('최저가').length).toBeGreaterThan(0)
-      expect(screen.getByText('현재가')).toBeInTheDocument()
-      expect(screen.getAllByText('최고가').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/최저가/).length).toBeGreaterThan(0)
+      expect(screen.getByText(/현재가/)).toBeInTheDocument()
+      expect(screen.getAllByText(/최고가/).length).toBeGreaterThan(0)
     })
   })
 })

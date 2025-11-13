@@ -76,7 +76,7 @@ ProgressBar.propTypes = {
  * PriceRangeBar 컴포넌트
  * 가격 범위를 막대 형태로 표시 (최저가 ---|현재가----- 최고가)
  */
-const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, formatPrice }) => {
+const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, currentPriceDate, minPriceDate, maxPriceDate, formatPrice }) => {
   // 현재가가 범위를 벗어나는 경우 처리
   const clampedCurrentPrice = Math.max(minPrice, Math.min(maxPrice, currentPrice))
   const percentage = ((clampedCurrentPrice - minPrice) / (maxPrice - minPrice)) * 100
@@ -105,7 +105,9 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, formatPrice }) => {
       <div className="relative flex items-start justify-between" style={{ minHeight: '3rem' }}>
         {/* 최저가 (왼쪽) */}
         <div className="flex flex-col items-start">
-          <span className="text-xs text-gray-500 dark:text-gray-400">최저가</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            최저가{minPriceDate && ` (${format(new Date(minPriceDate), 'MM-dd')})`}
+          </span>
           <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
             {formatPrice(minPrice)}
           </span>
@@ -116,7 +118,9 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, formatPrice }) => {
           className="flex flex-col items-center absolute"
           style={{ left: `${currentLabelLeft}%`, transform: 'translateX(-50%)' }}
         >
-          <span className="text-xs text-gray-500 dark:text-gray-400">현재가</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            현재가{currentPriceDate && ` (${format(new Date(currentPriceDate), 'MM-dd')})`}
+          </span>
           <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
             {formatPrice(currentPrice)}
           </span>
@@ -124,7 +128,9 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, formatPrice }) => {
 
         {/* 최고가 (오른쪽) */}
         <div className="flex flex-col items-end">
-          <span className="text-xs text-gray-500 dark:text-gray-400">최고가</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            최고가{maxPriceDate && ` (${format(new Date(maxPriceDate), 'MM-dd')})`}
+          </span>
           <span className="text-xs font-semibold text-red-600 dark:text-red-400">
             {formatPrice(maxPrice)}
           </span>
@@ -138,6 +144,9 @@ PriceRangeBar.propTypes = {
   currentPrice: PropTypes.number.isRequired,
   minPrice: PropTypes.number.isRequired,
   maxPrice: PropTypes.number.isRequired,
+  currentPriceDate: PropTypes.string,
+  minPriceDate: PropTypes.string,
+  maxPriceDate: PropTypes.string,
   formatPrice: PropTypes.func.isRequired,
 }
 
@@ -229,6 +238,9 @@ export default function StatsSummary({ data = [] }) {
             currentPrice={stats.currentPrice}
             minPrice={stats.lowPrice}
             maxPrice={stats.highPrice}
+            currentPriceDate={stats.currentPriceDate}
+            minPriceDate={stats.lowPriceDate}
+            maxPriceDate={stats.highPriceDate}
             formatPrice={formatPrice}
           />
         </div>
