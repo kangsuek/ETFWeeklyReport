@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.exceptions import ScraperException
+from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class TickerScraper:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        self.rate_limiter = RateLimiter(min_interval=0.5)
+        self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
 
     @retry_with_backoff(
         max_retries=3,

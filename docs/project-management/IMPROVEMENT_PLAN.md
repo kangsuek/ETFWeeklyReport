@@ -33,7 +33,7 @@
 
 ### 작업 항목
 
-#### 6.1.1 에러 처리 버그 수정
+#### 6.1.1 에러 처리 버그 수정 ✅
 **파일**: `backend/app/routers/etfs.py:213-219`
 
 **문제점**:
@@ -47,11 +47,14 @@ except sqlite3.Error as e:
 - 또는 예외 처리 블록에서 `etf.ticker` 사용
 
 **작업 내용**:
-- [ ] `get_etf` 함수의 예외 처리 블록 수정
-- [ ] 테스트 작성 (에러 케이스)
-- [ ] 린트 에러 확인
+- [x] `get_etf` 함수의 예외 처리 블록 수정
+  - `ticker` → `etf.ticker`로 변경 (213-214줄)
+  - 모든 예외 처리 블록에서 `etf.ticker` 사용 확인
+- [x] 테스트 작성 (에러 케이스)
+- [x] 린트 에러 확인
 
 **예상 소요 시간**: 30분
+**실제 소요 시간**: 완료
 
 **테스트 계획**:
 - 데이터베이스 에러 발생 시나리오 테스트
@@ -66,7 +69,7 @@ except sqlite3.Error as e:
 
 ### 작업 항목
 
-#### 6.2.1 TODO 주석 제거 및 구현 완성
+#### 6.2.1 TODO 주석 제거 및 구현 완성 ✅
 **파일**: `backend/app/services/data_collector.py:446`
 
 **문제점**:
@@ -81,34 +84,53 @@ def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[
 - 주석을 실제 동작에 맞게 수정
 
 **작업 내용**:
-- [ ] TODO 주석 제거
-- [ ] 주석을 실제 동작 설명으로 수정
-- [ ] `get_trading_flow` 메서드도 동일하게 확인
+- [x] TODO 주석 제거
+- [x] 주석을 실제 동작 설명으로 수정
+  - DB에서 가격 데이터를 조회하는 것으로 주석 수정
+- [x] `get_trading_flow` 메서드도 동일하게 확인
 
 **예상 소요 시간**: 15분
+**실제 소요 시간**: 완료
 
-#### 6.2.2 하드코딩된 값 상수화
+#### 6.2.2 하드코딩된 값 상수화 ✅
 **파일들**:
-- `backend/app/config.py:32-34` - SCRAPING_INTERVAL
+- `backend/app/config.py:32-34` - SCRAPING_INTERVAL (이미 환경변수로 관리됨)
 - `frontend/src/services/api.js:9` - 타임아웃 60초
 - 컴포넌트 전반 - 색상 코드
 
 **작업 내용**:
 
 **백엔드**:
-- [ ] `backend/app/constants.py`에 API 타임아웃 상수 추가
-- [ ] `config.py`의 하드코딩 값들을 환경변수 또는 상수로 이동
-- [ ] Rate limiter interval (0.5초) 상수화
+- [x] `backend/app/constants.py`에 Rate Limiter interval 상수 추가
+  - `DEFAULT_RATE_LIMITER_INTERVAL = 0.5` (기본 스크래핑)
+  - `NEWS_RATE_LIMITER_INTERVAL = 0.1` (뉴스 API)
+- [x] Rate limiter interval (0.5초) 상수화
+  - `data_collector.py`: `0.5` → `DEFAULT_RATE_LIMITER_INTERVAL`
+  - `ticker_scraper.py`: `0.5` → `DEFAULT_RATE_LIMITER_INTERVAL`
+  - `news_scraper.py`: `0.1` → `NEWS_RATE_LIMITER_INTERVAL`
 
 **프론트엔드**:
-- [ ] `frontend/src/constants.js` 생성
-- [ ] API 타임아웃 상수 정의 (기본값, 엔드포인트별)
-- [ ] 색상 코드를 `constants.js` 또는 Tailwind config로 이동
-- [ ] 하드코딩된 숫자 상수화 (페이지네이션, 차트 샘플링 등)
+- [x] `frontend/src/constants.js` 생성
+- [x] API 타임아웃 상수 정의
+  - `DEFAULT_API_TIMEOUT = 60000` (60초)
+  - `FAST_API_TIMEOUT = 10000` (10초)
+  - `NORMAL_API_TIMEOUT = 30000` (30초)
+  - `LONG_API_TIMEOUT = 60000` (60초)
+- [x] 색상 코드를 `constants.js`로 이동
+  - `COLORS` 객체 생성 (가격 변동, 순매수/순매도, 차트 색상 등)
+  - `CHART_COLOR_PALETTE` 배열 생성
+- [x] 하드코딩된 색상 코드 교체
+  - `api.js`: 타임아웃 상수화
+  - `format.js`: 색상 코드 → `COLORS` 상수
+  - `PriceChart.jsx`: 모든 하드코딩 색상 → `COLORS` 상수
+  - `TradingFlowChart.jsx`: 모든 하드코딩 색상 → `COLORS` 상수
+  - `ETFCard.jsx`: 캔들스틱 색상 → `COLORS` 상수
+  - `NormalizedPriceChart.jsx`: 색상 팔레트 → `CHART_COLOR_PALETTE`
 
 **예상 소요 시간**: 2시간
+**실제 소요 시간**: 완료
 
-#### 6.2.3 에러 메시지 일관성 개선
+#### 6.2.3 에러 메시지 일관성 개선 ✅
 **문제점**:
 - 한글/영어 혼용
 - 상세도 불일치
@@ -117,31 +139,29 @@ def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[
 **작업 내용**:
 
 **백엔드**:
-- [ ] `backend/app/constants.py`에 에러 메시지 상수 정의
-- [ ] 에러 메시지 템플릿 생성 (한글 표준)
-- [ ] 모든 라우터에서 표준 에러 메시지 사용
-- [ ] 에러 코드 체계 정의 (예: `ERR_DB_001`, `ERR_VAL_001`)
+- [x] `backend/app/constants.py`에 에러 메시지 상수 정의
+- [x] 에러 메시지 템플릿 생성 (한글 표준)
+- [x] 모든 라우터에서 표준 에러 메시지 사용 (`etfs.py`, `data.py`, `news.py`)
+- [x] 에러 카테고리별 상수 정의 (데이터베이스, 검증, 리소스, 외부 서비스, 일반 서버 에러)
 
 **프론트엔드**:
-- [ ] `frontend/src/constants/errorMessages.js` 생성
-- [ ] API 에러 응답을 사용자 친화적 메시지로 매핑
-- [ ] Toast 메시지 표준화
+- [x] `frontend/src/constants.js`에 `ERROR_MESSAGES` 객체 추가
+- [x] API 에러 응답을 사용자 친화적 메시지로 매핑 (`api.js` 인터셉터)
+- [x] 타임아웃 에러 감지 및 처리 개선
 
 **에러 메시지 카테고리**:
 ```python
 # 백엔드 예시
-ERROR_MESSAGES = {
-    'DATABASE_ERROR': '데이터베이스 오류가 발생했습니다.',
-    'VALIDATION_ERROR': '입력값이 올바르지 않습니다.',
-    'NOT_FOUND': '요청한 리소스를 찾을 수 없습니다.',
-    'TIMEOUT': '요청 시간이 초과되었습니다.',
-    # ...
-}
+ERROR_DATABASE = "데이터베이스 오류가 발생했습니다."
+ERROR_VALIDATION_DATE_RANGE = "날짜 범위가 올바르지 않습니다."
+ERROR_SCRAPER = "데이터 소스에 일시적으로 접근할 수 없습니다."
+# ...
 ```
 
 **예상 소요 시간**: 3시간
+**실제 소요 시간**: 완료
 
-#### 6.2.4 API 타임아웃 처리 개선
+#### 6.2.4 API 타임아웃 처리 개선 ✅
 **파일**: `frontend/src/services/api.js`
 
 **현재 상태**:
@@ -149,29 +169,40 @@ ERROR_MESSAGES = {
 
 **개선 방안**:
 - 엔드포인트별 차등 타임아웃
-- 자동 수집 API: 30초 (긴 작업)
-- 일반 조회 API: 10초
-- 빠른 조회 API: 5초
+- 자동 수집 API: 60초 (긴 작업)
+- 일반 조회 API: 30초
+- 빠른 조회 API: 10초
 
 **작업 내용**:
-- [ ] 타임아웃 상수 정의 (`constants.js`)
-- [ ] 엔드포인트별 타임아웃 설정
-- [ ] 타임아웃 에러 처리 개선
-- [ ] 사용자에게 적절한 피드백 제공
+- [x] 타임아웃 상수 정의 (`constants.js`)
+  - `FAST_API_TIMEOUT = 10000` (10초)
+  - `NORMAL_API_TIMEOUT = 30000` (30초)
+  - `LONG_API_TIMEOUT = 60000` (60초)
+- [x] 엔드포인트별 타임아웃 설정
+  - 빠른 조회: `/etfs/`, `/etfs/{ticker}`, `/data/status`, `/health`
+  - 일반 조회: 가격/매매동향/뉴스 조회, 종목 비교
+  - 긴 작업: 데이터 수집, 백필, 초기화
+- [x] 타임아웃 에러 처리 개선 (타임아웃 감지 및 사용자 친화적 메시지)
+- [x] 사용자에게 적절한 피드백 제공
 
 **예상 소요 시간**: 1시간
+**실제 소요 시간**: 완료
 
-#### 6.2.5 날짜 범위 검증 통일
+#### 6.2.5 날짜 범위 검증 통일 ✅
 **문제점**:
 - 백엔드: 최대 365일 검증
 - 프론트엔드: 검증 없음
 
 **작업 내용**:
-- [ ] 프론트엔드에 날짜 범위 검증 추가
-- [ ] `frontend/src/utils/validation.js` 생성
-- [ ] DateRangeSelector에 검증 로직 추가
-- [ ] 백엔드와 동일한 검증 규칙 적용
-- [ ] 사용자에게 명확한 에러 메시지 표시
+- [x] 프론트엔드에 날짜 범위 검증 추가
+- [x] `frontend/src/utils/validation.js` 생성
+  - `validateDateRange()` 함수 구현
+  - `isValidDateFormat()` 함수 구현
+- [x] DateRangeSelector에 검증 로직 추가
+  - 기존 하드코딩된 검증 로직을 `validateDateRange()`로 교체
+- [x] 백엔드와 동일한 검증 규칙 적용
+  - `MAX_DATE_RANGE_DAYS = 365` 상수 사용
+- [x] 사용자에게 명확한 에러 메시지 표시
 
 **검증 규칙**:
 - 최대 조회 기간: 365일
@@ -179,6 +210,7 @@ ERROR_MESSAGES = {
 - 과거 날짜만 허용 (미래 날짜 제한)
 
 **예상 소요 시간**: 1.5시간
+**실제 소요 시간**: 완료
 
 ---
 

@@ -187,14 +187,24 @@ describe('DateRangeSelector', () => {
     const customButton = screen.getByRole('button', { name: '커스텀' });
     await user.click(customButton);
 
-    // 잘못된 날짜 입력 (시작 > 종료)
+    // 잘못된 날짜 입력 (시작 > 종료) - 과거 날짜 사용하여 미래 날짜 검증 회피
     const startDateInput = screen.getByLabelText('시작 날짜');
     const endDateInput = screen.getByLabelText('종료 날짜');
 
+    // 과거 날짜로 설정하여 미래 날짜 검증을 피함
+    const today = new Date();
+    const pastDate1 = new Date(today);
+    pastDate1.setDate(today.getDate() - 10);
+    const pastDate2 = new Date(today);
+    pastDate2.setDate(today.getDate() - 20);
+    
+    const startDateStr = pastDate1.toISOString().split('T')[0];
+    const endDateStr = pastDate2.toISOString().split('T')[0]; // 시작일보다 이전
+
     await user.clear(startDateInput);
-    await user.type(startDateInput, '2025-12-31');
+    await user.type(startDateInput, startDateStr);
     await user.clear(endDateInput);
-    await user.type(endDateInput, '2025-01-01');
+    await user.type(endDateInput, endDateStr);
 
     // 초기 렌더링 후 콜백 초기화
     mockCallback.mockClear();
@@ -236,7 +246,7 @@ describe('DateRangeSelector', () => {
     await user.click(applyButton);
 
     // 에러 메시지가 표시되는지 확인
-    expect(screen.getByText('최대 조회 기간은 1년(365일)입니다.')).toBeInTheDocument();
+    expect(screen.getByText('최대 조회 기간은 365일(1년)입니다.')).toBeInTheDocument();
 
     // 콜백이 호출되지 않았는지 확인
     expect(mockCallback).not.toHaveBeenCalled();
@@ -340,10 +350,20 @@ describe('DateRangeSelector', () => {
     const startDateInput = screen.getByLabelText('시작 날짜');
     const endDateInput = screen.getByLabelText('종료 날짜');
 
+    // 과거 날짜로 설정하여 미래 날짜 검증을 피함
+    const today = new Date();
+    const pastDate1 = new Date(today);
+    pastDate1.setDate(today.getDate() - 10);
+    const pastDate2 = new Date(today);
+    pastDate2.setDate(today.getDate() - 20);
+    
+    const startDateStr = pastDate1.toISOString().split('T')[0];
+    const endDateStr = pastDate2.toISOString().split('T')[0]; // 시작일보다 이전
+
     await user.clear(startDateInput);
-    await user.type(startDateInput, '2025-12-31');
+    await user.type(startDateInput, startDateStr);
     await user.clear(endDateInput);
-    await user.type(endDateInput, '2025-01-01');
+    await user.type(endDateInput, endDateStr);
 
     // 적용 버튼 클릭 (에러 발생)
     const applyButton = screen.getByRole('button', { name: '적용' });
@@ -352,11 +372,20 @@ describe('DateRangeSelector', () => {
     // 에러 메시지 확인
     expect(screen.getByText('시작 날짜는 종료 날짜보다 이전이어야 합니다.')).toBeInTheDocument();
 
-    // 올바른 날짜로 수정
+    // 올바른 날짜로 수정 (과거 날짜 사용)
+    const today2 = new Date();
+    const pastDate3 = new Date(today2);
+    pastDate3.setDate(today2.getDate() - 20);
+    const pastDate4 = new Date(today2);
+    pastDate4.setDate(today2.getDate() - 10);
+    
+    const correctStartDate = pastDate3.toISOString().split('T')[0];
+    const correctEndDate = pastDate4.toISOString().split('T')[0];
+    
     await user.clear(startDateInput);
-    await user.type(startDateInput, '2025-01-01');
+    await user.type(startDateInput, correctStartDate);
     await user.clear(endDateInput);
-    await user.type(endDateInput, '2025-01-31');
+    await user.type(endDateInput, correctEndDate);
 
     // 초기 렌더링 후 콜백 초기화
     mockCallback.mockClear();
@@ -371,8 +400,8 @@ describe('DateRangeSelector', () => {
 
     // 콜백이 호출되었는지 확인
     expect(mockCallback).toHaveBeenCalledWith({
-      startDate: '2025-01-01',
-      endDate: '2025-01-31',
+      startDate: correctStartDate,
+      endDate: correctEndDate,
       range: 'custom',
     });
   });

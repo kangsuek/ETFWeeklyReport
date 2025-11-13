@@ -186,3 +186,89 @@ NEWS_DEFAULT_DISPLAY_COUNT = 10
 - 너무 많으면 스크롤이 길어짐
 - 너무 적으면 정보 부족
 """
+
+# =============================================================================
+# Rate Limiter 관련 상수
+# =============================================================================
+
+DEFAULT_RATE_LIMITER_INTERVAL = 0.5
+"""
+기본 Rate Limiter 간격 (0.5초)
+
+용도:
+- 스크래핑 요청 간 최소 대기 시간
+- 네이버 금융 서버 부하 방지
+- RateLimiter 초기화 시 기본값
+
+왜 0.5초인가?
+- 네이버 금융 서버 부하를 방지하기 위한 적절한 간격
+- 너무 짧으면 IP 차단 위험
+- 너무 길면 수집 시간이 과도하게 증가
+- 일반적인 웹 스크래핑 모범 사례 (0.5-1초)
+
+사용 예:
+- ETFDataCollector: min_interval=DEFAULT_RATE_LIMITER_INTERVAL
+- TickerScraper: min_interval=DEFAULT_RATE_LIMITER_INTERVAL
+"""
+
+NEWS_RATE_LIMITER_INTERVAL = 0.1
+"""
+뉴스 API Rate Limiter 간격 (0.1초)
+
+용도:
+- 네이버 뉴스 API 요청 간 최소 대기 시간
+- NewsScraper에서 사용
+
+왜 0.1초인가?
+- 네이버 검색 API는 공식 API이므로 더 짧은 간격 허용
+- 공식 API는 Rate Limit이 더 관대함
+- 빠른 수집이 가능하지만 여전히 서버 부하 방지
+
+참고:
+- 공식 API와 비공식 스크래핑의 차이
+- 공식 API는 더 짧은 간격 허용 가능
+"""
+
+# =============================================================================
+# 에러 메시지 상수
+# =============================================================================
+
+# 데이터베이스 관련 에러
+ERROR_DATABASE = "데이터베이스 오류가 발생했습니다."
+ERROR_DATABASE_COLLECTION = "데이터 수집 중 데이터베이스 오류가 발생했습니다."
+ERROR_DATABASE_BACKFILL = "백필 중 데이터베이스 오류가 발생했습니다."
+ERROR_DATABASE_RESET = "데이터베이스 초기화 중 오류가 발생했습니다."
+
+# 검증 관련 에러
+ERROR_VALIDATION = "입력값이 올바르지 않습니다."
+ERROR_VALIDATION_TICKER = "종목 코드 형식이 올바르지 않습니다."
+ERROR_VALIDATION_DATE_RANGE = "날짜 범위가 올바르지 않습니다."
+ERROR_VALIDATION_COLLECTION_PARAMS = "수집 파라미터가 올바르지 않습니다."
+ERROR_VALIDATION_BACKFILL_PARAMS = "백필 파라미터가 올바르지 않습니다."
+
+# 리소스 관련 에러
+ERROR_NOT_FOUND = "요청한 리소스를 찾을 수 없습니다."
+ERROR_NOT_FOUND_STOCK = "종목을 찾을 수 없습니다."
+
+# 외부 서비스 관련 에러
+ERROR_SCRAPER = "데이터 소스에 일시적으로 접근할 수 없습니다."
+ERROR_SCRAPER_COLLECTION = "데이터 수집에 실패했습니다. 데이터 소스가 일시적으로 사용 불가능할 수 있습니다."
+ERROR_SCRAPER_NEWS = "뉴스 소스에 일시적으로 접근할 수 없습니다."
+
+# 일반 서버 에러
+ERROR_INTERNAL = "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_COLLECTION = "데이터 수집에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_BACKFILL = "백필에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_FETCH_PRICES = "가격 데이터 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_FETCH_TRADING_FLOW = "매매 동향 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_FETCH_NEWS = "뉴스 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_FETCH_METRICS = "지표 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_COMPARE = "종목 비교에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_GET_STATUS = "상태 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_GET_SCHEDULER_STATUS = "스케줄러 상태 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_GET_STATS = "통계 조회에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_RESET = "데이터베이스 초기화에 실패했습니다. 잠시 후 다시 시도해주세요."
+ERROR_INTERNAL_CREATE_STOCK = "종목 추가에 실패했습니다."
+ERROR_INTERNAL_UPDATE_STOCK = "종목 수정에 실패했습니다."
+ERROR_INTERNAL_DELETE_STOCK = "종목 삭제에 실패했습니다."
+ERROR_INTERNAL_VALIDATE_TICKER = "종목 코드 검증에 실패했습니다."

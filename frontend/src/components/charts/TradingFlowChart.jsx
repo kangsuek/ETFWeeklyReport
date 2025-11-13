@@ -15,6 +15,7 @@ import { getNetBuyingColor } from '../../utils/format'
 import { useContainerWidth } from '../../hooks/useContainerWidth'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { sampleData, validateChartData } from '../../utils/chartUtils'
+import { COLORS } from '../../constants'
 
 /**
  * 천 원 단위 순매수/순매도 포맷팅
@@ -238,12 +239,12 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
             barCategoryGap={barCategoryGap}
             barGap={0}
           >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.CHART_GRID} />
           <XAxis
             dataKey="date"
             tickFormatter={formatXAxis}
             tick={{ fontSize: 12 }}
-            stroke="#6b7280"
+            stroke={COLORS.CHART_AXIS}
             interval={0}
             angle={chartData.length > 15 ? -45 : 0}
             textAnchor={chartData.length > 15 ? "end" : "middle"}
@@ -252,7 +253,7 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
           <YAxis
             tickFormatter={formatYAxis}
             tick={{ fontSize: 12 }}
-            stroke="#6b7280"
+            stroke={COLORS.CHART_AXIS}
             domain={yDomain}
           />
           <Tooltip 
@@ -271,26 +272,26 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
           />
 
           {/* 기준선 (y=0) */}
-          <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1} />
+          <ReferenceLine y={0} stroke={COLORS.CHART_AXIS} strokeWidth={1} />
 
           {/* 투자자별 Bar */}
           <Bar
             dataKey="individual_net"
-            fill="#3b82f6"
+            fill={COLORS.CHART_PRIMARY}
             name="개인"
             stackId="stack"
             barSize={barSize}
           />
           <Bar
             dataKey="institutional_net"
-            fill="#10b981"
+            fill={COLORS.CHART_SECONDARY}
             name="기관"
             stackId="stack"
             barSize={barSize}
           />
           <Bar
             dataKey="foreign_net"
-            fill="#f59e0b"
+            fill={COLORS.CHART_TERTIARY}
             name="외국인"
             stackId="stack"
             barSize={barSize}

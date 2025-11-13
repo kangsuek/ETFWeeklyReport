@@ -10,6 +10,7 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
+import { CHART_COLOR_PALETTE } from '../../constants'
 
 /**
  * NormalizedPriceChart Component
@@ -49,14 +50,7 @@ export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
   })
 
   // 티커별 색상 (최대 6개)
-  const colors = [
-    '#3b82f6', // blue
-    '#10b981', // green
-    '#f59e0b', // amber
-    '#ef4444', // red
-    '#8b5cf6', // violet
-    '#ec4899', // pink
-  ]
+  const colors = CHART_COLOR_PALETTE
 
   // 수익률 순으로 티커 정렬 (높은 수익률부터)
   const tickers = Object.keys(data.data).sort((a, b) => {

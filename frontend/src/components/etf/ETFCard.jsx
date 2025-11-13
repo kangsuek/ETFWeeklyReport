@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { etfApi, newsApi } from '../../services/api'
+import { COLORS } from '../../constants'
 
 export default function ETFCard({ etf, compactMode = false }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
@@ -167,7 +168,7 @@ export default function ETFCard({ etf, compactMode = false }) {
             const bodyTop = Math.min(candle.open, candle.close)
             const bodyBottom = Math.max(candle.open, candle.close)
             const bodyHeight = Math.abs(candle.close - candle.open) || 0.5
-            const color = candle.isUp ? '#ef4444' : '#3b82f6'
+            const color = candle.isUp ? COLORS.PRICE_UP : COLORS.CHART_PRIMARY
 
             return (
               <g key={`candle-${i}`}>

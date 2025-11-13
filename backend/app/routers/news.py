@@ -7,6 +7,14 @@ from app.services.data_collector import ETFDataCollector
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.dependencies import get_etf_or_404, get_collector
+from app.constants import (
+    ERROR_DATABASE,
+    ERROR_VALIDATION_DATE_RANGE,
+    ERROR_SCRAPER_NEWS,
+    ERROR_VALIDATION_COLLECTION_PARAMS,
+    ERROR_INTERNAL_FETCH_NEWS,
+    ERROR_INTERNAL_COLLECTION,
+)
 import sqlite3
 import logging
 
@@ -44,13 +52,13 @@ async def get_news(
 
     except sqlite3.Error as e:
         logger.error(f"Database error fetching news for {etf.ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Database error occurred")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
         logger.error(f"Validation error fetching news for {etf.ticker}: {e}")
-        raise HTTPException(status_code=400, detail="Invalid date range or ticker")
+        raise HTTPException(status_code=400, detail=ERROR_VALIDATION_DATE_RANGE)
     except Exception as e:
         logger.error(f"Unexpected error fetching news for {etf.ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve news. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_FETCH_NEWS)
 
 @router.post("/{ticker}/collect")
 async def collect_news(
@@ -75,13 +83,13 @@ async def collect_news(
 
     except sqlite3.Error as e:
         logger.error(f"Database error collecting news for {etf.ticker}: {e}")
-        raise HTTPException(status_code=500, detail="Database error during news collection")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
         logger.error(f"Scraper error collecting news for {etf.ticker}: {e}")
-        raise HTTPException(status_code=503, detail="News source temporarily unavailable")
+        raise HTTPException(status_code=503, detail=ERROR_SCRAPER_NEWS)
     except ValidationException as e:
         logger.error(f"Validation error collecting news for {etf.ticker}: {e}")
-        raise HTTPException(status_code=400, detail="Invalid collection parameters")
+        raise HTTPException(status_code=400, detail=ERROR_VALIDATION_COLLECTION_PARAMS)
     except Exception as e:
         logger.error(f"Unexpected error collecting news for {etf.ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="News collection failed. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_COLLECTION)

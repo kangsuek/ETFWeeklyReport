@@ -16,6 +16,7 @@ import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/f
 import { useContainerWidth } from '../../hooks/useContainerWidth'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { sampleData, validateChartData } from '../../utils/chartUtils'
+import { COLORS } from '../../constants'
 
 /**
  * CustomLegend 컴포넌트
@@ -52,8 +53,8 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           onChange={(e) => setShowMA5(e.target.checked)}
           className="w-4 h-4 cursor-pointer"
         />
-        <span className="inline-block w-8 h-1" style={{ backgroundColor: '#8b5cf6' }}></span>
-        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#8b5cf6' }}>5일 이동평균선</span>
+        <span className="inline-block w-8 h-1" style={{ backgroundColor: COLORS.MA_5 }}></span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: COLORS.MA_5 }}>5일 이동평균선</span>
       </label>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -63,8 +64,8 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           onChange={(e) => setShowMA10(e.target.checked)}
           className="w-4 h-4 cursor-pointer"
         />
-        <span className="inline-block w-8 h-1" style={{ backgroundColor: '#10b981' }}></span>
-        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#10b981' }}>10일 이동평균선</span>
+        <span className="inline-block w-8 h-1" style={{ backgroundColor: COLORS.MA_10 }}></span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: COLORS.MA_10 }}>10일 이동평균선</span>
       </label>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -74,8 +75,8 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
           onChange={(e) => setShowMA20(e.target.checked)}
           className="w-4 h-4 cursor-pointer"
         />
-        <span className="inline-block w-8 h-1" style={{ backgroundColor: '#ef4444' }}></span>
-        <span className="text-gray-700 dark:text-gray-300" style={{ color: '#ef4444' }}>20일 이동평균선</span>
+        <span className="inline-block w-8 h-1" style={{ backgroundColor: COLORS.MA_20 }}></span>
+        <span className="text-gray-700 dark:text-gray-300" style={{ color: COLORS.MA_20 }}>20일 이동평균선</span>
       </label>
     </div>
   )
@@ -223,7 +224,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
     return sampledData.map((item, index) => {
       // 상승(종가 > 시가): 빨간색, 하락(종가 <= 시가): 파란색
       const isRising = item.close_price > item.open_price
-      const volumeColor = isRising ? '#ef4444' : '#3b82f6'
+      const volumeColor = isRising ? COLORS.VOLUME_UP : COLORS.VOLUME_DOWN
 
       return {
         ...item,
@@ -341,19 +342,19 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
             margin={{ top: 10, right: 15, left: 15, bottom: chartData.length > 15 ? 60 : 0 }}
             barCategoryGap={barCategoryGap}
           >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.CHART_GRID} />
           <XAxis
             dataKey="date"
             tickFormatter={formatXAxis}
             tick={{ fontSize: 12 }}
-            stroke="#6b7280"
+            stroke={COLORS.CHART_AXIS}
           />
           <YAxis
             yAxisId="left"
             orientation="left"
             tickFormatter={formatYAxisPrice}
             tick={{ fontSize: 12 }}
-            stroke="#6b7280"
+            stroke={COLORS.CHART_AXIS}
             domain={priceDomain}
           />
           <YAxis
@@ -366,7 +367,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
           />
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '5 5' }}
+            cursor={{ stroke: COLORS.CHART_CURSOR, strokeWidth: 1, strokeDasharray: '5 5' }}
             isAnimationActive={false}
             wrapperStyle={{ outline: 'none' }}
             contentStyle={{ 
@@ -410,7 +411,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
             yAxisId="left"
             type="monotone"
             dataKey="close_price"
-            stroke="#2563eb"
+            stroke={COLORS.CHART_PRIMARY}
             strokeWidth={2}
             dot={false}
             name="종가"
@@ -423,7 +424,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               yAxisId="left"
               type="monotone"
               dataKey="ma5"
-              stroke="#8b5cf6"
+              stroke={COLORS.MA_5}
               strokeWidth={1.5}
               dot={false}
               name="5일 이동평균선"
@@ -435,7 +436,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               yAxisId="left"
               type="monotone"
               dataKey="ma10"
-              stroke="#10b981"
+              stroke={COLORS.MA_10}
               strokeWidth={1.5}
               dot={false}
               name="10일 이동평균선"
@@ -447,7 +448,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               yAxisId="left"
               type="monotone"
               dataKey="ma20"
-              stroke="#ef4444"
+              stroke={COLORS.MA_20}
               strokeWidth={1.5}
               dot={false}
               name="20일 이동평균선"

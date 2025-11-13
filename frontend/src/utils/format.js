@@ -1,3 +1,5 @@
+import { COLORS } from '../constants'
+
 /**
  * 숫자를 천 단위 콤마로 포맷팅
  * @param {number} value - 포맷팅할 숫자
@@ -66,10 +68,10 @@ export const getPriceChangeColor = (value) => {
  * @returns {string} - Hex 색상 값
  */
 export const getPriceChangeColorHex = (value) => {
-  if (value === null || value === undefined || isNaN(value)) return '#6b7280'
-  if (value > 0) return '#dc2626'
-  if (value < 0) return '#2563eb'
-  return '#6b7280'
+  if (value === null || value === undefined || isNaN(value)) return COLORS.PRICE_NEUTRAL
+  if (value > 0) return COLORS.PRICE_UP
+  if (value < 0) return COLORS.PRICE_DOWN
+  return COLORS.PRICE_NEUTRAL
 }
 
 /**
@@ -102,8 +104,8 @@ export const formatNetBuying = (value) => {
  * @returns {string} - Hex 색상 값
  */
 export const getNetBuyingColor = (value) => {
-  if (value === null || value === undefined || isNaN(value)) return '#6b7280'
-  if (value > 0) return '#dc2626' // 빨강 (순매수)
-  if (value < 0) return '#2563eb' // 파랑 (순매도)
-  return '#6b7280'
+  if (value === null || value === undefined || isNaN(value)) return COLORS.PRICE_NEUTRAL
+  if (value > 0) return COLORS.NET_BUYING
+  if (value < 0) return COLORS.NET_SELLING
+  return COLORS.PRICE_NEUTRAL
 }

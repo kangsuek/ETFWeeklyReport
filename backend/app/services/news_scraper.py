@@ -5,6 +5,7 @@ from app.database import get_db_connection
 from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
+from app.constants import NEWS_RATE_LIMITER_INTERVAL
 import logging
 import requests
 import os
@@ -28,8 +29,8 @@ class NewsScraper:
         if not self.client_id or not self.client_secret:
             logger.warning("Naver API credentials not found in environment variables")
         
-        # Rate Limiter 초기화 (API 요청 간 0.1초 대기)
-        self.rate_limiter = RateLimiter(min_interval=0.1)
+        # Rate Limiter 초기화
+        self.rate_limiter = RateLimiter(min_interval=NEWS_RATE_LIMITER_INTERVAL)
 
     @retry_with_backoff(
         max_retries=3,

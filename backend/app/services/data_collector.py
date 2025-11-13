@@ -4,7 +4,12 @@ from app.models import ETF, PriceData, TradingFlow, ETFMetrics
 from app.database import get_db_connection
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
-from app.constants import DAYS_IN_YEAR, TRADING_DAYS_PER_YEAR, PERCENT_MULTIPLIER
+from app.constants import (
+    DAYS_IN_YEAR,
+    TRADING_DAYS_PER_YEAR,
+    PERCENT_MULTIPLIER,
+    DEFAULT_RATE_LIMITER_INTERVAL
+)
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -20,8 +25,8 @@ class ETFDataCollector:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        # Rate Limiter 초기화 (요청 간 0.5초 대기)
-        self.rate_limiter = RateLimiter(min_interval=0.5)
+        # Rate Limiter 초기화
+        self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
     
     @retry_with_backoff(
         max_retries=3,

@@ -6,7 +6,24 @@ from fastapi import APIRouter, HTTPException, Query
 from app.services.data_collector import ETFDataCollector
 from app.services.scheduler import get_scheduler
 from app.exceptions import DatabaseException, ValidationException, ScraperException
-from app.constants import MAX_COLLECTION_DAYS, DEFAULT_COLLECTION_DAYS, DEFAULT_BACKFILL_DAYS
+from app.constants import (
+    MAX_COLLECTION_DAYS,
+    DEFAULT_COLLECTION_DAYS,
+    DEFAULT_BACKFILL_DAYS,
+    ERROR_DATABASE,
+    ERROR_DATABASE_COLLECTION,
+    ERROR_DATABASE_BACKFILL,
+    ERROR_DATABASE_RESET,
+    ERROR_VALIDATION_COLLECTION_PARAMS,
+    ERROR_VALIDATION_BACKFILL_PARAMS,
+    ERROR_SCRAPER,
+    ERROR_INTERNAL_COLLECTION,
+    ERROR_INTERNAL_BACKFILL,
+    ERROR_INTERNAL_GET_STATUS,
+    ERROR_INTERNAL_GET_SCHEDULER_STATUS,
+    ERROR_INTERNAL_GET_STATS,
+    ERROR_INTERNAL_RESET,
+)
 import sqlite3
 import logging
 
@@ -79,16 +96,16 @@ async def collect_all_data(
         }
     except sqlite3.Error as e:
         logger.error(f"Database error during batch collection: {e}")
-        raise HTTPException(status_code=500, detail="Database error during batch collection")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
         logger.error(f"Scraper error during batch collection: {e}")
-        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+        raise HTTPException(status_code=503, detail=ERROR_SCRAPER)
     except ValidationException as e:
         logger.error(f"Validation error during batch collection: {e}")
-        raise HTTPException(status_code=400, detail="Invalid collection parameters")
+        raise HTTPException(status_code=400, detail=ERROR_VALIDATION_COLLECTION_PARAMS)
     except Exception as e:
         logger.error(f"Unexpected error during batch collection: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Batch collection failed. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_COLLECTION)
 
 
 @router.post("/backfill")
@@ -113,16 +130,16 @@ async def backfill_data(
         }
     except sqlite3.Error as e:
         logger.error(f"Database error during backfill: {e}")
-        raise HTTPException(status_code=500, detail="Database error during backfill")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE_BACKFILL)
     except ScraperException as e:
         logger.error(f"Scraper error during backfill: {e}")
-        raise HTTPException(status_code=503, detail="Data source temporarily unavailable")
+        raise HTTPException(status_code=503, detail=ERROR_SCRAPER)
     except ValidationException as e:
         logger.error(f"Validation error during backfill: {e}")
-        raise HTTPException(status_code=400, detail="Invalid backfill parameters")
+        raise HTTPException(status_code=400, detail=ERROR_VALIDATION_BACKFILL_PARAMS)
     except Exception as e:
         logger.error(f"Unexpected error during backfill: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Backfill failed. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_BACKFILL)
 
 
 @router.get("/status")
@@ -160,10 +177,10 @@ async def get_collection_status():
         }
     except sqlite3.Error as e:
         logger.error(f"Database error getting collection status: {e}")
-        raise HTTPException(status_code=500, detail="Database error occurred")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
         logger.error(f"Unexpected error getting collection status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get status. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_GET_STATUS)
 
 
 @router.get("/scheduler-status")
@@ -184,10 +201,10 @@ async def get_scheduler_status():
         }
     except sqlite3.Error as e:
         logger.error(f"Database error getting scheduler status: {e}")
-        raise HTTPException(status_code=500, detail="Database error occurred")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
         logger.error(f"Unexpected error getting scheduler status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get scheduler status. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_GET_SCHEDULER_STATUS)
 
 
 @router.get("/stats")
@@ -273,10 +290,10 @@ async def get_data_stats():
             }
     except sqlite3.Error as e:
         logger.error(f"Database error getting stats: {e}")
-        raise HTTPException(status_code=500, detail="Database error occurred")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
         logger.error(f"Unexpected error getting stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get stats. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_GET_STATS)
 
 
 @router.delete("/reset")
@@ -340,8 +357,8 @@ async def reset_database():
             }
     except sqlite3.Error as e:
         logger.error(f"Database error during reset: {e}")
-        raise HTTPException(status_code=500, detail="Database error during reset")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE_RESET)
     except Exception as e:
         logger.error(f"Unexpected error during reset: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reset database. Please try again later.")
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL_RESET)
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, memo } from 'react';
-import { subDays, subMonths, format, isAfter, differenceInDays } from 'date-fns';
+import { subDays, subMonths, format } from 'date-fns';
+import { validateDateRange } from '../../utils/validation';
+import { MAX_DATE_RANGE_DAYS } from '../../constants';
 
 /**
  * DateRangeSelector - 차트 데이터 기간 선택 컴포넌트
@@ -60,24 +62,11 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
 
   // 커스텀 날짜 적용
   const applyCustomRange = () => {
-    if (!startDate || !endDate) {
-      setError('시작 날짜와 종료 날짜를 모두 입력해주세요.');
-      return;
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    // 날짜 검증: startDate <= endDate
-    if (isAfter(start, end)) {
-      setError('시작 날짜는 종료 날짜보다 이전이어야 합니다.');
-      return;
-    }
-
-    // 최대 범위 검증: 1년 (365일)
-    const daysDiff = differenceInDays(end, start);
-    if (daysDiff > 365) {
-      setError('최대 조회 기간은 1년(365일)입니다.');
+    // 날짜 범위 검증 (백엔드와 동일한 규칙 적용)
+    const validation = validateDateRange(startDate, endDate);
+    
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
 
