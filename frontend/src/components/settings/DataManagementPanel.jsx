@@ -94,8 +94,15 @@ export default function DataManagementPanel() {
 
   // 날짜 포맷팅
   const formatDate = (dateStr) => {
-    if (!dateStr) return '-'
+    // null, undefined, 빈 문자열인 경우 "-" 반환
+    if (dateStr === null || dateStr === undefined || dateStr === '') {
+      return '-'
+    }
     const date = new Date(dateStr)
+    // 유효하지 않은 날짜인 경우도 "-" 반환
+    if (isNaN(date.getTime())) {
+      return '-'
+    }
     return date.toLocaleString('ko-KR', {
       year: 'numeric',
       month: '2-digit',

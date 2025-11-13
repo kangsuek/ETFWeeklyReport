@@ -87,8 +87,20 @@ async def collect_all_data(
     - 대량 수집 시 시간이 오래 걸릴 수 있음 (약 6초/종목)
     """
     try:
+        from datetime import datetime
+        import pytz
+        
         collector = ETFDataCollector()
         result = collector.collect_all_tickers(days=days)
+        
+        # 수집 완료 후 스케줄러의 마지막 수집 시간 업데이트
+        try:
+            scheduler = get_scheduler()
+            KST = pytz.timezone('Asia/Seoul')
+            scheduler.last_collection_time = datetime.now(KST)
+            logger.info(f"스케줄러 마지막 수집 시간 업데이트: {scheduler.last_collection_time}")
+        except Exception as e:
+            logger.warning(f"스케줄러 마지막 수집 시간 업데이트 실패 (무시): {e}")
 
         return {
             "message": f"Data collection completed for {result['total_tickers']} tickers",
@@ -272,7 +284,9 @@ async def get_data_stats():
                 try:
                     scheduler = get_scheduler()
                     status = scheduler.get_status()
-                    last_collection = status.get("last_collection_time")
+                    scheduler_time = status.get("last_collection_time")
+                    # 스케줄러에서 가져온 값이 None이거나 없으면 None 유지
+                    last_collection = scheduler_time if scheduler_time else None
                 except:
                     last_collection = None
 

@@ -27,6 +27,9 @@ class ETFDataCollector:
         }
         # Rate Limiter 초기화
         self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
+        # NewsScraper 초기화 (뉴스 수집용)
+        from app.services.news_scraper import NewsScraper
+        self.news_scraper = NewsScraper()
     
     @retry_with_backoff(
         max_retries=3,
@@ -686,8 +689,16 @@ class ETFDataCollector:
                     logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
                     # 매매동향 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
 
-                # 뉴스 수집은 별도 스케줄러에서 처리하므로 여기서는 제외
-                # (NewsScraperService가 별도로 관리)
+                # 뉴스 수집
+                try:
+                    logger.info(f"[일괄 수집] {ticker} - 뉴스 수집 시작 (최근 {days}일)")
+                    news_result = self.news_scraper.collect_and_save_news(ticker, days)
+                    news_count = news_result.get('collected', 0)
+                    logger.info(f"[일괄 수집] {ticker} - 뉴스: {news_count}건 수집 완료 (결과: {news_result})")
+                except Exception as e:
+                    logger.error(f"[일괄 수집] {ticker} 뉴스 수집 실패: {e}", exc_info=True)
+                    # 뉴스 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
+                    news_count = 0
 
                 # 통계 업데이트
                 total_price_records += price_count
