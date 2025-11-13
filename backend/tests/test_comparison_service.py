@@ -205,6 +205,69 @@ class TestCalculateReturns:
         assert result == 0.0
 
 
+class TestCalculateAnnualizedReturn:
+    """Annualized return calculation tests"""
+
+    def test_annualized_return_30_days(self, comparison_service):
+        """Test annualized return with 30-day period and 10% return"""
+        # 10% return over 30 days
+        prices = pd.Series([100, 110])
+        days = 30
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        # (1.10)^(365/30) - 1 = 3.495 = 349.5%
+        expected = ((1.10) ** (365 / 30) - 1) * 100
+        assert abs(result - expected) < 0.1
+
+    def test_annualized_return_365_days(self, comparison_service):
+        """Test annualized return with 365-day period"""
+        # 20% return over 365 days should remain 20%
+        prices = pd.Series([100, 120])
+        days = 365
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        # (1.20)^(365/365) - 1 = 0.20 = 20%
+        assert result == 20.0
+
+    def test_annualized_return_negative(self, comparison_service):
+        """Test annualized return with negative return"""
+        # -10% return over 30 days
+        prices = pd.Series([100, 90])
+        days = 30
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        # (0.90)^(365/30) - 1 = -0.722 = -72.2%
+        expected = ((0.90) ** (365 / 30) - 1) * 100
+        assert abs(result - expected) < 0.1
+
+    def test_annualized_return_small_gain_short_period(self, comparison_service):
+        """Test annualized return with small gain over short period"""
+        # 2% return over 7 days
+        prices = pd.Series([100, 102])
+        days = 7
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        # (1.02)^(365/7) - 1 = 1.53 = 153%
+        expected = ((1.02) ** (365 / 7) - 1) * 100
+        assert abs(result - expected) < 1.0
+
+    def test_annualized_return_zero_days(self, comparison_service):
+        """Test annualized return with zero days"""
+        prices = pd.Series([100, 110])
+        days = 0
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        assert result == 0.0
+
+    def test_annualized_return_insufficient_data(self, comparison_service):
+        """Test annualized return with insufficient data"""
+        prices = pd.Series([100])
+        days = 30
+        result = comparison_service.calculate_annualized_return(prices, days)
+
+        assert result == 0.0
+
+
 class TestCalculateVolatility:
     """Volatility calculation tests"""
 

@@ -585,31 +585,37 @@ class ETFDataCollector:
     
     def collect_all_tickers(self, days: int = 1) -> dict:
         """
-        모든 종목의 가격 데이터를 일괄 수집
-        
+        모든 종목의 가격, 매매동향, 뉴스 데이터를 일괄 수집
+
         Args:
             days: 수집할 일수 (기본: 1일 - 당일 데이터)
-        
+
         Returns:
             수집 결과 딕셔너리 {
+                'total_tickers': 전체 종목 수,
                 'success_count': 성공한 종목 수,
                 'fail_count': 실패한 종목 수,
-                'total_records': 총 수집된 레코드 수,
+                'total_price_records': 총 가격 레코드 수,
+                'total_trading_flow_records': 총 매매동향 레코드 수,
+                'total_news_records': 총 뉴스 수,
+                'duration_seconds': 소요 시간(초),
                 'details': 종목별 상세 결과
             }
         """
         start_time = datetime.now()
         logger.info(f"[일괄 수집] 시작: {days}일치 데이터")
-        
+
         # 전체 종목 조회
         all_etfs = self.get_all_etfs()
         tickers = [etf.ticker for etf in all_etfs]
-        
+
         success_count = 0
         fail_count = 0
-        total_records = 0
-        details = []
-        
+        total_price_records = 0
+        total_trading_flow_records = 0
+        total_news_records = 0
+        details = {}
+
         for ticker in tickers:
             try:
                 # 종목 정보 확인
@@ -617,65 +623,95 @@ class ETFDataCollector:
                 if not etf_info:
                     logger.warning(f"[일괄 수집] 종목 정보 없음: {ticker}")
                     fail_count += 1
-                    details.append({
-                        'ticker': ticker,
-                        'status': 'failed',
-                        'reason': 'ETF info not found',
-                        'collected': 0
-                    })
+                    details[ticker] = {
+                        'name': ticker,
+                        'success': False,
+                        'price_records': 0,
+                        'trading_flow_records': 0,
+                        'news_records': 0,
+                        'error': 'ETF info not found'
+                    }
                     continue
-                
-                # 데이터 수집
-                collected_count = self.collect_and_save_prices(ticker, days)
-                
-                if collected_count > 0:
-                    logger.info(f"[일괄 수집] {ticker} ({etf_info.name}): {collected_count}개 수집 성공")
+
+                # 가격 데이터 수집
+                price_count = 0
+                trading_flow_count = 0
+                news_count = 0
+                ticker_success = True
+                error_msg = None
+
+                try:
+                    price_count = self.collect_and_save_prices(ticker, days)
+                    logger.info(f"[일괄 수집] {ticker} - 가격: {price_count}건")
+                except Exception as e:
+                    logger.error(f"[일괄 수집] {ticker} 가격 수집 실패: {e}")
+                    ticker_success = False
+                    error_msg = f"Price collection failed: {str(e)}"
+
+                # 매매동향 수집
+                try:
+                    trading_flow_count = self.collect_and_save_trading_flow(ticker, days)
+                    logger.info(f"[일괄 수집] {ticker} - 매매동향: {trading_flow_count}건")
+                except Exception as e:
+                    logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
+                    # 매매동향 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
+
+                # 뉴스 수집은 별도 스케줄러에서 처리하므로 여기서는 제외
+                # (NewsScraperService가 별도로 관리)
+
+                # 통계 업데이트
+                total_price_records += price_count
+                total_trading_flow_records += trading_flow_count
+                total_news_records += news_count
+
+                if ticker_success and price_count > 0:
                     success_count += 1
-                    total_records += collected_count
-                    details.append({
-                        'ticker': ticker,
-                        'name': etf_info.name,
-                        'status': 'success',
-                        'collected': collected_count
-                    })
+                    logger.info(f"[일괄 수집] {ticker} ({etf_info.name}): 성공")
                 else:
-                    logger.warning(f"[일괄 수집] {ticker}: 수집 데이터 없음")
                     fail_count += 1
-                    details.append({
-                        'ticker': ticker,
-                        'name': etf_info.name,
-                        'status': 'failed',
-                        'reason': 'No data collected',
-                        'collected': 0
-                    })
-                    
+                    logger.warning(f"[일괄 수집] {ticker} ({etf_info.name}): 실패")
+
+                details[ticker] = {
+                    'name': etf_info.name,
+                    'success': ticker_success and price_count > 0,
+                    'price_records': price_count,
+                    'trading_flow_records': trading_flow_count,
+                    'news_records': news_count,
+                    'error': error_msg
+                }
+
             except Exception as e:
                 logger.error(f"[일괄 수집] {ticker} 실패: {e}")
                 fail_count += 1
-                details.append({
-                    'ticker': ticker,
-                    'status': 'failed',
-                    'reason': str(e),
-                    'collected': 0
-                })
-        
+                details[ticker] = {
+                    'name': ticker,
+                    'success': False,
+                    'price_records': 0,
+                    'trading_flow_records': 0,
+                    'news_records': 0,
+                    'error': str(e)
+                }
+
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
+
         result = {
+            'total_tickers': len(tickers),
             'success_count': success_count,
             'fail_count': fail_count,
-            'total_records': total_records,
-            'total_tickers': len(tickers),
+            'total_price_records': total_price_records,
+            'total_trading_flow_records': total_trading_flow_records,
+            'total_news_records': total_news_records,
             'duration_seconds': round(duration, 2),
             'details': details
         }
-        
+
         logger.info(
             f"[일괄 수집] 완료: 성공 {success_count}/{len(tickers)}, "
-            f"총 {total_records}개 레코드, 소요 시간 {duration:.2f}초"
+            f"가격 {total_price_records}건, 매매동향 {total_trading_flow_records}건, 뉴스 {total_news_records}건, "
+            f"소요 시간 {duration:.2f}초"
         )
-        
+
         return result
     
     def backfill_all_tickers(self, days: int = 90) -> dict:

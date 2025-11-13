@@ -233,10 +233,31 @@ async def get_data_stats():
             cursor.execute("SELECT COUNT(*) FROM trading_flow")
             trading_flow_count = cursor.fetchone()[0]
 
-            # 마지막 수집 시간 (스케줄러 상태에서 가져옴)
-            scheduler = get_scheduler()
-            status = scheduler.get_status()
-            last_collection = status.get("last_run")
+            # 마지막 수집 시간 (가장 최근 가격 데이터 날짜 또는 스케줄러 상태)
+            last_collection = None
+
+            # 방법 1: 데이터베이스에서 가장 최근 데이터 날짜 조회
+            cursor.execute("""
+                SELECT MAX(date) as last_date
+                FROM prices
+            """)
+            last_price_date = cursor.fetchone()[0]
+
+            if last_price_date:
+                # 날짜를 datetime으로 변환
+                from datetime import datetime
+                try:
+                    last_collection = datetime.fromisoformat(last_price_date).isoformat()
+                except:
+                    last_collection = last_price_date
+            else:
+                # 방법 2: 데이터가 없으면 스케줄러 상태에서 확인
+                try:
+                    scheduler = get_scheduler()
+                    status = scheduler.get_status()
+                    last_collection = status.get("last_collection_time")
+                except:
+                    last_collection = None
 
             # 데이터베이스 파일 크기 (MB)
             db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0

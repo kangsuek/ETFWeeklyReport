@@ -60,7 +60,11 @@ export default function Comparison() {
   }
 
   const handleDateChange = (newDateRange) => {
-    setDateRange(newDateRange)
+    // DateRangeSelector는 { startDate, endDate, range } 형식으로 전달
+    setDateRange({
+      start: newDateRange.startDate,
+      end: newDateRange.endDate
+    })
   }
 
   const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= 6
@@ -105,8 +109,8 @@ export default function Comparison() {
       {canCompare && (
         <div className="mt-6">
           <DateRangeSelector
-            onDateChange={handleDateChange}
-            defaultDays={30}
+            onDateRangeChange={handleDateChange}
+            defaultRange="1m"
           />
         </div>
       )}
@@ -167,6 +171,7 @@ export default function Comparison() {
               <NormalizedPriceChart
                 data={comparisonData.normalized_prices}
                 tickerInfo={tickerInfoMap}
+                statistics={comparisonData.statistics}
               />
 
               {/* 성과 비교 테이블 */}

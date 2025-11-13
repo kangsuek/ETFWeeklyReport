@@ -18,8 +18,9 @@ import { format, parseISO } from 'date-fns'
  *
  * @param {Object} data - { dates: [], data: { ticker: [100, ...] } }
  * @param {Object} tickerInfo - { ticker: { name, ... } }
+ * @param {Object} statistics - { ticker: { period_return, ... } }
  */
-export default function NormalizedPriceChart({ data, tickerInfo }) {
+export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
   if (!data || !data.dates || data.dates.length === 0) {
     return (
       <div className="card">
@@ -57,7 +58,13 @@ export default function NormalizedPriceChart({ data, tickerInfo }) {
     '#ec4899', // pink
   ]
 
-  const tickers = Object.keys(data.data)
+  // 수익률 순으로 티커 정렬 (높은 수익률부터)
+  const tickers = Object.keys(data.data).sort((a, b) => {
+    if (!statistics) return 0
+    const returnA = statistics[a]?.period_return ?? -Infinity
+    const returnB = statistics[b]?.period_return ?? -Infinity
+    return returnB - returnA // 내림차순
+  })
 
   // X축 날짜 포맷팅
   const formatXAxis = (dateStr) => {
@@ -190,9 +197,11 @@ NormalizedPriceChart.propTypes = {
     data: PropTypes.object.isRequired,
   }),
   tickerInfo: PropTypes.object.isRequired,
+  statistics: PropTypes.object,
 }
 
 NormalizedPriceChart.defaultProps = {
   data: null,
   tickerInfo: {},
+  statistics: null,
 }

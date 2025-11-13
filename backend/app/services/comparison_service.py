@@ -211,7 +211,7 @@ class ComparisonService:
 
     def calculate_annualized_return(self, prices: pd.Series, days: int) -> float:
         """
-        연환산 수익률 계산
+        연환산 수익률 계산 (복리 효과 반영)
 
         Args:
             prices: 종가 시리즈
@@ -220,13 +220,22 @@ class ComparisonService:
         Returns:
             연환산 수익률 (%)
         """
-        if days == 0:
+        if days == 0 or len(prices) < 2:
             return 0.0
 
-        period_return = self.calculate_returns(prices)
+        first_price = prices.iloc[0]
+        last_price = prices.iloc[-1]
 
-        # 연환산: 기간 수익률 * (365 / 일수)
-        annualized = (period_return * (365 / days)).round(2)
+        if first_price == 0:
+            return 0.0
+
+        # 기간 수익률 (소수)
+        period_return_decimal = (last_price - first_price) / first_price
+
+        # 연환산: (1 + 기간수익률) ^ (365/일수) - 1
+        # 복리 효과를 반영한 정확한 연환산 계산
+        annualized_decimal = ((1 + period_return_decimal) ** (365 / days)) - 1
+        annualized = (annualized_decimal * 100).round(2)
 
         return annualized
 

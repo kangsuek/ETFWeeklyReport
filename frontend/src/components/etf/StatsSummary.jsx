@@ -2,47 +2,7 @@ import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { format } from 'date-fns'
 import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
-
-/**
- * 통계 계산 유틸리티
- */
-const calculateStats = (data) => {
-  if (!data || data.length < 2) {
-    return null
-  }
-
-  // API는 데이터를 내림차순(최신 날짜가 먼저)으로 반환
-  // data[0] = 최신 날짜, data[data.length - 1] = 가장 오래된 날짜
-  const firstPrice = data[data.length - 1].close_price  // 시작 가격 (오래된 날짜)
-  const lastPrice = data[0].close_price  // 종료 가격 (최신 날짜)
-  const periodReturn = ((lastPrice - firstPrice) / firstPrice) * 100
-
-  // 실제 거래일수 계산 (날짜 차이)
-  const firstDate = new Date(data[data.length - 1].date)
-  const lastDate = new Date(data[0].date)
-  const days = Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24)) || data.length - 1
-  const annualizedReturn = days > 0 ? (periodReturn * 365) / days : 0
-
-  // 가격 범위 (날짜 포함)
-  const prices = data.map((d) => d.close_price)
-  const highPrice = Math.max(...prices)
-  const lowPrice = Math.min(...prices)
-  const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length
-
-  // 최고가/최저가 날짜 찾기
-  const highPriceData = data.find((d) => d.close_price === highPrice)
-  const lowPriceData = data.find((d) => d.close_price === lowPrice)
-
-  return {
-    periodReturn,
-    annualizedReturn,
-    highPrice,
-    lowPrice,
-    avgPrice,
-    highPriceDate: highPriceData?.date,
-    lowPriceDate: lowPriceData?.date,
-  }
-}
+import { calculateStats } from '../../utils/returns'
 
 /**
  * StatCard 컴포넌트

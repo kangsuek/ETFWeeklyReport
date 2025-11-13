@@ -71,13 +71,59 @@ describe('StatsSummary', () => {
       expect(screen.getByText('+10.00%')).toBeInTheDocument()
     })
 
-    it('연환산 수익률을 계산한다', () => {
-      renderWithProviders(<StatsSummary data={mockPriceData} />)
+    it('연환산 수익률을 복리 효과를 반영하여 계산한다 (거래일 기준)', () => {
+      // 21개 데이터, 7.09% 수익 (두산에너빌리티 예시)
+      const baseDate = new Date('2025-10-13')
+      const testData = Array.from({ length: 21 }, (_, i) => {
+        // 7.09% 수익을 선형 분배
+        const progress = i / 20
+        const price = 10000 * (1 + 0.0709 * progress)
+        const date = new Date(baseDate)
+        date.setDate(baseDate.getDate() + i)
+        return {
+          date: date.toISOString().split('T')[0],
+          close_price: Math.round(price),
+          volume: 1000000
+        }
+      }).reverse()  // API 형식에 맞게 최신순으로
+
+      renderWithProviders(<StatsSummary data={testData} />)
 
       expect(screen.getByText('연환산 수익률')).toBeInTheDocument()
-      // 연환산 수익률이 표시되어야 함
-      const annualizedElements = screen.getAllByText(/[+-]?\d+\.\d+%/)
-      expect(annualizedElements.length).toBeGreaterThan(0)
+      expect(screen.getByText('기간 수익률')).toBeInTheDocument()
+
+      // 기간 수익률: 7.09%
+      expect(screen.getByText('+7.09%')).toBeInTheDocument()
+
+      // 거래일수: 21일 (데이터 포인트 개수)
+      // 연환산: (1.0709)^(365/21) - 1 ≈ 183.33%
+      // 백엔드 ComparisonService와 동일한 로직 (거래일 기준)
+
+      // 모든 퍼센트 값을 가져와서 연환산 수익률 확인
+      const percentageElements = screen.getAllByText(/[+-]\d+\.\d+%/)
+      expect(percentageElements.length).toBeGreaterThan(1)  // 기간 수익률 + 연환산 수익률
+    })
+
+    it('거래일 기준 연환산 계산 - 실제 데이터와 일치', () => {
+      // 31개 데이터 (거래일 기준)
+      const baseDate = new Date('2025-10-01')
+      const testData = Array.from({ length: 31 }, (_, i) => {
+        const progress = i / 30
+        const price = 10000 * (1 + 0.0709 * progress)
+        const date = new Date(baseDate)
+        date.setDate(baseDate.getDate() + i)
+        return {
+          date: date.toISOString().split('T')[0],
+          close_price: Math.round(price),
+          volume: 1000000
+        }
+      }).reverse()
+
+      renderWithProviders(<StatsSummary data={testData} />)
+
+      // 거래일수: 31일
+      // 연환산: (1.0709)^(365/31) - 1 ≈ 1.2395 = 123.95%
+      expect(screen.getByText('연환산 수익률')).toBeInTheDocument()
     })
 
     it('양수 수익률은 빨강색으로 표시된다', () => {

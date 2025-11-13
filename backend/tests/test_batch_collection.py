@@ -198,56 +198,70 @@ class TestCollectorBatchMethods:
     def test_collect_all_tickers(self):
         """collect_all_tickers 메서드 테스트"""
         collector = ETFDataCollector()
-        
-        with patch.object(collector, 'collect_and_save_prices') as mock_collect:
-            mock_collect.return_value = 10
-            
+
+        with patch.object(collector, 'collect_and_save_prices') as mock_price, \
+             patch.object(collector, 'collect_and_save_trading_flow') as mock_trading:
+            mock_price.return_value = 10
+            mock_trading.return_value = 10
+
             result = collector.collect_all_tickers(days=5)
-            
+
             # 6개 종목에 대해 호출되었는지 확인
-            assert mock_collect.call_count == 6
-            
+            assert mock_price.call_count == 6
+            assert mock_trading.call_count == 6
+
             # 결과 확인
             assert 'success_count' in result
             assert 'fail_count' in result
-            assert 'total_records' in result
+            assert 'total_price_records' in result
+            assert 'total_trading_flow_records' in result
+            assert 'total_news_records' in result
             assert 'duration_seconds' in result
             assert result['total_tickers'] == 6
+            assert result['total_price_records'] == 60  # 10 * 6
+            assert result['total_trading_flow_records'] == 60  # 10 * 6
     
     def test_collect_all_tickers_with_failures(self):
         """일부 실패가 있는 일괄 수집 테스트"""
         collector = ETFDataCollector()
-        
+
         # 일부는 성공, 일부는 0개 반환
-        with patch.object(collector, 'collect_and_save_prices') as mock_collect:
-            mock_collect.side_effect = [10, 0, 10, 10, 0, 10]
-            
+        with patch.object(collector, 'collect_and_save_prices') as mock_price, \
+             patch.object(collector, 'collect_and_save_trading_flow') as mock_trading:
+            mock_price.side_effect = [10, 0, 10, 10, 0, 10]
+            mock_trading.return_value = 5
+
             result = collector.collect_all_tickers(days=5)
-            
+
             # 4개 성공, 2개 실패
             assert result['success_count'] == 4
             assert result['fail_count'] == 2
-            assert result['total_records'] == 40  # 10 * 4
+            assert result['total_price_records'] == 40  # 10 * 4
+            assert result['total_trading_flow_records'] == 30  # 5 * 6
     
     def test_collect_all_tickers_with_exception(self):
         """예외 발생 시 일괄 수집 테스트"""
         collector = ETFDataCollector()
-        
-        with patch.object(collector, 'collect_and_save_prices') as mock_collect:
+
+        with patch.object(collector, 'collect_and_save_prices') as mock_price, \
+             patch.object(collector, 'collect_and_save_trading_flow') as mock_trading:
             # 일부는 성공, 일부는 예외 발생
-            mock_collect.side_effect = [10, Exception("Network error"), 10, 10, 10, 10]
-            
+            mock_price.side_effect = [10, Exception("Network error"), 10, 10, 10, 10]
+            mock_trading.return_value = 5
+
             result = collector.collect_all_tickers(days=5)
-            
+
             # 5개 성공, 1개 실패
             assert result['success_count'] == 5
             assert result['fail_count'] == 1
-            assert result['total_records'] == 50
-            
+            assert result['total_price_records'] == 50  # 10 * 5
+            assert result['total_trading_flow_records'] == 30  # 5 * 6 (trading은 계속 성공)
+
             # 실패 상세 확인
-            failed_details = [d for d in result['details'] if d['status'] == 'failed']
-            assert len(failed_details) == 1
-            assert 'Network error' in failed_details[0]['reason']
+            failed_tickers = [ticker for ticker, d in result['details'].items() if not d['success']]
+            assert len(failed_tickers) == 1
+            failed_detail = result['details'][failed_tickers[0]]
+            assert 'Network error' in failed_detail['error']
     
     def test_backfill_all_tickers(self):
         """backfill_all_tickers 메서드 테스트"""
