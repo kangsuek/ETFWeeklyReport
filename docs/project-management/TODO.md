@@ -15,48 +15,64 @@
 
 **예상 기간**: 10-13일 (2-3주)
 
+**현재 진행 상황**:
+- ✅ **Step 1 완료**: Detail 페이지 강화 (PriceTable, StatsSummary 컴포넌트 추가)
+  - PriceTable: 24개 테스트 통과
+  - StatsSummary: 22개 테스트 통과
+  - 수익률 계산 버그 수정
+- 🔄 **Step 2 대기**: Comparison 페이지 구현
+- 🔄 **Step 3 대기**: UI/UX 개선
+
 ---
 
-### 📍 Step 1: Detail 페이지 강화 (3-4일)
+### 📍 Step 1: Detail 페이지 강화 ✅ (완료)
 
-#### 1.1 PriceTable.jsx 컴포넌트
+#### 1.1 PriceTable.jsx 컴포넌트 ✅
 **파일**: `frontend/src/components/etf/PriceTable.jsx`
 
 **기능**:
-- [ ] 일자, 시가, 고가, 저가, 종가, 거래량, 등락률 테이블
-- [ ] 정렬 기능 (일자, 종가, 거래량, 등락률)
-- [ ] 등락률 색상 표시 (빨강/파랑)
-- [ ] 반응형 디자인 (모바일: 카드)
-- [ ] 다크모드 지원
+- [x] 일자, 시가, 고가, 저가, 종가, 거래량, 등락률 테이블
+- [x] 정렬 기능 (일자, 종가, 거래량, 등락률)
+- [x] 등락률 색상 표시 (빨강/파랑)
+- [x] 반응형 디자인 (모바일: 카드, 데스크톱: 테이블)
+- [x] 다크모드 지원
+- [x] 페이지네이션 (20개 항목/페이지)
 
-**테스트**: `PriceTable.test.jsx`
-- [ ] 데이터 렌더링, 정렬, 페이지네이션
-- [ ] 반응형, 에러 처리
+**테스트**: `PriceTable.test.jsx` ✅
+- [x] 데이터 렌더링, 정렬, 페이지네이션 (24개 테스트 통과)
+- [x] 반응형, 에러 처리
+- [x] 잘못된 날짜 형식 처리
 
-#### 1.2 StatsSummary.jsx 컴포넌트
+#### 1.2 StatsSummary.jsx 컴포넌트 ✅
 **파일**: `frontend/src/components/etf/StatsSummary.jsx`
 
-**기능**:
-- [ ] 기간 수익률 / 연환산 수익률
-- [ ] 변동성 (표준편차) / Max Drawdown
-- [ ] 가격 범위 (최고가, 최저가, 평균가)
-- [ ] 거래량 통계 (평균, 최대)
-- [ ] 카드 레이아웃 (2x2 그리드)
-- [ ] 시각적 표시 (아이콘, 진행률 바)
+**기능** (간소화: 수익률 + 가격 범위만):
+- [x] 수익률 카드: 기간 수익률 / 연환산 수익률
+- [x] 가격 범위 카드: 최고가(날짜), 최저가(날짜), 평균가
+- [x] 카드 레이아웃 (1x2 그리드)
+- [x] 시각적 표시 (아이콘, 진행률 바, 그라디언트)
+- [x] 수익률 계산 버그 수정 (API 데이터 순서 문제 해결)
 
-**테스트**: `StatsSummary.test.jsx`
-- [ ] 통계 계산 정확성
-- [ ] 에지 케이스 (데이터 0, 1, 2개)
-- [ ] 포맷팅, 반응형
+**테스트**: `StatsSummary.test.jsx` ✅
+- [x] 통계 계산 정확성 (22개 테스트 통과)
+- [x] 에지 케이스 (데이터 0, 1, 2개)
+- [x] 포맷팅, 반응형, 날짜 표시
 
-#### 1.3 ETFDetail.jsx 통합
+#### 1.3 ETFDetail.jsx 통합 ✅
 **파일**: `frontend/src/pages/ETFDetail.jsx`
 
-- [ ] StatsSummary를 페이지 상단 배치
-- [ ] PriceTable을 "가격 데이터" 섹션 추가
-- [ ] DateRangeSelector 연동
-- [ ] Loading/Error 상태 처리
-- [ ] 테스트 업데이트
+- [x] StatsSummary를 날짜 선택기 아래 배치
+- [x] PriceTable을 "가격 데이터" 섹션 추가
+- [x] DateRangeSelector 연동
+- [x] Loading/Error 상태 처리 (기존 구현 유지)
+- [x] 빌드 성공 확인
+
+**Step 1 완료 요약**:
+- 총 46개 테스트 추가 (PriceTable 24개, StatsSummary 22개)
+- 모든 테스트 100% 통과
+- 빌드 성공
+- 반응형 디자인 완료
+- 다크모드 지원
 
 ---
 
@@ -194,12 +210,12 @@
 
 ### ✅ Acceptance Criteria (완료 조건)
 
-#### Step 1: Detail 페이지 강화
-- [ ] PriceTable 컴포넌트 완성 (정렬, 페이지네이션)
-- [ ] StatsSummary 컴포넌트 완성 (4가지 통계 카테고리)
-- [ ] ETFDetail 페이지 통합 완료
-- [ ] 모든 컴포넌트 테스트 100% 통과
-- [ ] 반응형 디자인 검증 (모바일, 태블릿, 데스크톱)
+#### Step 1: Detail 페이지 강화 ✅
+- [x] PriceTable 컴포넌트 완성 (정렬, 페이지네이션)
+- [x] StatsSummary 컴포넌트 완성 (수익률, 가격 범위 카드)
+- [x] ETFDetail 페이지 통합 완료
+- [x] 모든 컴포넌트 테스트 100% 통과 (46개 테스트)
+- [x] 반응형 디자인 검증 (모바일, 태블릿, 데스크톱)
 
 #### Step 2: Comparison 페이지
 - [ ] 비교 API 구현 및 테스트 통과

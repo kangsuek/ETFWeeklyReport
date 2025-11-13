@@ -11,6 +11,8 @@ import PriceChart from '../components/charts/PriceChart'
 import TradingFlowChart from '../components/charts/TradingFlowChart'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
+import StatsSummary from '../components/etf/StatsSummary'
+import PriceTable from '../components/etf/PriceTable'
 import { formatPrice, formatVolume, formatPercent, getPriceChangeColor } from '../utils/format'
 
 /**
@@ -437,6 +439,14 @@ export default function ETFDetail() {
         defaultRange={defaultRangeFromSettings}
       />
 
+      {/* 통계 요약 섹션 */}
+      {pricesData && pricesData.length > 0 && (
+        <div className="card mb-4">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">통계 요약</h3>
+          <StatsSummary data={pricesData} />
+        </div>
+      )}
+
       {/* 차트 섹션 */}
       <div className="space-y-4 mb-4">
         {/* 가격 차트 (거래량 포함) */}
@@ -487,6 +497,14 @@ export default function ETFDetail() {
           </div>
         )}
       </div>
+
+      {/* 가격 데이터 테이블 섹션 */}
+      {pricesData && pricesData.length > 0 && (
+        <div className="card mb-4">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">가격 데이터</h3>
+          <PriceTable data={pricesData} itemsPerPage={20} />
+        </div>
+      )}
 
       {/* 뉴스 타임라인 섹션 */}
       <div className="card">
