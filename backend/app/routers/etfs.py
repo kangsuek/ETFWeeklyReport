@@ -211,13 +211,13 @@ async def get_etf(etf: ETF = Depends(get_etf_or_404)):
     except HTTPException:
         raise
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching ETF {ticker}: {e}")
+        logger.error(f"Database error fetching ETF {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred")
     except ValidationException as e:
-        logger.error(f"Validation error for ticker {ticker}: {e}")
+        logger.error(f"Validation error for ticker {etf.ticker}: {e}")
         raise HTTPException(status_code=400, detail="Invalid ticker format")
     except Exception as e:
-        logger.error(f"Unexpected error fetching ETF {ticker}: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching ETF {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/{ticker}/prices", response_model=List[PriceData])
