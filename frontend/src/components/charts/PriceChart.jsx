@@ -1,4 +1,5 @@
 import { useMemo, memo, useState } from 'react'
+import PropTypes from 'prop-types'
 import {
   ComposedChart,
   Line,
@@ -461,5 +462,24 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
     </div>
   )
 })
+
+PriceChart.propTypes = {
+  data: PropTypes.arrayOf(
+    PropTypes.shape({
+      date: PropTypes.string.isRequired,
+      open_price: PropTypes.number.isRequired,
+      high_price: PropTypes.number.isRequired,
+      low_price: PropTypes.number.isRequired,
+      close_price: PropTypes.number.isRequired,
+      volume: PropTypes.number.isRequired,
+      daily_change_pct: PropTypes.number,
+    })
+  ),
+  ticker: PropTypes.string.isRequired,
+  height: PropTypes.number,
+  dateRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
+  scrollRef: PropTypes.object,
+  onScroll: PropTypes.func,
+}
 
 export default PriceChart

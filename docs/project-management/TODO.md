@@ -83,16 +83,28 @@
 
 > **참고**: 상세 계획은 [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) 참조
 
-### 6.3.1 중복 코드 리팩토링
-- [ ] ETFDetail.jsx - ErrorFallback, NewsTimeline 컴포넌트 추출
-- [ ] 백엔드 에러 핸들링 패턴 통일
+### 6.3.1 중복 코드 리팩토링 ✅
+- [x] ETFDetail.jsx - ErrorFallback, NewsTimeline 컴포넌트 추출
+- [x] 추출된 컴포넌트에 PropTypes 추가 및 테스트 작성
+- [x] 기존 테스트 파일 업데이트 및 통과 확인
+- [x] 백엔드 에러 핸들링 패턴 확인 (이미 통일되어 있음)
 
-### 6.3.2 타입 안정성 개선
-- [ ] 모든 컴포넌트에 PropTypes 추가
+### 6.3.2 타입 안정성 개선 ✅
+- [x] prop-types 패키지 설치
+- [x] 주요 컴포넌트에 PropTypes 추가
+  - PageHeader, LoadingIndicator, Spinner
+  - DateRangeSelector, PriceChart, TradingFlowChart
+  - ETFCard, ETFHeader, ETFCharts
+  - DashboardFilters, ETFCardGrid
 
-### 6.3.3 컴포넌트 크기 개선
-- [ ] ETFDetail.jsx (517줄) 분리
-- [ ] Dashboard.jsx (384줄) 분리
+### 6.3.3 컴포넌트 크기 개선 ✅
+- [x] ETFDetail.jsx 분리
+  - Header 섹션 → ETFHeader.jsx
+  - Charts 섹션 → ETFCharts.jsx
+- [x] Dashboard.jsx 분리
+  - 필터 섹션 → DashboardFilters.jsx
+  - 카드 그리드 → ETFCardGrid.jsx
+- [x] 분리된 컴포넌트에 PropTypes 추가 및 테스트 작성 (14개 테스트 통과)
 
 ### 6.3.4 매직 넘버 상수화
 - [ ] 차트 샘플링 최대 포인트 등 상수화

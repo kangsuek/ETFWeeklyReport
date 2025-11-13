@@ -1,3 +1,13 @@
+import PropTypes from 'prop-types'
+
+/**
+ * PageHeader 컴포넌트
+ * 페이지 상단 헤더 영역
+ * 
+ * @param {string} title - 페이지 제목
+ * @param {string|ReactNode} subtitle - 부제목 (선택)
+ * @param {ReactNode} children - 우측 액션 버튼 등 (선택)
+ */
 export default function PageHeader({ title, subtitle, children }) {
   return (
     <div className="mb-8">
@@ -16,4 +26,10 @@ export default function PageHeader({ title, subtitle, children }) {
       </div>
     </div>
   )
+}
+
+PageHeader.propTypes = {
+  title: PropTypes.string.isRequired,
+  subtitle: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+  children: PropTypes.node,
 }

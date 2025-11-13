@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import PropTypes from 'prop-types'
 import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
 
@@ -360,4 +361,15 @@ export default function ETFCard({ etf, compactMode = false }) {
       </article>
     </Link>
   )
+}
+
+ETFCard.propTypes = {
+  etf: PropTypes.shape({
+    ticker: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    type: PropTypes.oneOf(['ETF', 'STOCK']).isRequired,
+    theme: PropTypes.string,
+    expense_ratio: PropTypes.number,
+  }).isRequired,
+  compactMode: PropTypes.bool,
 }

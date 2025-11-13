@@ -1,4 +1,5 @@
 import { useMemo, memo } from 'react'
+import PropTypes from 'prop-types'
 import {
   BarChart,
   Bar,
@@ -302,5 +303,21 @@ const TradingFlowChart = memo(function TradingFlowChart({ data = [], ticker, hei
     </div>
   )
 })
+
+TradingFlowChart.propTypes = {
+  data: PropTypes.arrayOf(
+    PropTypes.shape({
+      date: PropTypes.string.isRequired,
+      individual_net: PropTypes.number.isRequired,
+      institutional_net: PropTypes.number.isRequired,
+      foreign_net: PropTypes.number.isRequired,
+    })
+  ),
+  ticker: PropTypes.string.isRequired,
+  height: PropTypes.number,
+  dateRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
+  scrollRef: PropTypes.object,
+  onScroll: PropTypes.func,
+}
 
 export default TradingFlowChart

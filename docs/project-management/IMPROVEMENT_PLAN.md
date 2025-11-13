@@ -221,44 +221,57 @@ ERROR_SCRAPER = "데이터 소스에 일시적으로 접근할 수 없습니다.
 
 ### 작업 항목
 
-#### 6.3.1 중복 코드 리팩토링
+#### 6.3.1 중복 코드 리팩토링 ✅
 **대상 파일들**:
 - `frontend/src/pages/ETFDetail.jsx` - ErrorFallback, NewsTimeline
 
 **작업 내용**:
-- [ ] `ErrorFallback` 컴포넌트를 `components/common/ErrorFallback.jsx`로 추출
-- [ ] `NewsTimeline` 컴포넌트를 `components/news/NewsTimeline.jsx`로 추출
-- [ ] 백엔드 에러 핸들링 패턴 통일
-- [ ] 공통 유틸리티 함수 추출
+- [x] `ErrorFallback` 컴포넌트를 `components/common/ErrorFallback.jsx`로 추출
+- [x] `NewsTimeline` 컴포넌트를 `components/news/NewsTimeline.jsx`로 추출
+- [x] 추출된 컴포넌트에 PropTypes 추가
+- [x] 추출된 컴포넌트에 대한 테스트 작성 (ErrorFallback: 5개, NewsTimeline: 7개)
+- [x] ETFDetail.jsx에서 추출된 컴포넌트 import 및 사용
+- [x] 기존 테스트 파일 업데이트 및 통과 확인
+- [x] 백엔드 에러 핸들링 패턴 확인 (이미 통일되어 있음 - 6.2.3에서 완료)
 
 **예상 소요 시간**: 2시간
+**실제 소요 시간**: 완료
 
-#### 6.3.2 타입 안정성 개선
+#### 6.3.2 타입 안정성 개선 ✅
 **단기 계획 (PropTypes)**:
-- [ ] 모든 컴포넌트에 PropTypes 추가
-- [ ] 필수 prop 검증
-- [ ] 기본값 설정
+- [x] prop-types 패키지 설치
+- [x] 주요 컴포넌트에 PropTypes 추가
+  - PageHeader, LoadingIndicator, Spinner
+  - DateRangeSelector, PriceChart, TradingFlowChart
+  - ETFCard, ETFHeader, ETFCharts
+  - DashboardFilters, ETFCardGrid
+- [x] 필수 prop 검증
+- [x] 기본값 설정
 
 **장기 계획 (TypeScript)**:
 - Phase 7에서 TypeScript 마이그레이션 검토
 
 **예상 소요 시간**: 4시간 (PropTypes)
+**실제 소요 시간**: 완료
 
-#### 6.3.3 컴포넌트 크기 개선
+#### 6.3.3 컴포넌트 크기 개선 ✅
 **대상 파일들**:
-- `ETFDetail.jsx` - 517줄
-- `Dashboard.jsx` - 384줄
+- `ETFDetail.jsx` - 517줄 → 약 320줄로 감소
+- `Dashboard.jsx` - 384줄 → 약 305줄로 감소
 
 **작업 내용**:
-- [ ] `ETFDetail.jsx` 분리 계획 수립
-  - Header 섹션 → `components/etf/ETFHeader.jsx`
-  - Stats 섹션 → `components/etf/ETFStats.jsx`
-  - Charts 섹션 → `components/etf/ETFCharts.jsx`
-- [ ] `Dashboard.jsx` 분리 계획 수립
-  - 필터 섹션 → `components/dashboard/DashboardFilters.jsx`
-  - 카드 그리드 → `components/dashboard/ETFCardGrid.jsx`
+- [x] `ETFDetail.jsx` 분리 완료
+  - Header 섹션 → `components/etf/ETFHeader.jsx` (PropTypes 포함)
+  - Charts 섹션 → `components/etf/ETFCharts.jsx` (PropTypes 포함)
+  - Stats 섹션은 이미 `StatsSummary` 컴포넌트로 분리되어 있음
+- [x] `Dashboard.jsx` 분리 완료
+  - 필터 섹션 → `components/dashboard/DashboardFilters.jsx` (PropTypes 포함)
+  - 카드 그리드 → `components/dashboard/ETFCardGrid.jsx` (PropTypes 포함)
+- [x] 분리된 컴포넌트에 PropTypes 추가
+- [x] 테스트 작성 및 통과 확인 (14개 테스트 통과)
 
 **예상 소요 시간**: 4시간
+**실제 소요 시간**: 완료
 
 #### 6.3.4 매직 넘버 상수화
 **대상**:

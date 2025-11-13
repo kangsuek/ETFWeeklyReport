@@ -1,4 +1,5 @@
 import { useState, useEffect, memo } from 'react';
+import PropTypes from 'prop-types';
 import { subDays, subMonths, format } from 'date-fns';
 import { validateDateRange } from '../../utils/validation';
 import { MAX_DATE_RANGE_DAYS } from '../../constants';
@@ -170,5 +171,10 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
     </div>
   );
 })
+
+DateRangeSelector.propTypes = {
+  onDateRangeChange: PropTypes.func.isRequired,
+  defaultRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
+}
 
 export default DateRangeSelector;

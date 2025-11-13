@@ -145,9 +145,10 @@ describe('ETFDetail', () => {
       expect(screen.getByText('최근 가격 정보')).toBeInTheDocument()
     })
 
-    // 등락률 확인
+    // 등락률 확인 (여러 곳에 표시되므로 getAllByText 사용)
     await waitFor(() => {
-      expect(screen.getByText('+2.94%')).toBeInTheDocument()
+      const changeElements = screen.getAllByText('+2.94%')
+      expect(changeElements.length).toBeGreaterThan(0)
     })
   })
 

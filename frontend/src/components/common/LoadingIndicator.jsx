@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types'
+
 /**
  * LoadingIndicator 컴포넌트
  *
@@ -43,4 +45,11 @@ export default function LoadingIndicator({
   }
 
   return content;
+}
+
+LoadingIndicator.propTypes = {
+  isLoading: PropTypes.bool,
+  message: PropTypes.string,
+  subMessage: PropTypes.string,
+  overlay: PropTypes.bool,
 }
