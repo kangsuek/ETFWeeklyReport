@@ -41,7 +41,7 @@ import './styles/index.css'
       root.classList.remove('dark');
     }
   } catch (error) {
-    console.error('Failed to apply theme:', error);
+    // Failed to apply theme - use default
   }
 })();
 

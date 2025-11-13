@@ -96,7 +96,6 @@ export const formatTradingFlowData = (data) => {
   // 데이터 검증
   const validation = validateChartData(data, ['date', 'individual_net', 'institutional_net', 'foreign_net'])
   if (!validation.isValid) {
-    console.error('[TradingFlowChart] 데이터 검증 실패:', validation.error)
     return []
   }
 

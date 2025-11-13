@@ -70,7 +70,7 @@ const NewsTimeline = ({ ticker }) => {
         }
         groups[dateKey].push(news)
       } catch (error) {
-        console.warn('Invalid date for news:', news.date, error)
+        // Invalid date - skip this news item
       }
     })
     return groups

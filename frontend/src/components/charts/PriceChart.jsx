@@ -189,7 +189,6 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
     // 데이터 검증
     const validation = validateChartData(data, ['date', 'close_price', 'volume'])
     if (!validation.isValid) {
-      console.error('[PriceChart] 데이터 검증 실패:', validation.error)
       return []
     }
 

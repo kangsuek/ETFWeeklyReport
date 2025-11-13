@@ -14,13 +14,10 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
   const [selected, setSelected] = useState(selectedTickers)
 
   useEffect(() => {
-    console.log('TickerSelector: selectedTickers prop changed:', selectedTickers)
     setSelected(selectedTickers)
   }, [selectedTickers])
 
   const handleToggle = (ticker) => {
-    console.log('TickerSelector: Toggle clicked for:', ticker, 'current selected:', selected)
-
     let newSelected
 
     if (selected.includes(ticker)) {
@@ -29,20 +26,15 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
     } else {
       // 선택 추가 (최대 6개까지)
       if (selected.length >= 6) {
-        console.log('TickerSelector: Maximum 6 tickers reached')
         return // 최대 6개 제한
       }
       newSelected = [...selected, ticker]
     }
 
-    console.log('TickerSelector: New selection:', newSelected)
     setSelected(newSelected)
 
     if (onSelectionChange) {
-      console.log('TickerSelector: Calling onSelectionChange with:', newSelected)
       onSelectionChange(newSelected)
-    } else {
-      console.error('TickerSelector: onSelectionChange is not defined!')
     }
   }
 

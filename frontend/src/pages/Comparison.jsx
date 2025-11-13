@@ -26,10 +26,7 @@ export default function Comparison() {
   } = useQuery({
     queryKey: ['comparison', selectedTickers, dateRange],
     queryFn: async () => {
-      console.log('Fetching comparison data for:', selectedTickers, dateRange)
-
       if (selectedTickers.length < 2) {
-        console.log('Not enough tickers selected')
         return null
       }
 
@@ -40,9 +37,7 @@ export default function Comparison() {
       if (dateRange.start) params.start_date = dateRange.start
       if (dateRange.end) params.end_date = dateRange.end
 
-      console.log('Comparison API params:', params)
       const result = await apiService.compareETFs(params)
-      console.log('Comparison API result:', result)
       return result
     },
     enabled: selectedTickers.length >= 2,
@@ -69,18 +64,6 @@ export default function Comparison() {
 
   const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= 6
   const showResults = canCompare && comparisonData
-
-  // 디버깅 로그
-  console.log('Comparison Page State:', {
-    selectedTickers,
-    dateRange,
-    canCompare,
-    comparisonLoading,
-    comparisonFetching,
-    comparisonError,
-    hasData: !!comparisonData,
-    showResults
-  })
 
   return (
     <div className="animate-fadeIn">

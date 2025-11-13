@@ -82,7 +82,7 @@ function loadSettingsFromStorage() {
       return validateSettings(parsed)
     }
   } catch (error) {
-    console.error('Failed to load settings from localStorage:', error)
+    // Failed to load settings - use defaults
   }
   return DEFAULT_SETTINGS
 }
@@ -94,7 +94,7 @@ function saveSettingsToStorage(settings) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   } catch (error) {
-    console.error('Failed to save settings to localStorage:', error)
+    // Failed to save settings
   }
 }
 
@@ -133,14 +133,6 @@ function applyTheme(theme) {
   
   if (effectiveTheme === 'dark') {
     root.classList.add('dark')
-  }
-  
-  // 디버깅용 (개발 환경에서만)
-  if (import.meta.env.DEV) {
-    const computedStyle = window.getComputedStyle(body)
-    const appDiv = document.querySelector('#root > div')
-    const appBg = appDiv ? window.getComputedStyle(appDiv).backgroundColor : 'N/A'
-    console.log('[Theme] Applied theme:', theme, '→ Effective:', effectiveTheme, '→ Has dark class:', root.classList.contains('dark'), '→ Body bg:', computedStyle.backgroundColor, '→ App bg:', appBg)
   }
 }
 

@@ -39,22 +39,8 @@ export function sampleData(data, maxPoints = 200) {
  * @returns {*} - 함수의 반환값
  */
 export function measureChartPerformance(label, fn) {
-  if (process.env.NODE_ENV !== 'development') {
-    return fn()
-  }
-
-  const startTime = performance.now()
-  const result = fn()
-  const endTime = performance.now()
-  const duration = endTime - startTime
-
-  console.log(`[Chart Performance] ${label}: ${duration.toFixed(2)}ms`)
-
-  if (duration > 500) {
-    console.warn(`[Chart Performance] ⚠️ ${label} took longer than 500ms`)
-  }
-
-  return result
+  // Performance measurement disabled in production
+  return fn()
 }
 
 /**
