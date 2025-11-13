@@ -19,14 +19,6 @@ const TestComponent = () => {
 }
 
 describe('ToastContext', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('ToastProvider 없이 useToast를 사용하면 에러가 발생한다', () => {
     const consoleError = console.error
     console.error = vi.fn()

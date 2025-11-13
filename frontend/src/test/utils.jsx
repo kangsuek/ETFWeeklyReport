@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+import { SettingsProvider } from '../contexts/SettingsContext'
+import { ToastProvider } from '../contexts/ToastContext'
 
 // Custom render function with providers
 export function renderWithProviders(ui, options = {}) {
@@ -20,7 +22,11 @@ export function renderWithProviders(ui, options = {}) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <SettingsProvider>
+            <ToastProvider>
+              {children}
+            </ToastProvider>
+          </SettingsProvider>
         </QueryClientProvider>
       </MemoryRouter>
     )

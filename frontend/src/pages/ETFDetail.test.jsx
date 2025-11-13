@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor } from '@testing-library/react'
+import { renderWithProviders } from '../test/utils'
 import ETFDetail from './ETFDetail'
 import * as api from '../services/api'
 
@@ -88,30 +87,10 @@ const mockNews = [
 ]
 
 describe('ETFDetail', () => {
-  let queryClient
-
   beforeEach(() => {
-    // React Query 클라이언트 생성
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-          cacheTime: 0,
-        },
-      },
-    })
-
     // API 모킹 초기화
     vi.clearAllMocks()
   })
-
-  const renderWithProviders = (component) => {
-    return render(
-      <BrowserRouter>
-        <QueryClientProvider client={queryClient}>{component}</QueryClientProvider>
-      </BrowserRouter>
-    )
-  }
 
   it('페이지가 정상적으로 렌더링된다', async () => {
     // API 모킹
