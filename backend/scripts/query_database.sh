@@ -1,7 +1,9 @@
 #!/bin/bash
 # SQLite 데이터베이스 조회 스크립트
 
-DB_PATH="/Users/kangsuek/pythonProject/ETFWeeklyReport/backend/data/etf_data.db"
+# 스크립트 위치를 기준으로 상대 경로 계산
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DB_PATH="$SCRIPT_DIR/../data/etf_data.db"
 
 echo "================================================"
 echo "ETF Weekly Report - 데이터베이스 조회"
