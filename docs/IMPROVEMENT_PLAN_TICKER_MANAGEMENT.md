@@ -317,6 +317,11 @@ const handleSelectStock = (stock) => {
 - ✅ 상장폐지 종목 자동 감지 및 비활성화
 - ✅ 종목명 변경 자동 반영
 - ✅ 신규 상장 종목 자동 추가
+- ✅ **Selenium 기반 ETF 수집** (JavaScript 동적 로드 지원)
+  - Headless Chrome 모드 사용
+  - 자동 fallback (Selenium 실패 시 requests 방식)
+  - 중복 제거 로직 포함
+  - 약 1,000개 이상의 ETF 종목 수집 가능
 
 ---
 

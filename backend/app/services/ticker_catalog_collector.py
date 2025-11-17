@@ -16,6 +16,20 @@ from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
 
+# Selenium 선택적 사용 (설치되어 있으면 사용)
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from webdriver_manager.chrome import ChromeDriverManager
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+    logger.warning("Selenium not available. ETF collection will use fallback method.")
+
 # 검색 결과 캐시 (최대 128개 쿼리 캐싱, 5분 TTL)
 _search_cache: Dict[str, tuple[List[Dict[str, Any]], datetime]] = {}
 _CACHE_TTL = timedelta(minutes=5)
@@ -254,16 +268,167 @@ class TickerCatalogCollector:
         
         return stocks
 
+    def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
+        """
+        ETF 종목 목록 수집
+        
+        Selenium을 사용하여 JavaScript로 동적 로드되는 ETF 목록을 수집합니다.
+        Selenium이 없으면 기본 requests 방식으로 시도합니다.
+        """
+        if SELENIUM_AVAILABLE:
+            try:
+                return self._collect_etf_stocks_selenium()
+            except Exception as e:
+                logger.warning(f"Selenium ETF collection failed, falling back to requests: {e}")
+                return self._collect_etf_stocks_requests()
+        else:
+            return self._collect_etf_stocks_requests()
+    
+    def _collect_etf_stocks_selenium(self) -> List[Dict[str, Any]]:
+        """Selenium을 사용한 ETF 종목 목록 수집"""
+        stocks = []
+        driver = None
+        
+        try:
+            # Chrome 옵션 설정 (headless 모드)
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+            
+            # WebDriver 초기화
+            try:
+                driver_path = ChromeDriverManager().install()
+                # chromedriver 실행 파일 찾기 (디렉토리 내에서)
+                import os
+                if os.path.isdir(driver_path):
+                    # 디렉토리인 경우 chromedriver 실행 파일 찾기
+                    for root, dirs, files in os.walk(driver_path):
+                        for file in files:
+                            if file == 'chromedriver' or file.startswith('chromedriver'):
+                                driver_path = os.path.join(root, file)
+                                break
+                        if driver_path != ChromeDriverManager().install():
+                            break
+                
+                service = Service(driver_path)
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except Exception as e:
+                # ChromeDriverManager 실패 시 시스템 PATH에서 chromedriver 찾기
+                logger.warning(f"ChromeDriverManager failed: {e}, trying system chromedriver")
+                driver = webdriver.Chrome(options=chrome_options)
+            
+            driver.implicitly_wait(5)
+            
+            page = 1
+            max_pages = 20  # ETF는 약 300개 종목, 페이지당 20개
+            
+            while page <= max_pages:
+                url = f"https://finance.naver.com/sise/etf.naver?&page={page}"
+                logger.debug(f"Loading ETF page {page}: {url}")
+                
+                driver.get(url)
+                
+                # 테이블이 로드될 때까지 대기
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "table"))
+                    )
+                except Exception:
+                    logger.warning(f"Table not found on ETF page {page}")
+                    break
+                
+                # 페이지 소스 가져오기
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+                
+                # 테이블 찾기
+                table = soup.find('table', {'class': 'type_2'})
+                if not table:
+                    table = soup.find('table', {'class': 'type2'})
+                if not table:
+                    # 모든 테이블 중 종목 링크가 많은 테이블 찾기
+                    tables = soup.find_all('table')
+                    for t in tables:
+                        links = t.find_all('a', href=True)
+                        if len(links) > 5:
+                            table = t
+                            break
+                
+                if not table:
+                    logger.warning(f"ETF table not found on page {page}")
+                    break
+                
+                rows = table.find_all('tr')
+                page_stocks = []
+                
+                for row in rows:
+                    cols = row.find_all('td')
+                    if len(cols) < 5:
+                        continue
+                    
+                    # 종목 링크 찾기
+                    links = row.find_all('a', href=True)
+                    for link in links:
+                        href = link.get('href', '')
+                        if '/item/main.naver?code=' in href:
+                            ticker = href.split('code=')[-1].split('&')[0]
+                            name = link.get_text(strip=True)
+                            
+                            if ticker and name and len(ticker) >= 5:
+                                page_stocks.append({
+                                    "ticker": ticker,
+                                    "name": name,
+                                    "type": "ETF",
+                                    "market": "ETF",
+                                    "sector": None,
+                                    "listed_date": None,
+                                    "is_active": 1
+                                })
+                                break
+                
+                if not page_stocks:
+                    break
+                
+                stocks.extend(page_stocks)
+                logger.debug(f"ETF page {page}: collected {len(page_stocks)} stocks")
+                page += 1
+                
+                # 페이지 간 대기 (Rate limiting)
+                import time
+                time.sleep(0.5)
+            
+            # 중복 제거 (티커 코드 기준)
+            seen_tickers = set()
+            unique_stocks = []
+            for stock in stocks:
+                ticker = stock["ticker"]
+                if ticker not in seen_tickers:
+                    seen_tickers.add(ticker)
+                    unique_stocks.append(stock)
+            
+            logger.info(f"Collected {len(unique_stocks)} unique ETF stocks using Selenium (total: {len(stocks)}, duplicates removed: {len(stocks) - len(unique_stocks)})")
+            return unique_stocks
+            
+        except Exception as e:
+            logger.error(f"Error collecting ETF stocks with Selenium: {e}", exc_info=True)
+            raise
+        finally:
+            if driver:
+                driver.quit()
+    
     @retry_with_backoff(
         max_retries=3,
         base_delay=1.0,
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
-    def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
-        """ETF 종목 목록 수집"""
+    def _collect_etf_stocks_requests(self) -> List[Dict[str, Any]]:
+        """requests를 사용한 ETF 종목 목록 수집 (fallback)"""
         stocks = []
         page = 1
-        max_pages = 20  # ETF는 약 300개 종목, 페이지당 20개
+        max_pages = 20
         
         while page <= max_pages:
             url = f"https://finance.naver.com/sise/etf.naver?&page={page}"
@@ -292,8 +457,6 @@ class TickerCatalogCollector:
                 
                 if not table:
                     logger.warning(f"ETF table not found on page {page}, URL: {url}")
-                    # 디버깅을 위해 페이지 내용 일부 출력
-                    logger.debug(f"Page content preview: {response.text[:500]}")
                     break
                 
                 rows = table.find_all('tr')
@@ -304,7 +467,7 @@ class TickerCatalogCollector:
                 page_stocks = []
                 for row in rows:
                     cols = row.find_all('td')
-                    # 데이터 행은 td가 여러 개 있어야 함 (보통 10개 이상)
+                    # 데이터 행은 td가 여러 개 있어야 함
                     if len(cols) < 5:  # ETF는 컬럼이 적을 수 있음
                         continue
                     
@@ -363,25 +526,7 @@ class TickerCatalogCollector:
             # 현재 수집된 종목의 티커 코드 집합
             collected_tickers = {stock["ticker"] for stock in stocks}
             
-            # 기존 데이터베이스의 모든 활성 종목 조회
-            cursor.execute("SELECT ticker FROM stock_catalog WHERE is_active = 1")
-            existing_active_tickers = {row[0] for row in cursor.fetchall()}
-            
-            # 상장폐지된 종목 찾기 (기존에는 있지만 수집된 목록에는 없음)
-            deactivated_tickers = existing_active_tickers - collected_tickers
-            
-            # 상장폐지 종목 비활성화
-            if deactivated_tickers:
-                placeholders = ','.join(['?'] * len(deactivated_tickers))
-                cursor.execute(f"""
-                    UPDATE stock_catalog 
-                    SET is_active = 0, last_updated = CURRENT_TIMESTAMP
-                    WHERE ticker IN ({placeholders})
-                """, list(deactivated_tickers))
-                deactivated_count = cursor.rowcount
-                logger.info(f"Deactivated {deactivated_count} stocks (delisted)")
-            
-            # 신규/업데이트 종목 저장
+            # 1단계: 먼저 수집된 종목을 모두 저장 (is_active = 1로 설정)
             for stock in stocks:
                 try:
                     # 기존 종목인지 확인
@@ -414,6 +559,25 @@ class TickerCatalogCollector:
                 except Exception as e:
                     logger.warning(f"Failed to save stock {stock.get('ticker')}: {e}")
                     continue
+            
+            # 2단계: 수집된 종목 저장 후, 상장폐지 종목 찾기 및 비활성화
+            # 기존 데이터베이스의 모든 종목 조회 (수집 전 상태)
+            cursor.execute("SELECT ticker FROM stock_catalog")
+            all_existing_tickers = {row[0] for row in cursor.fetchall()}
+            
+            # 상장폐지된 종목 찾기 (기존에는 있지만 수집된 목록에는 없음)
+            deactivated_tickers = all_existing_tickers - collected_tickers
+            
+            # 상장폐지 종목 비활성화
+            if deactivated_tickers:
+                placeholders = ','.join(['?'] * len(deactivated_tickers))
+                cursor.execute(f"""
+                    UPDATE stock_catalog 
+                    SET is_active = 0, last_updated = CURRENT_TIMESTAMP
+                    WHERE ticker IN ({placeholders})
+                """, list(deactivated_tickers))
+                deactivated_count = cursor.rowcount
+                logger.info(f"Deactivated {deactivated_count} stocks (delisted)")
             
             conn.commit()
         
@@ -465,14 +629,16 @@ class TickerCatalogCollector:
             cursor = conn.cursor()
             
             # 티커 코드 또는 종목명으로 검색
+            # 검색 시에는 is_active 필터를 제거하여 모든 종목 검색 가능
+            # (활성 종목 우선 정렬)
             if stock_type:
                 cursor.execute("""
                     SELECT ticker, name, type, market, sector
                     FROM stock_catalog
-                    WHERE is_active = 1
-                      AND type = ?
+                    WHERE type = ?
                       AND (ticker LIKE ? OR name LIKE ?)
                     ORDER BY 
+                        is_active DESC,
                         CASE 
                             WHEN ticker = ? THEN 1
                             WHEN ticker LIKE ? THEN 2
@@ -494,9 +660,9 @@ class TickerCatalogCollector:
                 cursor.execute("""
                     SELECT ticker, name, type, market, sector
                     FROM stock_catalog
-                    WHERE is_active = 1
-                      AND (ticker LIKE ? OR name LIKE ?)
+                    WHERE (ticker LIKE ? OR name LIKE ?)
                     ORDER BY 
+                        is_active DESC,
                         CASE 
                             WHEN ticker = ? THEN 1
                             WHEN ticker LIKE ? THEN 2

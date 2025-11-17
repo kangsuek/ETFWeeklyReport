@@ -321,7 +321,7 @@ async def collect_ticker_catalog() -> Dict[str, Any]:
 @router.get("/stocks/search")
 async def search_stocks(
     q: str = Query(..., description="검색어 (티커 코드 또는 종목명)"),
-    type: Optional[str] = Query(None, description="종목 타입 필터 (STOCK, ETF)")
+    type: Optional[str] = Query(None, description="종목 타입 필터 (STOCK, ETF, ALL 또는 null=전체)")
 ) -> List[Dict[str, Any]]:
     """
     종목 목록 검색 (자동완성용)
@@ -370,9 +370,11 @@ async def search_stocks(
         if len(q) < 2:
             raise HTTPException(status_code=400, detail="검색어는 최소 2자 이상이어야 합니다")
         
-        results = ticker_catalog_collector.search_stocks(q, stock_type=type, limit=20)
+        # 'ALL'이면 None으로 변환하여 모든 타입 검색
+        stock_type = None if type == 'ALL' or type is None else type
+        results = ticker_catalog_collector.search_stocks(q, stock_type=stock_type, limit=20)
         
-        logger.debug(f"Search query '{q}' returned {len(results)} results")
+        logger.debug(f"Search query '{q}' (type={stock_type}) returned {len(results)} results")
         return results
         
     except HTTPException:

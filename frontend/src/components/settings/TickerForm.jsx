@@ -6,7 +6,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
   const [formData, setFormData] = useState({
     ticker: '',
     name: '',
-    type: 'ALL', // 초기값을 ALL로 설정 (STOCK, ETF 모두 검색)
+    type: 'ALL',
     theme: '',
     launch_date: '',
     expense_ratio: '',
@@ -29,7 +29,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
       setFormData({
         ticker: initialData.ticker || '',
         name: initialData.name || '',
-        type: initialData.type || 'ETF',
+        type: initialData.type || 'ALL',
         theme: initialData.theme || '',
         launch_date: initialData.launch_date || '',
         expense_ratio: initialData.expense_ratio || '',
@@ -41,14 +41,13 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
   }, [mode, initialData])
 
   // 종목 검색 (자동완성) - 티커 코드 또는 종목명으로 검색
-  // ALL 타입이거나 종목명 필드에서 검색할 때는 타입 필터를 적용하지 않음 (모든 타입 검색)
+  // 'ALL'이면 타입 필터 없이 모든 종목 검색
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ['stockSearch', searchQuery, searchField === 'ticker' && formData.type !== 'ALL' ? formData.type : null],
+    queryKey: ['stockSearch', searchQuery, formData.type],
     queryFn: async () => {
       if (searchQuery.length < 2) return []
-      // 종목명 필드에서 검색하거나 타입이 ALL이면 타입 필터 없이 검색
-      // 티커 코드 필드에서 검색하고 타입이 ALL이 아니면 타입 필터 적용
-      const typeFilter = (searchField === 'ticker' && formData.type !== 'ALL') ? formData.type : null
+      // 'ALL'이면 null을 전달하여 모든 타입 검색
+      const typeFilter = formData.type === 'ALL' ? null : formData.type
       const response = await settingsApi.searchStocks(searchQuery, typeFilter)
       return response.data
     },
@@ -85,7 +84,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
       setFormData({
         ...formData,
         name: data.name || '',
-        type: data.type || 'ETF',
+        type: data.type || 'ALL',
         theme: data.theme || '',
         launch_date: data.launch_date || '',
         expense_ratio: data.expense_ratio || '',
@@ -167,9 +166,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
     if (!formData.ticker) newErrors.ticker = '티커 코드는 필수입니다.'
     if (!formData.name) newErrors.name = '종목명은 필수입니다.'
-    if (!formData.type || formData.type === 'ALL') {
-      newErrors.type = '타입을 선택해주세요. (ETF 또는 STOCK)'
-    }
+    if (!formData.type) newErrors.type = '타입은 필수입니다.'
     if (!formData.theme) newErrors.theme = '테마는 필수입니다.'
 
     // ETF인 경우 추가 필드 검증
@@ -188,13 +185,6 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
     // 제출 데이터 준비
     const submitData = { ...formData }
-
-    // ALL 타입은 저장할 수 없으므로 검증에서 이미 차단됨
-    // 하지만 안전을 위해 한 번 더 확인
-    if (submitData.type === 'ALL') {
-      setErrors(prev => ({ ...prev, type: '타입을 선택해주세요. (ETF 또는 STOCK)' }))
-      return
-    }
 
     // STOCK인 경우 ETF 전용 필드 null로 설정
     if (submitData.type === 'STOCK') {
@@ -406,16 +396,11 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
-              <option value="ALL">전체 (ALL)</option>
+              <option value="ALL">ALL (전체)</option>
               <option value="ETF">ETF</option>
               <option value="STOCK">STOCK</option>
             </select>
             {errors.type && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.type}</p>}
-            {mode === 'create' && (
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-                "전체" 선택 시 모든 타입의 종목이 검색됩니다. 종목 선택 시 자동으로 타입이 설정됩니다.
-              </p>
-            )}
           </div>
 
           {/* 테마 */}

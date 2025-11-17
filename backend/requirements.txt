@@ -13,3 +13,5 @@ lxml==4.9.3
 aiofiles==23.2.1
 apscheduler==3.10.4
 pytz==2023.3
+selenium==4.15.2
+webdriver-manager==4.0.1
