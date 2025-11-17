@@ -14,6 +14,7 @@ import pytz
 from app.config import Config
 from app.services.data_collector import ETFDataCollector
 from app.services.news_scraper import NewsScraper
+from app.services.ticker_catalog_collector import TickerCatalogCollector
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -33,9 +34,11 @@ class DataCollectionScheduler:
         self.scheduler = AsyncIOScheduler(timezone=KST)
         self.collector = ETFDataCollector()
         self.news_scraper = NewsScraper()
+        self.ticker_catalog_collector = TickerCatalogCollector()
         self._jobs = {}
         self.last_collection_time = None
         self.is_collecting = False
+        self.last_catalog_collection_time = None
         logger.info("DataCollectionScheduler 초기화 완료")
     
     def collect_periodic_data(self):
@@ -174,6 +177,39 @@ class DataCollectionScheduler:
         except Exception as e:
             logger.error(f"[스케줄러-백필] 전체 실패: {e}", exc_info=True)
     
+    def collect_ticker_catalog(self):
+        """
+        종목 목록 카탈로그 수집 작업
+        
+        매일 새벽에 전체 종목 목록(코스피, 코스닥, ETF)을 수집하여
+        stock_catalog 테이블에 저장/업데이트합니다.
+        - 신규 상장 종목 추가
+        - 상장폐지 종목 표시 (is_active = 0)
+        - 종목명 변경 반영
+        """
+        start_time = datetime.now(KST)
+        logger.info(f"[스케줄러-카탈로그수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        try:
+            result = self.ticker_catalog_collector.collect_all_stocks()
+            
+            end_time = datetime.now(KST)
+            self.last_catalog_collection_time = end_time
+            
+            logger.info(
+                f"[스케줄러-카탈로그수집] 완료: "
+                f"총 {result['total_collected']}개 종목 수집 "
+                f"(코스피 {result['kospi_count']}개, 코스닥 {result['kosdaq_count']}개, ETF {result['etf_count']}개), "
+                f"저장 {result['saved_count']}개, "
+                f"소요 시간 {(end_time - start_time).total_seconds():.2f}초"
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[스케줄러-카탈로그수집] 전체 실패: {e}", exc_info=True)
+            raise
+    
     def start(self):
         """
         스케줄러 시작
@@ -230,6 +266,22 @@ class DataCollectionScheduler:
         )
         self._jobs['weekly_backfill'] = backfill_job
         logger.info("주간 백필 스케줄 등록: 일요일 02:00 KST (90일치)")
+
+        # 종목 목록 카탈로그 수집 스케줄 (매일 새벽 3:00 KST)
+        # 신규 상장 종목 추가 및 종목명 변경 반영을 위해 매일 실행
+        catalog_job = self.scheduler.add_job(
+            self.collect_ticker_catalog,
+            trigger=CronTrigger(
+                hour=3,
+                minute=0,
+                timezone=KST
+            ),
+            id='ticker_catalog_collection',
+            name='종목 목록 카탈로그 수집',
+            replace_existing=True
+        )
+        self._jobs['ticker_catalog_collection'] = catalog_job
+        logger.info("종목 목록 카탈로그 수집 스케줄 등록: 매일 03:00 KST")
 
         # 스케줄러 시작
         self.scheduler.start()
@@ -290,12 +342,20 @@ class DataCollectionScheduler:
             if job.id == 'periodic_collection' and job.next_run_time:
                 next_job = job.next_run_time
 
+        # 카탈로그 수집 다음 실행 시간 찾기
+        catalog_next_job = None
+        for job in self.scheduler.get_jobs():
+            if job.id == 'ticker_catalog_collection' and job.next_run_time:
+                catalog_next_job = job.next_run_time
+
         return {
             "is_running": self.scheduler.running,
             "is_collecting": self.is_collecting,
             "last_collection_time": self.last_collection_time.isoformat() if self.last_collection_time else None,
+            "last_catalog_collection_time": self.last_catalog_collection_time.isoformat() if self.last_catalog_collection_time else None,
             "interval_minutes": Config.SCRAPING_INTERVAL_MINUTES,
-            "next_run_time": next_job.isoformat() if next_job else None
+            "next_run_time": next_job.isoformat() if next_job else None,
+            "next_catalog_collection_time": catalog_next_job.isoformat() if catalog_next_job else None
         }
 
 

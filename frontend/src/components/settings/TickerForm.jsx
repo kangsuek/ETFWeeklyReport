@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useState, useEffect, useRef } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { settingsApi } from '../../services/api'
 
 export default function TickerForm({ mode, initialData, onSubmit, onClose, isSubmitting }) {
   const [formData, setFormData] = useState({
     ticker: '',
     name: '',
-    type: 'ETF',
+    type: 'ALL', // 초기값을 ALL로 설정 (STOCK, ETF 모두 검색)
     theme: '',
     launch_date: '',
     expense_ratio: '',
@@ -16,6 +16,12 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
   const [keywordsInput, setKeywordsInput] = useState('')
   const [errors, setErrors] = useState({})
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchField, setSearchField] = useState(null) // 'ticker' or 'name'
+  const tickerInputRef = useRef(null)
+  const nameInputRef = useRef(null)
+  const suggestionsRef = useRef(null)
 
   // 초기 데이터 설정 (수정 모드)
   useEffect(() => {
@@ -33,6 +39,43 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
       setKeywordsInput((initialData.relevance_keywords || []).join(', '))
     }
   }, [mode, initialData])
+
+  // 종목 검색 (자동완성) - 티커 코드 또는 종목명으로 검색
+  // ALL 타입이거나 종목명 필드에서 검색할 때는 타입 필터를 적용하지 않음 (모든 타입 검색)
+  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+    queryKey: ['stockSearch', searchQuery, searchField === 'ticker' && formData.type !== 'ALL' ? formData.type : null],
+    queryFn: async () => {
+      if (searchQuery.length < 2) return []
+      // 종목명 필드에서 검색하거나 타입이 ALL이면 타입 필터 없이 검색
+      // 티커 코드 필드에서 검색하고 타입이 ALL이 아니면 타입 필터 적용
+      const typeFilter = (searchField === 'ticker' && formData.type !== 'ALL') ? formData.type : null
+      const response = await settingsApi.searchStocks(searchQuery, typeFilter)
+      return response.data
+    },
+    enabled: searchQuery.length >= 2 && mode === 'create' && searchField !== null,
+    staleTime: 30000, // 30초간 캐시
+  })
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target) &&
+        tickerInputRef.current &&
+        !tickerInputRef.current.contains(event.target) &&
+        nameInputRef.current &&
+        !nameInputRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   // 네이버 금융 자동 입력 Mutation
   const validateMutation = useMutation({
@@ -72,7 +115,41 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
     }
+
+    // 티커 코드 또는 종목명 입력 시 검색 쿼리 업데이트 및 자동완성
+    if ((name === 'ticker' || name === 'name') && mode === 'create') {
+      setSearchQuery(value)
+      setSearchField(name)
+      setShowSuggestions(value.length >= 2)
+    }
   }
+
+  // 자동완성에서 종목 선택
+  const handleSelectStock = (stock) => {
+    setFormData(prev => ({
+      ...prev,
+      ticker: stock.ticker,
+      name: stock.name,
+      type: stock.type,
+    }))
+    setSearchQuery('')
+    setShowSuggestions(false)
+    setSearchField(null)
+  }
+
+  // Debounce를 위한 자동 검색 (티커 코드가 6자리 이상일 때)
+  useEffect(() => {
+    if (mode === 'create' && formData.ticker && formData.ticker.length >= 6 && !formData.name) {
+      const timer = setTimeout(() => {
+        if (formData.ticker) {
+          validateMutation.mutate(formData.ticker)
+        }
+      }, 800) // 800ms 후 자동 실행
+
+      return () => clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.ticker, formData.name, mode])
 
   const handleKeywordsChange = (e) => {
     const value = e.target.value
@@ -90,7 +167,9 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
     if (!formData.ticker) newErrors.ticker = '티커 코드는 필수입니다.'
     if (!formData.name) newErrors.name = '종목명은 필수입니다.'
-    if (!formData.type) newErrors.type = '타입은 필수입니다.'
+    if (!formData.type || formData.type === 'ALL') {
+      newErrors.type = '타입을 선택해주세요. (ETF 또는 STOCK)'
+    }
     if (!formData.theme) newErrors.theme = '테마는 필수입니다.'
 
     // ETF인 경우 추가 필드 검증
@@ -109,6 +188,13 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
 
     // 제출 데이터 준비
     const submitData = { ...formData }
+
+    // ALL 타입은 저장할 수 없으므로 검증에서 이미 차단됨
+    // 하지만 안전을 위해 한 번 더 확인
+    if (submitData.type === 'ALL') {
+      setErrors(prev => ({ ...prev, type: '타입을 선택해주세요. (ETF 또는 STOCK)' }))
+      return
+    }
 
     // STOCK인 경우 ETF 전용 필드 null로 설정
     if (submitData.type === 'STOCK') {
@@ -141,20 +227,68 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
         {/* 폼 */}
         <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
           {/* 티커 코드 + 자동 입력 버튼 */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               티커 코드 <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                name="ticker"
-                value={formData.ticker}
-                onChange={handleChange}
-                disabled={mode === 'edit' || isSubmitting}
-                className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                placeholder="예: 005930, 487240"
-              />
+              <div className="flex-1 relative">
+                <input
+                  ref={tickerInputRef}
+                  type="text"
+                  name="ticker"
+                  value={formData.ticker}
+                  onChange={handleChange}
+                  onFocus={() => {
+                    if (formData.ticker.length >= 2) {
+                      setSearchQuery(formData.ticker)
+                      setSearchField('ticker')
+                      setShowSuggestions(true)
+                    }
+                  }}
+                  disabled={mode === 'edit' || isSubmitting}
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  placeholder="티커 코드 또는 종목명 검색"
+                />
+                {/* 자동완성 드롭다운 (티커 코드 필드용) */}
+                {mode === 'create' && showSuggestions && searchQuery.length >= 2 && searchField === 'ticker' && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                  >
+                    {isSearching ? (
+                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        검색 중...
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <ul className="py-1">
+                        {searchResults.map((stock) => (
+                          <li
+                            key={stock.ticker}
+                            onClick={() => handleSelectStock(stock)}
+                            className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                  {stock.name}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {stock.ticker} · {stock.market} · {stock.type}
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        검색 결과가 없습니다
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {mode === 'create' && (
                 <button
                   type="button"
@@ -184,27 +318,80 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
             </div>
             {errors.ticker && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.ticker}</p>}
             {mode === 'create' && (
-              <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                티커 코드를 입력하고 "자동 입력" 버튼을 클릭하면 종목 정보가 자동으로 채워집니다.
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+                티커 코드 또는 종목명을 입력하면 자동완성이 표시됩니다. 6자리 티커 코드 입력 시 자동으로 정보를 가져옵니다.
               </p>
             )}
           </div>
 
           {/* 종목명 */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               종목명 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              disabled={isSubmitting}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              placeholder="예: 삼성전자, KODEX 2차전지산업"
-            />
+            <div className="relative">
+              <input
+                ref={nameInputRef}
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                onFocus={() => {
+                  if (formData.name.length >= 2) {
+                    setSearchQuery(formData.name)
+                    setSearchField('name')
+                    setShowSuggestions(true)
+                  }
+                }}
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                placeholder="종목명을 입력하거나 검색하세요"
+              />
+              {/* 자동완성 드롭다운 (종목명 필드용) */}
+              {mode === 'create' && showSuggestions && searchQuery.length >= 2 && searchField === 'name' && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                >
+                  {isSearching ? (
+                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      검색 중...
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <ul className="py-1">
+                      {searchResults.map((stock) => (
+                        <li
+                          key={stock.ticker}
+                          onClick={() => handleSelectStock(stock)}
+                          className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">
+                                {stock.name}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {stock.ticker} · {stock.market} · {stock.type}
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      검색 결과가 없습니다
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {errors.name && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.name}</p>}
+            {mode === 'create' && (
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+                종목명을 입력하면 자동완성이 표시됩니다. 종목을 선택하면 티커 코드가 자동으로 입력됩니다.
+              </p>
+            )}
           </div>
 
           {/* 타입 */}
@@ -219,10 +406,16 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
+              <option value="ALL">전체 (ALL)</option>
               <option value="ETF">ETF</option>
               <option value="STOCK">STOCK</option>
             </select>
             {errors.type && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.type}</p>}
+            {mode === 'create' && (
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+                "전체" 선택 시 모든 타입의 종목이 검색됩니다. 종목 선택 시 자동으로 타입이 설정됩니다.
+              </p>
+            )}
           </div>
 
           {/* 테마 */}

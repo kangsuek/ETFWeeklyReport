@@ -106,6 +106,20 @@ def init_db():
             FOREIGN KEY (ticker) REFERENCES etfs(ticker)
         )
     """)
+    
+    # Create stock_catalog table for ticker catalog
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stock_catalog (
+            ticker TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            market TEXT,
+            sector TEXT,
+            listed_date DATE,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
 
     # Create indexes for improved query performance on date-based queries
     logger.info("Creating database indexes for performance optimization")
@@ -123,6 +137,22 @@ def init_db():
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_news_ticker_date
         ON news(ticker, date DESC)
+    """)
+    
+    # Create indexes for stock_catalog
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_name
+        ON stock_catalog(name)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_type
+        ON stock_catalog(type)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_active
+        ON stock_catalog(is_active)
     """)
 
     # Insert initial stock data from config (ETF 4개 + 주식 2개)

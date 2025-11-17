@@ -5,12 +5,13 @@ This router provides CRUD operations for managing stocks/ETFs
 via the stocks.json configuration file.
 """
 
-from fastapi import APIRouter, HTTPException, Path as PathParam
-from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from typing import Dict, Any, List, Optional
 import logging
 from app.models import StockCreate, StockUpdate, StockDeleteResponse
 from app.utils import stocks_manager
 from app.services.ticker_scraper import TickerScraper
+from app.services.ticker_catalog_collector import TickerCatalogCollector
 from app.exceptions import ScraperException
 
 router = APIRouter()
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize ticker scraper
 ticker_scraper = TickerScraper()
+ticker_catalog_collector = TickerCatalogCollector()
 
 
 @router.post("/stocks", status_code=201)
@@ -270,3 +272,111 @@ async def validate_ticker(
     except Exception as e:
         logger.error(f"Unexpected error validating ticker {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate ticker")
+
+
+@router.post("/ticker-catalog/collect")
+async def collect_ticker_catalog() -> Dict[str, Any]:
+    """
+    종목 목록 수집 트리거 (관리자용)
+    
+    네이버 금융에서 전체 종목 목록(코스피, 코스닥, ETF)을 수집하여
+    stock_catalog 테이블에 저장합니다.
+    
+    **Example Response:**
+    ```json
+    {
+      "total_collected": 2500,
+      "kospi_count": 800,
+      "kosdaq_count": 1400,
+      "etf_count": 300,
+      "saved_count": 2500,
+      "timestamp": "2025-01-15T10:30:00"
+    }
+    ```
+    
+    **Status Codes:**
+    - 200: Successfully collected
+    - 500: Collection error
+    
+    **Notes:**
+    - 수집에는 시간이 걸릴 수 있습니다 (약 5-10분)
+    - 기존 데이터는 업데이트됩니다
+    """
+    try:
+        logger.info("Starting ticker catalog collection")
+        
+        result = ticker_catalog_collector.collect_all_stocks()
+        
+        logger.info(f"Ticker catalog collection completed: {result}")
+        return result
+        
+    except ScraperException as e:
+        logger.error(f"Failed to collect ticker catalog: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error collecting ticker catalog: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to collect ticker catalog")
+
+
+@router.get("/stocks/search")
+async def search_stocks(
+    q: str = Query(..., description="검색어 (티커 코드 또는 종목명)"),
+    type: Optional[str] = Query(None, description="종목 타입 필터 (STOCK, ETF)")
+) -> List[Dict[str, Any]]:
+    """
+    종목 목록 검색 (자동완성용)
+    
+    stock_catalog 테이블에서 티커 코드 또는 종목명으로 검색합니다.
+    
+    **Query Parameters:**
+    - q: 검색어 (최소 2자 이상)
+    - type: 종목 타입 필터 (선택사항, STOCK 또는 ETF)
+    
+    **Example Request:**
+    ```
+    GET /api/settings/stocks/search?q=삼성&type=STOCK
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+      {
+        "ticker": "005930",
+        "name": "삼성전자",
+        "type": "STOCK",
+        "market": "KOSPI",
+        "sector": null
+      },
+      {
+        "ticker": "005935",
+        "name": "삼성전자우",
+        "type": "STOCK",
+        "market": "KOSPI",
+        "sector": null
+      }
+    ]
+    ```
+    
+    **Status Codes:**
+    - 200: Success
+    - 400: Invalid query (too short)
+    - 500: Server error
+    
+    **Notes:**
+    - 최대 20개 결과 반환
+    - 정확한 티커 코드 매칭이 우선순위가 높습니다
+    """
+    try:
+        if len(q) < 2:
+            raise HTTPException(status_code=400, detail="검색어는 최소 2자 이상이어야 합니다")
+        
+        results = ticker_catalog_collector.search_stocks(q, stock_type=type, limit=20)
+        
+        logger.debug(f"Search query '{q}' returned {len(results)} results")
+        return results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error searching stocks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to search stocks")

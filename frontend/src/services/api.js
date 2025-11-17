@@ -218,6 +218,16 @@ export const settingsApi = {
 
   // 종목 유효성 검증 (네이버 금융 스크래핑) (일반 조회)
   validateTicker: (ticker) => api.get(`/settings/stocks/${ticker}/validate`, { timeout: NORMAL_API_TIMEOUT }),
+
+  // 종목 검색 (자동완성용) (빠른 조회)
+  searchStocks: (query, type = null) => {
+    const params = { q: query }
+    if (type) params.type = type
+    return api.get('/settings/stocks/search', { params, timeout: FAST_API_TIMEOUT })
+  },
+
+  // 종목 목록 수집 트리거 (긴 작업)
+  collectTickerCatalog: () => api.post('/settings/ticker-catalog/collect', null, { timeout: LONG_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

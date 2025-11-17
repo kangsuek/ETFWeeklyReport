@@ -13,6 +13,7 @@
 | `prices` | ✅ | Phase 1 | 가격 데이터 |
 | `trading_flow` | ✅ | Phase 2 | 투자자별 매매 동향 |
 | `news` | ✅ | Phase 2 | 뉴스 데이터 |
+| `stock_catalog` | ✅ | Phase 2.5 | 종목 목록 카탈로그 (코스피, 코스닥, ETF 전체) |
 
 ## ERD
 
@@ -99,11 +100,34 @@ CREATE TABLE news (
 );
 ```
 
+### 5. `stock_catalog` (종목 목록 카탈로그)
+```sql
+CREATE TABLE stock_catalog (
+    ticker TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    market TEXT,
+    sector TEXT,
+    listed_date DATE,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active INTEGER DEFAULT 1
+);
+```
+
+**용도**: 전체 종목 목록을 미리 수집하여 저장. 자동완성 검색에 사용.
+
+**데이터 소스**: 네이버 금융 (코스피, 코스닥, ETF)
+
+**업데이트**: 수동 트리거 또는 스케줄러를 통한 정기 업데이트
+
 ## 인덱스
 ```sql
 CREATE INDEX idx_prices_ticker_date ON prices(ticker, date);
-CREATE INDEX idx_flow_ticker_date ON trading_flow(ticker, date);
+CREATE INDEX idx_trading_flow_ticker_date ON trading_flow(ticker, date);
 CREATE INDEX idx_news_ticker_date ON news(ticker, date);
+CREATE INDEX idx_stock_catalog_name ON stock_catalog(name);
+CREATE INDEX idx_stock_catalog_type ON stock_catalog(type);
+CREATE INDEX idx_stock_catalog_active ON stock_catalog(is_active);
 ```
 
 ## 쿼리 예제
