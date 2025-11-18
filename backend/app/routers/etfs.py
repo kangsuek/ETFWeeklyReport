@@ -7,6 +7,7 @@ from app.services.comparison_service import ComparisonService
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.utils.data_collection import auto_collect_if_needed
+from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
 from app.constants import (
     ERROR_DATABASE,
@@ -26,9 +27,14 @@ from app.constants import (
 )
 import sqlite3
 import logging
+import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# 캐시 설정 (환경 변수에서 TTL 가져오기, 기본값 30초)
+CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)  # 분을 초로 변환
+cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
 @router.get("/", response_model=List[ETF])
 async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
@@ -71,8 +77,17 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
     - 200: 성공
     - 500: 서버 오류
     """
+    # 캐시 확인
+    cache_key = make_cache_key("etfs")
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
-        return collector.get_all_etfs()
+        result = collector.get_all_etfs()
+        cache.set(cache_key, result)
+        return result
     except sqlite3.Error as e:
         logger.error(f"Database error fetching ETFs: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
@@ -164,13 +179,20 @@ async def compare_etfs(
     - 데이터가 없는 종목은 결과에서 제외
     - 상관관계는 일일 수익률 기준으로 계산
     """
+    # 티커 파싱 (쉼표로 구분)
+    ticker_list = [t.strip() for t in tickers.split(',') if t.strip()]
+
+    # 날짜 기본값 설정
+    start_date, end_date = apply_default_dates(start_date, end_date, default_days=30)
+
+    # 캐시 확인
+    cache_key = make_cache_key("compare", tickers=",".join(sorted(ticker_list)), start_date=start_date, end_date=end_date)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
-        # 티커 파싱 (쉼표로 구분)
-        ticker_list = [t.strip() for t in tickers.split(',') if t.strip()]
-
-        # 날짜 기본값 설정
-        start_date, end_date = apply_default_dates(start_date, end_date, default_days=30)
-
         logger.info(f"Comparing tickers: {ticker_list}, date range: {start_date} to {end_date}")
 
         # 비교 서비스 생성 및 실행
@@ -178,6 +200,7 @@ async def compare_etfs(
         result = comparison_service.get_comparison_data(ticker_list, start_date, end_date)
 
         logger.info(f"Comparison completed for {len(ticker_list)} tickers")
+        cache.set(cache_key, result)
         return result
 
     except ValidationException as e:
@@ -223,7 +246,15 @@ async def get_etf(etf: ETF = Depends(get_etf_or_404)):
     - 404: 종목을 찾을 수 없음
     - 500: 서버 오류
     """
+    # 캐시 확인
+    cache_key = make_cache_key("etf", ticker=etf.ticker)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
+        cache.set(cache_key, etf)
         return etf
     except HTTPException:
         raise
@@ -321,6 +352,13 @@ async def get_prices(
     # 날짜 범위 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
+    # 캐시 확인
+    cache_key = make_cache_key("prices", ticker=etf.ticker, start_date=start_date, end_date=end_date)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         # 자동 수집 로직을 포함한 데이터 조회
         prices = auto_collect_if_needed(
@@ -335,6 +373,7 @@ async def get_prices(
         )
 
         logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
+        cache.set(cache_key, prices)
         return prices
 
     except sqlite3.Error as e:
@@ -376,6 +415,11 @@ async def collect_prices(
 
     try:
         saved_count = collector.collect_and_save_prices(etf.ticker, days=days)
+
+        # 수집 후 해당 티커의 캐시 무효화
+        cache.invalidate_pattern(f"prices:{etf.ticker}")
+        cache.invalidate_pattern(f"etf:{etf.ticker}")
+        cache.invalidate_pattern(f"metrics:{etf.ticker}")
 
         if saved_count == 0:
             logger.warning(f"No data collected for {etf.ticker}")
@@ -427,6 +471,13 @@ async def get_trading_flow(
     # 날짜 기본값 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
+    # 캐시 확인
+    cache_key = make_cache_key("trading_flow", ticker=etf.ticker, start_date=start_date, end_date=end_date)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         # 자동 수집 로직을 포함한 데이터 조회
         trading_data = auto_collect_if_needed(
@@ -442,9 +493,11 @@ async def get_trading_flow(
 
         if not trading_data:
             logger.warning(f"No trading flow data found for {etf.ticker} between {start_date} and {end_date}")
+            cache.set(cache_key, [])
             return []
 
         logger.info(f"Retrieved {len(trading_data)} trading flow records for {etf.ticker}")
+        cache.set(cache_key, trading_data)
         return trading_data
 
     except sqlite3.Error as e:
@@ -480,6 +533,9 @@ async def collect_trading_flow(
     try:
         logger.info(f"Starting trading flow collection for {etf.ticker}, days={days}")
         saved_count = collector.collect_and_save_trading_flow(etf.ticker, days)
+
+        # 수집 후 해당 티커의 캐시 무효화
+        cache.invalidate_pattern(f"trading_flow:{etf.ticker}")
 
         return {
             "ticker": etf.ticker,
@@ -558,8 +614,17 @@ async def get_metrics(
     - 최소 30일 데이터 필요 (1개월 수익률)
     - 변동성 계산에는 최소 10일 데이터 필요
     """
+    # 캐시 확인
+    cache_key = make_cache_key("metrics", ticker=etf.ticker)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
-        return collector.get_etf_metrics(etf.ticker)
+        result = collector.get_etf_metrics(etf.ticker)
+        cache.set(cache_key, result)
+        return result
     except sqlite3.Error as e:
         logger.error(f"Database error fetching metrics for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)

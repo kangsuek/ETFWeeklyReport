@@ -8,6 +8,7 @@ from app.services.scheduler import get_scheduler
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.dependencies import verify_api_key_dependency
 from app.middleware.rate_limit import limiter, RateLimitConfig
+from app.utils.cache import get_cache, make_cache_key
 from app.constants import (
     MAX_COLLECTION_DAYS,
     DEFAULT_COLLECTION_DAYS,
@@ -28,9 +29,14 @@ from app.constants import (
 )
 import sqlite3
 import logging
+import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# 캐시 설정
+CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
+cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
 @router.post("/collect-all")
 @limiter.limit(RateLimitConfig.DATA_COLLECTION)
@@ -107,6 +113,10 @@ async def collect_all_data(
         except Exception as e:
             logger.warning(f"스케줄러 마지막 수집 시간 업데이트 실패 (무시): {e}")
 
+        # 수집 후 모든 캐시 무효화 (전체 데이터 갱신)
+        cache.clear()
+        logger.info("Cache cleared after data collection")
+
         return {
             "message": f"Data collection completed for {result['total_tickers']} tickers",
             "result": result
@@ -171,6 +181,13 @@ async def get_collection_status(request: Request):
     Returns:
         각 종목별 데이터 수집 현황
     """
+    # 캐시 확인
+    cache_key = make_cache_key("status")
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         collector = ETFDataCollector()
         all_etfs = collector.get_all_etfs()
@@ -192,10 +209,12 @@ async def get_collection_status(request: Request):
                 "latest_date": prices[0].date if prices else None
             })
 
-        return {
+        result = {
             "total_tickers": len(all_etfs),
             "status": status_list
         }
+        cache.set(cache_key, result)
+        return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting collection status: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
@@ -213,14 +232,23 @@ async def get_scheduler_status(request: Request):
     Returns:
         스케줄러 실행 상태 및 마지막 수집 시간
     """
+    # 캐시 확인
+    cache_key = make_cache_key("scheduler_status")
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         scheduler = get_scheduler()
         status = scheduler.get_status()
 
-        return {
+        result = {
             "scheduler": status,
             "message": "Scheduler status retrieved successfully"
         }
+        cache.set(cache_key, result)
+        return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting scheduler status: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
@@ -253,9 +281,15 @@ async def get_data_stats(request: Request):
     - 200: 성공
     - 500: 서버 오류
     """
+    # 캐시 확인
+    cache_key = make_cache_key("stats")
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         from app.database import get_db_connection, DB_PATH
-        import os
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -307,7 +341,7 @@ async def get_data_stats(request: Request):
             db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0
             db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
 
-            return {
+            result = {
                 "etfs": etfs_count,
                 "prices": prices_count,
                 "news": news_count,
@@ -315,12 +349,70 @@ async def get_data_stats(request: Request):
                 "last_collection": last_collection,
                 "database_size_mb": db_size_mb
             }
+            cache.set(cache_key, result)
+            return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting stats: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
         logger.error(f"Unexpected error getting stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=ERROR_INTERNAL_GET_STATS)
+
+
+@router.get("/cache/stats")
+@limiter.limit(RateLimitConfig.READ_ONLY)
+async def get_cache_stats(request: Request):
+    """
+    캐시 통계 조회
+
+    캐시 히트율, 미스율, 크기 등의 통계 정보를 반환합니다.
+
+    **Example Response:**
+    ```json
+    {
+      "hits": 150,
+      "misses": 50,
+      "hit_rate_pct": 75.0,
+      "total_requests": 200,
+      "evictions": 5,
+      "sets": 55,
+      "current_size": 50,
+      "max_size": 1000,
+      "default_ttl_seconds": 30
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    """
+    try:
+        stats = cache.get_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+
+
+@router.delete("/cache/clear")
+@limiter.limit(RateLimitConfig.DANGEROUS)
+async def clear_cache(request: Request, api_key: str = Depends(verify_api_key_dependency)):
+    """
+    캐시 전체 삭제
+
+    모든 캐시 데이터를 삭제합니다.
+
+    **Status Codes:**
+    - 200: 성공
+    """
+    try:
+        cache.clear()
+        logger.info("Cache manually cleared via API")
+        return {
+            "message": "Cache cleared successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to clear cache")
 
 
 @router.delete("/reset")
@@ -374,6 +466,10 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
             conn.commit()
 
             logger.warning(f"Database reset: deleted {prices_count} prices, {news_count} news, {trading_flow_count} trading_flow records")
+
+            # 데이터베이스 초기화 후 모든 캐시 무효화
+            cache.clear()
+            logger.info("Cache cleared after database reset")
 
             return {
                 "message": "Database reset successfully",

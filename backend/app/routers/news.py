@@ -6,6 +6,7 @@ from app.services.news_scraper import NewsScraper
 from app.services.data_collector import ETFDataCollector
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
+from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
 from app.constants import (
     ERROR_DATABASE,
@@ -17,10 +18,15 @@ from app.constants import (
 )
 import sqlite3
 import logging
+import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 scraper = NewsScraper()
+
+# 캐시 설정
+CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
+cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
 @router.get("/{ticker}", response_model=List[News])
 async def get_news(
@@ -41,13 +47,23 @@ async def get_news(
     # 날짜 기본값 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
+    # 캐시 확인
+    cache_key = make_cache_key("news", ticker=etf.ticker, start_date=start_date, end_date=end_date)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
     try:
         news_list = scraper.get_news_for_ticker(etf.ticker, start_date, end_date)
 
         if not news_list:
             logger.warning(f"No news found for {etf.ticker} between {start_date} and {end_date}")
+            cache.set(cache_key, [])
+            return []
 
         logger.info(f"Retrieved {len(news_list)} news articles for {etf.ticker}")
+        cache.set(cache_key, news_list)
         return news_list
 
     except sqlite3.Error as e:
@@ -78,6 +94,9 @@ async def collect_news(
     try:
         logger.info(f"Starting news collection for {etf.ticker}, days={days}")
         result = scraper.collect_and_save_news(etf.ticker, days)
+
+        # 수집 후 해당 티커의 뉴스 캐시 무효화
+        cache.invalidate_pattern(f"news:{etf.ticker}")
 
         result['name'] = etf.name
         return result

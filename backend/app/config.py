@@ -34,8 +34,8 @@ class Config:
     # Scheduler Settings
     SCRAPING_INTERVAL_MINUTES = int(os.getenv("SCRAPING_INTERVAL_MINUTES", "3"))
 
-    # Cache Settings (현재 미구현, 향후 Redis 또는 메모리 캐시 도입 시 사용)
-    CACHE_TTL_MINUTES = int(os.getenv("CACHE_TTL_MINUTES", "3"))
+    # Cache Settings (메모리 캐시 구현됨)
+    CACHE_TTL_MINUTES = float(os.getenv("CACHE_TTL_MINUTES", "3"))
     
     # Stock Configuration File Path
     STOCK_CONFIG_PATH = os.getenv(
