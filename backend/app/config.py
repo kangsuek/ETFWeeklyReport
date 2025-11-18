@@ -16,6 +16,10 @@ class Config:
     API_HOST = os.getenv("API_HOST", "0.0.0.0")
     API_PORT = int(os.getenv("API_PORT", "8000"))
 
+    # API Key for authentication (optional in development)
+    # If not set, all requests are allowed
+    API_KEY = os.getenv("API_KEY")
+
     # CORS Settings
     # Parse comma-separated origins from environment variable
     CORS_ORIGINS = os.getenv(

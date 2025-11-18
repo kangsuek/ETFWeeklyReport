@@ -4,6 +4,7 @@ FastAPI dependency injection functions
 from fastapi import HTTPException, Depends
 from app.models import ETF
 from app.services.data_collector import ETFDataCollector
+from app.middleware.auth import verify_api_key_dependency
 import logging
 
 logger = logging.getLogger(__name__)

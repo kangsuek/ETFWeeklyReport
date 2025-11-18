@@ -173,6 +173,15 @@ export const ERROR_MESSAGES = {
 export const MAX_DATE_RANGE_DAYS = 365
 
 /**
+ * 검색 최소 길이 (글자)
+ *
+ * 용도:
+ * - 종목 검색 시 최소 입력 길이
+ * - 2글자 미만은 검색하지 않음
+ */
+export const MIN_SEARCH_LENGTH = 2
+
+/**
  * 기본 조회 기간 (일)
  */
 export const DEFAULT_DATE_RANGE_DAYS = 7

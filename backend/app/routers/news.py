@@ -6,7 +6,7 @@ from app.services.news_scraper import NewsScraper
 from app.services.data_collector import ETFDataCollector
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
-from app.dependencies import get_etf_or_404, get_collector
+from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
 from app.constants import (
     ERROR_DATABASE,
     ERROR_VALIDATION_DATE_RANGE,
@@ -63,7 +63,8 @@ async def get_news(
 @router.post("/{ticker}/collect")
 async def collect_news(
     etf: ETF = Depends(get_etf_or_404),
-    days: int = Query(7, ge=1, le=30, description="수집할 일수 (1-30일)")
+    days: int = Query(7, ge=1, le=30, description="수집할 일수 (1-30일)"),
+    api_key: str = Depends(verify_api_key_dependency)
 ) -> Dict:
     """
     종목별 뉴스 수집

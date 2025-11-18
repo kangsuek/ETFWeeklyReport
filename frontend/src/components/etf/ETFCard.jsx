@@ -4,6 +4,7 @@ import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
+import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
 
 export default function ETFCard({ etf, compactMode = false }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
@@ -59,29 +60,7 @@ export default function ETFCard({ etf, compactMode = false }) {
     return changePct > 0 ? 'text-red-600' : changePct < 0 ? 'text-blue-600' : 'text-gray-600'
   }
 
-  // 등락률 포맷팅
-  const formatChange = (changePct) => {
-    if (!changePct) return '0.00%'
-    const sign = changePct > 0 ? '+' : ''
-    return `${sign}${changePct.toFixed(2)}%`
-  }
-
-  // 가격 포맷팅 (천 단위 콤마)
-  const formatPrice = (price) => {
-    if (!price) return '-'
-    return new Intl.NumberFormat('ko-KR').format(price)
-  }
-
-  // 거래량 포맷팅 (천 단위)
-  const formatVolume = (volume) => {
-    if (!volume) return '-'
-    if (volume >= 1000000) {
-      return `${(volume / 1000000).toFixed(1)}M`
-    } else if (volume >= 1000) {
-      return `${(volume / 1000).toFixed(0)}K`
-    }
-    return volume.toString()
-  }
+  // 포맷팅 함수는 utils/format.js에서 import
 
   // 매매 동향 포맷팅 (억 단위, 천 단위 콤마)
   const formatTradingValue = (value) => {
@@ -274,7 +253,7 @@ export default function ETFCard({ etf, compactMode = false }) {
             <div className="flex items-baseline justify-between mb-2">
               <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</span>
               <span className={`text-sm font-semibold ${getChangeColor(latestPrice.daily_change_pct)}`}>
-                {formatChange(latestPrice.daily_change_pct)}
+                {formatPercent(latestPrice.daily_change_pct)}
               </span>
             </div>
 
@@ -299,7 +278,7 @@ export default function ETFCard({ etf, compactMode = false }) {
               <span>거래량: {formatVolume(latestPrice.volume)}</span>
               {weeklyReturn !== null && (
                 <span className={`font-semibold ${getChangeColor(weeklyReturn)}`}>
-                  주간: {formatChange(weeklyReturn)}
+                  주간: {formatPercent(weeklyReturn)}
                 </span>
               )}
             </div>

@@ -336,10 +336,18 @@ class ComparisonService:
 
         for ticker, df in prices_data.items():
             prices = df['close_price']
-            days = len(df)
+
+            # 실제 달력일 수 계산 (연환산 수익률 정확도 향상)
+            if len(df) < 2:
+                calendar_days = 1
+            else:
+                calendar_days = (df['date'].iloc[-1] - df['date'].iloc[0]).days
+                # 같은 날짜인 경우 최소 1일로 처리
+                if calendar_days == 0:
+                    calendar_days = 1
 
             period_return = self.calculate_returns(prices)
-            annualized_return = self.calculate_annualized_return(prices, days)
+            annualized_return = self.calculate_annualized_return(prices, calendar_days)
             volatility = self.calculate_volatility(prices)
             max_drawdown = self.calculate_max_drawdown(prices)
             sharpe_ratio = self.calculate_sharpe_ratio(annualized_return, volatility)
@@ -350,7 +358,7 @@ class ComparisonService:
                 "volatility": float(volatility),
                 "max_drawdown": float(max_drawdown),
                 "sharpe_ratio": float(sharpe_ratio),
-                "data_points": int(days)
+                "data_points": int(len(df))  # 거래일 수 (데이터 포인트 개수)
             }
 
         return statistics

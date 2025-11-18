@@ -42,7 +42,27 @@ export function sampleData(data, maxPoints = MAX_CHART_POINTS) {
  */
 export function measureChartPerformance(label, fn) {
   // Performance measurement disabled in production
-  return fn()
+  if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
+    return fn()
+  }
+
+  const start = performance.now()
+  try {
+    const result = fn()
+    const duration = performance.now() - start
+
+    if (duration > 500) {
+      console.warn(`[Chart Performance] ⚠️ ${label} took longer than 500ms: ${duration.toFixed(2)}ms`)
+    } else {
+      console.log(`[Chart Performance] ${label}: ${duration.toFixed(2)}ms`)
+    }
+
+    return result
+  } catch (error) {
+    const duration = performance.now() - start
+    console.error(`[Chart Performance] ❌ ${label} failed after ${duration.toFixed(2)}ms`)
+    throw error
+  }
 }
 
 /**

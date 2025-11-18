@@ -90,7 +90,12 @@ export default function ComparisonTable({ statistics, tickerInfo }) {
     { key: 'annualized_return', label: '연환산 수익률', format: formatPercent },
     { key: 'volatility', label: '변동성', format: formatPercent },
     { key: 'max_drawdown', label: '최대 낙폭', format: formatPercent },
-    { key: 'sharpe_ratio', label: '샤프 비율', format: formatNumber },
+    {
+      key: 'sharpe_ratio',
+      label: '샤프 비율',
+      format: formatNumber,
+      tooltip: '위험 대비 수익 지표.\n1+ 양호, 2+ 우수, 3+ 매우 우수'
+    },
   ]
 
   return (
@@ -120,6 +125,28 @@ export default function ComparisonTable({ statistics, tickerInfo }) {
                 >
                   <div className="flex items-center justify-end gap-1">
                     {col.label}
+                    {col.tooltip && (
+                      <div className="group relative inline-block">
+                        <svg
+                          className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute top-full right-0 mt-2 w-[200px] p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs text-left rounded-lg shadow-xl z-50 transition-opacity duration-200 whitespace-pre-line">
+                          {col.tooltip}
+                          <div className="absolute bottom-full right-4 -mb-1 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"></div>
+                        </div>
+                      </div>
+                    )}
                     <SortIcon column={col.key} />
                   </div>
                 </th>
@@ -204,8 +231,29 @@ export default function ComparisonTable({ statistics, tickerInfo }) {
 
                 return (
                   <div key={col.key}>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                       {col.label}
+                      {col.tooltip && (
+                        <div className="group relative inline-block">
+                          <svg
+                            className="w-3 h-3 text-gray-400 cursor-help"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute top-full left-0 mt-2 w-[200px] p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs text-left rounded-lg shadow-xl z-50 transition-opacity duration-200 whitespace-pre-line">
+                            {col.tooltip}
+                            <div className="absolute bottom-full left-4 -mb-1 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className={`font-medium ${
                       isReturn

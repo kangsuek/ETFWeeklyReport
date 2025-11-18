@@ -26,7 +26,7 @@ describe('TickerForm 컴포넌트', () => {
 
       expect(screen.getByText('새 종목 추가')).toBeInTheDocument()
       expect(screen.getByText('추가')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText(/예: 005930, 487240/)).toBeInTheDocument()
+      expect(screen.getByPlaceholderText(/티커 코드 또는 종목명 검색/)).toBeInTheDocument()
     })
 
     it('네이버에서 자동 입력 버튼이 표시된다', () => {

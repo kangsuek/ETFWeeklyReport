@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { settingsApi } from '../../services/api'
+import { MIN_SEARCH_LENGTH } from '../../constants'
 
 export default function TickerForm({ mode, initialData, onSubmit, onClose, isSubmitting }) {
   const [formData, setFormData] = useState({
@@ -45,13 +46,13 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ['stockSearch', searchQuery, formData.type],
     queryFn: async () => {
-      if (searchQuery.length < 2) return []
+      if (searchQuery.length < MIN_SEARCH_LENGTH) return []
       // 'ALL'이면 null을 전달하여 모든 타입 검색
       const typeFilter = formData.type === 'ALL' ? null : formData.type
       const response = await settingsApi.searchStocks(searchQuery, typeFilter)
       return response.data
     },
-    enabled: searchQuery.length >= 2 && mode === 'create' && searchField !== null,
+    enabled: searchQuery.length >= MIN_SEARCH_LENGTH && mode === 'create' && searchField !== null,
     staleTime: 30000, // 30초간 캐시
   })
 
@@ -119,7 +120,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     if ((name === 'ticker' || name === 'name') && mode === 'create') {
       setSearchQuery(value)
       setSearchField(name)
-      setShowSuggestions(value.length >= 2)
+      setShowSuggestions(value.length >= MIN_SEARCH_LENGTH)
     }
   }
 
@@ -230,7 +231,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                   value={formData.ticker}
                   onChange={handleChange}
                   onFocus={() => {
-                    if (formData.ticker.length >= 2) {
+                    if (formData.ticker.length >= MIN_SEARCH_LENGTH) {
                       setSearchQuery(formData.ticker)
                       setSearchField('ticker')
                       setShowSuggestions(true)
@@ -241,7 +242,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                   placeholder="티커 코드 또는 종목명 검색"
                 />
                 {/* 자동완성 드롭다운 (티커 코드 필드용) */}
-                {mode === 'create' && showSuggestions && searchQuery.length >= 2 && searchField === 'ticker' && (
+                {mode === 'create' && showSuggestions && searchQuery.length >= MIN_SEARCH_LENGTH && searchField === 'ticker' && (
                   <div
                     ref={suggestionsRef}
                     className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
@@ -327,7 +328,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                 value={formData.name}
                 onChange={handleChange}
                 onFocus={() => {
-                  if (formData.name.length >= 2) {
+                  if (formData.name.length >= MIN_SEARCH_LENGTH) {
                     setSearchQuery(formData.name)
                     setSearchField('name')
                     setShowSuggestions(true)
@@ -338,7 +339,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
                 placeholder="종목명을 입력하거나 검색하세요"
               />
               {/* 자동완성 드롭다운 (종목명 필드용) */}
-              {mode === 'create' && showSuggestions && searchQuery.length >= 2 && searchField === 'name' && (
+              {mode === 'create' && showSuggestions && searchQuery.length >= MIN_SEARCH_LENGTH && searchField === 'name' && (
                 <div
                   ref={suggestionsRef}
                   className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"

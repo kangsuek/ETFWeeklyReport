@@ -5,11 +5,13 @@ This router provides CRUD operations for managing stocks/ETFs
 via the stocks.json configuration file.
 """
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query, Depends, Request
 from typing import Dict, Any, List, Optional
 import logging
 from app.models import StockCreate, StockUpdate, StockDeleteResponse
 from app.utils import stocks_manager
+from app.dependencies import verify_api_key_dependency
+from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.services.ticker_scraper import TickerScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
 from app.exceptions import ScraperException
@@ -23,8 +25,11 @@ ticker_catalog_collector = TickerCatalogCollector()
 
 
 @router.post("/stocks", status_code=201)
+@limiter.limit(RateLimitConfig.DEFAULT)
 async def create_stock(
-    stock_data: StockCreate
+    request: Request,
+    stock_data: StockCreate,
+    api_key: str = Depends(verify_api_key_dependency)
 ) -> Dict[str, Any]:
     """
     Create a new stock/ETF entry
@@ -91,7 +96,8 @@ async def create_stock(
 @router.put("/stocks/{ticker}")
 async def update_stock(
     ticker: str = PathParam(..., description="Stock ticker code"),
-    stock_data: StockUpdate = None
+    stock_data: StockUpdate = None,
+    api_key: str = Depends(verify_api_key_dependency)
 ) -> Dict[str, Any]:
     """
     Update an existing stock/ETF entry
@@ -165,7 +171,8 @@ async def update_stock(
 
 @router.delete("/stocks/{ticker}", response_model=StockDeleteResponse)
 async def delete_stock(
-    ticker: str = PathParam(..., description="Stock ticker code")
+    ticker: str = PathParam(..., description="Stock ticker code"),
+    api_key: str = Depends(verify_api_key_dependency)
 ) -> StockDeleteResponse:
     """
     Delete a stock/ETF entry and all related data
@@ -275,7 +282,8 @@ async def validate_ticker(
 
 
 @router.post("/ticker-catalog/collect")
-async def collect_ticker_catalog() -> Dict[str, Any]:
+@limiter.limit(RateLimitConfig.DANGEROUS)
+async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify_api_key_dependency)) -> Dict[str, Any]:
     """
     종목 목록 수집 트리거 (관리자용)
     
@@ -319,7 +327,9 @@ async def collect_ticker_catalog() -> Dict[str, Any]:
 
 
 @router.get("/stocks/search")
+@limiter.limit(RateLimitConfig.SEARCH)
 async def search_stocks(
+    request: Request,
     q: str = Query(..., description="검색어 (티커 코드 또는 종목명)"),
     type: Optional[str] = Query(None, description="종목 타입 필터 (STOCK, ETF, ALL 또는 null=전체)")
 ) -> List[Dict[str, Any]]:

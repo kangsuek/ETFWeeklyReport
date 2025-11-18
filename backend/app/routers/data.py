@@ -2,10 +2,12 @@
 데이터 수집 관련 API 라우터
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from app.services.data_collector import ETFDataCollector
 from app.services.scheduler import get_scheduler
 from app.exceptions import DatabaseException, ValidationException, ScraperException
+from app.dependencies import verify_api_key_dependency
+from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.constants import (
     MAX_COLLECTION_DAYS,
     DEFAULT_COLLECTION_DAYS,
@@ -31,8 +33,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/collect-all")
+@limiter.limit(RateLimitConfig.DATA_COLLECTION)
 async def collect_all_data(
-    days: int = Query(DEFAULT_COLLECTION_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"수집할 일수 (기본: {DEFAULT_COLLECTION_DAYS}일)")
+    request: Request,
+    days: int = Query(DEFAULT_COLLECTION_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"수집할 일수 (기본: {DEFAULT_COLLECTION_DAYS}일)"),
+    api_key: str = Depends(verify_api_key_dependency)
 ):
     """
     전체 종목 데이터 일괄 수집
@@ -121,8 +126,11 @@ async def collect_all_data(
 
 
 @router.post("/backfill")
+@limiter.limit(RateLimitConfig.DATA_COLLECTION)
 async def backfill_data(
-    days: int = Query(DEFAULT_BACKFILL_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"백필할 일수 (기본: {DEFAULT_BACKFILL_DAYS}일)")
+    request: Request,
+    days: int = Query(DEFAULT_BACKFILL_DAYS, ge=1, le=MAX_COLLECTION_DAYS, description=f"백필할 일수 (기본: {DEFAULT_BACKFILL_DAYS}일)"),
+    api_key: str = Depends(verify_api_key_dependency)
 ):
     """
     모든 종목의 히스토리 데이터를 백필
@@ -155,7 +163,8 @@ async def backfill_data(
 
 
 @router.get("/status")
-async def get_collection_status():
+@limiter.limit(RateLimitConfig.READ_ONLY)
+async def get_collection_status(request: Request):
     """
     데이터 수집 상태 조회
 
@@ -196,7 +205,8 @@ async def get_collection_status():
 
 
 @router.get("/scheduler-status")
-async def get_scheduler_status():
+@limiter.limit(RateLimitConfig.READ_ONLY)
+async def get_scheduler_status(request: Request):
     """
     스케줄러 상태 조회
 
@@ -220,7 +230,8 @@ async def get_scheduler_status():
 
 
 @router.get("/stats")
-async def get_data_stats():
+@limiter.limit(RateLimitConfig.READ_ONLY)
+async def get_data_stats(request: Request):
     """
     데이터베이스 통계 조회
 
@@ -277,7 +288,8 @@ async def get_data_stats():
                 from datetime import datetime
                 try:
                     last_collection = datetime.fromisoformat(last_price_date).isoformat()
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse last_price_date: {last_price_date}, error: {e}")
                     last_collection = last_price_date
             else:
                 # 방법 2: 데이터가 없으면 스케줄러 상태에서 확인
@@ -287,7 +299,8 @@ async def get_data_stats():
                     scheduler_time = status.get("last_collection_time")
                     # 스케줄러에서 가져온 값이 None이거나 없으면 None 유지
                     last_collection = scheduler_time if scheduler_time else None
-                except:
+                except (AttributeError, KeyError, Exception) as e:
+                    logger.warning(f"Failed to get scheduler status: {e}")
                     last_collection = None
 
             # 데이터베이스 파일 크기 (MB)
@@ -311,7 +324,8 @@ async def get_data_stats():
 
 
 @router.delete("/reset")
-async def reset_database():
+@limiter.limit(RateLimitConfig.DANGEROUS)
+async def reset_database(request: Request, api_key: str = Depends(verify_api_key_dependency)):
     """
     데이터베이스 초기화 (위험!)
 

@@ -6,7 +6,8 @@ from app.services.data_collector import ETFDataCollector
 from app.services.comparison_service import ComparisonService
 from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
-from app.dependencies import get_etf_or_404, get_collector
+from app.utils.data_collection import auto_collect_if_needed
+from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
 from app.constants import (
     ERROR_DATABASE,
     ERROR_DATABASE_COLLECTION,
@@ -321,42 +322,17 @@ async def get_prices(
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
     try:
-        # 1. DB 데이터 조회
-        prices = collector.get_price_data(etf.ticker, start_date, end_date)
-
-        # 2. 데이터 범위 확인
-        data_range = collector.get_price_data_range(etf.ticker)
-
-        # 3. 데이터가 없거나 범위가 부족한 경우 자동 수집
-        should_collect = False
-        collection_days = 0
-
-        if not data_range:
-            # DB에 데이터가 전혀 없음
-            logger.info(f"No data in DB for {etf.ticker}, collecting {(end_date - start_date).days + 1} days")
-            should_collect = True
-            collection_days = (end_date - start_date).days + 1
-        elif data_range['min_date'] > start_date or data_range['max_date'] < end_date:
-            # 요청 범위가 DB 범위를 벗어남
-            logger.info(f"Requested range ({start_date} to {end_date}) exceeds DB range ({data_range['min_date']} to {data_range['max_date']})")
-            should_collect = True
-
-            # 부족한 기간 계산
-            if data_range['min_date'] > start_date:
-                collection_days = max(collection_days, (data_range['min_date'] - start_date).days)
-            if data_range['max_date'] < end_date:
-                collection_days = max(collection_days, (end_date - data_range['max_date']).days)
-
-            # 전체 범위로 다시 수집
-            collection_days = (end_date - start_date).days + 1
-
-        if should_collect:
-            logger.info(f"Auto-collecting {collection_days} days of price data for {etf.ticker}")
-            collected_count = collector.collect_and_save_prices(etf.ticker, days=collection_days)
-            logger.info(f"Auto-collected {collected_count} records for {etf.ticker}")
-
-            # 다시 조회
-            prices = collector.get_price_data(etf.ticker, start_date, end_date)
+        # 자동 수집 로직을 포함한 데이터 조회
+        prices = auto_collect_if_needed(
+            ticker=etf.ticker,
+            start_date=start_date,
+            end_date=end_date,
+            get_data_fn=collector.get_price_data,
+            get_data_range_fn=collector.get_price_data_range,
+            collect_fn=collector.collect_and_save_prices,
+            data_type="price",
+            pass_dates_to_collect=False
+        )
 
         logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
         return prices
@@ -378,7 +354,8 @@ async def get_prices(
 async def collect_prices(
     etf: ETF = Depends(get_etf_or_404),
     days: int = Query(default=10, description="Number of days to collect"),
-    collector: ETFDataCollector = Depends(get_collector)
+    collector: ETFDataCollector = Depends(get_collector),
+    api_key: str = Depends(verify_api_key_dependency)
 ):
     """
     Trigger data collection from Naver Finance for a specific stock/ETF
@@ -451,42 +428,17 @@ async def get_trading_flow(
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
 
     try:
-        # 1. DB 데이터 조회
-        trading_data = collector.get_trading_flow_data(etf.ticker, start_date, end_date)
-
-        # 2. 데이터 범위 확인
-        data_range = collector.get_trading_flow_data_range(etf.ticker)
-
-        # 3. 데이터가 없거나 범위가 부족한 경우 자동 수집
-        should_collect = False
-        collection_days = 0
-
-        if not data_range:
-            # DB에 데이터가 전혀 없음
-            logger.info(f"No trading flow data in DB for {etf.ticker}, collecting {(end_date - start_date).days + 1} days")
-            should_collect = True
-            collection_days = (end_date - start_date).days + 1
-        elif data_range['min_date'] > start_date or data_range['max_date'] < end_date:
-            # 요청 범위가 DB 범위를 벗어남
-            logger.info(f"Requested trading flow range ({start_date} to {end_date}) exceeds DB range ({data_range['min_date']} to {data_range['max_date']})")
-            should_collect = True
-
-            # 전체 범위로 다시 수집
-            collection_days = (end_date - start_date).days + 1
-
-        if should_collect:
-            logger.info(f"Auto-collecting {collection_days} days of trading flow data for {etf.ticker}")
-            # 날짜 범위를 지정하여 수집 (오늘 날짜 데이터가 없어도 요청 범위까지 수집 시도)
-            collected_count = collector.collect_and_save_trading_flow(
-                etf.ticker, 
-                days=collection_days,
-                start_date=start_date,
-                end_date=end_date
-            )
-            logger.info(f"Auto-collected {collected_count} trading flow records for {etf.ticker}")
-
-            # 다시 조회
-            trading_data = collector.get_trading_flow_data(etf.ticker, start_date, end_date)
+        # 자동 수집 로직을 포함한 데이터 조회
+        trading_data = auto_collect_if_needed(
+            ticker=etf.ticker,
+            start_date=start_date,
+            end_date=end_date,
+            get_data_fn=collector.get_trading_flow_data,
+            get_data_range_fn=collector.get_trading_flow_data_range,
+            collect_fn=collector.collect_and_save_trading_flow,
+            data_type="trading flow",
+            pass_dates_to_collect=True
+        )
 
         if not trading_data:
             logger.warning(f"No trading flow data found for {etf.ticker} between {start_date} and {end_date}")
@@ -513,7 +465,8 @@ async def get_trading_flow(
 async def collect_trading_flow(
     etf: ETF = Depends(get_etf_or_404),
     days: int = Query(10, ge=1, le=90, description="수집할 일수 (1-90일)"),
-    collector: ETFDataCollector = Depends(get_collector)
+    collector: ETFDataCollector = Depends(get_collector),
+    api_key: str = Depends(verify_api_key_dependency)
 ):
     """
     투자자별 매매동향 데이터 수집
