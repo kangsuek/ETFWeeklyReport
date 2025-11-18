@@ -73,3 +73,23 @@ class StockDeleteResponse(BaseModel):
     """종목 삭제 응답"""
     ticker: str
     deleted: dict  # {"prices": 150, "news": 20, "trading_flow": 30}
+
+# Batch API Models
+class ETFCardSummary(BaseModel):
+    """대시보드 카드에 표시할 종목별 요약 데이터"""
+    ticker: str
+    latest_price: Optional[PriceData] = None  # 최신 가격 (5일치 중 첫번째)
+    prices: List[PriceData] = []  # 최근 5일 가격 (차트용)
+    weekly_return: Optional[float] = None  # 주간 수익률
+    latest_trading_flow: Optional[TradingFlow] = None  # 최근 1일 매매동향
+    latest_news: List[News] = []  # 최근 5개 뉴스
+
+class BatchSummaryRequest(BaseModel):
+    """배치 요약 요청"""
+    tickers: List[str]  # 종목 코드 리스트
+    price_days: int = 5  # 가격 데이터 일수
+    news_limit: int = 5  # 뉴스 개수
+
+class BatchSummaryResponse(BaseModel):
+    """배치 요약 응답"""
+    data: dict  # {ticker: ETFCardSummary}

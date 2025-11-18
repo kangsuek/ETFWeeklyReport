@@ -130,11 +130,46 @@
 - [ ] PDF 생성 (선택)
 - [ ] 다운로드 UI
 
-## 🔵 Phase 7: Optimization & Deployment
-- [ ] 성능 최적화 (번들 크기, Code Splitting)
+## 🔵 Phase 7: Performance Optimization (Priority: High)
+
+> **📄 상세 계획**: [PERFORMANCE_OPTIMIZATION_PLAN.md](../PERFORMANCE_OPTIMIZATION_PLAN.md)
+
+### 7.1 N+1 쿼리 문제 해결 (🔴 Critical) ✅
+- [x] 백엔드: 배치 API 엔드포인트 추가 (`POST /api/etfs/batch-summary`)
+- [x] 프론트엔드: 배치 API 호출 로직 구현
+- [x] Dashboard 리팩토링 (18개 → 2개 API 호출로 감소)
+- [x] 배치 API 단위 테스트 작성 (8개 테스트 통과)
+- [x] 프론트엔드 빌드 성공 (gzip 167.36 kB)
+
+### 7.2 프론트엔드 번들 크기 최적화 (🔴 Critical)
+- [ ] Vite 설정: Code Splitting 적용 (manualChunks)
+- [ ] Route-based Lazy Loading 구현
+- [ ] 빌드 크기 검증 (목표: gzip 167kB → 100kB 이하)
+- [ ] Lighthouse Performance 점수 측정
+
+### 7.3 캐시 전략 최적화 (🟡 Medium)
+- [ ] 백엔드: 엔드포인트별 차등 TTL 적용
+- [ ] 캐시 무효화 로직 추가 (데이터 수집 후)
+- [ ] 프론트엔드: TanStack Query 캐시 설정 최적화
+- [ ] 캐시 Hit Rate 모니터링 (목표: 33% → 60% 이상)
+
+### 7.4 데이터베이스 쿼리 최적화 (🟡 Medium)
+- [ ] 배치 쿼리 구현 (IN 절 활용)
+- [ ] 쿼리 결과 크기 제한 (limit 파라미터)
+- [ ] Connection Pool 구현 (선택)
+- [ ] 쿼리 성능 테스트
+
+### 7.5 성능 모니터링 (🟢 Low)
+- [ ] 백엔드: 성능 로깅 미들웨어 추가
+- [ ] 프론트엔드: Web Vitals 측정
+- [ ] 성능 대시보드 API 추가
+- [ ] 주간 성능 리포트 자동화
+
+## 🔵 Phase 8: Deployment & Production
 - [ ] Docker 설정
 - [ ] 배포 (Vercel/Render, PostgreSQL 마이그레이션)
-- [ ] 모니터링 설정
+- [ ] 프로덕션 모니터링 설정
+- [ ] CI/CD 파이프라인 구축
 
 ---
 

@@ -17,5 +17,6 @@
 - **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드
 - **[RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md)** - 실행 가이드
 - **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정
+- **[PERFORMANCE_OPTIMIZATION_PLAN.md](./docs/PERFORMANCE_OPTIMIZATION_PLAN.md)** - 성능 최적화 계획
 - **[PROGRESS.md](./docs/project-management/PROGRESS.md)** - 진행 상황
 - **[MILESTONES.md](./docs/project-management/MILESTONES.md)** - 마일스톤

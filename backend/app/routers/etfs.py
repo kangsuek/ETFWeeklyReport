@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from datetime import date, timedelta
-from app.models import ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics
+from app.models import (
+    ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics,
+    ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse
+)
 from app.services.data_collector import ETFDataCollector
 from app.services.comparison_service import ComparisonService
 from app.exceptions import DatabaseException, ValidationException, ScraperException
@@ -634,3 +637,136 @@ async def get_metrics(
     except Exception as e:
         logger.error(f"Unexpected error fetching metrics for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=ERROR_INTERNAL_FETCH_METRICS)
+
+
+@router.post("/batch-summary", response_model=BatchSummaryResponse)
+async def get_batch_summary(
+    request: BatchSummaryRequest,
+    collector: ETFDataCollector = Depends(get_collector)
+):
+    """
+    여러 종목의 요약 데이터 일괄 조회 (N+1 쿼리 최적화)
+
+    대시보드에서 여러 종목의 카드 데이터를 한 번에 조회합니다.
+    각 종목별로 최신 가격, 차트용 가격 데이터, 매매동향, 뉴스를 반환합니다.
+
+    **Request Body:**
+    - tickers: 종목 코드 리스트 (예: ["487240", "466920", "042660"])
+    - price_days: 가격 데이터 조회 일수 (기본: 5일)
+    - news_limit: 뉴스 개수 제한 (기본: 5개)
+
+    **Example Request:**
+    ```json
+    {
+      "tickers": ["487240", "466920", "042660"],
+      "price_days": 5,
+      "news_limit": 5
+    }
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "data": {
+        "487240": {
+          "ticker": "487240",
+          "latest_price": {
+            "date": "2025-11-18",
+            "open_price": 12400.0,
+            "high_price": 12600.0,
+            "low_price": 12300.0,
+            "close_price": 12500.0,
+            "volume": 1000000,
+            "daily_change_pct": 2.5
+          },
+          "prices": [...],
+          "weekly_return": 5.2,
+          "latest_trading_flow": {...},
+          "latest_news": [...]
+        },
+        ...
+      }
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 400: 잘못된 요청
+    - 500: 서버 오류
+
+    **Notes:**
+    - 여러 종목을 한 번의 API 호출로 조회하여 성능 최적화
+    - 데이터가 없는 종목도 빈 객체로 반환 (에러 없음)
+    - 캐시 적용으로 반복 요청 시 빠른 응답
+    """
+    # 캐시 확인
+    cache_key = make_cache_key(
+        "batch_summary",
+        tickers=",".join(sorted(request.tickers)),
+        price_days=request.price_days,
+        news_limit=request.news_limit
+    )
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+
+    try:
+        logger.info(f"Fetching batch summary for {len(request.tickers)} tickers")
+
+        result_data = {}
+
+        # 날짜 계산
+        end_date = date.today()
+        start_date = end_date - timedelta(days=request.price_days)
+        logger.info(f"Date range: {start_date} to {end_date}")
+
+        for ticker in request.tickers:
+            try:
+                # 각 종목별 데이터 조회
+                summary = ETFCardSummary(ticker=ticker)
+
+                # 1. 가격 데이터 조회 (최근 N일)
+                prices = collector.get_price_data(ticker, start_date, end_date)
+                logger.info(f"[{ticker}] Found {len(prices)} prices")
+                if prices:
+                    summary.prices = prices
+                    summary.latest_price = prices[0] if prices else None
+
+                    # 주간 수익률 계산 (첫 가격과 마지막 가격 비교)
+                    if len(prices) >= 2:
+                        first_price = prices[0].close_price
+                        last_price = prices[-1].close_price
+                        summary.weekly_return = ((first_price - last_price) / last_price) * 100
+                else:
+                    logger.warning(f"[{ticker}] No price data found")
+
+                # 2. 매매동향 조회 (최근 1일)
+                trading_flow = collector.get_trading_flow_data(ticker, start_date, end_date)
+                if trading_flow:
+                    summary.latest_trading_flow = trading_flow[0]
+
+                # 3. 뉴스 조회 (최근 N개)
+                from app.services.news_scraper import NewsScraper
+                news_scraper = NewsScraper()
+                news = news_scraper.get_news_for_ticker(ticker, start_date, end_date)
+                if news:
+                    # limit 적용
+                    summary.latest_news = news[:request.news_limit]
+
+                result_data[ticker] = summary
+
+            except Exception as e:
+                logger.warning(f"Error fetching summary for {ticker}: {e}")
+                # 개별 종목 에러는 빈 객체로 처리
+                result_data[ticker] = ETFCardSummary(ticker=ticker)
+
+        response = BatchSummaryResponse(data=result_data)
+        cache.set(cache_key, response)
+
+        logger.info(f"Successfully fetched batch summary for {len(result_data)} tickers")
+        return response
+
+    except Exception as e:
+        logger.error(f"Unexpected error in batch summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL)

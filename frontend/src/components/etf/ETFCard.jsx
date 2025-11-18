@@ -6,9 +6,10 @@ import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
 import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
 
-export default function ETFCard({ etf, compactMode = false }) {
+export default function ETFCard({ etf, summary, compactMode = false }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
-  // 최신 가격 데이터 조회 (5일치 - 주간 수익률 및 차트용)
+
+  // summary가 있으면 배치 API 데이터 사용, 없으면 개별 API 호출 (폴백)
   const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ['prices', etf.ticker],
     queryFn: async () => {
@@ -17,9 +18,9 @@ export default function ETFCard({ etf, compactMode = false }) {
     },
     retry: 1,
     staleTime: 60000, // 1분간 캐시
+    enabled: !summary,  // summary가 없을 때만 개별 조회
   })
 
-  // 매매 동향 데이터 조회 (최근 1일)
   const { data: tradingFlow } = useQuery({
     queryKey: ['trading-flow', etf.ticker],
     queryFn: async () => {
@@ -28,9 +29,9 @@ export default function ETFCard({ etf, compactMode = false }) {
     },
     retry: 1,
     staleTime: 60000,
+    enabled: !summary,  // summary가 없을 때만 개별 조회
   })
 
-  // 뉴스 데이터 조회 (최근 5개)
   const { data: news } = useQuery({
     queryKey: ['news', etf.ticker],
     queryFn: async () => {
@@ -39,20 +40,21 @@ export default function ETFCard({ etf, compactMode = false }) {
     },
     retry: 1,
     staleTime: 300000, // 5분간 캐시
+    enabled: !summary,  // summary가 없을 때만 개별 조회
   })
 
-  // 최신 가격 데이터 (첫 번째 항목)
-  const latestPrice = prices?.[0]
+  // 배치 데이터 또는 개별 데이터 사용
+  const actualPrices = summary?.prices || prices
+  const latestPrice = summary?.latest_price || prices?.[0]
+  const weeklyReturn = summary?.weekly_return !== undefined
+    ? summary.weekly_return
+    : (prices && prices.length >= 2
+        ? ((prices[0].close_price - prices[prices.length - 1].close_price) / prices[prices.length - 1].close_price) * 100
+        : null)
+  const latestTradingFlow = summary?.latest_trading_flow || tradingFlow?.[0]
+  const actualNews = summary?.latest_news || news
 
-  // 주간 수익률 계산 (5일 전과 비교)
-  const weeklyReturn = prices && prices.length >= 2
-    ? ((prices[0].close_price - prices[prices.length - 1].close_price) / prices[prices.length - 1].close_price) * 100
-    : null
-
-  // 최신 매매 동향
-  const latestTradingFlow = tradingFlow?.[0]
-
-  const isLoading = pricesLoading
+  const isLoading = !summary && pricesLoading
 
   // 등락률에 따른 색상 결정
   const getChangeColor = (changePct) => {
@@ -84,9 +86,9 @@ export default function ETFCard({ etf, compactMode = false }) {
 
   // 미니 캔들스틱 차트 생성 (OHLC)
   const renderMiniChart = () => {
-    if (!prices || prices.length < 2) return null
+    if (!actualPrices || actualPrices.length < 2) return null
 
-    const reversedPrices = [...prices].reverse() // 오래된 것부터
+    const reversedPrices = [...actualPrices].reverse() // 오래된 것부터
 
     // 전체 가격 범위 계산 (고가/저가 기준)
     const allPrices = reversedPrices.flatMap(p => [p.high_price, p.low_price])
@@ -322,13 +324,13 @@ export default function ETFCard({ etf, compactMode = false }) {
         )}
 
         {/* 뉴스 */}
-        {news && news.length > 0 && (
+        {actualNews && actualNews.length > 0 && (
           <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-500 dark:text-gray-400">최근 뉴스</span>
-              <span className="badge badge-primary">{news.length}건</span>
+              <span className="badge badge-primary">{actualNews.length}건</span>
             </div>
-            <div className="text-xs text-gray-600 dark:text-gray-300 truncate-2-lines">{news[0].title}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-300 truncate-2-lines">{actualNews[0].title}</div>
           </div>
         )}
 
@@ -350,5 +352,13 @@ ETFCard.propTypes = {
     theme: PropTypes.string,
     expense_ratio: PropTypes.number,
   }).isRequired,
+  summary: PropTypes.shape({
+    ticker: PropTypes.string,
+    latest_price: PropTypes.object,
+    prices: PropTypes.array,
+    weekly_return: PropTypes.number,
+    latest_trading_flow: PropTypes.object,
+    latest_news: PropTypes.array,
+  }),
   compactMode: PropTypes.bool,
 }

@@ -126,9 +126,20 @@ export const etfApi = {
 
   // 종목 비교 (일반 조회)
   compare: (params = {}) => {
-    return api.get('/etfs/compare', { 
+    return api.get('/etfs/compare', {
       timeout: NORMAL_API_TIMEOUT,
-      params 
+      params
+    })
+  },
+
+  // 배치 요약 조회 (일반 조회) - N+1 쿼리 최적화
+  getBatchSummary: (tickers, priceDays = 5, newsLimit = 5) => {
+    return api.post('/etfs/batch-summary', {
+      tickers,
+      price_days: priceDays,
+      news_limit: newsLimit
+    }, {
+      timeout: NORMAL_API_TIMEOUT
     })
   },
 }

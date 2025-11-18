@@ -29,14 +29,13 @@ export default function Dashboard() {
   const handleRefreshAll = useCallback(async () => {
     // 모든 쿼리 무효화하여 재조회
     await queryClient.invalidateQueries({ queryKey: ['etfs'] })
-    await queryClient.invalidateQueries({ queryKey: ['prices'] })
-    await queryClient.invalidateQueries({ queryKey: ['trading-flow'] })
-    await queryClient.invalidateQueries({ queryKey: ['news'] })
+    await queryClient.invalidateQueries({ queryKey: ['batch-summary'] })
     await queryClient.invalidateQueries({ queryKey: ['scheduler-status'] })
     setLastUpdate(new Date())
   }, [queryClient])
 
-  const { data: etfs, isLoading, error, refetch, dataUpdatedAt } = useQuery({
+  // 전체 종목 목록 조회
+  const { data: etfs, isLoading: etfsLoading, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['etfs'],
     queryFn: async () => {
       const response = await etfApi.getAll()
@@ -46,6 +45,22 @@ export default function Dashboard() {
     staleTime: 300000, // 5분간 캐시
     refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
   })
+
+  // 배치 요약 데이터 조회 (N+1 쿼리 최적화)
+  const { data: batchSummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['batch-summary', etfs?.map(e => e.ticker)],
+    queryFn: async () => {
+      if (!etfs || etfs.length === 0) return null
+      const tickers = etfs.map(e => e.ticker)
+      const response = await etfApi.getBatchSummary(tickers, 5, 5)
+      return response.data.data  // response.data.data = {ticker: summary}
+    },
+    enabled: !!etfs && etfs.length > 0,  // etfs가 로드된 후에만 실행
+    retry: 1,
+    staleTime: 60000, // 1분간 캐시
+  })
+
+  const isLoading = etfsLoading || summaryLoading
 
   // 자동 갱신 시 모든 데이터 갱신 (설정 기반)
   useEffect(() => {
@@ -296,7 +311,11 @@ export default function Dashboard() {
       </div>
 
       {/* 종목 그리드 */}
-      <ETFCardGrid etfs={sortedETFs} compactMode={settings.display.compactMode} />
+      <ETFCardGrid
+        etfs={sortedETFs}
+        batchSummary={batchSummary}
+        compactMode={settings.display.compactMode}
+      />
     </div>
   )
 }

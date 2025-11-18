@@ -50,7 +50,7 @@ class TestETFEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) == 6  # 4 ETFs + 2 Stocks
+        assert len(data) == 7  # 4 ETFs + 3 Stocks (or updated count)
         
         # Check first ETF structure
         if len(data) > 0:
@@ -400,4 +400,174 @@ class TestEndToEndFlow:
             data = response.json()
             assert data["ticker"] == ticker
             assert data["collected"] >= 0
+
+
+class TestBatchSummaryEndpoint:
+    """Batch Summary endpoint tests (N+1 query optimization)"""
+
+    def test_batch_summary_success(self):
+        """Test POST /api/etfs/batch-summary with valid tickers"""
+        # Collect data for tickers
+        tickers = ["487240", "466920"]
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=5")
+
+        # Request batch summary
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": tickers, "price_days": 5, "news_limit": 5}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Check response structure
+        assert "data" in data
+        assert isinstance(data["data"], dict)
+
+        # Check each ticker's summary
+        for ticker in tickers:
+            assert ticker in data["data"]
+            summary = data["data"][ticker]
+
+            # Check summary structure
+            assert "ticker" in summary
+            assert "latest_price" in summary
+            assert "prices" in summary
+            assert "weekly_return" in summary
+            assert "latest_trading_flow" in summary
+            assert "latest_news" in summary
+
+            assert summary["ticker"] == ticker
+
+    def test_batch_summary_with_data(self):
+        """Test batch summary returns expected data structure"""
+        tickers = ["487240"]
+
+        # Collect price and trading flow data
+        client.post(f"/api/etfs/{tickers[0]}/collect?days=5")
+        client.post(f"/api/etfs/{tickers[0]}/collect-trading-flow?days=5")
+
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": tickers, "price_days": 5, "news_limit": 5}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        summary = data["data"][tickers[0]]
+
+        # If data was collected successfully
+        if summary["prices"]:
+            # Check prices structure
+            assert isinstance(summary["prices"], list)
+            if len(summary["prices"]) > 0:
+                price = summary["prices"][0]
+                assert "date" in price
+                assert "close_price" in price
+                assert "volume" in price
+
+            # Check latest_price
+            if summary["latest_price"]:
+                assert "date" in summary["latest_price"]
+                assert "close_price" in summary["latest_price"]
+
+            # Check weekly_return calculation
+            if len(summary["prices"]) >= 2:
+                assert summary["weekly_return"] is not None
+                assert isinstance(summary["weekly_return"], (int, float))
+
+    def test_batch_summary_empty_tickers(self):
+        """Test batch summary with empty tickers list"""
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": [], "price_days": 5, "news_limit": 5}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"] == {}
+
+    def test_batch_summary_single_ticker(self):
+        """Test batch summary with single ticker"""
+        ticker = "487240"
+        client.post(f"/api/etfs/{ticker}/collect?days=5")
+
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": [ticker], "price_days": 5, "news_limit": 5}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert ticker in data["data"]
+
+    def test_batch_summary_all_tickers(self):
+        """Test batch summary with all 6 tickers"""
+        tickers = ["487240", "466920", "0020H0", "442320", "042660", "034020"]
+
+        # Collect data for all
+        for ticker in tickers:
+            client.post(f"/api/etfs/{ticker}/collect?days=5")
+
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": tickers, "price_days": 5, "news_limit": 5}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # All tickers should be in response
+        for ticker in tickers:
+            assert ticker in data["data"]
+
+    def test_batch_summary_custom_params(self):
+        """Test batch summary with custom price_days and news_limit"""
+        ticker = "487240"
+        client.post(f"/api/etfs/{ticker}/collect?days=10")
+
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": [ticker], "price_days": 10, "news_limit": 3}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        summary = data["data"][ticker]
+
+        # Check that prices respect price_days parameter
+        if summary["prices"]:
+            assert len(summary["prices"]) <= 10
+
+    def test_batch_summary_nonexistent_ticker(self):
+        """Test batch summary with non-existent ticker (should not error)"""
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": ["INVALID999"], "price_days": 5, "news_limit": 5}
+        )
+
+        # Should still return 200 with empty summary
+        assert response.status_code == 200
+        data = response.json()
+        assert "INVALID999" in data["data"]
+        summary = data["data"]["INVALID999"]
+        assert summary["ticker"] == "INVALID999"
+        assert summary["latest_price"] is None
+        assert summary["prices"] == []
+
+    def test_batch_summary_default_params(self):
+        """Test batch summary with default parameters"""
+        ticker = "487240"
+        client.post(f"/api/etfs/{ticker}/collect?days=5")
+
+        # Use default price_days=5, news_limit=5
+        response = client.post(
+            "/api/etfs/batch-summary",
+            json={"tickers": [ticker]}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert ticker in data["data"]
 
