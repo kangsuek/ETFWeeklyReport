@@ -39,4 +39,3 @@
 - **프론트엔드**: Vercel, Netlify
 - **백엔드**: Render, Railway
 - **데이터베이스**: Supabase, Neon (PostgreSQL)
-- **컨테이너화**: Docker, Docker Compose

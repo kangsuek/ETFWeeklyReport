@@ -4,9 +4,10 @@
 
 ## 핵심 문서 (필수)
 
-1. **[README.md](./README.md)** - 프로젝트 개요, 종목 목록
-2. **[TODO.md](./docs/project-management/TODO.md)** - 현재 작업 목록
-3. **[DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)** - 작업 완료 기준, 테스트 정책
+1. **[README.md](./README.md)** - 프로젝트 개요, 종목 목록, 빠른 시작
+2. **[FEATURES.md](./docs/FEATURES.md)** - 제공 기능 상세 (백엔드 API, 프론트엔드)
+3. **[TODO.md](./docs/project-management/TODO.md)** - 현재 작업 목록
+4. **[DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)** - 작업 완료 기준, 테스트 정책
 
 ## 참조 문서
 

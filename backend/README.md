@@ -223,17 +223,3 @@ backend/
 - ReDoc: http://localhost:8000/redoc
 - API 명세서: `../docs/API_SPECIFICATION.md`
 
-## 🐳 Docker
-
-```bash
-# 이미지 빌드
-docker build -t etf-backend .
-
-# 컨테이너 실행
-docker run -p 8000:8000 etf-backend
-
-# docker-compose 사용 (권장)
-cd ..
-docker-compose up backend
-```
-
