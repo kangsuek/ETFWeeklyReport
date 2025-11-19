@@ -29,8 +29,8 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           // 데이터 페칭 라이브러리 분리
           'query-vendor': ['@tanstack/react-query'],
-          // 차트 라이브러리 분리 (추후 사용 시)
-          // 'chart-vendor': ['recharts'],
+          // 차트 라이브러리 분리
+          'chart-vendor': ['recharts'],
         },
       },
     },

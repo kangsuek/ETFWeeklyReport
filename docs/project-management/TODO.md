@@ -141,10 +141,10 @@
 - [x] 배치 API 단위 테스트 작성 (8개 테스트 통과)
 - [x] 프론트엔드 빌드 성공 (gzip 167.36 kB)
 
-### 7.2 프론트엔드 번들 크기 최적화 (🔴 Critical)
-- [ ] Vite 설정: Code Splitting 적용 (manualChunks)
-- [ ] Route-based Lazy Loading 구현
-- [ ] 빌드 크기 검증 (목표: gzip 167kB → 100kB 이하)
+### 7.2 프론트엔드 번들 크기 최적화 (🔴 Critical) ✅
+- [x] Vite 설정: Code Splitting 적용 (manualChunks)
+- [x] Route-based Lazy Loading 구현
+- [x] 빌드 크기 검증 (목표: gzip 167kB → 100kB 이하) - 달성: 24.17kB
 - [ ] Lighthouse Performance 점수 측정
 
 ### 7.3 캐시 전략 최적화 (🟡 Medium)
