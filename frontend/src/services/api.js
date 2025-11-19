@@ -207,6 +207,9 @@ export const dataApi = {
   // 데이터베이스 통계 조회 (일반 조회)
   getStats: () => api.get('/data/stats', { timeout: NORMAL_API_TIMEOUT }),
 
+  // 캐시 통계 조회 (빠른 조회)
+  getCacheStats: () => api.get('/data/cache/stats', { timeout: FAST_API_TIMEOUT }),
+
   // 데이터베이스 초기화 (위험!) (긴 작업)
   reset: () => api.delete('/data/reset', { timeout: LONG_API_TIMEOUT }),
 }

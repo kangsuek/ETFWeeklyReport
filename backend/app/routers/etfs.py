@@ -27,6 +27,9 @@ from app.constants import (
     ERROR_INTERNAL_FETCH_METRICS,
     ERROR_INTERNAL_COMPARE,
     ERROR_INTERNAL_COLLECTION,
+    CACHE_TTL_STATIC,
+    CACHE_TTL_FAST_CHANGING,
+    CACHE_TTL_SLOW_CHANGING,
 )
 import sqlite3
 import logging
@@ -89,7 +92,7 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
 
     try:
         result = collector.get_all_etfs()
-        cache.set(cache_key, result)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATIC)  # 5분 캐싱 (정적 데이터)
         return result
     except sqlite3.Error as e:
         logger.error(f"Database error fetching ETFs: {e}")
@@ -203,7 +206,7 @@ async def compare_etfs(
         result = comparison_service.get_comparison_data(ticker_list, start_date, end_date)
 
         logger.info(f"Comparison completed for {len(ticker_list)} tickers")
-        cache.set(cache_key, result)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (복잡한 연산)
         return result
 
     except ValidationException as e:
@@ -257,7 +260,7 @@ async def get_etf(etf: ETF = Depends(get_etf_or_404)):
         return cached_result
 
     try:
-        cache.set(cache_key, etf)
+        cache.set(cache_key, etf, ttl_seconds=CACHE_TTL_STATIC)  # 5분 캐싱 (정적 데이터)
         return etf
     except HTTPException:
         raise
@@ -376,7 +379,7 @@ async def get_prices(
         )
 
         logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
-        cache.set(cache_key, prices)
+        cache.set(cache_key, prices, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (가격 데이터)
         return prices
 
     except sqlite3.Error as e:
@@ -496,11 +499,11 @@ async def get_trading_flow(
 
         if not trading_data:
             logger.warning(f"No trading flow data found for {etf.ticker} between {start_date} and {end_date}")
-            cache.set(cache_key, [])
+            cache.set(cache_key, [], ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (빈 결과도 캐싱)
             return []
 
         logger.info(f"Retrieved {len(trading_data)} trading flow records for {etf.ticker}")
-        cache.set(cache_key, trading_data)
+        cache.set(cache_key, trading_data, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (매매동향)
         return trading_data
 
     except sqlite3.Error as e:
@@ -626,7 +629,7 @@ async def get_metrics(
 
     try:
         result = collector.get_etf_metrics(etf.ticker)
-        cache.set(cache_key, result)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (지표)
         return result
     except sqlite3.Error as e:
         logger.error(f"Database error fetching metrics for {etf.ticker}: {e}")
@@ -762,7 +765,7 @@ async def get_batch_summary(
                 result_data[ticker] = ETFCardSummary(ticker=ticker)
 
         response = BatchSummaryResponse(data=result_data)
-        cache.set(cache_key, response)
+        cache.set(cache_key, response, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (배치 요약)
 
         logger.info(f"Successfully fetched batch summary for {len(result_data)} tickers")
         return response

@@ -272,3 +272,93 @@ ERROR_INTERNAL_CREATE_STOCK = "종목 추가에 실패했습니다."
 ERROR_INTERNAL_UPDATE_STOCK = "종목 수정에 실패했습니다."
 ERROR_INTERNAL_DELETE_STOCK = "종목 삭제에 실패했습니다."
 ERROR_INTERNAL_VALIDATE_TICKER = "종목 코드 검증에 실패했습니다."
+
+# =============================================================================
+# 캐시 TTL (Time To Live) 상수
+# =============================================================================
+
+# 기본 캐시 TTL (30초) - 환경 변수로 재정의 가능
+DEFAULT_CACHE_TTL = 30
+"""
+기본 캐시 TTL (30초)
+
+용도:
+- 환경 변수 CACHE_TTL_MINUTES가 없을 때 사용
+- 일반적인 API 응답 캐싱
+
+왜 30초인가?
+- 실시간성과 서버 부하 균형
+- 30초 이내 동일 요청 시 DB 조회 생략
+"""
+
+# 엔드포인트별 차등 TTL (초 단위)
+CACHE_TTL_STATIC = 300  # 5분
+"""
+정적 데이터 캐시 TTL (5분 = 300초)
+
+적용 대상:
+- GET /api/etfs/ (전체 종목 목록)
+- GET /api/etfs/{ticker} (종목 상세)
+
+왜 5분인가?
+- 종목 정보는 거의 변경되지 않음 (이름, 타입, 테마 등)
+- 긴 TTL로 DB 부하 최소화
+- 5분마다 갱신되어도 충분히 실시간성 유지
+"""
+
+CACHE_TTL_FAST_CHANGING = 30  # 30초
+"""
+빠르게 변하는 데이터 캐시 TTL (30초)
+
+적용 대상:
+- GET /api/etfs/{ticker}/prices (가격 데이터)
+- GET /api/etfs/{ticker}/trading-flow (매매동향)
+- POST /api/etfs/batch-summary (배치 요약)
+
+왜 30초인가?
+- 실시간 가격 데이터는 자주 변경됨
+- 30초 이내 동일 요청 시 불필요한 DB 조회 방지
+- 대시보드 초기 로딩 시 반복 요청 방지
+"""
+
+CACHE_TTL_SLOW_CHANGING = 60  # 1분
+"""
+천천히 변하는 데이터 캐시 TTL (1분 = 60초)
+
+적용 대상:
+- GET /api/news/{ticker} (뉴스)
+- GET /api/etfs/{ticker}/metrics (지표)
+- POST /api/etfs/compare (종목 비교)
+
+왜 1분인가?
+- 뉴스는 실시간으로 갱신되지 않음 (1분마다 체크해도 충분)
+- 지표는 가격 기반으로 계산되지만 자주 조회되므로 캐싱 효과 큼
+- 비교 API는 복잡한 연산이므로 긴 TTL로 성능 향상
+"""
+
+CACHE_TTL_STATUS = 10  # 10초
+"""
+상태 정보 캐시 TTL (10초)
+
+적용 대상:
+- GET /api/data/status (수집 상태)
+- GET /api/data/scheduler-status (스케줄러 상태)
+
+왜 10초인가?
+- 상태 정보는 자주 변경되지 않음
+- 10초마다 폴링해도 충분히 실시간성 유지
+- 짧은 TTL로 최신 상태 반영
+"""
+
+CACHE_TTL_STATS = 60  # 1분
+"""
+통계 정보 캐시 TTL (1분 = 60초)
+
+적용 대상:
+- GET /api/data/stats (전체 통계)
+
+왜 1분인가?
+- 통계는 즉시 변경되지 않음
+- 복잡한 집계 쿼리이므로 긴 TTL로 성능 향상
+- 1분마다 갱신되어도 충분
+"""

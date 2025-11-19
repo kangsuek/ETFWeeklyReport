@@ -6,6 +6,7 @@ import PageHeader from '../components/common/PageHeader'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import ETFCardGrid from '../components/dashboard/ETFCardGrid'
 import { useSettings } from '../contexts/SettingsContext'
+import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_STATUS } from '../constants'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
@@ -23,6 +24,7 @@ export default function Dashboard() {
     },
     refetchInterval: 30000, // 30초마다 스케줄러 상태 갱신
     retry: 1,
+    staleTime: CACHE_STALE_TIME_STATUS, // 10초 (상태 정보)
   })
 
   // 전체 데이터 새로고침 함수
@@ -42,7 +44,7 @@ export default function Dashboard() {
       return response.data
     },
     retry: 2,
-    staleTime: 300000, // 5분간 캐시
+    staleTime: CACHE_STALE_TIME_STATIC, // 5분 (정적 데이터)
     refetchOnWindowFocus: true, // 윈도우 포커스 시 자동 갱신
   })
 
@@ -57,7 +59,7 @@ export default function Dashboard() {
     },
     enabled: !!etfs && etfs.length > 0,  // etfs가 로드된 후에만 실행
     retry: 1,
-    staleTime: 60000, // 1분간 캐시
+    staleTime: CACHE_STALE_TIME_FAST, // 30초 (배치 요약)
   })
 
   const isLoading = etfsLoading || summaryLoading

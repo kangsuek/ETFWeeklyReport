@@ -6,6 +6,7 @@ import TickerSelector from '../components/comparison/TickerSelector'
 import NormalizedPriceChart from '../components/comparison/NormalizedPriceChart'
 import ComparisonTable from '../components/comparison/ComparisonTable'
 import { apiService } from '../services/api'
+import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_SLOW } from '../constants'
 
 export default function Comparison() {
   const [selectedTickers, setSelectedTickers] = useState([])
@@ -15,6 +16,7 @@ export default function Comparison() {
   const { data: tickers = [], isLoading: tickersLoading } = useQuery({
     queryKey: ['etfs'],
     queryFn: apiService.getETFs,
+    staleTime: CACHE_STALE_TIME_STATIC, // 5분 (정적 데이터)
   })
 
   // 비교 데이터 조회
@@ -41,6 +43,7 @@ export default function Comparison() {
       return result
     },
     enabled: selectedTickers.length >= 2,
+    staleTime: CACHE_STALE_TIME_SLOW, // 1분 (종목 비교)
     retry: 1,
   })
 

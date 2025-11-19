@@ -8,6 +8,7 @@ import ToastContainer from './components/common/ToastContainer'
 import Header from './components/layout/Header'
 import Footer from './components/layout/Footer'
 import LoadingIndicator from './components/common/LoadingIndicator'
+import { CACHE_STALE_TIME_FAST, CACHE_GC_TIME } from './constants'
 
 // Lazy loading pages
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -15,12 +16,15 @@ const ETFDetail = lazy(() => import('./pages/ETFDetail'))
 const Comparison = lazy(() => import('./pages/Comparison'))
 const Settings = lazy(() => import('./pages/Settings'))
 
+// TanStack Query 클라이언트 설정
+// 백엔드 캐시 TTL과 일치하도록 설정
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 30 * 1000, // 30 seconds (실시간 데이터 최적화)
+      staleTime: CACHE_STALE_TIME_FAST, // 30초 (기본값)
+      gcTime: CACHE_GC_TIME, // 10분 (메모리 유지 시간)
     },
   },
 })

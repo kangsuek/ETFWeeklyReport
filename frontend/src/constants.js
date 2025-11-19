@@ -204,3 +204,83 @@ export const DEFAULT_DATE_RANGE_DAYS = 7
  */
 export const MAX_CHART_POINTS = 200
 
+// =============================================================================
+// 캐시 TTL (Time To Live) 상수 - 백엔드와 일치
+// =============================================================================
+
+/**
+ * TanStack Query staleTime 설정
+ *
+ * staleTime: 데이터가 fresh → stale로 전환되는 시간
+ * gcTime (이전 cacheTime): 메모리에서 캐시가 제거되는 시간
+ *
+ * 원칙:
+ * - 백엔드 캐시 TTL과 일치시켜 불필요한 요청 방지
+ * - staleTime < gcTime (메모리에 더 오래 유지)
+ */
+
+/**
+ * 정적 데이터 캐시 TTL (5분 = 300초)
+ *
+ * 적용 대상:
+ * - /api/etfs/ (전체 종목 목록)
+ * - /api/etfs/{ticker} (종목 상세)
+ *
+ * 백엔드 CACHE_TTL_STATIC과 일치
+ */
+export const CACHE_STALE_TIME_STATIC = 5 * 60 * 1000 // 5분
+
+/**
+ * 빠르게 변하는 데이터 캐시 TTL (30초)
+ *
+ * 적용 대상:
+ * - /api/etfs/{ticker}/prices (가격 데이터)
+ * - /api/etfs/{ticker}/trading-flow (매매동향)
+ * - /api/etfs/batch-summary (배치 요약)
+ *
+ * 백엔드 CACHE_TTL_FAST_CHANGING과 일치
+ */
+export const CACHE_STALE_TIME_FAST = 30 * 1000 // 30초
+
+/**
+ * 천천히 변하는 데이터 캐시 TTL (1분 = 60초)
+ *
+ * 적용 대상:
+ * - /api/news/{ticker} (뉴스)
+ * - /api/etfs/{ticker}/metrics (지표)
+ * - /api/etfs/compare (종목 비교)
+ *
+ * 백엔드 CACHE_TTL_SLOW_CHANGING과 일치
+ */
+export const CACHE_STALE_TIME_SLOW = 60 * 1000 // 1분
+
+/**
+ * 상태 정보 캐시 TTL (10초)
+ *
+ * 적용 대상:
+ * - /api/data/status (수집 상태)
+ * - /api/data/scheduler-status (스케줄러 상태)
+ *
+ * 백엔드 CACHE_TTL_STATUS와 일치
+ */
+export const CACHE_STALE_TIME_STATUS = 10 * 1000 // 10초
+
+/**
+ * 통계 정보 캐시 TTL (1분 = 60초)
+ *
+ * 적용 대상:
+ * - /api/data/stats (전체 통계)
+ *
+ * 백엔드 CACHE_TTL_STATS와 일치
+ */
+export const CACHE_STALE_TIME_STATS = 60 * 1000 // 1분
+
+/**
+ * 가비지 컬렉션 시간 (메모리 유지 시간)
+ *
+ * 용도:
+ * - stale 상태의 캐시를 메모리에서 제거하는 시간
+ * - 페이지 전환 시에도 캐시를 유지하기 위해 staleTime보다 길게 설정
+ */
+export const CACHE_GC_TIME = 10 * 60 * 1000 // 10분
+

@@ -26,6 +26,8 @@ from app.constants import (
     ERROR_INTERNAL_GET_SCHEDULER_STATUS,
     ERROR_INTERNAL_GET_STATS,
     ERROR_INTERNAL_RESET,
+    CACHE_TTL_STATUS,
+    CACHE_TTL_STATS,
 )
 import sqlite3
 import logging
@@ -154,6 +156,10 @@ async def backfill_data(
         collector = ETFDataCollector()
         result = collector.backfill_all_tickers(days=days)
 
+        # 백필 후 모든 캐시 무효화 (히스토리 데이터 갱신)
+        cache.clear()
+        logger.info("Cache cleared after backfill")
+
         return {
             "message": f"Backfill completed for {result['total_tickers']} tickers ({days} days)",
             "result": result
@@ -213,7 +219,7 @@ async def get_collection_status(request: Request):
             "total_tickers": len(all_etfs),
             "status": status_list
         }
-        cache.set(cache_key, result)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATUS)  # 10초 캐싱 (상태 정보)
         return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting collection status: {e}")
@@ -247,7 +253,7 @@ async def get_scheduler_status(request: Request):
             "scheduler": status,
             "message": "Scheduler status retrieved successfully"
         }
-        cache.set(cache_key, result)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATUS)  # 10초 캐싱 (상태 정보)
         return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting scheduler status: {e}")
@@ -349,7 +355,7 @@ async def get_data_stats(request: Request):
                 "last_collection": last_collection,
                 "database_size_mb": db_size_mb
             }
-            cache.set(cache_key, result)
+            cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATS)  # 1분 캐싱 (통계 정보)
             return result
     except sqlite3.Error as e:
         logger.error(f"Database error getting stats: {e}")

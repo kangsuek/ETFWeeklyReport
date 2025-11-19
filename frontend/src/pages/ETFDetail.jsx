@@ -14,6 +14,7 @@ import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
 import { formatPrice, formatVolume, formatPercent, getPriceChangeColor } from '../utils/format'
+import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
 
 /**
  * 설정값의 날짜 범위 형식을 DateRangeSelector 형식으로 변환
@@ -76,6 +77,7 @@ export default function ETFDetail() {
       const response = await etfApi.getDetail(ticker)
       return response.data
     },
+    staleTime: CACHE_STALE_TIME_STATIC, // 5분 (정적 데이터)
   })
 
   // 가격 데이터 조회 (자동 수집 지원)
@@ -95,8 +97,7 @@ export default function ETFDetail() {
       return response.data
     },
     enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: 0, // 항상 최신 데이터 확인 (자동 수집을 위해)
-    cacheTime: 5 * 60 * 1000, // 5분 캐시
+    staleTime: CACHE_STALE_TIME_FAST, // 30초 (가격 데이터)
     retry: 1, // 실패 시 1회 재시도
     retryDelay: 1000, // 1초 후 재시도
   })
@@ -118,8 +119,7 @@ export default function ETFDetail() {
       return response.data
     },
     enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: 0, // 항상 최신 데이터 확인 (자동 수집을 위해)
-    cacheTime: 5 * 60 * 1000, // 5분 캐시
+    staleTime: CACHE_STALE_TIME_FAST, // 30초 (매매동향 데이터)
     retry: 1, // 실패 시 1회 재시도
     retryDelay: 1000, // 1초 후 재시도
   })

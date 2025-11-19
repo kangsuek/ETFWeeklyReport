@@ -15,6 +15,7 @@ from app.constants import (
     ERROR_VALIDATION_COLLECTION_PARAMS,
     ERROR_INTERNAL_FETCH_NEWS,
     ERROR_INTERNAL_COLLECTION,
+    CACHE_TTL_SLOW_CHANGING,
 )
 import sqlite3
 import logging
@@ -59,11 +60,11 @@ async def get_news(
 
         if not news_list:
             logger.warning(f"No news found for {etf.ticker} between {start_date} and {end_date}")
-            cache.set(cache_key, [])
+            cache.set(cache_key, [], ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (빈 결과도 캐싱)
             return []
 
         logger.info(f"Retrieved {len(news_list)} news articles for {etf.ticker}")
-        cache.set(cache_key, news_list)
+        cache.set(cache_key, news_list, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (뉴스)
         return news_list
 
     except sqlite3.Error as e:
