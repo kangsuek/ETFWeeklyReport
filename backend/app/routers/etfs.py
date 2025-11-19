@@ -724,14 +724,33 @@ async def get_batch_summary(
         start_date = end_date - timedelta(days=request.price_days)
         logger.info(f"Date range: {start_date} to {end_date}")
 
+        # 배치 쿼리로 모든 종목의 데이터를 한 번에 조회 (IN 절 활용)
+        try:
+            # 1. 가격 데이터 배치 조회
+            prices_batch = collector.get_price_data_batch(request.tickers, start_date, end_date)
+            logger.info(f"Batch fetched prices for {len(prices_batch)} tickers")
+
+            # 2. 매매동향 배치 조회
+            trading_flow_batch = collector.get_trading_flow_batch(request.tickers, start_date, end_date)
+            logger.info(f"Batch fetched trading flow for {len(trading_flow_batch)} tickers")
+
+            # 3. 뉴스는 ticker별로 조회 (뉴스는 IN 절 최적화 필요 없음 - 데이터 적음)
+            from app.services.news_scraper import NewsScraper
+            news_scraper = NewsScraper()
+
+        except Exception as e:
+            logger.error(f"Error in batch queries: {e}", exc_info=True)
+            # 배치 쿼리 실패 시 빈 결과로 처리
+            prices_batch = {ticker: [] for ticker in request.tickers}
+            trading_flow_batch = {ticker: [] for ticker in request.tickers}
+
+        # 종목별로 데이터 조합
         for ticker in request.tickers:
             try:
-                # 각 종목별 데이터 조회
                 summary = ETFCardSummary(ticker=ticker)
 
-                # 1. 가격 데이터 조회 (최근 N일)
-                prices = collector.get_price_data(ticker, start_date, end_date)
-                logger.info(f"[{ticker}] Found {len(prices)} prices")
+                # 1. 가격 데이터 설정
+                prices = prices_batch.get(ticker, [])
                 if prices:
                     summary.prices = prices
                     summary.latest_price = prices[0] if prices else None
@@ -742,25 +761,27 @@ async def get_batch_summary(
                         last_price = prices[-1].close_price
                         summary.weekly_return = ((first_price - last_price) / last_price) * 100
                 else:
-                    logger.warning(f"[{ticker}] No price data found")
+                    logger.debug(f"[{ticker}] No price data found")
 
-                # 2. 매매동향 조회 (최근 1일)
-                trading_flow = collector.get_trading_flow_data(ticker, start_date, end_date)
+                # 2. 매매동향 설정
+                trading_flow = trading_flow_batch.get(ticker, [])
                 if trading_flow:
-                    summary.latest_trading_flow = trading_flow[0]
+                    # Dict를 TradingFlow로 변환
+                    from app.models import TradingFlow
+                    summary.latest_trading_flow = TradingFlow(**trading_flow[0])
 
-                # 3. 뉴스 조회 (최근 N개)
-                from app.services.news_scraper import NewsScraper
-                news_scraper = NewsScraper()
-                news = news_scraper.get_news_for_ticker(ticker, start_date, end_date)
-                if news:
-                    # limit 적용
-                    summary.latest_news = news[:request.news_limit]
+                # 3. 뉴스 조회 (ticker별로 - 최적화 불필요)
+                try:
+                    news = news_scraper.get_news_for_ticker(ticker, start_date, end_date)
+                    if news:
+                        summary.latest_news = news[:request.news_limit]
+                except Exception as e:
+                    logger.warning(f"Error fetching news for {ticker}: {e}")
 
                 result_data[ticker] = summary
 
             except Exception as e:
-                logger.warning(f"Error fetching summary for {ticker}: {e}")
+                logger.warning(f"Error processing summary for {ticker}: {e}")
                 # 개별 종목 에러는 빈 객체로 처리
                 result_data[ticker] = ETFCardSummary(ticker=ticker)
 

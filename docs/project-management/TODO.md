@@ -167,11 +167,23 @@
   - 10초마다 자동 갱신
 - [x] 테스트 작성 및 검증 (캐시 통합 테스트 통과)
 
-### 7.4 데이터베이스 쿼리 최적화 (🟡 Medium)
-- [ ] 배치 쿼리 구현 (IN 절 활용)
-- [ ] 쿼리 결과 크기 제한 (limit 파라미터)
-- [ ] Connection Pool 구현 (선택)
-- [ ] 쿼리 성능 테스트
+### 7.4 데이터베이스 쿼리 최적화 (🟡 Medium) ✅
+- [x] 배치 쿼리 구현 (IN 절 활용)
+  - `get_price_data_batch`: 여러 종목의 가격 데이터를 단일 쿼리로 조회
+  - `get_trading_flow_batch`: 여러 종목의 매매동향을 단일 쿼리로 조회
+  - `get_latest_prices_batch`: 여러 종목의 최신 가격을 서브쿼리로 효율적 조회
+- [x] 쿼리 결과 크기 제한 (limit 파라미터)
+  - `get_price_data`, `get_trading_flow`, `get_trading_flow_data`에 limit 파라미터 추가
+  - 배치 쿼리 메서드에도 종목별 limit 지원
+- [x] Connection Pool 구현 (선택)
+  - `ConnectionPool` 클래스 구현 (max_connections=10)
+  - `get_db_connection()` context manager에 풀링 적용
+  - PostgreSQL 마이그레이션 대비 구조 준비
+- [x] 쿼리 성능 테스트 (12개 테스트 통과)
+  - 배치 쿼리 기본 기능 테스트
+  - Limit 파라미터 검증 테스트
+  - 배치 vs 단일 쿼리 결과 일관성 테스트
+  - Connection Pool 동작 테스트
 
 ### 7.5 성능 모니터링 (🟢 Low)
 - [ ] 백엔드: 성능 로깅 미들웨어 추가

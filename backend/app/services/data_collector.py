@@ -458,59 +458,73 @@ class ETFDataCollector:
                 }
             return None
 
-    def get_price_data(self, ticker: str, start_date: date, end_date: date) -> List[PriceData]:
+    def get_price_data(self, ticker: str, start_date: date, end_date: date, limit: Optional[int] = None) -> List[PriceData]:
         """
         데이터베이스에서 가격 데이터 조회
-        
+
         지정된 날짜 범위의 가격 데이터를 데이터베이스에서 조회합니다.
         데이터 수집은 collect_and_save_prices 메서드를 통해 별도로 수행됩니다.
-        
+
         Args:
             ticker: 종목 코드
             start_date: 시작 날짜
             end_date: 종료 날짜
-        
+            limit: 결과 개수 제한 (선택)
+
         Returns:
             PriceData 리스트 (날짜 내림차순 정렬)
         """
-        logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}")
+        logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+
+            query = """
                 SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
                 FROM prices
                 WHERE ticker = ? AND date BETWEEN ? AND ?
                 ORDER BY date DESC
-            """, (ticker, start_date, end_date))
+            """
+
+            if limit is not None:
+                query += f" LIMIT {limit}"
+
+            cursor.execute(query, (ticker, start_date, end_date))
             rows = cursor.fetchall()
             return [PriceData(**dict(row)) for row in rows]
     
-    def get_trading_flow(self, ticker: str, start_date: date, end_date: date) -> List[TradingFlow]:
+    def get_trading_flow(self, ticker: str, start_date: date, end_date: date, limit: Optional[int] = None) -> List[TradingFlow]:
         """
         데이터베이스에서 매매 동향 데이터 조회
-        
+
         지정된 날짜 범위의 매매 동향 데이터를 데이터베이스에서 조회합니다.
         데이터 수집은 collect_and_save_trading_flow 메서드를 통해 별도로 수행됩니다.
-        
+
         Args:
             ticker: 종목 코드
             start_date: 시작 날짜
             end_date: 종료 날짜
-        
+            limit: 결과 개수 제한 (선택)
+
         Returns:
             TradingFlow 리스트 (날짜 내림차순 정렬)
         """
-        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
-        
+        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+
+            query = """
                 SELECT date, individual_net, institutional_net, foreign_net
                 FROM trading_flow
                 WHERE ticker = ? AND date BETWEEN ? AND ?
                 ORDER BY date DESC
-            """, (ticker, start_date, end_date))
+            """
+
+            if limit is not None:
+                query += f" LIMIT {limit}"
+
+            cursor.execute(query, (ticker, start_date, end_date))
             rows = cursor.fetchall()
             return [TradingFlow(**dict(row)) for row in rows]
     
@@ -1143,31 +1157,208 @@ class ETFDataCollector:
         return saved_count
     
     def get_trading_flow_data(
-        self, 
-        ticker: str, 
-        start_date: date, 
-        end_date: date
+        self,
+        ticker: str,
+        start_date: date,
+        end_date: date,
+        limit: Optional[int] = None
     ) -> List[Dict]:
         """
         데이터베이스에서 매매동향 데이터 조회
-        
+
         Args:
             ticker: 종목 코드
             start_date: 시작 날짜
             end_date: 종료 날짜
-        
+            limit: 결과 개수 제한 (선택)
+
         Returns:
             매매동향 데이터 리스트
         """
-        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}")
-        
+        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+
+            query = """
                 SELECT date, individual_net, institutional_net, foreign_net
                 FROM trading_flow
                 WHERE ticker = ? AND date BETWEEN ? AND ?
                 ORDER BY date DESC
-            """, (ticker, start_date, end_date))
+            """
+
+            if limit is not None:
+                query += f" LIMIT {limit}"
+
+            cursor.execute(query, (ticker, start_date, end_date))
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
+
+    def get_price_data_batch(
+        self,
+        tickers: List[str],
+        start_date: date,
+        end_date: date,
+        limit: Optional[int] = None
+    ) -> Dict[str, List[PriceData]]:
+        """
+        배치 쿼리로 여러 종목의 가격 데이터를 한 번에 조회 (IN 절 활용)
+
+        Args:
+            tickers: 종목 코드 리스트
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+            limit: 종목별 결과 개수 제한 (선택)
+
+        Returns:
+            종목별 가격 데이터 딕셔너리 {ticker: [PriceData, ...]}
+        """
+        if not tickers:
+            return {}
+
+        logger.info(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # IN 절을 위한 플레이스홀더 생성
+            placeholders = ','.join('?' * len(tickers))
+
+            # 쿼리 구성
+            query = f"""
+                SELECT ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct
+                FROM prices
+                WHERE ticker IN ({placeholders}) AND date BETWEEN ? AND ?
+                ORDER BY ticker, date DESC
+            """
+
+            # 파라미터 구성
+            params = list(tickers) + [start_date, end_date]
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            # 종목별로 그룹화
+            result = {ticker: [] for ticker in tickers}
+            for row in rows:
+                row_dict = dict(row)
+                ticker = row_dict.pop('ticker')
+                price_data = PriceData(**row_dict)
+                result[ticker].append(price_data)
+
+            # limit 적용 (종목별로)
+            if limit is not None:
+                for ticker in result:
+                    result[ticker] = result[ticker][:limit]
+
+            logger.info(f"Batch fetched {sum(len(v) for v in result.values())} total price records")
+            return result
+
+    def get_trading_flow_batch(
+        self,
+        tickers: List[str],
+        start_date: date,
+        end_date: date,
+        limit: Optional[int] = None
+    ) -> Dict[str, List[Dict]]:
+        """
+        배치 쿼리로 여러 종목의 매매동향 데이터를 한 번에 조회 (IN 절 활용)
+
+        Args:
+            tickers: 종목 코드 리스트
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+            limit: 종목별 결과 개수 제한 (선택)
+
+        Returns:
+            종목별 매매동향 데이터 딕셔너리 {ticker: [dict, ...]}
+        """
+        if not tickers:
+            return {}
+
+        logger.info(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # IN 절을 위한 플레이스홀더 생성
+            placeholders = ','.join('?' * len(tickers))
+
+            # 쿼리 구성
+            query = f"""
+                SELECT ticker, date, individual_net, institutional_net, foreign_net
+                FROM trading_flow
+                WHERE ticker IN ({placeholders}) AND date BETWEEN ? AND ?
+                ORDER BY ticker, date DESC
+            """
+
+            # 파라미터 구성
+            params = list(tickers) + [start_date, end_date]
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            # 종목별로 그룹화
+            result = {ticker: [] for ticker in tickers}
+            for row in rows:
+                row_dict = dict(row)
+                ticker = row_dict.pop('ticker')
+                result[ticker].append(row_dict)
+
+            # limit 적용 (종목별로)
+            if limit is not None:
+                for ticker in result:
+                    result[ticker] = result[ticker][:limit]
+
+            logger.info(f"Batch fetched {sum(len(v) for v in result.values())} total trading flow records")
+            return result
+
+    def get_latest_prices_batch(
+        self,
+        tickers: List[str]
+    ) -> Dict[str, Optional[PriceData]]:
+        """
+        배치 쿼리로 여러 종목의 최신 가격을 한 번에 조회
+
+        Args:
+            tickers: 종목 코드 리스트
+
+        Returns:
+            종목별 최신 가격 딕셔너리 {ticker: PriceData or None}
+        """
+        if not tickers:
+            return {}
+
+        logger.info(f"Batch fetching latest prices for {len(tickers)} tickers")
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # IN 절을 위한 플레이스홀더 생성
+            placeholders = ','.join('?' * len(tickers))
+
+            # 각 종목의 최신 날짜만 조회하는 서브쿼리 사용
+            query = f"""
+                SELECT p.ticker, p.date, p.open_price, p.high_price, p.low_price,
+                       p.close_price, p.volume, p.daily_change_pct
+                FROM prices p
+                INNER JOIN (
+                    SELECT ticker, MAX(date) as max_date
+                    FROM prices
+                    WHERE ticker IN ({placeholders})
+                    GROUP BY ticker
+                ) latest ON p.ticker = latest.ticker AND p.date = latest.max_date
+            """
+
+            cursor.execute(query, tickers)
+            rows = cursor.fetchall()
+
+            # 종목별로 매핑
+            result = {ticker: None for ticker in tickers}
+            for row in rows:
+                row_dict = dict(row)
+                ticker = row_dict.pop('ticker')
+                result[ticker] = PriceData(**row_dict)
+
+            logger.info(f"Batch fetched latest prices for {len([v for v in result.values() if v])} tickers")
+            return result

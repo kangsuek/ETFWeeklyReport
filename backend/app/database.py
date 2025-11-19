@@ -3,6 +3,8 @@ from pathlib import Path
 import logging
 import os
 from contextlib import contextmanager
+from threading import Lock
+from queue import Queue, Empty
 from app.config import Config
 
 logger = logging.getLogger(__name__)
@@ -25,24 +27,101 @@ else:
     DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
     logger.info(f"Using default database path: {DB_PATH}")
 
+class ConnectionPool:
+    """
+    Simple connection pool for SQLite
+
+    Note: SQLite has limited benefit from connection pooling compared to
+    client-server databases like PostgreSQL. This implementation is
+    primarily for future PostgreSQL migration and preventing too many
+    concurrent connection creations.
+    """
+    def __init__(self, max_connections: int = 10):
+        self.max_connections = max_connections
+        self.pool = Queue(maxsize=max_connections)
+        self.lock = Lock()
+        self.current_connections = 0
+        logger.info(f"Connection pool initialized with max_connections={max_connections}")
+
+    def get_connection(self):
+        """Get a connection from the pool or create a new one"""
+        try:
+            # Try to get an existing connection from the pool (non-blocking)
+            conn = self.pool.get_nowait()
+            logger.debug("Reusing connection from pool")
+            return conn
+        except Empty:
+            # Pool is empty, create a new connection if below max
+            with self.lock:
+                if self.current_connections < self.max_connections:
+                    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    self.current_connections += 1
+                    logger.debug(f"Created new connection ({self.current_connections}/{self.max_connections})")
+                    return conn
+                else:
+                    # Wait for a connection to become available
+                    logger.debug("Pool full, waiting for connection...")
+                    conn = self.pool.get(block=True)
+                    logger.debug("Got connection after waiting")
+                    return conn
+
+    def return_connection(self, conn):
+        """Return a connection to the pool"""
+        try:
+            self.pool.put_nowait(conn)
+            logger.debug("Returned connection to pool")
+        except:
+            # Pool is full, close the connection
+            conn.close()
+            with self.lock:
+                self.current_connections -= 1
+            logger.debug("Pool full, closed connection")
+
+    def close_all(self):
+        """Close all connections in the pool"""
+        while not self.pool.empty():
+            try:
+                conn = self.pool.get_nowait()
+                conn.close()
+            except Empty:
+                break
+        self.current_connections = 0
+        logger.info("All connections closed")
+
+# Global connection pool instance
+_connection_pool = None
+_pool_lock = Lock()
+
+def get_connection_pool() -> ConnectionPool:
+    """Get the global connection pool instance (singleton)"""
+    global _connection_pool
+    if _connection_pool is None:
+        with _pool_lock:
+            if _connection_pool is None:
+                max_conn = int(os.getenv("DB_POOL_SIZE", "10"))
+                _connection_pool = ConnectionPool(max_connections=max_conn)
+    return _connection_pool
+
 @contextmanager
 def get_db_connection():
     """
     Get database connection as a context manager.
+    Uses connection pooling for improved performance.
     Ensures connection is properly closed even if an exception occurs.
-    
+
     Usage:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    pool = get_connection_pool()
+    conn = pool.get_connection()
     try:
         yield conn
     finally:
-        conn.close()
+        pool.return_connection(conn)
 
 def init_db():
     """Initialize database with schema"""
