@@ -40,7 +40,7 @@
 ## 🚀 빠른 시작
 
 ### 사전 요구사항
-- Python 3.10+, Node.js 18+, npm/yarn
+- Python 3.11.9, Node.js 18+, npm/yarn
 
 ### 백엔드
 ```bash
@@ -70,7 +70,7 @@ npm install && npm run dev
 - [할 일 목록](./docs/project-management/TODO.md)
 
 ## 🔧 기술 스택
-- **Backend**: FastAPI, Python 3.10+
+- **Backend**: FastAPI, Python 3.11.9
 - **Frontend**: React 18, Vite, TailwindCSS
 - **Database**: SQLite (개발) / PostgreSQL (프로덕션)
 - **Charts**: Recharts, **State**: TanStack Query

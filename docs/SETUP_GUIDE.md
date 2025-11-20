@@ -1,7 +1,7 @@
 # 개발 환경 설정 가이드
 
 ## 사전 요구사항
-- Python 3.10+, Node.js 18+, npm/yarn, Git
+- Python 3.11.9, Node.js 18+, npm/yarn, Git
 
 ## 백엔드 설정
 
@@ -67,7 +67,7 @@ npm run dev
 ## 설정 확인 체크리스트
 
 ### 백엔드
-- [ ] Python 3.10+ 설치됨
+- [ ] Python 3.11.9 설치됨
 - [ ] 가상환경 생성 및 활성화됨
 - [ ] `requirements-dev.txt` 설치 완료
 - [ ] `.env` 파일 생성 및 설정 완료
