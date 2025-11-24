@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
     showTradingFlow: true,
     compactMode: false,
   },
+  cardOrder: [], // 사용자 정의 카드 순서 (ticker 배열)
 }
 
 /**
@@ -66,6 +67,11 @@ function validateSettings(settings) {
         ? settings.display.compactMode
         : DEFAULT_SETTINGS.display.compactMode,
     }
+  }
+
+  // cardOrder 검증
+  if (Array.isArray(settings.cardOrder)) {
+    validated.cardOrder = settings.cardOrder.filter(item => typeof item === 'string')
   }
 
   return validated

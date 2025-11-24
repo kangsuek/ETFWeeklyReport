@@ -12,7 +12,10 @@ export default function Dashboard() {
   const queryClient = useQueryClient()
   const { settings, updateSettings } = useSettings()
   const [lastUpdate, setLastUpdate] = useState(new Date())
-  const [sortBy, setSortBy] = useState('type') // 'type', 'name', 'theme'
+  // 저장된 카드 순서가 있으면 'custom' 모드로 시작
+  const [sortBy, setSortBy] = useState(() =>
+    settings.cardOrder && settings.cardOrder.length > 0 ? 'custom' : 'type'
+  )
   const [sortDirection, setSortDirection] = useState('asc') // 'asc', 'desc'
 
   // 스케줄러 상태 조회 (마지막 수집 시각)
@@ -106,10 +109,26 @@ export default function Dashboard() {
     }
   }
 
+  // 카드 순서 변경 핸들러
+  const handleOrderChange = useCallback((newOrder) => {
+    updateSettings('cardOrder', newOrder)
+  }, [updateSettings])
+
   // 정렬된 데이터 가져오기 (메모이제이션)
   const sortedETFs = useMemo(() => {
     if (!etfs) return []
 
+    // 커스텀 순서가 있고, sortBy가 'custom'이면 커스텀 순서 사용
+    if (sortBy === 'custom' && settings.cardOrder && settings.cardOrder.length > 0) {
+      const orderMap = new Map(settings.cardOrder.map((ticker, index) => [ticker, index]))
+      return [...etfs].sort((a, b) => {
+        const orderA = orderMap.get(a.ticker) ?? Infinity
+        const orderB = orderMap.get(b.ticker) ?? Infinity
+        return orderA - orderB
+      })
+    }
+
+    // 기본 정렬 로직
     const sorted = [...etfs].sort((a, b) => {
       let compareValue = 0
 
@@ -146,7 +165,7 @@ export default function Dashboard() {
     })
 
     return sorted
-  }, [etfs, sortBy, sortDirection])
+  }, [etfs, sortBy, sortDirection, settings.cardOrder])
 
   // 로딩 상태
   if (isLoading) {
@@ -317,6 +336,13 @@ export default function Dashboard() {
         etfs={sortedETFs}
         batchSummary={batchSummary}
         compactMode={settings.display.compactMode}
+        onOrderChange={(newOrder) => {
+          handleOrderChange(newOrder)
+          // 드래그로 순서를 변경하면 자동으로 커스텀 정렬 모드로 전환
+          if (sortBy !== 'custom') {
+            setSortBy('custom')
+          }
+        }}
       />
     </div>
   )
