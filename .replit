@@ -1,0 +1,43 @@
+# ETF Weekly Report - Replit 설정 파일
+
+run = "bash run.sh"
+
+# 언어 설정
+language = "python3"
+
+# 진입점
+entrypoint = "run.sh"
+
+# 포트 설정
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+[[ports]]
+localPort = 5173
+externalPort = 3000
+
+# 숨김 파일
+hidden = [".pythonlibs", "venv", "__pycache__", "node_modules", ".git", "htmlcov"]
+
+# 패키지 관리
+[packager]
+language = "python3"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
+# Nix 채널
+[nix]
+channel = "stable-23_11"
+
+# 배포 설정
+[deployment]
+run = ["bash", "run.sh"]
+deploymentTarget = "cloudrun"
+
+# 환경 변수 (기본값)
+[env]
+PYTHONPATH = "${REPL_HOME}/backend"
+
