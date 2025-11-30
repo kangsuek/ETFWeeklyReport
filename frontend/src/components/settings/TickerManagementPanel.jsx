@@ -50,7 +50,13 @@ export default function TickerManagementPanel() {
   // 종목 삭제 Mutation
   const deleteMutation = useMutation({
     mutationFn: (ticker) => settingsApi.deleteStock(ticker),
-    onSuccess: (response) => {
+    onSuccess: (response, deletedTicker) => {
+      // 삭제 직후 목록에서 제거되도록 React Query 캐시 즉시 업데이트
+      queryClient.setQueryData(['etfs'], (oldStocks) => {
+        if (!Array.isArray(oldStocks)) return oldStocks
+        return oldStocks.filter((stock) => stock.ticker !== deletedTicker)
+      })
+
       queryClient.invalidateQueries({ queryKey: ['etfs'] })
       setIsDeleteConfirmOpen(false)
       setSelectedTicker(null)

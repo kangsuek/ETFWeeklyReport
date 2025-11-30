@@ -1,7 +1,7 @@
 import pytest
 from datetime import date, timedelta
 from app.services.news_scraper import NewsScraper
-from app.database import init_db
+from app.database import init_db, get_db_connection
 from httpx import AsyncClient
 from app.main import app
 from unittest.mock import patch, MagicMock
@@ -351,6 +351,37 @@ class TestNewsAPI:
             response = await client.get("/api/news/999999")
             
             assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch('app.services.news_scraper.NewsScraper._search_naver_news_api')
+    async def test_get_news_triggers_collection_when_empty(self, mock_api):
+        """초기 뉴스 부재 시 자동 수집이 발생하는지 검증"""
+        mock_api.return_value = {
+            'total': 10,
+            'items': [
+                {
+                    'title': 'AI 인프라 투자 확대',
+                    'link': 'https://news.naver.com/test_auto_collect',
+                    'description': 'AI 전력 인프라',
+                    'pubDate': 'Fri, 08 Nov 2025 11:00:00 +0900'
+                }
+            ]
+        }
+
+        # 캐시와 뉴스 테이블 초기화
+        from app.routers import news as news_router
+        news_router.cache.clear()
+        with get_db_connection() as conn:
+            conn.execute("DELETE FROM news")
+            conn.commit()
+
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.get("/api/news/487240")
+
+            assert response.status_code == 200
+            news_list = response.json()
+            assert isinstance(news_list, list)
+            assert len(news_list) >= 1
 
 
 class TestNewsIntegration:

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional, Dict
-from datetime import date, timedelta
+from datetime import date
 from app.models import News, ETF
 from app.services.news_scraper import NewsScraper
 from app.services.data_collector import ETFDataCollector
-from app.exceptions import DatabaseException, ValidationException, ScraperException
+from app.exceptions import ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
@@ -57,6 +57,35 @@ async def get_news(
 
     try:
         news_list = scraper.get_news_for_ticker(etf.ticker, start_date, end_date)
+
+        if not news_list:
+            logger.info(
+                "No cached news for %s (%s ~ %s). Triggering on-demand collection.",
+                etf.ticker,
+                start_date,
+                end_date,
+            )
+            days_requested = (end_date - start_date).days + 1
+            days_to_collect = max(1, min(30, days_requested if days_requested > 0 else 7))
+            try:
+                collect_result = scraper.collect_and_save_news(etf.ticker, days=days_to_collect)
+                logger.info(
+                    "On-demand news collection completed for %s: %s",
+                    etf.ticker,
+                    collect_result,
+                )
+            except ScraperException as e:
+                logger.error("On-demand news collection failed for %s: %s", etf.ticker, e)
+                # continue to return empty result below
+            except Exception as e:
+                logger.error(
+                    "Unexpected error during on-demand news collection for %s: %s",
+                    etf.ticker,
+                    e,
+                    exc_info=True,
+                )
+
+            news_list = scraper.get_news_for_ticker(etf.ticker, start_date, end_date)
 
         if not news_list:
             logger.warning(f"No news found for {etf.ticker} between {start_date} and {end_date}")
