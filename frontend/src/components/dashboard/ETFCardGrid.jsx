@@ -163,9 +163,9 @@ ETFCardGrid.propTypes = {
     PropTypes.shape({
       ticker: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
-      type: PropTypes.oneOf(['ETF', 'STOCK']).isRequired,
+      type: PropTypes.oneOf(['ETF', 'STOCK', 'ALL']).isRequired,
       theme: PropTypes.string,
-      expense_ratio: PropTypes.number,
+      purchase_date: PropTypes.string,
     })
   ).isRequired,
   batchSummary: PropTypes.object,  // {ticker: {latest_price, prices, weekly_return, ...}}

@@ -80,11 +80,8 @@ def validate_stock_data(stock_dict: Dict[str, Any]) -> tuple[bool, Optional[str]
 
     Validation rules:
     - Required fields: name, type, theme
-    - Type must be "ETF" or "STOCK"
-    - ETF must have launch_date and expense_ratio
-    - STOCK must have launch_date=null and expense_ratio=null
-    - launch_date format: YYYY-MM-DD (if not null)
-    - expense_ratio must be float (if not null)
+    - Type must be "ETF" or "STOCK" or "ALL"
+    - purchase_date format: YYYY-MM-DD (if provided)
 
     Args:
         stock_dict: Stock data dictionary
@@ -100,35 +97,25 @@ def validate_stock_data(stock_dict: Dict[str, Any]) -> tuple[bool, Optional[str]
 
     # Type validation
     stock_type = stock_dict.get("type")
-    if stock_type not in ["ETF", "STOCK"]:
-        return False, f"Invalid type: {stock_type}. Must be 'ETF' or 'STOCK'"
+    if stock_type not in ["ETF", "STOCK", "ALL"]:
+        return False, f"Invalid type: {stock_type}. Must be 'ETF', 'STOCK', or 'ALL'"
 
-    # ETF-specific validation
-    if stock_type == "ETF":
-        if "launch_date" not in stock_dict or stock_dict["launch_date"] is None:
-            return False, "ETF must have launch_date"
-        if "expense_ratio" not in stock_dict or stock_dict["expense_ratio"] is None:
-            return False, "ETF must have expense_ratio"
-
-        # Validate date format (YYYY-MM-DD)
-        launch_date = stock_dict["launch_date"]
+    # purchase_date format validation (if provided)
+    purchase_date = stock_dict.get("purchase_date")
+    if purchase_date is not None:
+        import re
+        # 정확히 YYYY-MM-DD 형식인지 검증 (연도 4자리)
+        date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+        if not re.match(date_pattern, str(purchase_date)):
+            return False, f"Invalid purchase_date format: {purchase_date}. Expected YYYY-MM-DD (4-digit year)"
+        
         try:
-            datetime.strptime(launch_date, "%Y-%m-%d")
+            parsed_date = datetime.strptime(purchase_date, "%Y-%m-%d")
+            # 연도가 유효한 범위인지 확인 (1900-2100)
+            if parsed_date.year < 1900 or parsed_date.year > 2100:
+                return False, f"Invalid year in purchase_date: {purchase_date}. Year must be between 1900 and 2100"
         except ValueError:
-            return False, f"Invalid launch_date format: {launch_date}. Expected YYYY-MM-DD"
-
-        # Validate expense_ratio is numeric
-        try:
-            float(stock_dict["expense_ratio"])
-        except (ValueError, TypeError):
-            return False, f"Invalid expense_ratio: {stock_dict['expense_ratio']}. Must be a number"
-
-    # STOCK-specific validation
-    elif stock_type == "STOCK":
-        if stock_dict.get("launch_date") is not None:
-            return False, "STOCK must have launch_date=null"
-        if stock_dict.get("expense_ratio") is not None:
-            return False, "STOCK must have expense_ratio=null"
+            return False, f"Invalid purchase_date: {purchase_date}. Expected valid date in YYYY-MM-DD format"
 
     return True, None
 
@@ -166,15 +153,14 @@ def sync_stocks_to_db() -> int:
                 info.get("name"),
                 info.get("type"),
                 info.get("theme"),
-                info.get("launch_date"),
-                info.get("expense_ratio"),
+                info.get("purchase_date"),
                 info.get("search_keyword"),
                 relevance_keywords_json
             ))
 
         cursor.executemany("""
-            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, purchase_date, search_keyword, relevance_keywords)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, etfs_data)
 
         conn.commit()

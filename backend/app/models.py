@@ -7,8 +7,7 @@ class ETF(BaseModel):
     name: str
     type: str  # "ETF" or "STOCK"
     theme: Optional[str] = None
-    launch_date: Optional[date] = None
-    expense_ratio: Optional[float] = None
+    purchase_date: Optional[date] = None  # 구매일
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 
@@ -53,9 +52,8 @@ class StockCreate(BaseModel):
     ticker: str  # Stock ticker code (e.g., "005930")
     name: str
     type: str  # "ETF" or "STOCK"
-    theme: str
-    launch_date: Optional[str] = None  # YYYY-MM-DD format, required for ETF
-    expense_ratio: Optional[float] = None  # Required for ETF
+    theme: Optional[str] = None  # Theme/sector (optional)
+    purchase_date: Optional[str] = None  # YYYY-MM-DD format, 구매일 (선택)
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 
@@ -64,8 +62,7 @@ class StockUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     theme: Optional[str] = None
-    launch_date: Optional[str] = None
-    expense_ratio: Optional[float] = None
+    purchase_date: Optional[str] = None  # 구매일
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 

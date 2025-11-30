@@ -337,7 +337,6 @@ export default function ETFCard({ etf, summary, compactMode = false }) {
         {/* 하단 정보 */}
         <footer className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
           <span aria-label={`종목 코드: ${etf.ticker}`}>{etf.ticker}</span>
-          {etf.expense_ratio && <span aria-label={`운용 수수료: ${etf.expense_ratio}퍼센트`}>수수료: {etf.expense_ratio}%</span>}
         </footer>
       </article>
     </Link>
@@ -348,9 +347,9 @@ ETFCard.propTypes = {
   etf: PropTypes.shape({
     ticker: PropTypes.string.isRequired,
     name: PropTypes.string.isRequired,
-    type: PropTypes.oneOf(['ETF', 'STOCK']).isRequired,
+    type: PropTypes.oneOf(['ETF', 'STOCK', 'ALL']).isRequired,
     theme: PropTypes.string,
-    expense_ratio: PropTypes.number,
+    purchase_date: PropTypes.string,
   }).isRequired,
   summary: PropTypes.shape({
     ticker: PropTypes.string,

@@ -9,8 +9,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     name: '',
     type: 'ALL',
     theme: '',
-    launch_date: '',
-    expense_ratio: '',
+    purchase_date: '',
     search_keyword: '',
     relevance_keywords: [],
   })
@@ -32,8 +31,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
         name: initialData.name || '',
         type: initialData.type || 'ALL',
         theme: initialData.theme || '',
-        launch_date: initialData.launch_date || '',
-        expense_ratio: initialData.expense_ratio || '',
+        purchase_date: initialData.purchase_date || '',
         search_keyword: initialData.search_keyword || '',
         relevance_keywords: initialData.relevance_keywords || [],
       })
@@ -87,8 +85,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
         name: data.name || '',
         type: data.type || 'ALL',
         theme: data.theme || '',
-        launch_date: data.launch_date || '',
-        expense_ratio: data.expense_ratio || '',
+        purchase_date: data.purchase_date || '',
         search_keyword: data.search_keyword || '',
         relevance_keywords: data.relevance_keywords || [],
       })
@@ -108,9 +105,58 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     validateMutation.mutate(formData.ticker)
   }
 
+  // 날짜 입력 핸들러 - 연도 4자리로 제한
+  const handleDateInput = (e) => {
+    const input = e.target
+    let value = input.value
+    
+    // 날짜 형식이 YYYY-MM-DD인지 확인
+    const dateMatch = value.match(/^(\d+)-(\d{2})-(\d{2})$/)
+    if (dateMatch) {
+      let yearStr = dateMatch[1]
+      // 연도가 4자리 초과인 경우 앞 4자리만 사용
+      if (yearStr.length > 4) {
+        yearStr = yearStr.substring(0, 4)
+        value = `${yearStr}-${dateMatch[2]}-${dateMatch[3]}`
+        input.value = value
+        // onChange 이벤트 트리거
+        const syntheticEvent = {
+          target: { name: 'purchase_date', value: value }
+        }
+        handleChange(syntheticEvent)
+      }
+    }
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // 날짜 필드인 경우 연도 4자리로 정규화
+    let processedValue = value
+    if (name === 'purchase_date' && value) {
+      // 날짜 형식이 YYYY-MM-DD인지 확인하고, 연도가 4자리 초과인 경우 정규화
+      const dateMatch = value.match(/^(\d+)-(\d{2})-(\d{2})$/)
+      if (dateMatch) {
+        let yearStr = dateMatch[1]
+        // 연도가 4자리 초과인 경우 앞 4자리만 사용
+        if (yearStr.length > 4) {
+          yearStr = yearStr.substring(0, 4)
+        }
+        const year = parseInt(yearStr, 10)
+        // 유효한 연도 범위로 제한 (1900-2099)
+        if (year >= 1900 && year <= 2099) {
+          processedValue = `${yearStr.padStart(4, '0')}-${dateMatch[2]}-${dateMatch[3]}`
+        } else {
+          // 유효하지 않은 연도인 경우 이전 값 유지
+          processedValue = formData.purchase_date || ''
+        }
+      } else if (value.length > 0) {
+        // 형식이 맞지 않으면 이전 값 유지
+        processedValue = formData.purchase_date || ''
+      }
+    }
+    
+    setFormData(prev => ({ ...prev, [name]: processedValue }))
     // 에러 클리어
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
@@ -168,16 +214,28 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     if (!formData.ticker) newErrors.ticker = '티커 코드는 필수입니다.'
     if (!formData.name) newErrors.name = '종목명은 필수입니다.'
     if (!formData.type) newErrors.type = '타입은 필수입니다.'
-    if (!formData.theme) newErrors.theme = '테마는 필수입니다.'
-
-    // ETF인 경우 추가 필드 검증
-    if (formData.type === 'ETF') {
-      if (!formData.launch_date) newErrors.launch_date = 'ETF는 상장일이 필수입니다.'
-      if (!formData.expense_ratio) newErrors.expense_ratio = 'ETF는 운용보수가 필수입니다.'
-    }
+    // theme is now optional
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  // 날짜를 YYYY-MM-DD 형식으로 정규화 (연도 4자리 보장)
+  const normalizeDateString = (dateStr) => {
+    if (!dateStr) return null
+    
+    // Date 객체로 파싱 후 다시 포맷
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return null
+    
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    
+    // 연도가 유효한 범위인지 확인 (1900-2100)
+    if (year < 1900 || year > 2100) return null
+    
+    return `${year}-${month}-${day}`
   }
 
   const handleSubmit = (e) => {
@@ -187,11 +245,8 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
     // 제출 데이터 준비
     const submitData = { ...formData }
 
-    // STOCK인 경우 ETF 전용 필드 null로 설정
-    if (submitData.type === 'STOCK') {
-      submitData.launch_date = null
-      submitData.expense_ratio = null
-    }
+    // 구매일 정규화 (연도 4자리 형식 보장)
+    submitData.purchase_date = normalizeDateString(submitData.purchase_date)
 
     onSubmit(submitData)
   }
@@ -407,7 +462,7 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
           {/* 테마 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              테마 <span className="text-red-500">*</span>
+              테마
             </label>
             <input
               type="text"
@@ -416,49 +471,32 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              placeholder="예: 2차전지, 반도체, AI"
+              placeholder="예: 2차전지, 반도체, AI (선택사항)"
             />
             {errors.theme && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.theme}</p>}
           </div>
 
-          {/* ETF 전용 필드 */}
-          {formData.type === 'ETF' && (
-            <>
-              {/* 상장일 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  상장일 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  name="launch_date"
-                  value={formData.launch_date}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-                {errors.launch_date && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.launch_date}</p>}
-              </div>
-
-              {/* 운용보수 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  운용보수 (%) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="expense_ratio"
-                  value={formData.expense_ratio}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  placeholder="예: 0.50"
-                />
-                {errors.expense_ratio && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.expense_ratio}</p>}
-              </div>
-            </>
-          )}
+          {/* 구매일 (선택) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              구매일
+            </label>
+            <input
+              type="date"
+              name="purchase_date"
+              value={formData.purchase_date}
+              onChange={handleChange}
+              onInput={handleDateInput}
+              disabled={isSubmitting}
+              min="1900-01-01"
+              max="2099-12-31"
+              pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              종목을 구매한 날짜입니다. (선택, 연도는 4자리만 입력 가능)
+            </p>
+          </div>
 
           {/* 뉴스 검색 키워드 */}
           <div>

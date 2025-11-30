@@ -45,8 +45,7 @@ class TickerScraper:
                 "name": "삼성전자",
                 "type": "STOCK",
                 "theme": "반도체/전자",
-                "launch_date": null,
-                "expense_ratio": null,
+                "purchase_date": null,
                 "search_keyword": "삼성전자",
                 "relevance_keywords": ["삼성전자", "반도체", "전자"]
             }
@@ -75,14 +74,7 @@ class TickerScraper:
             # 3. 테마/섹터 추출
             theme = self._extract_theme(soup, stock_type)
 
-            # 4. ETF 전용 정보 추출
-            launch_date = None
-            expense_ratio = None
-            if stock_type == "ETF":
-                launch_date = self._extract_launch_date(soup, ticker)
-                expense_ratio = self._extract_expense_ratio(soup, ticker)
-
-            # 5. 키워드 생성
+            # 4. 키워드 생성
             search_keyword = self._generate_search_keyword(name, theme)
             relevance_keywords = self.generate_keywords(name, theme)
 
@@ -91,8 +83,7 @@ class TickerScraper:
                 "name": name,
                 "type": stock_type,
                 "theme": theme,
-                "launch_date": launch_date,
-                "expense_ratio": expense_ratio,
+                "purchase_date": None,  # 구매일은 사용자가 직접 입력
                 "search_keyword": search_keyword,
                 "relevance_keywords": relevance_keywords
             }
@@ -179,37 +170,6 @@ class TickerScraper:
 
         # 기본값: "미분류"
         return "미분류"
-
-    def _extract_launch_date(self, soup: BeautifulSoup, ticker: str) -> Optional[str]:
-        """상장일 추출 (ETF 전용)"""
-        # ETF 상세 페이지에서 상장일 찾기
-        # 예: "상장일: 2024-03-15" 또는 "상장일 2024.03.15"
-        page_text = soup.get_text()
-
-        # 패턴 1: YYYY-MM-DD
-        match = re.search(r'상장일\s*[:：]?\s*(\d{4}[-\.]\d{2}[-\.]\d{2})', page_text)
-        if match:
-            date_str = match.group(1).replace('.', '-')
-            return date_str
-
-        logger.warning(f"Failed to extract launch_date for ETF {ticker}")
-        return None
-
-    def _extract_expense_ratio(self, soup: BeautifulSoup, ticker: str) -> Optional[float]:
-        """운용보수 추출 (ETF 전용)"""
-        # ETF 상세 페이지에서 운용보수 찾기
-        # 예: "운용보수: 0.45%" 또는 "보수 0.45%"
-        page_text = soup.get_text()
-
-        # 패턴: 0.45% 형태
-        match = re.search(r'(?:운용)?보수\s*[:：]?\s*([\d\.]+)\s*%', page_text)
-        if match:
-            ratio_percent = float(match.group(1))
-            # 퍼센트 → 소수점 (0.45% → 0.0045)
-            return ratio_percent / 100.0
-
-        logger.warning(f"Failed to extract expense_ratio for ETF {ticker}")
-        return None
 
     def _generate_search_keyword(self, name: str, theme: str) -> str:
         """뉴스 검색용 키워드 생성"""

@@ -215,17 +215,11 @@ export default function ETFDetail() {
               <span className="text-sm text-gray-500 dark:text-gray-400">테마</span>
               <p className="text-base font-semibold mt-0.5 line-clamp-1 text-gray-900 dark:text-gray-100">{etf?.theme}</p>
             </div>
-            {etf?.expense_ratio && (
+            {etf?.purchase_date && (
               <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">운용보수</span>
-                <p className="text-base font-semibold mt-0.5 text-gray-900 dark:text-gray-100">{etf?.expense_ratio}%</p>
-              </div>
-            )}
-            {etf?.launch_date && (
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">상장일</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">구매일</span>
                 <p className="text-base font-semibold mt-0.5 text-gray-900 dark:text-gray-100">
-                  {format(new Date(etf.launch_date), 'yyyy-MM-dd')}
+                  {format(new Date(etf.purchase_date), 'yyyy-MM-dd')}
                 </p>
               </div>
             )}

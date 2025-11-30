@@ -39,8 +39,7 @@ async def create_stock(
     - name: Stock name (required)
     - type: "ETF" or "STOCK" (required)
     - theme: Theme/sector (required)
-    - launch_date: Launch date in YYYY-MM-DD format (required for ETF, null for STOCK)
-    - expense_ratio: Expense ratio as decimal (required for ETF, null for STOCK)
+    - purchase_date: Purchase date in YYYY-MM-DD format (optional)
     - search_keyword: Keyword for news search (optional)
     - relevance_keywords: List of relevant keywords (optional)
 
@@ -51,8 +50,7 @@ async def create_stock(
       "name": "삼성전자",
       "type": "STOCK",
       "theme": "반도체/전자",
-      "launch_date": null,
-      "expense_ratio": null,
+      "purchase_date": "2024-01-15",
       "search_keyword": "삼성전자",
       "relevance_keywords": ["삼성전자", "반도체", "전자"]
     }
@@ -111,8 +109,7 @@ async def update_stock(
     - name: Stock name (optional)
     - type: "ETF" or "STOCK" (optional)
     - theme: Theme/sector (optional)
-    - launch_date: Launch date in YYYY-MM-DD format (optional)
-    - expense_ratio: Expense ratio as decimal (optional)
+    - purchase_date: Purchase date in YYYY-MM-DD format (optional)
     - search_keyword: Keyword for news search (optional)
     - relevance_keywords: List of relevant keywords (optional)
 
@@ -248,8 +245,7 @@ async def validate_ticker(
       "name": "삼성전자",
       "type": "STOCK",
       "theme": "반도체/전자",
-      "launch_date": null,
-      "expense_ratio": null,
+      "purchase_date": null,
       "search_keyword": "삼성전자",
       "relevance_keywords": ["삼성전자", "반도체", "전자"]
     }

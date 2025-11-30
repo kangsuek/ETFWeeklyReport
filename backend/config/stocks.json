@@ -3,8 +3,7 @@
     "name": "삼성 KODEX AI전력핵심설비 ETF",
     "type": "ETF",
     "theme": "AI/전력 인프라",
-    "launch_date": "2024-03-15",
-    "expense_ratio": 0.0045,
+    "purchase_date": "2024-03-15",
     "search_keyword": "AI 전력",
     "relevance_keywords": [
       "AI",
@@ -22,8 +21,7 @@
     "name": "신한 SOL 조선TOP3플러스 ETF",
     "type": "ETF",
     "theme": "조선/친환경선박",
-    "launch_date": "2023-08-10",
-    "expense_ratio": 0.005,
+    "purchase_date": "2023-08-10",
     "search_keyword": "조선",
     "relevance_keywords": [
       "조선",
@@ -41,8 +39,7 @@
     "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
     "type": "ETF",
     "theme": "양자컴퓨팅/글로벌 혁신",
-    "launch_date": "2024-05-20",
-    "expense_ratio": 0.007,
+    "purchase_date": "2024-05-20",
     "search_keyword": "양자컴퓨팅",
     "relevance_keywords": [
       "양자컴퓨팅",
@@ -59,8 +56,7 @@
     "name": "KB RISE 글로벌원자력 iSelect ETF",
     "type": "ETF",
     "theme": "글로벌 원자력/에너지 전환",
-    "launch_date": "2024-01-25",
-    "expense_ratio": 0.0055,
+    "purchase_date": "2024-01-25",
     "search_keyword": "원자력",
     "relevance_keywords": [
       "원자력",
@@ -72,44 +68,11 @@
       "핵발전"
     ]
   },
-  "042660": {
-    "name": "한화오션",
-    "type": "STOCK",
-    "theme": "조선/방산/친환경선박",
-    "launch_date": null,
-    "expense_ratio": null,
-    "search_keyword": "한화오션",
-    "relevance_keywords": [
-      "한화오션",
-      "조선",
-      "방산",
-      "LNG선",
-      "친환경선박",
-      "수주"
-    ]
-  },
-  "034020": {
-    "name": "두산에너빌리티",
-    "type": "STOCK",
-    "theme": "원자력/전력플랜트/에너지",
-    "launch_date": null,
-    "expense_ratio": null,
-    "search_keyword": "두산에너빌리티",
-    "relevance_keywords": [
-      "두산에너빌리티",
-      "원자력",
-      "SMR",
-      "에너지플랜트",
-      "전력설비",
-      "수출"
-    ]
-  },
   "498400": {
     "name": "KODEX 200타겟위클리커버드콜",
     "type": "ETF",
     "theme": "코스피200 기반 커버드콜 인컴형",
-    "launch_date": "2024-12-03",
-    "expense_ratio": 0.0039,
+    "purchase_date": "2024-12-03",
     "search_keyword": "200타겟위클리커버드콜",
     "relevance_keywords": [
       "KODEX 200타겟위클리커버드콜",
@@ -117,5 +80,5 @@
       "커버드콜 인컴 ETF",
       "KR7498400001"
     ]
-}
+  }
 }

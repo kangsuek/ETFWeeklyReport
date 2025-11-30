@@ -137,8 +137,7 @@ def init_db():
             name TEXT NOT NULL,
             type TEXT NOT NULL,
             theme TEXT,
-            launch_date DATE,
-            expense_ratio REAL,
+            purchase_date DATE,
             search_keyword TEXT,
             relevance_keywords TEXT
         )
@@ -248,8 +247,7 @@ def init_db():
             info.get("name"),
             info.get("type"),
             info.get("theme"),
-            info.get("launch_date"),
-            info.get("expense_ratio"),
+            info.get("purchase_date"),
             info.get("search_keyword"),
             relevance_keywords_json
         ))
@@ -257,8 +255,8 @@ def init_db():
     logger.info(f"Loading {len(etfs_data)} stocks from configuration")
 
     cursor.executemany("""
-        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, launch_date, expense_ratio, search_keyword, relevance_keywords)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, purchase_date, search_keyword, relevance_keywords)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """, etfs_data)
     
     conn.commit()
