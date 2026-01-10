@@ -46,6 +46,7 @@ export default function ETFCard({ etf, summary, compactMode = false }) {
   // 배치 데이터 또는 개별 데이터 사용
   const actualPrices = summary?.prices || prices
   const latestPrice = summary?.latest_price || prices?.[0]
+  // API는 날짜 내림차순으로 반환: prices[0] = 최신, prices[length-1] = 가장 오래된 날짜
   const weeklyReturn = summary?.weekly_return !== undefined
     ? summary.weekly_return
     : (prices && prices.length >= 2

@@ -160,9 +160,10 @@ export default function ETFDetail() {
   }, [])
 
   // 최근 가격 정보 계산
+  // API는 날짜 내림차순(최신이 첫 번째)으로 반환
   const latestPrice = useMemo(() => {
     if (!pricesData || pricesData.length === 0) return null
-    return pricesData[pricesData.length - 1]
+    return pricesData[0]
   }, [pricesData])
 
   if (etfLoading) {
@@ -230,26 +231,30 @@ export default function ETFDetail() {
         <div className="card">
           <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">최근 가격 정보</h3>
           {latestPrice ? (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">등락률</span>
-                <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
-                  {formatPercent(latestPrice.daily_change_pct)}
-                </p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">거래량</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatVolume(latestPrice.volume)}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">일자</span>
-                <p className="text-base font-semibold mt-0.5 text-gray-900 dark:text-gray-100">
+            <div className="space-y-3">
+              {/* 일자 - 가장 먼저 표시 */}
+              <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-500 dark:text-gray-400">기준일</span>
+                <p className="text-lg font-bold mt-0.5 text-gray-900 dark:text-gray-100">
                   {format(new Date(latestPrice.date), 'yyyy-MM-dd')}
                 </p>
+              </div>
+              {/* 가격 정보 그리드 */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
+                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">등락률</span>
+                  <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
+                    {formatPercent(latestPrice.daily_change_pct)}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">거래량</span>
+                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatVolume(latestPrice.volume)}</p>
+                </div>
               </div>
             </div>
           ) : (

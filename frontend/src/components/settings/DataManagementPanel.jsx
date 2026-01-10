@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../contexts/ToastContext'
-import { dataApi } from '../../services/api'
+import { dataApi, settingsApi } from '../../services/api'
 
 /**
  * 데이터 관리 패널 컴포넌트
@@ -54,6 +54,27 @@ export default function DataManagementPanel() {
     },
   })
 
+  // 종목 목록 수집 Mutation
+  const collectTickerCatalogMutation = useMutation({
+    mutationFn: async () => {
+      const response = await settingsApi.collectTickerCatalog()
+      return response.data
+    },
+    onSuccess: (data) => {
+      // 성공 메시지 표시
+      toast.success(
+        `종목 목록 수집 완료! 총 ${data.total_collected}개 (코스피: ${data.kospi_count}, 코스닥: ${data.kosdaq_count}, ETF: ${data.etf_count})`,
+        5000
+      )
+
+      // 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['data-stats'] })
+    },
+    onError: (error) => {
+      toast.error(`종목 목록 수집 실패: ${error.message}`)
+    },
+  })
+
   // 데이터베이스 초기화 Mutation
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -87,6 +108,15 @@ export default function DataManagementPanel() {
 
     if (window.confirm(`최근 ${collectionDays}일 데이터를 수집하시겠습니까?\n\n소요 시간: 약 ${collectionDays * 6}초`)) {
       collectMutation.mutate(collectionDays)
+    }
+  }
+
+  // 종목 목록 수집 핸들러
+  const handleCollectTickerCatalog = () => {
+    if (collectTickerCatalogMutation.isPending) return
+
+    if (window.confirm(`전체 종목 목록(코스피, 코스닥, ETF)을 수집하시겠습니까?\n\n소요 시간: 약 5-10분\n\n이 작업은 새 종목 추가 시 자동완성 기능을 위해 필요합니다.`)) {
+      collectTickerCatalogMutation.mutate()
     }
   }
 
@@ -267,53 +297,91 @@ export default function DataManagementPanel() {
         <section className="border-t border-gray-200 dark:border-gray-700 pt-6">
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">데이터 수집</h3>
 
-          <div className="space-y-4">
-            {/* 수집 일수 선택 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                수집 기간 (일)
-              </label>
-              <select
-                value={collectionDays}
-                onChange={(e) => setCollectionDays(Number(e.target.value))}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                disabled={collectMutation.isPending}
+          <div className="space-y-6">
+            {/* 종목 목록 수집 */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">종목 목록 수집</h4>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                네이버 금융에서 전체 종목 목록을 수집합니다. 새 종목 추가 시 자동완성 기능을 사용하려면 먼저 이 작업을 수행해야 합니다.
+              </p>
+              <button
+                onClick={handleCollectTickerCatalog}
+                disabled={collectTickerCatalogMutation.isPending}
+                className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium"
               >
-                <option value={1}>1일 (당일)</option>
-                <option value={7}>7일 (1주)</option>
-                <option value={10}>10일</option>
-                <option value={30}>30일 (1개월)</option>
-                <option value={90}>90일 (3개월)</option>
-              </select>
+                {collectTickerCatalogMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>종목 목록 수집 중... (5-10분 소요)</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span>종목 목록 수집</span>
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                💡 최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
+              </p>
             </div>
 
-            {/* 전체 데이터 수집 버튼 */}
-            <button
-              onClick={handleCollectAll}
-              disabled={collectMutation.isPending}
-              className="w-full sm:w-auto px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium"
-            >
-              {collectMutation.isPending ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>데이터 수집 중...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>전체 데이터 수집</span>
-                </>
-              )}
-            </button>
+            {/* 가격/뉴스 데이터 수집 */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">가격/뉴스 데이터 수집</h4>
+              
+              {/* 수집 일수 선택 */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  수집 기간 (일)
+                </label>
+                <select
+                  value={collectionDays}
+                  onChange={(e) => setCollectionDays(Number(e.target.value))}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  disabled={collectMutation.isPending}
+                >
+                  <option value={1}>1일 (당일)</option>
+                  <option value={7}>7일 (1주)</option>
+                  <option value={10}>10일</option>
+                  <option value={30}>30일 (1개월)</option>
+                  <option value={90}>90일 (3개월)</option>
+                </select>
+              </div>
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
-            </p>
+              {/* 전체 데이터 수집 버튼 */}
+              <button
+                onClick={handleCollectAll}
+                disabled={collectMutation.isPending}
+                className="w-full sm:w-auto px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium"
+              >
+                {collectMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>데이터 수집 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>전체 데이터 수집</span>
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
+              </p>
+            </div>
           </div>
         </section>
 

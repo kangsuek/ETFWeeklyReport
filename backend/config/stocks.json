@@ -7,8 +7,7 @@
     "search_keyword": "HANARO Fn K-반도체",
     "relevance_keywords": [
       "HANARO Fn K-반도체",
-      "HANARO",
-      "Fn",
+      "K-반도체",
       "반도체"
     ]
   },
@@ -24,6 +23,18 @@
       "글로벌반도체TOP4",
       "Plus",
       "반도체"
+    ]
+  },
+  "284430": {
+    "name": "KODEX 200미국채혼합",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "search_keyword": "200미국채혼합",
+    "relevance_keywords": [
+      "KODEX 200미국채혼합",
+      "200미국채혼합",
+      "미분류"
     ]
   },
   "466920": {
@@ -44,15 +55,16 @@
       "선박"
     ]
   },
-  "284430": {
-    "name": "KODEX 200미국채혼합",
+  "449450": {
+    "name": "PLUS K방산",
     "type": "ETF",
     "theme": "미분류",
     "purchase_date": null,
-    "search_keyword": "200미국채혼합",
+    "search_keyword": "PLUS K방산",
     "relevance_keywords": [
-      "KODEX 200미국채혼합",
-      "200미국채혼합",
+      "PLUS K방산",
+      "PLUS",
+      "K방산",
       "미분류"
     ]
   },
@@ -91,6 +103,18 @@
       "큐비트"
     ]
   },
+  "445290": {
+    "name": "KODEX 로봇액티브",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "search_keyword": "로봇액티브",
+    "relevance_keywords": [
+      "KODEX 로봇액티브",
+      "로봇액티브",
+      "미분류"
+    ]
+  },
   "442320": {
     "name": "KB RISE 글로벌원자력 iSelect ETF",
     "type": "ETF",
@@ -105,31 +129,6 @@
       "두산에너빌리티",
       "클린에너지",
       "핵발전"
-    ]
-  },
-  "445290": {
-    "name": "KODEX 로봇액티브",
-    "type": "ETF",
-    "theme": "미분류",
-    "purchase_date": null,
-    "search_keyword": "로봇액티브",
-    "relevance_keywords": [
-      "KODEX 로봇액티브",
-      "로봇액티브",
-      "미분류"
-    ]
-  },
-  "449450": {
-    "name": "PLUS K방산",
-    "type": "ETF",
-    "theme": "미분류",
-    "purchase_date": null,
-    "search_keyword": "PLUS K방산",
-    "relevance_keywords": [
-      "PLUS K방산",
-      "PLUS",
-      "K방산",
-      "미분류"
     ]
   }
 }
