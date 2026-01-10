@@ -23,16 +23,6 @@ export default function DataManagementPanel() {
     refetchInterval: 30000, // 30초마다 자동 갱신
   })
 
-  // 캐시 통계 조회
-  const { data: cacheStats, isLoading: cacheStatsLoading } = useQuery({
-    queryKey: ['cache-stats'],
-    queryFn: async () => {
-      const response = await dataApi.getCacheStats()
-      return response.data
-    },
-    refetchInterval: 10000, // 10초마다 자동 갱신 (캐시는 자주 변경됨)
-  })
-
   // 전체 데이터 수집 Mutation
   const collectMutation = useMutation({
     mutationFn: async (days) => {
@@ -223,73 +213,6 @@ export default function DataManagementPanel() {
                 <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.database_size_mb} MB</div>
               </div>
             </div>
-          ) : null}
-        </section>
-
-        {/* 캐시 통계 섹션 */}
-        <section>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">캐시 성능</h3>
-
-          {cacheStatsLoading ? (
-            <div className="space-y-2">
-              <div className="skeleton-text h-16"></div>
-            </div>
-          ) : cacheStats ? (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 캐시 적중률 */}
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-lg p-4">
-                  <div className="text-xs text-blue-700 dark:text-blue-300 mb-1">캐시 적중률</div>
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {cacheStats.hit_rate_pct.toFixed(1)}%
-                  </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    목표: 60% 이상
-                  </div>
-                </div>
-
-                {/* 캐시 히트 */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">캐시 히트</div>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {formatNumber(cacheStats.hits)}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    총 {formatNumber(cacheStats.total_requests)}건 중
-                  </div>
-                </div>
-
-                {/* 캐시 미스 */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">캐시 미스</div>
-                  <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                    {formatNumber(cacheStats.misses)}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    제거: {formatNumber(cacheStats.evictions)}건
-                  </div>
-                </div>
-
-                {/* 현재 캐시 크기 */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">현재 캐시 크기</div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {cacheStats.current_size}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    최대: {cacheStats.max_size}개
-                  </div>
-                </div>
-              </div>
-
-              {/* 캐시 설정 정보 */}
-              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  <span className="font-semibold">기본 TTL:</span> {cacheStats.default_ttl_seconds}초 |
-                  <span className="font-semibold ml-2">저장된 항목:</span> {cacheStats.sets}건
-                </div>
-              </div>
-            </>
           ) : null}
         </section>
 
