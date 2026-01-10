@@ -109,7 +109,6 @@ async def create_stock(
 
     **Notes:**
     - Automatically syncs to database
-    - Creates backup of stocks.json before modification
     - Reloads configuration cache
     """
     try:
@@ -176,7 +175,6 @@ async def update_stock(
     **Notes:**
     - Only updates provided fields (partial update)
     - Automatically syncs to database
-    - Creates backup before modification
     """
     try:
         logger.info(f"Updating stock: {ticker}")
@@ -254,8 +252,8 @@ async def delete_stock(
     - 500: Server error
 
     **Notes:**
-    - Creates backup of stocks.json before deletion
-    - Cannot be undone (use backup to restore)
+    - CASCADE deletes all related data (prices, news, trading_flow)
+    - Cannot be undone
     - Reloads configuration cache
     """
     try:
