@@ -1,20 +1,23 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { etfApi, dataApi } from '../services/api'
+import { etfApi, dataApi, settingsApi } from '../services/api'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import ETFCardGrid from '../components/dashboard/ETFCardGrid'
 import { useSettings } from '../contexts/SettingsContext'
+import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_STATUS } from '../constants'
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { settings, updateSettings } = useSettings()
+  const toast = useToast()
   const [lastUpdate, setLastUpdate] = useState(new Date())
+  // 기본 정렬은 'config' (stocks.json 순서)
   // 저장된 카드 순서가 있으면 'custom' 모드로 시작
   const [sortBy, setSortBy] = useState(() =>
-    settings.cardOrder && settings.cardOrder.length > 0 ? 'custom' : 'type'
+    settings.cardOrder && settings.cardOrder.length > 0 ? 'custom' : 'config'
   )
   const [sortDirection, setSortDirection] = useState('asc') // 'asc', 'desc'
 
@@ -109,10 +112,45 @@ export default function Dashboard() {
     }
   }
 
-  // 카드 순서 변경 핸들러
+  // 종목 순서 변경 Mutation (백엔드 동기화)
+  const reorderMutation = useMutation({
+    mutationFn: (newOrder) => settingsApi.reorderStocks(newOrder),
+    onMutate: async (newOrder) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['etfs'] })
+      const previousETFs = queryClient.getQueryData(['etfs'])
+      
+      // ETF 데이터를 새 순서대로 정렬
+      if (previousETFs) {
+        const reordered = newOrder.map(ticker => previousETFs.find(etf => etf.ticker === ticker)).filter(Boolean)
+        queryClient.setQueryData(['etfs'], reordered)
+      }
+      
+      return { previousETFs }
+    },
+    onSuccess: (data, variables) => {
+      // 백엔드와 프론트엔드 캐시 모두 무효화
+      queryClient.invalidateQueries({ queryKey: ['etfs'] })
+      queryClient.invalidateQueries({ queryKey: ['settings-stocks'] })
+      toast.success('종목 순서가 성공적으로 변경되었습니다.', 2000)
+    },
+    onError: (error, newOrder, context) => {
+      toast.error(`순서 변경 실패: ${error.message}`, 3000)
+      // Rollback
+      if (context?.previousETFs) {
+        queryClient.setQueryData(['etfs'], context.previousETFs)
+      }
+    },
+  })
+
+  // 카드 순서 변경 핸들러 (대시보드 드래그 앤 드롭)
   const handleOrderChange = useCallback((newOrder) => {
+    // 로컬 설정 업데이트 (custom 모드용)
     updateSettings('cardOrder', newOrder)
-  }, [updateSettings])
+    
+    // 백엔드 stocks.json 동기화
+    reorderMutation.mutate(newOrder)
+  }, [updateSettings]) // reorderMutation을 의존성에서 제거
 
   // 정렬된 데이터 가져오기 (메모이제이션)
   const sortedETFs = useMemo(() => {
@@ -126,6 +164,11 @@ export default function Dashboard() {
         const orderB = orderMap.get(b.ticker) ?? Infinity
         return orderA - orderB
       })
+    }
+
+    // 'config' 모드: 백엔드에서 이미 stocks.json 순서대로 정렬됨
+    if (sortBy === 'config') {
+      return etfs
     }
 
     // 기본 정렬 로직

@@ -1,19 +1,28 @@
 {
-  "487240": {
-    "name": "삼성 KODEX AI전력핵심설비 ETF",
+  "395270": {
+    "name": "HANARO Fn K-반도체",
     "type": "ETF",
-    "theme": "AI/전력 인프라",
-    "purchase_date": "2024-03-15",
-    "search_keyword": "AI 전력",
+    "theme": "반도체",
+    "purchase_date": null,
+    "search_keyword": "HANARO Fn K-반도체",
     "relevance_keywords": [
-      "AI",
-      "전력",
-      "전력인프라",
-      "데이터센터",
-      "디지털전환",
-      "HD현대일렉트릭",
-      "변압기",
-      "배전",
+      "HANARO Fn K-반도체",
+      "HANARO",
+      "Fn",
+      "반도체"
+    ]
+  },
+  "446770": {
+    "name": "ACE 글로벌반도체TOP4 Plus",
+    "type": "ETF",
+    "theme": "반도체",
+    "purchase_date": null,
+    "search_keyword": "ACE 글로벌반도체TOP4 Plus",
+    "relevance_keywords": [
+      "ACE 글로벌반도체TOP4 Plus",
+      "ACE",
+      "글로벌반도체TOP4",
+      "Plus",
       "반도체"
     ]
   },
@@ -33,6 +42,36 @@
       "수주잔고",
       "글로벌해운",
       "선박"
+    ]
+  },
+  "284430": {
+    "name": "KODEX 200미국채혼합",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "search_keyword": "200미국채혼합",
+    "relevance_keywords": [
+      "KODEX 200미국채혼합",
+      "200미국채혼합",
+      "미분류"
+    ]
+  },
+  "487240": {
+    "name": "삼성 KODEX AI전력핵심설비 ETF",
+    "type": "ETF",
+    "theme": "AI/전력 인프라",
+    "purchase_date": "2024-03-15",
+    "search_keyword": "AI 전력",
+    "relevance_keywords": [
+      "AI",
+      "전력",
+      "전력인프라",
+      "데이터센터",
+      "디지털전환",
+      "HD현대일렉트릭",
+      "변압기",
+      "배전",
+      "반도체"
     ]
   },
   "0020H0": {
@@ -68,41 +107,29 @@
       "핵발전"
     ]
   },
-  "498400": {
-    "name": "KODEX 200타겟위클리커버드콜",
+  "445290": {
+    "name": "KODEX 로봇액티브",
     "type": "ETF",
-    "theme": "코스피200 기반 커버드콜 인컴형",
-    "purchase_date": "2024-12-03",
-    "search_keyword": "200타겟위클리커버드콜",
+    "theme": "미분류",
+    "purchase_date": null,
+    "search_keyword": "로봇액티브",
     "relevance_keywords": [
-      "KODEX 200타겟위클리커버드콜",
-      "코스피200 커버드콜",
-      "커버드콜 인컴 ETF",
-      "KR7498400001"
+      "KODEX 로봇액티브",
+      "로봇액티브",
+      "미분류"
     ]
   },
-  "042660": {
-    "name": "한화오션",
-    "type": "STOCK",
-    "theme": "조선/방산",
+  "449450": {
+    "name": "PLUS K방산",
+    "type": "ETF",
+    "theme": "미분류",
     "purchase_date": null,
-    "search_keyword": "한화오션",
+    "search_keyword": "PLUS K방산",
     "relevance_keywords": [
-      "한화오션",
-      "조선",
-      "방산"
-    ]
-  },
-  "034020": {
-    "name": "두산에너빌리티",
-    "type": "STOCK",
-    "theme": "에너지/전력",
-    "purchase_date": null,
-    "search_keyword": "두산에너빌리티",
-    "relevance_keywords": [
-      "두산에너빌리티",
-      "원자력",
-      "에너지"
+      "PLUS K방산",
+      "PLUS",
+      "K방산",
+      "미분류"
     ]
   }
 }
