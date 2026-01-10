@@ -21,13 +21,27 @@
    - AI 응답을 마크다운 형식으로 표시
 
 2. **질의 템플릿**
-   ```
-   예시 질문들:
-   - "{종목명} ETF의 최근 시장 동향과 전망은?
-   - {종목명}의 주요 구성 종목과 섹터 분석
-   - {테마} 산업의 최근 이슈와 투자 포인트
-   - {종목명}의 경쟁 ETF 비교 분석
-   ```
+   
+   **템플릿 파일**: `docs/Perplexity_prompt.md`
+   
+   상세한 12개 섹션으로 구성된 종합 투자분석 보고서 템플릿을 사용합니다:
+   
+   1. 주간 시장 데이터 분석 (최근 7거래일)
+   2. 기술적 분석 (이동평균, RSI, MACD 등)
+   3. 시장 환경 및 섹터 분석
+   4. 일자별 주요 뉴스 및 이벤트
+   5. 매매동향 및 수급 분석
+   6. ETF 펀더멘털 지표
+   7. 구성종목 세부분석 (상위 10대)
+   8. 비교 분석표
+   9. 향후 전망 및 거래 시그널
+   10. 투자 포인트 및 리스크
+   11. 투자자 유형별 추천
+   12. 종합 의견 및 액션플랜
+   
+   **동적 치환**:
+   - `{종목명}` → ETF 이름 (예: "HANARO Fn K-반도체")
+   - `{티커}` → 종목 코드 (예: "395270")
 
 3. **사용자 인터페이스**
    - 종목 상세 페이지에 "AI 분석" 탭 또는 섹션 추가
@@ -171,7 +185,7 @@ class PerplexityClient:
             "messages": [
                 {
                     "role": "system",
-                    "content": "당신은 한국 주식 및 ETF 시장 전문가입니다. 정확하고 객관적인 정보를 제공하세요."
+                    "content": "당신은 한국 주식 및 ETF 시장 전문가입니다. 상세하고 객관적인 투자분석 보고서를 작성하세요."
                 },
                 {
                     "role": "user",
@@ -179,7 +193,7 @@ class PerplexityClient:
                 }
             ],
             "temperature": 0.2,
-            "max_tokens": 2000,
+            "max_tokens": 8000,  # 상세한 보고서용으로 증가
             "return_citations": True,
             "search_recency_filter": "month"  # 최근 1개월 정보 우선
         }
@@ -228,25 +242,40 @@ class AIAnalysisService:
     def __init__(self):
         self.perplexity = PerplexityClient()
         self.cache_duration = 24  # 24시간
+        self.prompt_template_path = Path(__file__).parent.parent.parent / "docs" / "Perplexity_prompt.md"
     
-    def _generate_question(self, etf_info: Dict) -> str:
-        """종목 정보 기반 질문 생성"""
-        ticker = etf_info['ticker']
-        name = etf_info['name']
-        theme = etf_info.get('theme', '')
-        
-        question = f"""
-{name} ETF에 대해 다음 내용을 포함하여 분석해주세요:
+    def _load_prompt_template(self) -> str:
+        """프롬프트 템플릿 파일 로드"""
+        try:
+            with open(self.prompt_template_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            logger.error(f"Prompt template not found: {self.prompt_template_path}")
+            # 폴백: 간단한 기본 템플릿 사용
+            return """
+{종목명} ETF({티커})에 대한 종합 투자분석을 작성해주세요.
 
-1. 최근 시장 동향 (최근 1개월)
-2. 주요 구성 종목 및 비중
-3. {theme} 테마/산업의 전망
-4. 투자 시 고려사항
-5. 경쟁 ETF와의 비교
+1. 최근 시장 동향
+2. 기술적 분석
+3. 투자 포인트 및 리스크
+4. 향후 전망
 
 답변은 한국어로 작성하고, 객관적인 데이터에 기반하여 작성해주세요.
-        """.strip()
+            """.strip()
+    
+    def _generate_question(self, etf_info: Dict) -> str:
+        """종목 정보 기반 질문 생성 (템플릿 사용)"""
+        ticker = etf_info['ticker']
+        name = etf_info['name']
         
+        # 템플릿 로드
+        template = self._load_prompt_template()
+        
+        # 동적 치환 (종목명, 티커만 사용)
+        question = template.replace("{종목명}", name)
+        question = question.replace("{티커}", ticker)
+        
+        logger.info(f"Generated question for {ticker} using template")
         return question
     
     async def get_analysis(self, ticker: str) -> Dict:
@@ -738,19 +767,23 @@ test('에러 처리', async () => {
 
 **가정**:
 - 등록 종목: 9개
-- 평균 응답: 2,000 tokens/요청
+- 평균 응답: **8,000 tokens/요청** (상세 보고서)
+- 프롬프트: ~2,000 tokens (Perplexity_prompt.md)
 - 캐시 적중률: 80% (24시간 캐싱)
-- 일일 요청: 5회 (신규 분석)
+- 일일 신규 요청: 5회
 
 **월간 비용**:
 ```
-5 요청/일 × 30일 × 2,000 tokens = 300,000 tokens/월
-300,000 / 1,000,000 × $1.00 = $0.30/월
+5 요청/일 × 30일 × (2,000 입력 + 8,000 출력) = 1,500,000 tokens/월
+1,500,000 / 1,000,000 × $1.00 = $1.50/월
 ```
 
-**연간 비용**: 약 $3.60/년
+**연간 비용**: 약 **$18/년**
 
-**결론**: 비용 부담이 거의 없음 (캐싱 전략 효과적)
+**참고**:
+- 캐시 적중률이 높을수록 비용 감소
+- 실제 사용량은 사용자 패턴에 따라 달라질 수 있음
+- 상세한 보고서 생성으로 기존 예상 대비 5배 증가
 
 ---
 
@@ -794,17 +827,20 @@ test('에러 처리', async () => {
 
 1. **기능적 지표**
    - 캐시 적중률: 80% 이상
-   - 평균 응답 시간: 10초 이하
+   - 평균 응답 시간: 15-20초 이하 (상세 보고서)
    - API 성공률: 95% 이상
+   - 응답 완성도: 보고서 12개 섹션 중 10개 이상 포함
 
 2. **사용자 지표**
    - AI 분석 조회 수/일
-   - 평균 체류 시간 증가
-   - 사용자 피드백 점수
+   - 평균 체류 시간 증가 (분석 페이지)
+   - 사용자 피드백 점수 (만족도)
+   - 보고서 활용률 (확장 → 완독 비율)
 
 3. **비용 지표**
-   - 월간 API 비용: $5 이하
-   - 요청당 비용: $0.001 이하
+   - 월간 API 비용: $2 이하 목표
+   - 요청당 비용: $0.005 이하
+   - 캐시 절감 효과: 최소 70%
 
 ---
 
