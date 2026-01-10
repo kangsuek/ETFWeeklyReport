@@ -240,21 +240,21 @@ export default function ETFDetail() {
                 </p>
               </div>
               {/* 가격 정보 그리드 */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
-                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">등락률</span>
-                  <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
-                    {formatPercent(latestPrice.daily_change_pct)}
-                  </p>
-                </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
+                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">등락률</span>
+                <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
+                  {formatPercent(latestPrice.daily_change_pct)}
+                </p>
+              </div>
                 <div className="col-span-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">거래량</span>
-                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatVolume(latestPrice.volume)}</p>
-                </div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">거래량</span>
+                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatVolume(latestPrice.volume)}</p>
+              </div>
               </div>
             </div>
           ) : (
