@@ -384,7 +384,9 @@ class NewsScraper:
         """
         logger.info(f"Starting news collection for {ticker} (last {days} days)")
 
-        stock_config = self.stock_config.get(ticker)
+        # 최신 설정을 매번 읽어옴 (캐시 무효화)
+        Config._stock_config_cache = None
+        stock_config = Config.get_stock_config().get(ticker)
 
         if not stock_config:
             logger.warning(f"No configuration defined for ticker: {ticker}")
@@ -400,7 +402,7 @@ class NewsScraper:
             keyword=stock_config['search_keyword'],
             days=days,
             relevance_keywords=stock_config['relevance_keywords'],
-            min_relevance=0.0  # 모든 뉴스 수집 (필터링 안함)
+            min_relevance=0.5  # 중간 이상 관련도 (품질 필터링)
         )
 
         # 데이터베이스 저장
