@@ -11,13 +11,23 @@
 
 ## 참조 문서
 
+### 기술 문서
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - 시스템 아키텍처
 - **[API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)** - REST API 명세
 - **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - DB 스키마
 - **[TECH_STACK.md](./docs/TECH_STACK.md)** - 기술 스택
+
+### 개발 가이드
 - **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드
 - **[RUNNING_GUIDE.md](./docs/RUNNING_GUIDE.md)** - 실행 가이드
 - **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정
+
+### 보안 & 품질
+- **[SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md)** - 보안 체크리스트 🆕
+- **[CODE_IMPROVEMENTS.md](./docs/CODE_IMPROVEMENTS.md)** - 코드 개선 권장 사항 🆕
+- **[CODE_REVIEW_REPORT.md](./docs/CODE_REVIEW_REPORT.md)** - 전체 코드 검토 보고서 🆕
+
+### 프로젝트 관리
 - **[PERFORMANCE_OPTIMIZATION_PLAN.md](./docs/PERFORMANCE_OPTIMIZATION_PLAN.md)** - 성능 최적화 계획
 - **[PROGRESS.md](./docs/project-management/PROGRESS.md)** - 진행 상황
 - **[MILESTONES.md](./docs/project-management/MILESTONES.md)** - 마일스톤

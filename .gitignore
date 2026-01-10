@@ -158,3 +158,6 @@ coverage/
 *.bak
 *.backup
 *.old
+
+# Archive directory (백업 파일 보관용)
+archive/
