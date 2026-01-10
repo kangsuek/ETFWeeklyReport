@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ETF Weekly Report - Replit 실행 스크립트
+# ETF Weekly Report - 실행 스크립트
 # 백엔드와 프론트엔드를 함께 실행합니다.
 
 # 현재 디렉토리 저장
@@ -126,14 +126,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅ 모든 서버 시작 완료!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📊 서버 정보:"
-echo "   - 🌐 웹 애플리케이션: https://$REPL_SLUG.$REPL_OWNER.repl.co"
+echo "📊 접속 정보:"
 echo "   - 🔧 백엔드 API:      http://localhost:8000"
 echo "   - 📖 API 문서:        http://localhost:8000/docs"
+echo "   - 📖 API 문서(ReDoc): http://localhost:8000/redoc"
+echo "   - 🌐 웹 애플리케이션:    http://localhost:5173"
+
 echo ""
 echo "💡 팁:"
 echo "   - Ctrl+C로 서버 종료"
-echo "   - 새 탭에서 Shell 열어서 추가 명령 실행 가능"
+echo "   - 백엔드 로그: logs/backend.log"
+echo "   - 프론트엔드 로그: logs/frontend.log"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
