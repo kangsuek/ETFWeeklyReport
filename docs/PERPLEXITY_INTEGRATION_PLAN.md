@@ -22,7 +22,7 @@
 
 2. **질의 템플릿**
    
-   **템플릿 파일**: `docs/Perplexity_prompt.md`
+   **템플릿 파일**: `promptTemplet/Perplexity_prompt.md`
    
    상세한 12개 섹션으로 구성된 종합 투자분석 보고서 템플릿을 사용합니다:
    
@@ -242,7 +242,7 @@ class AIAnalysisService:
     def __init__(self):
         self.perplexity = PerplexityClient()
         self.cache_duration = 24  # 24시간
-        self.prompt_template_path = Path(__file__).parent.parent.parent / "docs" / "Perplexity_prompt.md"
+        self.prompt_template_path = Path(__file__).parent.parent.parent / "promptTemplet" / "Perplexity_prompt.md"
     
     def _load_prompt_template(self) -> str:
         """프롬프트 템플릿 파일 로드"""
