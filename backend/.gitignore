@@ -1,4 +1,0 @@
-.coverage
-
-# Environment variables (API keys)
-prototypes/news_scraper_poc/.env
