@@ -1,0 +1,27 @@
+# Development and Testing Dependencies
+# 테스트 및 개발용 의존성
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+httpx==0.25.2  # FastAPI 테스트용
+
+# Linting and Formatting
+black==23.11.0
+flake8==6.1.0
+pylint==3.0.3
+isort==5.12.0
+mypy==1.7.1
+
+# Code Quality
+coverage==7.3.2
+
+# Development Tools
+ipython==8.18.1
+ipdb==0.13.13
+
+# -r requirements.txt를 포함하여 운영 의존성도 설치
+-r requirements.txt
+

@@ -1,0 +1,29 @@
+[flake8]
+# Flake8 설정 파일
+
+# 최대 라인 길이
+max-line-length = 100
+
+# 제외할 디렉토리
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    build,
+    dist,
+    *.egg-info
+
+# 무시할 에러 코드
+ignore =
+    E203,  # whitespace before ':' (black과 충돌)
+    E501,  # line too long (black이 처리)
+    W503,  # line break before binary operator
+    W504,  # line break after binary operator
+
+# 파일당 최대 복잡도
+max-complexity = 10
+
+# docstring 검사
+docstring-convention = google
+
