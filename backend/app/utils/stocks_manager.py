@@ -6,7 +6,6 @@ which is the single source of truth for stock/ETF ticker information.
 """
 
 import json
-import shutil
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -33,10 +32,9 @@ def load_stocks() -> Dict[str, Any]:
 
 def save_stocks(stocks_dict: Dict[str, Any]) -> None:
     """
-    Save stock configuration to stocks.json file with automatic backup
+    Save stock configuration to stocks.json file
 
     Features:
-    - Automatic backup with timestamp (stocks.json.backup.YYYYMMDD_HHMMSS)
     - Atomic write (write to temp file, then rename)
     - JSON formatting (indent=2, ensure_ascii=False for Korean characters)
 
@@ -47,13 +45,6 @@ def save_stocks(stocks_dict: Dict[str, Any]) -> None:
         IOError: If file write fails
     """
     config_path = Path(Config.STOCK_CONFIG_PATH)
-
-    # Create backup if file exists
-    if config_path.exists():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = config_path.parent / f"stocks.json.backup.{timestamp}"
-        shutil.copy2(config_path, backup_path)
-        logger.info(f"Created backup: {backup_path}")
 
     # Atomic write: write to temp file, then rename
     temp_path = config_path.parent / "stocks.json.tmp"

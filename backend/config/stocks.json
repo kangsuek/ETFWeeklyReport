@@ -31,18 +31,18 @@
       "브로드컴"
     ]
   },
-  "284430": {
-    "name": "KODEX 200미국채혼합",
+  "449450": {
+    "name": "PLUS K방산",
     "type": "ETF",
-    "theme": "주식채권 혼합",
+    "theme": "방산",
     "purchase_date": null,
-    "search_keyword": "KODEX 200미국채혼합",
+    "search_keyword": "PLUS K방산",
     "relevance_keywords": [
-      "KODEX 200미국채혼합",
-      "코스피200",
-      "미국 10년 국채",
-      "자산배분",
-      "변동성 제어"
+      "PLUS K방산",
+      "PLUS",
+      "K방산",
+      "방위산업",
+      "FnGuide K-방위산업 지수"
     ]
   },
   "466920": {
@@ -63,18 +63,18 @@
       "선박"
     ]
   },
-  "449450": {
-    "name": "PLUS K방산",
+  "284430": {
+    "name": "KODEX 200미국채혼합",
     "type": "ETF",
-    "theme": "방산",
+    "theme": "주식채권 혼합",
     "purchase_date": null,
-    "search_keyword": "PLUS K방산",
+    "search_keyword": "KODEX 200미국채혼합",
     "relevance_keywords": [
-      "PLUS K방산",
-      "PLUS",
-      "K방산",
-      "방위산업",
-      "FnGuide K-방위산업 지수"
+      "KODEX 200미국채혼합",
+      "코스피200",
+      "미국 10년 국채",
+      "자산배분",
+      "변동성 제어"
     ]
   },
   "487240": {
