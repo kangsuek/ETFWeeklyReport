@@ -245,6 +245,9 @@ export const settingsApi = {
 
   // 종목 목록 수집 트리거 (긴 작업)
   collectTickerCatalog: () => api.post('/settings/ticker-catalog/collect', null, { timeout: LONG_API_TIMEOUT }),
+
+  // 종목 순서 변경 (일반 작업)
+  reorderStocks: (tickers) => api.post('/settings/stocks/reorder', tickers, { timeout: NORMAL_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

@@ -15,6 +15,7 @@ from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.services.ticker_scraper import TickerScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
 from app.exceptions import ScraperException
+from app.config import Config
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -438,3 +439,84 @@ async def search_stocks(
     except Exception as e:
         logger.error(f"Unexpected error searching stocks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to search stocks")
+
+
+@router.post("/stocks/reorder")
+@limiter.limit(RateLimitConfig.DEFAULT)
+async def reorder_stocks(
+    request: Request,
+    tickers: List[str],
+    api_key: str = Depends(verify_api_key_dependency)
+) -> Dict[str, Any]:
+    """
+    종목 순서 변경
+    
+    stocks.json에 저장된 종목들의 순서를 변경합니다.
+    
+    **Request Body:**
+    - tickers: 새로운 순서대로 정렬된 티커 코드 배열
+    
+    **Example Request:**
+    ```json
+    ["487240", "466920", "0020H0", "442320", "395270"]
+    ```
+    
+    **Status Codes:**
+    - 200: Successfully reordered
+    - 400: Invalid ticker list
+    - 500: Server error
+    
+    **Notes:**
+    - 모든 기존 종목이 포함되어야 합니다
+    - 순서만 변경되며 데이터는 변경되지 않습니다
+    """
+    try:
+        logger.info(f"Reordering stocks: {tickers}")
+        
+        # 현재 종목 목록 로드
+        stocks = stocks_manager.load_stocks()
+        
+        # 티커 검증: 모든 기존 종목이 포함되어야 함
+        current_tickers = set(stocks.keys())
+        new_tickers = set(tickers)
+        
+        if current_tickers != new_tickers:
+            missing = current_tickers - new_tickers
+            extra = new_tickers - current_tickers
+            error_msg = []
+            if missing:
+                error_msg.append(f"Missing tickers: {list(missing)}")
+            if extra:
+                error_msg.append(f"Extra tickers: {list(extra)}")
+            raise HTTPException(status_code=400, detail="; ".join(error_msg))
+        
+        # 새로운 순서로 재정렬
+        reordered_stocks = {}
+        for ticker in tickers:
+            reordered_stocks[ticker] = stocks[ticker]
+        
+        # 저장
+        stocks_manager.save_stocks(reordered_stocks)
+        
+        # 데이터베이스 캐시 갱신 (필요 시)
+        # Config 캐시 강제 갱신
+        Config._stock_config_cache = None
+        
+        # ETF 캐시 무효화 (순서가 변경되었으므로)
+        from app.utils.cache import get_cache
+        cache = get_cache()
+        cache.invalidate_pattern("etfs")
+        
+        logger.info(f"Successfully reordered {len(tickers)} stocks")
+        
+        return {
+            "message": "Successfully reordered stocks",
+            "count": len(tickers),
+            "order": tickers
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error reordering stocks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to reorder stocks")

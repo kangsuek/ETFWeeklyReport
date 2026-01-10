@@ -366,14 +366,22 @@ class ETFDataCollector:
         return saved_count
     
     def get_all_etfs(self) -> List[ETF]:
-        """Get list of all ETFs from database"""
+        """
+        Get list of all ETFs from database, ordered by stocks.json configuration
+        
+        Returns:
+            List[ETF]: ETFs ordered by stocks.json file
+        """
         import json
+        from app.config import Config
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
 
-            etfs = []
+            # DB 데이터를 ticker를 키로 하는 딕셔너리로 변환
+            etfs_dict = {}
             for row in rows:
                 row_dict = dict(row)
                 # relevance_keywords를 JSON 문자열에서 리스트로 파싱
@@ -382,9 +390,21 @@ class ETFDataCollector:
                         row_dict['relevance_keywords'] = json.loads(row_dict['relevance_keywords'])
                     except json.JSONDecodeError:
                         row_dict['relevance_keywords'] = []
-                etfs.append(ETF(**row_dict))
+                etfs_dict[row_dict['ticker']] = ETF(**row_dict)
 
-            return etfs
+            # stocks.json의 순서대로 정렬
+            stock_config = Config.get_stock_config()
+            ordered_etfs = []
+            for ticker in stock_config.keys():
+                if ticker in etfs_dict:
+                    ordered_etfs.append(etfs_dict[ticker])
+            
+            # stocks.json에 없지만 DB에 있는 종목들은 뒤에 추가 (fallback)
+            for ticker, etf in etfs_dict.items():
+                if ticker not in stock_config:
+                    ordered_etfs.append(etf)
+
+            return ordered_etfs
     
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""

@@ -5,7 +5,7 @@ import PropTypes from 'prop-types'
  * 대시보드의 정렬 필터 컨트롤
  *
  * @param {Object} props
- * @param {string} props.sortBy - 현재 정렬 기준 ('type', 'name', 'theme', 'custom')
+ * @param {string} props.sortBy - 현재 정렬 기준 ('config', 'type', 'name', 'theme', 'custom')
  * @param {string} props.sortDirection - 정렬 방향 ('asc', 'desc')
  * @param {Function} props.onSortChange - 정렬 변경 핸들러
  */
@@ -22,6 +22,22 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* 설정 순서 정렬 (기본) */}
+            <button
+              onClick={() => onSortChange('config')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                sortBy === 'config'
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              aria-label="설정 순서"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              설정 순서
+            </button>
+
             {/* 타입 정렬 */}
             <button
               onClick={() => onSortChange('type')}
@@ -106,6 +122,19 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
           </div>
         </div>
 
+        {/* 설정 순서 모드 안내 */}
+        {sortBy === 'config' && (
+          <div className="flex items-start gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+            <svg className="w-5 h-5 text-green-500 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-sm text-green-700 dark:text-green-300">
+              <span className="font-medium">종목 관리에서 설정한 순서대로 표시됩니다.</span>
+              <span className="block mt-1 text-xs text-green-600 dark:text-green-400">설정 페이지에서 종목 순서를 변경할 수 있습니다.</span>
+            </div>
+          </div>
+        )}
+
         {/* 커스텀 정렬 모드 안내 */}
         {sortBy === 'custom' && (
           <div className="flex items-start gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
@@ -124,7 +153,7 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
 }
 
 DashboardFilters.propTypes = {
-  sortBy: PropTypes.oneOf(['type', 'name', 'theme', 'custom']).isRequired,
+  sortBy: PropTypes.oneOf(['config', 'type', 'name', 'theme', 'custom']).isRequired,
   sortDirection: PropTypes.oneOf(['asc', 'desc']).isRequired,
   onSortChange: PropTypes.func.isRequired,
 }

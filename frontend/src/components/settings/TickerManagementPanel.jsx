@@ -10,6 +10,7 @@ export default function TickerManagementPanel() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [selectedTicker, setSelectedTicker] = useState(null)
   const [formMode, setFormMode] = useState('create') // 'create' or 'edit'
+  const [highlightedTicker, setHighlightedTicker] = useState(null) // 순서 변경 시 하이라이트
 
   // 현재 종목 목록 조회 (stocks.json 기반)
   const { data: stocks, isLoading, error } = useQuery({
@@ -76,6 +77,18 @@ export default function TickerManagementPanel() {
     },
   })
 
+  // 종목 순서 변경 Mutation
+  const reorderMutation = useMutation({
+    mutationFn: (tickers) => settingsApi.reorderStocks(tickers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-stocks'] })
+      queryClient.invalidateQueries({ queryKey: ['etfs'] }) // 대시보드 캐시도 무효화
+    },
+    onError: (error) => {
+      alert(`순서 변경 실패: ${error.message}`)
+    },
+  })
+
   const handleAddClick = () => {
     setFormMode('create')
     setSelectedTicker(null)
@@ -105,6 +118,43 @@ export default function TickerManagementPanel() {
     if (selectedTicker) {
       deleteMutation.mutate(selectedTicker.ticker)
     }
+  }
+
+  // 순서 변경 핸들러
+  const handleMoveUp = (index) => {
+    if (index === 0 || !stocks) return
+    const newStocks = [...stocks]
+    ;[newStocks[index - 1], newStocks[index]] = [newStocks[index], newStocks[index - 1]]
+    
+    // 이동한 종목 하이라이트
+    const movedTicker = newStocks[index - 1].ticker
+    setHighlightedTicker(movedTicker)
+    setTimeout(() => setHighlightedTicker(null), 1500) // 1.5초 후 하이라이트 제거
+    
+    // 즉시 UI 업데이트
+    queryClient.setQueryData(['settings-stocks'], newStocks)
+    
+    // 백엔드에 저장
+    const tickers = newStocks.map(s => s.ticker)
+    reorderMutation.mutate(tickers)
+  }
+
+  const handleMoveDown = (index) => {
+    if (!stocks || index === stocks.length - 1) return
+    const newStocks = [...stocks]
+    ;[newStocks[index], newStocks[index + 1]] = [newStocks[index + 1], newStocks[index]]
+    
+    // 이동한 종목 하이라이트
+    const movedTicker = newStocks[index + 1].ticker
+    setHighlightedTicker(movedTicker)
+    setTimeout(() => setHighlightedTicker(null), 1500) // 1.5초 후 하이라이트 제거
+    
+    // 즉시 UI 업데이트
+    queryClient.setQueryData(['settings-stocks'], newStocks)
+    
+    // 백엔드에 저장
+    const tickers = newStocks.map(s => s.ticker)
+    reorderMutation.mutate(tickers)
   }
 
   if (isLoading) {
@@ -161,6 +211,9 @@ export default function TickerManagementPanel() {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
+                순서
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 티커
               </th>
@@ -180,8 +233,39 @@ export default function TickerManagementPanel() {
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {stocks && stocks.length > 0 ? (
-              stocks.map((stock) => (
-                <tr key={stock.ticker} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              stocks.map((stock, index) => (
+                <tr 
+                  key={stock.ticker} 
+                  className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                    highlightedTicker === stock.ticker 
+                      ? 'animate-pulse ring-2 ring-primary-500 dark:ring-primary-400 bg-primary-50 dark:bg-primary-900/20' 
+                      : ''
+                  }`}
+                >
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0 || reorderMutation.isPending}
+                        className="p-0.5 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="위로 이동"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === stocks.length - 1 || reorderMutation.isPending}
+                        className="p-0.5 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="아래로 이동"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                     {stock.ticker}
                   </td>
@@ -218,7 +302,7 @@ export default function TickerManagementPanel() {
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   등록된 종목이 없습니다.
                 </td>
               </tr>
@@ -230,9 +314,41 @@ export default function TickerManagementPanel() {
       {/* 모바일 카드 뷰 (md 미만) */}
       <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
         {stocks && stocks.length > 0 ? (
-          stocks.map((stock) => (
-            <div key={stock.ticker} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              <div className="flex items-start justify-between mb-3">
+          stocks.map((stock, index) => (
+            <div 
+              key={stock.ticker} 
+              className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                highlightedTicker === stock.ticker 
+                  ? 'animate-pulse ring-2 ring-primary-500 dark:ring-primary-400 bg-primary-50 dark:bg-primary-900/20 rounded-lg' 
+                  : ''
+              }`}
+            >
+              <div className="flex items-start gap-2 mb-3">
+                {/* 순서 변경 버튼 */}
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={() => handleMoveUp(index)}
+                    disabled={index === 0 || reorderMutation.isPending}
+                    className="p-0.5 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="위로 이동"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleMoveDown(index)}
+                    disabled={index === stocks.length - 1 || reorderMutation.isPending}
+                    className="p-0.5 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="아래로 이동"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* 종목 정보 */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
