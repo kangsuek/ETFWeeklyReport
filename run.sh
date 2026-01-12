@@ -26,34 +26,60 @@ cd "$PROJECT_ROOT/backend"
 # 가상환경 확인 및 활성화
 if [ -d "venv" ]; then
     echo "   가상환경 활성화 중..."
-    source venv/bin/activate
-    PYTHON_CMD=python
-    PIP_CMD=pip
+    if source venv/bin/activate 2>/dev/null; then
+        PYTHON_CMD=python
+        PIP_CMD=pip
+        echo "   ✅ 가상환경 활성화 완료"
+    else
+        echo "   ⚠️  가상환경 활성화 실패, 시스템 Python 사용"
+        PYTHON_CMD=python3
+        PIP_CMD=pip3
+    fi
 else
     echo "   ⚠️  가상환경이 없습니다. 시스템 Python 사용"
     PYTHON_CMD=python3
     PIP_CMD=pip3
 fi
 
+# Python 명령어 확인
+if ! command -v $PYTHON_CMD &> /dev/null; then
+    echo "   ❌ $PYTHON_CMD 명령어를 찾을 수 없습니다."
+    exit 1
+fi
+
 # pip 업그레이드
-$PIP_CMD install --upgrade pip --quiet 2>/dev/null
+echo "   pip 업그레이드 중..."
+if ! $PIP_CMD install --upgrade pip --quiet > /dev/null 2>&1; then
+    echo "   ⚠️  pip 업그레이드 중 경고 발생 (계속 진행)"
+fi
 
 # 의존성 설치
 echo "   의존성 설치 중..."
-# 이미 설치된 패키지는 조용히 스킵 (출력 최소화)
-$PIP_CMD install --quiet --no-cache-dir -r requirements.txt 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "⚠️  일부 패키지 설치 실패, 재시도 중..."
-    $PIP_CMD install --no-cache-dir -r requirements.txt
+# 첫 번째 시도: 조용히 설치 시도
+if $PIP_CMD install --quiet --no-cache-dir -r requirements.txt > /dev/null 2>&1; then
+    echo "   ✅ 의존성 설치 완료"
+else
+    echo "   ⚠️  일부 패키지 설치 실패, 상세 로그로 재시도 중..."
+    if ! $PIP_CMD install --no-cache-dir -r requirements.txt; then
+        echo "   ❌ 의존성 설치 실패. 로그를 확인하세요."
+        exit 1
+    fi
+    echo "   ✅ 의존성 설치 완료 (재시도 성공)"
 fi
 
 # pydantic-core가 제대로 작동하는지 확인 (문제가 있을 때만 재설치)
-$PYTHON_CMD -c "import pydantic_core" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! $PYTHON_CMD -c "import pydantic_core" 2>/dev/null; then
     echo "   ⚠️  pydantic-core 문제 감지, 재설치 중..."
     $PIP_CMD uninstall -y pydantic-core pydantic 2>/dev/null || true
-    $PIP_CMD install --quiet --no-cache-dir pydantic-core 2>/dev/null || $PIP_CMD install --no-cache-dir pydantic-core
-    $PIP_CMD install --quiet --no-cache-dir pydantic==2.5.0 2>/dev/null
+    if ! $PIP_CMD install --quiet --no-cache-dir pydantic-core 2>/dev/null; then
+        echo "   ⚠️  조용한 설치 실패, 상세 로그로 재시도..."
+        $PIP_CMD install --no-cache-dir pydantic-core || exit 1
+    fi
+    if ! $PIP_CMD install --quiet --no-cache-dir pydantic==2.5.0 2>/dev/null; then
+        echo "   ⚠️  pydantic 설치 실패, 상세 로그로 재시도..."
+        $PIP_CMD install --no-cache-dir pydantic==2.5.0 || exit 1
+    fi
+    echo "   ✅ pydantic-core 재설치 완료"
 fi
 
 echo "   ✅ 백엔드 의존성 설치 완료"
@@ -67,7 +93,10 @@ echo "🗃️  [2/5] 데이터베이스 확인 중..."
 if [ ! -f "data/etf_data.db" ]; then
     echo "   새 데이터베이스 생성 중..."
     mkdir -p data
-    $PYTHON_CMD -m app.database
+    if ! $PYTHON_CMD -m app.database 2>&1; then
+        echo "   ❌ 데이터베이스 초기화 실패"
+        exit 1
+    fi
     echo "   ✅ 데이터베이스 초기화 완료"
 else
     echo "   ✅ 기존 데이터베이스 사용"
@@ -95,9 +124,26 @@ cd "$PROJECT_ROOT/frontend"
 
 # package-lock.json이 있으면 ci 사용, 없으면 install
 if [ -f "package-lock.json" ]; then
-    npm ci --silent 2>/dev/null || npm install --silent
+    echo "   package-lock.json 발견, npm ci 실행 중..."
+    if npm ci --silent > /dev/null 2>&1; then
+        echo "   ✅ npm ci 완료"
+    else
+        echo "   ⚠️  npm ci 실패, npm install로 재시도 중..."
+        if npm install --silent > /dev/null 2>&1; then
+            echo "   ✅ npm install 완료"
+        else
+            echo "   ❌ npm install 실패. 로그를 확인하세요."
+            exit 1
+        fi
+    fi
 else
-    npm install --silent
+    echo "   package-lock.json 없음, npm install 실행 중..."
+    if npm install --silent > /dev/null 2>&1; then
+        echo "   ✅ npm install 완료"
+    else
+        echo "   ❌ npm install 실패. 로그를 확인하세요."
+        exit 1
+    fi
 fi
 echo "   ✅ 프론트엔드 의존성 설치 완료"
 

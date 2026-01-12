@@ -4,9 +4,9 @@ import ETFCardGrid from './ETFCardGrid'
 
 // Mock ETFCard
 vi.mock('../etf/ETFCard', () => ({
-  default: ({ etf, compactMode }) => (
+  default: ({ etf }) => (
     <div data-testid={`etf-card-${etf.ticker}`}>
-      {etf.name} {compactMode && '(compact)'}
+      {etf.name}
     </div>
   )
 }))
@@ -34,11 +34,6 @@ describe('ETFCardGrid', () => {
     expect(screen.getByTestId('etf-card-114800')).toBeInTheDocument()
   })
 
-  it('compactMode가 true일 때 컴팩트 모드를 적용한다', () => {
-    render(<ETFCardGrid etfs={mockETFs} compactMode={true} />)
-
-    expect(screen.getByText('KODEX 반도체 (compact)')).toBeInTheDocument()
-  })
 
   it('빈 배열일 때도 렌더링된다', () => {
     render(<ETFCardGrid etfs={[]} />)

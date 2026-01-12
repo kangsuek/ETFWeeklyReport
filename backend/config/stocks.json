@@ -3,7 +3,7 @@
     "name": "HANARO Fn K-반도체",
     "type": "ETF",
     "theme": "반도체",
-    "purchase_date": null,
+    "purchase_date": "2026-01-02",
     "search_keyword": "반도체",
     "relevance_keywords": [
       "반도체",
@@ -12,13 +12,15 @@
       "메모리",
       "HBM",
       "AI반도체"
-    ]
+    ],
+    "purchase_price": 22339.0,
+    "quantity": 3330
   },
   "446770": {
     "name": "ACE 글로벌반도체TOP4 Plus",
     "type": "ETF",
     "theme": "글로벌 반도체",
-    "purchase_date": null,
+    "purchase_date": "2025-11-12",
     "search_keyword": "ACE 글로벌반도체TOP4 Plus",
     "relevance_keywords": [
       "ACE 글로벌반도체TOP4 Plus",
@@ -29,7 +31,9 @@
       "엔비디아",
       "TSMC",
       "브로드컴"
-    ]
+    ],
+    "purchase_price": 45240.0,
+    "quantity": 201
   },
   "449450": {
     "name": "PLUS K방산",
@@ -48,7 +52,7 @@
   "466920": {
     "name": "신한 SOL 조선TOP3플러스 ETF",
     "type": "ETF",
-    "theme": "조선/친환경선박",
+    "theme": "조선",
     "purchase_date": "2023-08-10",
     "search_keyword": "조선",
     "relevance_keywords": [
@@ -61,7 +65,9 @@
       "수주잔고",
       "글로벌해운",
       "선박"
-    ]
+    ],
+    "purchase_price": null,
+    "quantity": null
   },
   "284430": {
     "name": "KODEX 200미국채혼합",
@@ -98,7 +104,7 @@
   "0020H0": {
     "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
     "type": "ETF",
-    "theme": "양자컴퓨팅/글로벌 혁신",
+    "theme": "양자컴퓨팅",
     "purchase_date": "2024-05-20",
     "search_keyword": "양자컴퓨팅",
     "relevance_keywords": [
@@ -110,7 +116,9 @@
       "Google",
       "양자기술",
       "큐비트"
-    ]
+    ],
+    "purchase_price": null,
+    "quantity": null
   },
   "445290": {
     "name": "KODEX 로봇액티브",
@@ -128,7 +136,7 @@
   "442320": {
     "name": "KB RISE 글로벌원자력 iSelect ETF",
     "type": "ETF",
-    "theme": "글로벌 원자력/에너지 전환",
+    "theme": "글로벌 원자력",
     "purchase_date": "2024-01-25",
     "search_keyword": "원자력",
     "relevance_keywords": [
@@ -139,6 +147,8 @@
       "두산에너빌리티",
       "클린에너지",
       "핵발전"
-    ]
+    ],
+    "purchase_price": null,
+    "quantity": null
   }
 }

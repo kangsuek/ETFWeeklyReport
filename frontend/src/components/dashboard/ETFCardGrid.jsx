@@ -22,7 +22,7 @@ import ETFCard from '../etf/ETFCard'
 /**
  * 드래그 가능한 카드 래퍼 컴포넌트
  */
-function SortableCard({ etf, summary, compactMode }) {
+function SortableCard({ etf, summary }) {
   const {
     attributes,
     listeners,
@@ -59,7 +59,6 @@ function SortableCard({ etf, summary, compactMode }) {
       <ETFCard
         etf={etf}
         summary={summary}
-        compactMode={compactMode}
       />
     </div>
   )
@@ -68,7 +67,6 @@ function SortableCard({ etf, summary, compactMode }) {
 SortableCard.propTypes = {
   etf: PropTypes.object.isRequired,
   summary: PropTypes.object,
-  compactMode: PropTypes.bool,
 }
 
 /**
@@ -78,10 +76,9 @@ SortableCard.propTypes = {
  * @param {Object} props
  * @param {Array} props.etfs - ETF 배열
  * @param {Object} props.batchSummary - 배치 요약 데이터 (ticker를 키로 하는 객체)
- * @param {boolean} props.compactMode - 컴팩트 모드 여부
  * @param {Function} props.onOrderChange - 순서 변경 콜백 함수
  */
-export default function ETFCardGrid({ etfs, batchSummary, compactMode = false, onOrderChange }) {
+export default function ETFCardGrid({ etfs, batchSummary, onOrderChange }) {
   const [activeId, setActiveId] = useState(null)
 
   const sensors = useSensors(
@@ -129,15 +126,12 @@ export default function ETFCardGrid({ etfs, batchSummary, compactMode = false, o
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={etfs.map(etf => etf.ticker)} strategy={rectSortingStrategy}>
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 ${
-          compactMode ? 'gap-3 sm:gap-4' : ''
-        }`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {etfs.map((etf) => (
             <SortableCard
               key={etf.ticker}
               etf={etf}
               summary={batchSummary?.[etf.ticker]}
-              compactMode={compactMode}
             />
           ))}
         </div>
@@ -149,7 +143,6 @@ export default function ETFCardGrid({ etfs, batchSummary, compactMode = false, o
             <ETFCard
               etf={activeETF}
               summary={batchSummary?.[activeETF.ticker]}
-              compactMode={compactMode}
             />
           </div>
         ) : null}
@@ -169,7 +162,6 @@ ETFCardGrid.propTypes = {
     })
   ).isRequired,
   batchSummary: PropTypes.object,  // {ticker: {latest_price, prices, weekly_return, ...}}
-  compactMode: PropTypes.bool,
   onOrderChange: PropTypes.func,
 }
 

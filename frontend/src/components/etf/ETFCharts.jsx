@@ -47,6 +47,7 @@ export default function ETFCharts({
   tradingFlowChartScrollRef,
   onPriceChartScroll,
   onTradingFlowChartScroll,
+  purchasePrice,
 }) {
   return (
     <div className="space-y-4 mb-4">
@@ -69,6 +70,7 @@ export default function ETFCharts({
               dateRange={dateRange}
               scrollRef={priceChartScrollRef}
               onScroll={onPriceChartScroll}
+              purchasePrice={purchasePrice}
             />
           )}
         </div>
@@ -120,5 +122,6 @@ ETFCharts.propTypes = {
   tradingFlowChartScrollRef: PropTypes.object,
   onPriceChartScroll: PropTypes.func,
   onTradingFlowChartScroll: PropTypes.func,
+  purchasePrice: PropTypes.number,
 }
 

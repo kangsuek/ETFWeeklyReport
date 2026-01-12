@@ -52,3 +52,23 @@ Phase 7: Optimization & Deploy     [                    ]   0% (예정)
 
 ### Phase 7: Optimization & Deployment
 **목표**: 프로덕션 배포 준비
+
+---
+
+## 현재 진행 상황
+
+### 최근 구현된 API (Phase 4.5)
+- `GET /api/settings/stocks/{ticker}/validate` - 네이버 스크래핑 검증
+- `POST /api/settings/stocks` - 종목 추가
+- `PUT /api/settings/stocks/{ticker}` - 종목 수정
+- `DELETE /api/settings/stocks/{ticker}` - 종목 삭제
+- `GET /api/data/stats` - 데이터 통계
+- `DELETE /api/data/reset` - DB 초기화
+
+### 성능 지표
+- 테스트: 219개 통과 (3개 스킵)
+- 커버리지: 87.37%
+- 번들 크기: ~145 kB gzip
+
+### 다음 단계
+- 🟢 **Phase 5**: Detail & Comparison Pages (진행 예정)

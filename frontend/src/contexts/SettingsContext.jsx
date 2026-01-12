@@ -15,7 +15,6 @@ const DEFAULT_SETTINGS = {
   display: {
     showVolume: true,
     showTradingFlow: true,
-    compactMode: false,
   },
   cardOrder: [], // 사용자 정의 카드 순서 (ticker 배열)
 }
@@ -63,9 +62,6 @@ function validateSettings(settings) {
       showTradingFlow: typeof settings.display.showTradingFlow === 'boolean'
         ? settings.display.showTradingFlow
         : DEFAULT_SETTINGS.display.showTradingFlow,
-      compactMode: typeof settings.display.compactMode === 'boolean'
-        ? settings.display.compactMode
-        : DEFAULT_SETTINGS.display.compactMode,
     }
   }
 

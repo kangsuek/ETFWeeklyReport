@@ -161,9 +161,13 @@ PriceRangeBar.propTypes = {
  * - 거래량 통계 (평균, 최대)
  * - 카드 레이아웃 (2x2 그리드)
  * - 시각적 표시 (아이콘, 진행률 바)
+ *
+ * @param {Array} data - 가격 데이터 배열
+ * @param {number} purchasePrice - 매입 가격 (선택사항)
+ * @param {string} purchaseDate - 매입 날짜 (선택사항)
  */
-export default function StatsSummary({ data = [] }) {
-  const stats = useMemo(() => calculateStats(data), [data])
+export default function StatsSummary({ data = [], purchasePrice = null, purchaseDate = null }) {
+  const stats = useMemo(() => calculateStats(data, purchasePrice, purchaseDate), [data, purchasePrice, purchaseDate])
 
   // 데이터가 없거나 통계 계산 실패
   if (!stats) {
@@ -257,4 +261,6 @@ StatsSummary.propTypes = {
       volume: PropTypes.number.isRequired,
     })
   ),
+  purchasePrice: PropTypes.number,
+  purchaseDate: PropTypes.string,
 }

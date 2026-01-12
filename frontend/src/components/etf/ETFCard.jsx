@@ -6,7 +6,7 @@ import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
 import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
 
-export default function ETFCard({ etf, summary, compactMode = false }) {
+export default function ETFCard({ etf, summary }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
 
   // summary가 있으면 배치 API 데이터 사용, 없으면 개별 API 호출 (폴백)
@@ -52,6 +52,12 @@ export default function ETFCard({ etf, summary, compactMode = false }) {
     : (prices && prices.length >= 2
         ? ((prices[0].close_price - prices[prices.length - 1].close_price) / prices[prices.length - 1].close_price) * 100
         : null)
+
+  // 매입가 대비 수익률 계산
+  const purchaseReturn = etf.purchase_price && latestPrice?.close_price
+    ? ((latestPrice.close_price - etf.purchase_price) / etf.purchase_price) * 100
+    : null
+
   const latestTradingFlow = summary?.latest_trading_flow || tradingFlow?.[0]
   const actualNews = summary?.latest_news || news
 
@@ -223,7 +229,7 @@ export default function ETFCard({ etf, summary, compactMode = false }) {
       className="block group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-lg"
       aria-label={`${etf.name} 상세 정보 보기`}
     >
-      <article className={`card-interactive animate-fadeInUp ${compactMode ? 'p-3' : ''}`}>
+      <article className="card-interactive animate-fadeInUp">
         {/* 헤더: 종목명 + 타입 뱃지 */}
         <header className="mb-3">
           <div className="flex items-start justify-between mb-2">
@@ -282,6 +288,11 @@ export default function ETFCard({ etf, summary, compactMode = false }) {
               {weeklyReturn !== null && (
                 <span className={`font-semibold ${getChangeColor(weeklyReturn)}`}>
                   주간: {formatPercent(weeklyReturn)}
+                </span>
+              )}
+              {purchaseReturn !== null && (
+                <span className={`font-semibold ${getChangeColor(purchaseReturn)}`}>
+                  매입 대비: {formatPercent(purchaseReturn)}
                 </span>
               )}
             </div>
@@ -360,5 +371,4 @@ ETFCard.propTypes = {
     latest_trading_flow: PropTypes.object,
     latest_news: PropTypes.array,
   }),
-  compactMode: PropTypes.bool,
 }

@@ -8,6 +8,8 @@ class ETF(BaseModel):
     type: str  # "ETF" or "STOCK"
     theme: Optional[str] = None
     purchase_date: Optional[date] = None  # 구매일
+    purchase_price: Optional[float] = None  # 매입 평균 금액
+    quantity: Optional[int] = None  # 보유 수량
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 
@@ -54,6 +56,8 @@ class StockCreate(BaseModel):
     type: str  # "ETF" or "STOCK"
     theme: Optional[str] = None  # Theme/sector (optional)
     purchase_date: Optional[str] = None  # YYYY-MM-DD format, 구매일 (선택)
+    purchase_price: Optional[float] = None  # 매입 평균 금액 (선택)
+    quantity: Optional[int] = None  # 보유 수량 (선택)
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 
@@ -63,6 +67,8 @@ class StockUpdate(BaseModel):
     type: Optional[str] = None
     theme: Optional[str] = None
     purchase_date: Optional[str] = None  # 구매일
+    purchase_price: Optional[float] = None  # 매입 평균 금액
+    quantity: Optional[int] = None  # 보유 수량
     search_keyword: Optional[str] = None
     relevance_keywords: Optional[List[str]] = None
 

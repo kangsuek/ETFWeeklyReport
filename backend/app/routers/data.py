@@ -278,6 +278,7 @@ async def get_data_stats(request: Request):
       "prices": 1500,
       "news": 250,
       "trading_flow": 180,
+      "stock_catalog": 2500,
       "last_collection": "2025-11-12T10:30:00",
       "database_size_mb": 2.5
     }
@@ -312,6 +313,10 @@ async def get_data_stats(request: Request):
 
             cursor.execute("SELECT COUNT(*) FROM trading_flow")
             trading_flow_count = cursor.fetchone()[0]
+
+            # stock_catalog 테이블의 종목 목록 수 조회
+            cursor.execute("SELECT COUNT(*) FROM stock_catalog WHERE is_active = 1")
+            stock_catalog_count = cursor.fetchone()[0]
 
             # 마지막 수집 시간 (가장 최근 가격 데이터 날짜 또는 스케줄러 상태)
             last_collection = None
@@ -352,6 +357,7 @@ async def get_data_stats(request: Request):
                 "prices": prices_count,
                 "news": news_count,
                 "trading_flow": trading_flow_count,
+                "stock_catalog": stock_catalog_count,
                 "last_collection": last_collection,
                 "database_size_mb": db_size_mb
             }
