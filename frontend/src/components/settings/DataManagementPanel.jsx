@@ -18,8 +18,6 @@ export default function DataManagementPanel() {
     queryKey: ['data-stats'],
     queryFn: async () => {
       const response = await dataApi.getStats()
-      // 디버깅: API 응답 확인
-      console.log('Data Stats Response:', response.data)
       return response.data
     },
     refetchInterval: 30000, // 30초마다 자동 갱신

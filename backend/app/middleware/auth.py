@@ -83,8 +83,8 @@ class APIKeyAuth:
         valid_api_key = Config.API_KEY
 
         if not valid_api_key:
-            logger.warning("API_KEY가 환경 변수에 설정되지 않았습니다. 모든 요청을 허용합니다.")
-            return True  # API Key 미설정 시 모든 요청 허용 (개발 환경)
+            logger.error("API_KEY가 환경 변수에 설정되지 않았습니다. 보안을 위해 모든 요청을 거부합니다.")
+            return False  # API Key 미설정 시 모든 요청 거부 (보안 강화)
 
         return api_key == valid_api_key
 
@@ -126,10 +126,7 @@ async def verify_api_key_dependency(api_key: Optional[str] = Depends(api_key_hea
         )
 
     if not APIKeyAuth.verify_api_key(api_key):
-        key_preview = "None"
-        if api_key and isinstance(api_key, str):
-            key_preview = api_key[:8] + "..." if len(api_key) > 8 else api_key
-        logger.warning(f"잘못된 API Key: {key_preview}")
+        logger.warning("잘못된 API Key 시도")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="잘못된 API Key입니다.",

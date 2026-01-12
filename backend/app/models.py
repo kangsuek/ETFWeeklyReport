@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import date
 
@@ -89,9 +89,18 @@ class ETFCardSummary(BaseModel):
 
 class BatchSummaryRequest(BaseModel):
     """배치 요약 요청"""
-    tickers: List[str]  # 종목 코드 리스트
-    price_days: int = 5  # 가격 데이터 일수
-    news_limit: int = 5  # 뉴스 개수
+    tickers: List[str] = Field(..., max_length=50)  # 종목 코드 리스트 (최대 50개)
+    price_days: int = Field(default=5, ge=1, le=365)  # 가격 데이터 일수 (1-365일)
+    news_limit: int = Field(default=5, ge=1, le=100)  # 뉴스 개수 (1-100개)
+
+    @field_validator('tickers')
+    @classmethod
+    def validate_tickers_length(cls, v):
+        if len(v) > 50:
+            raise ValueError('한 번에 최대 50개의 종목만 요청할 수 있습니다')
+        if len(v) == 0:
+            raise ValueError('최소 1개의 종목을 지정해야 합니다')
+        return v
 
 class BatchSummaryResponse(BaseModel):
     """배치 요약 응답"""
