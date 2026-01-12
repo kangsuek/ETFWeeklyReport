@@ -11,6 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
   Cell,
+  ReferenceLine,
 } from 'recharts'
 import { format } from 'date-fns'
 import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/format'
@@ -23,10 +24,10 @@ import { COLORS, MAX_CHART_POINTS } from '../../constants'
  * CustomLegend 컴포넌트
  * 체크박스가 포함된 커스텀 범례
  */
-const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, showMA20, setShowMA20 }) => {
-  // 이동평균선 항목은 범례에서 제외
+const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, showMA20, setShowMA20, purchasePrice }) => {
+  // 이동평균선과 매입가 항목은 범례에서 제외 (커스텀으로 표시)
   const filteredPayload = payload.filter(entry =>
-    !entry.value.includes('이동평균선')
+    !entry.value.includes('이동평균선') && !entry.value.includes('매입가')
   )
 
   return (
@@ -79,6 +80,14 @@ const CustomLegend = ({ payload, showMA5, setShowMA5, showMA10, setShowMA10, sho
         <span className="inline-block w-8 h-1" style={{ backgroundColor: COLORS.MA_20 }}></span>
         <span className="text-gray-700 dark:text-gray-300" style={{ color: COLORS.MA_20 }}>20일 이동평균선</span>
       </label>
+
+      {/* 매입가 표시 (읽기 전용) */}
+      {purchasePrice && (
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-8 h-1 border-t-2 border-dashed" style={{ borderColor: '#22c55e' }}></span>
+          <span className="text-green-500">매입가: {formatPrice(purchasePrice)}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -171,7 +180,7 @@ const CustomTooltip = ({ active, payload }) => {
  * @param {React.RefObject} scrollRef - 스크롤 컨테이너 ref (차트 동기화용)
  * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
-const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, dateRange = '7d', scrollRef, onScroll }) {
+const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, dateRange = '7d', scrollRef, onScroll, purchasePrice = null }) {
   // 이동평균선 표시 상태
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
@@ -390,6 +399,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
                 setShowMA10={setShowMA10}
                 showMA20={showMA20}
                 setShowMA20={setShowMA20}
+                purchasePrice={purchasePrice}
               />
             )}
           />
@@ -456,6 +466,24 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               connectNulls={false}
             />
           )}
+
+          {/* 매입 평균 금액 기준선 (녹색 점선) */}
+          {purchasePrice && (
+            <ReferenceLine
+              yAxisId="left"
+              y={purchasePrice}
+              stroke="#22c55e"
+              strokeDasharray="5 5"
+              strokeWidth={2}
+              label={{
+                value: `매입가: ${formatPrice(purchasePrice)}`,
+                position: 'insideTopRight',
+                fill: '#22c55e',
+                fontSize: 12,
+                fontWeight: 'bold'
+              }}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
       </div>
@@ -480,6 +508,7 @@ PriceChart.propTypes = {
   dateRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
   scrollRef: PropTypes.object,
   onScroll: PropTypes.func,
+  purchasePrice: PropTypes.number,
 }
 
 export default PriceChart

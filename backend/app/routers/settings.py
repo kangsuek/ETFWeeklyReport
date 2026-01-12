@@ -155,6 +155,8 @@ async def update_stock(
     - type: "ETF" or "STOCK" (optional)
     - theme: Theme/sector (optional)
     - purchase_date: Purchase date in YYYY-MM-DD format (optional)
+    - purchase_price: Purchase average price (optional)
+    - quantity: Holding quantity (optional)
     - search_keyword: Keyword for news search (optional)
     - relevance_keywords: List of relevant keywords (optional)
 
@@ -188,15 +190,27 @@ async def update_stock(
         # Merge with existing data (partial update)
         current_data = stocks[ticker]
         # exclude_unset=True는 설정되지 않은 필드만 제외
-        # purchase_date가 None으로 명시적으로 전달된 경우도 포함되도록 처리
+        # purchase_date, purchase_price, quantity가 None으로 명시적으로 전달된 경우도 포함되도록 처리
         update_dict = stock_data.model_dump(exclude_unset=True)
         # purchase_date가 명시적으로 설정된 경우 (None 포함) 처리
         if hasattr(stock_data, 'model_fields_set') and 'purchase_date' in stock_data.model_fields_set:
             update_dict['purchase_date'] = stock_data.purchase_date
+        # purchase_price가 명시적으로 설정된 경우 (None 포함) 처리
+        if hasattr(stock_data, 'model_fields_set') and 'purchase_price' in stock_data.model_fields_set:
+            update_dict['purchase_price'] = stock_data.purchase_price
+        # quantity가 명시적으로 설정된 경우 (None 포함) 처리
+        if hasattr(stock_data, 'model_fields_set') and 'quantity' in stock_data.model_fields_set:
+            update_dict['quantity'] = stock_data.quantity
         merged_data = {**current_data, **update_dict}
 
         # Update the stock
         stocks_manager.update_stock(ticker, merged_data)
+
+        # 캐시 무효화 (ETF 상세 정보 캐시도 무효화)
+        from app.utils.cache import get_cache
+        cache = get_cache()
+        cache.invalidate_pattern("etfs")
+        cache.invalidate_pattern(f"etf:{ticker}")
 
         # Return updated stock
         return {

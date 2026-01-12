@@ -378,7 +378,6 @@ export default function Dashboard() {
       <ETFCardGrid
         etfs={sortedETFs}
         batchSummary={batchSummary}
-        compactMode={settings.display.compactMode}
         onOrderChange={(newOrder) => {
           handleOrderChange(newOrder)
           // 드래그로 순서를 변경하면 자동으로 커스텀 정렬 모드로 전환

@@ -25,7 +25,6 @@ describe('SettingsContext', () => {
         display: {
           showVolume: true,
           showTradingFlow: true,
-          compactMode: false,
         },
       })
     })
@@ -114,11 +113,11 @@ describe('SettingsContext', () => {
       })
 
       act(() => {
-        result.current.updateSettings('display.compactMode', true)
+        result.current.updateSettings('display.showVolume', false)
       })
 
-      expect(result.current.settings.display.compactMode).toBe(true)
-      expect(result.current.settings.display.showVolume).toBe(true) // 다른 값은 유지
+      expect(result.current.settings.display.showVolume).toBe(false)
+      expect(result.current.settings.display.showTradingFlow).toBe(true) // 다른 값은 유지
     })
 
     it('설정 업데이트 시 Context가 업데이트되어야 함', () => {

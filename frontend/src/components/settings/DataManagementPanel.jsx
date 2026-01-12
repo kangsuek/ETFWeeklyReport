@@ -18,6 +18,8 @@ export default function DataManagementPanel() {
     queryKey: ['data-stats'],
     queryFn: async () => {
       const response = await dataApi.getStats()
+      // 디버깅: API 응답 확인
+      console.log('Data Stats Response:', response.data)
       return response.data
     },
     refetchInterval: 30000, // 30초마다 자동 갱신
@@ -223,7 +225,20 @@ export default function DataManagementPanel() {
           <div className="space-y-6">
             {/* 종목 목록 수집 */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">종목 목록 수집</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">종목 목록 수집</h4>
+                {stats && 'stock_catalog' in stats && stats.stock_catalog != null ? (
+                  <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                    현재 {typeof stats.stock_catalog === 'number' ? stats.stock_catalog.toLocaleString('ko-KR') : stats.stock_catalog}개
+                  </span>
+                ) : statsLoading ? (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">로딩 중...</span>
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    수집 필요
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
                 네이버 금융에서 전체 종목 목록을 수집합니다. 새 종목 추가 시 자동완성 기능을 사용하려면 먼저 이 작업을 수행해야 합니다.
               </p>
@@ -260,50 +275,50 @@ export default function DataManagementPanel() {
               
               {/* 수집 일수 선택 */}
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  수집 기간 (일)
-                </label>
-                <select
-                  value={collectionDays}
-                  onChange={(e) => setCollectionDays(Number(e.target.value))}
-                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  disabled={collectMutation.isPending}
-                >
-                  <option value={1}>1일 (당일)</option>
-                  <option value={7}>7일 (1주)</option>
-                  <option value={10}>10일</option>
-                  <option value={30}>30일 (1개월)</option>
-                  <option value={90}>90일 (3개월)</option>
-                </select>
-              </div>
-
-              {/* 전체 데이터 수집 버튼 */}
-              <button
-                onClick={handleCollectAll}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                수집 기간 (일)
+              </label>
+              <select
+                value={collectionDays}
+                onChange={(e) => setCollectionDays(Number(e.target.value))}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 disabled={collectMutation.isPending}
-                className="w-full sm:w-auto px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium"
               >
-                {collectMutation.isPending ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>데이터 수집 중...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>전체 데이터 수집</span>
-                  </>
-                )}
-              </button>
+                <option value={1}>1일 (당일)</option>
+                <option value={7}>7일 (1주)</option>
+                <option value={10}>10일</option>
+                <option value={30}>30일 (1개월)</option>
+                <option value={90}>90일 (3개월)</option>
+              </select>
+            </div>
+
+            {/* 전체 데이터 수집 버튼 */}
+            <button
+              onClick={handleCollectAll}
+              disabled={collectMutation.isPending}
+              className="w-full sm:w-auto px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base font-medium"
+            >
+              {collectMutation.isPending ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>데이터 수집 중...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>전체 데이터 수집</span>
+                </>
+              )}
+            </button>
 
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
-              </p>
+              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
+            </p>
             </div>
           </div>
         </section>

@@ -145,13 +145,15 @@ def sync_stocks_to_db() -> int:
                 info.get("type"),
                 info.get("theme"),
                 info.get("purchase_date"),
+                info.get("purchase_price"),
+                info.get("quantity"),
                 info.get("search_keyword"),
                 relevance_keywords_json
             ))
 
         cursor.executemany("""
-            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, purchase_date, search_keyword, relevance_keywords)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, etfs_data)
 
         conn.commit()

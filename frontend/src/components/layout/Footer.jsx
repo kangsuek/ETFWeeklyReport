@@ -35,7 +35,7 @@ export default function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-3">K-Growth Insights</h3>
             <p className="text-sm text-gray-400">
-              한국 고성장 섹터 6개 종목(ETF 4개 + 주식 2개)에 대한 종합 분석 및 리포팅 서비스
+              한국 고성장 섹터 종목에 대한 종합분석 및 리포팅 서비스
             </p>
           </div>
 

@@ -138,10 +138,20 @@ def init_db():
             type TEXT NOT NULL,
             theme TEXT,
             purchase_date DATE,
+            purchase_price REAL,
+            quantity INTEGER,
             search_keyword TEXT,
             relevance_keywords TEXT
         )
     """)
+    
+    # quantity 컬럼이 없으면 추가 (마이그레이션)
+    try:
+        cursor.execute("ALTER TABLE etfs ADD COLUMN quantity INTEGER")
+        logger.info("Added quantity column to etfs table")
+    except sqlite3.OperationalError:
+        # 컬럼이 이미 존재하는 경우 무시
+        pass
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS prices (
@@ -248,6 +258,7 @@ def init_db():
             info.get("type"),
             info.get("theme"),
             info.get("purchase_date"),
+            info.get("purchase_price"),
             info.get("search_keyword"),
             relevance_keywords_json
         ))
@@ -255,8 +266,8 @@ def init_db():
     logger.info(f"Loading {len(etfs_data)} stocks from configuration")
 
     cursor.executemany("""
-        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, purchase_date, search_keyword, relevance_keywords)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, search_keyword, relevance_keywords)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, etfs_data)
     
     conn.commit()

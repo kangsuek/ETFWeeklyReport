@@ -13,7 +13,7 @@ import PriceTable from '../components/etf/PriceTable'
 import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
-import { formatPrice, formatVolume, formatPercent, getPriceChangeColor } from '../utils/format'
+import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
 
 /**
@@ -166,6 +166,57 @@ export default function ETFDetail() {
     return pricesData[0]
   }, [pricesData])
 
+  // 매입가 대비 수익률 계산
+  const purchaseReturn = useMemo(() => {
+    if (!etf?.purchase_price || !latestPrice?.close_price) return null
+    return ((latestPrice.close_price - etf.purchase_price) / etf.purchase_price) * 100
+  }, [etf?.purchase_price, latestPrice?.close_price])
+
+  // 평가 금액 계산 (종가 × 보유 수량)
+  const evaluationAmount = useMemo(() => {
+    // quantity가 0일 수도 있으므로 명시적으로 null/undefined 체크
+    if (etf?.quantity == null || etf?.quantity === undefined || !latestPrice?.close_price) {
+      return null
+    }
+    // 평가 금액 = 종가 × 보유 수량
+    const amount = latestPrice.close_price * etf.quantity
+    return amount
+  }, [etf?.quantity, latestPrice?.close_price])
+
+  // 총 투자 금액 계산 (매입가 × 보유 수량)
+  const totalInvestment = useMemo(() => {
+    if (etf?.purchase_price == null || etf?.quantity == null || etf?.quantity === undefined) {
+      return null
+    }
+    // 총 투자 금액 = 매입가 × 보유 수량
+    const amount = etf.purchase_price * etf.quantity
+    return amount
+  }, [etf?.purchase_price, etf?.quantity])
+
+  // 현재 손익 계산 (평가 금액 - 총 투자 금액)
+  const currentProfitLoss = useMemo(() => {
+    if (evaluationAmount == null || totalInvestment == null) {
+      return null
+    }
+    // 현재 손익 = 평가 금액 - 총 투자 금액
+    const profitLoss = evaluationAmount - totalInvestment
+    return profitLoss
+  }, [evaluationAmount, totalInvestment])
+  
+  // 디버깅: etf 객체 확인
+  useEffect(() => {
+    if (etf) {
+      console.log('ETF Detail Data:', {
+        ticker: etf.ticker,
+        purchase_price: etf.purchase_price,
+        quantity: etf.quantity,
+        quantityType: typeof etf.quantity,
+        latestPrice: latestPrice?.close_price,
+        evaluationAmount: evaluationAmount
+      })
+    }
+  }, [etf, latestPrice, evaluationAmount])
+
   if (etfLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -246,14 +297,61 @@ export default function ETFDetail() {
                 <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
               </div>
               <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">등락률</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">전일 대비 등락률</span>
                 <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
                   {formatPercent(latestPrice.daily_change_pct)}
                 </p>
               </div>
-                <div className="col-span-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">거래량</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatVolume(latestPrice.volume)}</p>
+              {etf?.purchase_price && (
+                <>
+                  <div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">매입가</span>
+                    <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(etf.purchase_price)}</p>
+                  </div>
+                  {purchaseReturn !== null && (
+                    <div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">매입 대비 수익률</span>
+                      <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(purchaseReturn)}`}>
+                        {formatPercent(purchaseReturn)}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+              {/* 보유 수량 */}
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">보유 수량</span>
+                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
+                  {etf?.quantity != null && etf.quantity !== undefined ? formatNumber(etf.quantity) : '-'}
+                </p>
+              </div>
+              {/* 평가 금액 */}
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">평가 금액</span>
+                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
+                  {evaluationAmount != null && evaluationAmount !== undefined ? formatPrice(evaluationAmount) : '-'}
+                </p>
+              </div>
+              {/* 총 투자 금액 */}
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">총 투자 금액</span>
+                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
+                  {totalInvestment != null && totalInvestment !== undefined ? formatPrice(totalInvestment) : '-'}
+                </p>
+              </div>
+              {/* 현재 손익 */}
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">현재 손익</span>
+                <p className={`text-xl font-bold mt-0.5 ${
+                  currentProfitLoss != null && currentProfitLoss !== undefined
+                    ? getPriceChangeColor(currentProfitLoss)
+                    : 'text-gray-900 dark:text-gray-100'
+                }`}>
+                  {currentProfitLoss != null && currentProfitLoss !== undefined 
+                    ? `${currentProfitLoss >= 0 ? '+' : ''}${formatPrice(currentProfitLoss)}`
+                    : '-'
+                  }
+                </p>
               </div>
               </div>
             </div>
@@ -274,7 +372,11 @@ export default function ETFDetail() {
       {pricesData && pricesData.length > 0 && (
         <div className="card mb-4">
           <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">통계 요약</h3>
-          <StatsSummary data={pricesData} />
+          <StatsSummary 
+            data={pricesData} 
+            purchasePrice={etf?.purchase_price}
+            purchaseDate={etf?.purchase_date}
+          />
         </div>
       )}
 
@@ -298,6 +400,7 @@ export default function ETFDetail() {
         tradingFlowChartScrollRef={tradingFlowChartScrollRef}
         onPriceChartScroll={handlePriceChartScroll}
         onTradingFlowChartScroll={handleTradingFlowChartScroll}
+        purchasePrice={etf?.purchase_price}
       />
 
       {/* 가격 데이터 테이블 섹션 */}
