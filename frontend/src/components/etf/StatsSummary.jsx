@@ -81,8 +81,9 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, currentPriceDate, min
   const clampedCurrentPrice = Math.max(minPrice, Math.min(maxPrice, currentPrice))
   const percentage = ((clampedCurrentPrice - minPrice) / (maxPrice - minPrice)) * 100
 
-  // 현재가 레이블이 최저가/최고가와 겹치지 않도록 위치 조정
-  const currentLabelLeft = Math.max(15, Math.min(85, percentage)) // 최소 15%, 최대 85%
+  // 현재가가 최저가 또는 최고가와 너무 가까운지 확인 (20% 이내)
+  const isNearMin = percentage < 20
+  const isNearMax = percentage > 80
 
   return (
     <div className="relative">
@@ -90,7 +91,7 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, currentPriceDate, min
       <div className="relative w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mb-2">
         {/* 전체 막대 배경 */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-200 via-gray-200 to-red-200 dark:from-blue-800 dark:via-gray-600 dark:to-red-800"></div>
-        
+
         {/* 현재가 마커 */}
         <div
           className="absolute top-0 bottom-0 w-0.5 bg-gray-900 dark:bg-gray-100 z-10"
@@ -102,39 +103,118 @@ const PriceRangeBar = ({ currentPrice, minPrice, maxPrice, currentPriceDate, min
       </div>
 
       {/* 가격 레이블 (아래쪽) */}
-      <div className="relative flex items-start justify-between" style={{ minHeight: '3rem' }}>
-        {/* 최저가 (왼쪽) */}
-        <div className="flex flex-col items-start">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            최저가{minPriceDate && ` (${format(new Date(minPriceDate), 'MM-dd')})`}
-          </span>
-          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-            {formatPrice(minPrice)}
-          </span>
-        </div>
+      <div className="relative" style={{ minHeight: '3rem' }}>
+        {/* 최저가/최고가가 겹치지 않는 경우: 기존 레이아웃 (양 끝 + 중앙) */}
+        {!isNearMin && !isNearMax && (
+          <div className="flex items-start justify-between">
+            {/* 최저가 (왼쪽) */}
+            <div className="flex flex-col items-start">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                최저가{minPriceDate && ` (${format(new Date(minPriceDate), 'MM-dd')})`}
+              </span>
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                {formatPrice(minPrice)}
+              </span>
+            </div>
 
-        {/* 현재가 (중간 위치) */}
-        <div 
-          className="flex flex-col items-center absolute"
-          style={{ left: `${currentLabelLeft}%`, transform: 'translateX(-50%)' }}
-        >
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            현재가{currentPriceDate && ` (${format(new Date(currentPriceDate), 'MM-dd')})`}
-          </span>
-          <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-            {formatPrice(currentPrice)}
-          </span>
-        </div>
+            {/* 현재가 (중간 위치) */}
+            <div
+              className="flex flex-col items-center absolute"
+              style={{ left: '50%', transform: 'translateX(-50%)' }}
+            >
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                현재가{currentPriceDate && ` (${format(new Date(currentPriceDate), 'MM-dd')})`}
+              </span>
+              <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                {formatPrice(currentPrice)}
+              </span>
+            </div>
 
-        {/* 최고가 (오른쪽) */}
-        <div className="flex flex-col items-end">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            최고가{maxPriceDate && ` (${format(new Date(maxPriceDate), 'MM-dd')})`}
-          </span>
-          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
-            {formatPrice(maxPrice)}
-          </span>
-        </div>
+            {/* 최고가 (오른쪽) */}
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                최고가{maxPriceDate && ` (${format(new Date(maxPriceDate), 'MM-dd')})`}
+              </span>
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                {formatPrice(maxPrice)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 최저가와 가까운 경우: 상단에 현재가(좌), 하단에 최저가/최고가 */}
+        {isNearMin && (
+          <div className="space-y-2">
+            {/* 상단: 현재가 (왼쪽 배치) */}
+            <div className="flex items-start justify-start">
+              <div className="flex flex-col items-start">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  현재가{currentPriceDate && ` (${format(new Date(currentPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                  {formatPrice(currentPrice)}
+                </span>
+              </div>
+            </div>
+
+            {/* 하단: 최저가 + 최고가 */}
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-start">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  최저가{minPriceDate && ` (${format(new Date(minPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                  {formatPrice(minPrice)}
+                </span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  최고가{maxPriceDate && ` (${format(new Date(maxPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                  {formatPrice(maxPrice)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 최고가와 가까운 경우: 상단에 현재가(우), 하단에 최저가/최고가 */}
+        {isNearMax && (
+          <div className="space-y-2">
+            {/* 상단: 현재가 (오른쪽 배치) */}
+            <div className="flex items-start justify-end">
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  현재가{currentPriceDate && ` (${format(new Date(currentPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                  {formatPrice(currentPrice)}
+                </span>
+              </div>
+            </div>
+
+            {/* 하단: 최저가 + 최고가 */}
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-start">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  최저가{minPriceDate && ` (${format(new Date(minPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                  {formatPrice(minPrice)}
+                </span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  최고가{maxPriceDate && ` (${format(new Date(maxPriceDate), 'MM-dd')})`}
+                </span>
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                  {formatPrice(maxPrice)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

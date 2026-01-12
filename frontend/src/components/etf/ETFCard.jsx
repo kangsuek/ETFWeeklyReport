@@ -362,6 +362,8 @@ ETFCard.propTypes = {
     type: PropTypes.oneOf(['ETF', 'STOCK', 'ALL']).isRequired,
     theme: PropTypes.string,
     purchase_date: PropTypes.string,
+    purchase_price: PropTypes.number,
+    quantity: PropTypes.number,
   }).isRequired,
   summary: PropTypes.shape({
     ticker: PropTypes.string,

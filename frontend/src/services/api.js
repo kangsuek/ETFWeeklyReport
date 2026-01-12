@@ -22,10 +22,6 @@ const api = axios.create({
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {
-    // 요청 전 처리 (예: 인증 토큰 추가)
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
     return config
   },
   (error) => {

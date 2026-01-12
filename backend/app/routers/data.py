@@ -318,35 +318,35 @@ async def get_data_stats(request: Request):
             cursor.execute("SELECT COUNT(*) FROM stock_catalog WHERE is_active = 1")
             stock_catalog_count = cursor.fetchone()[0]
 
-            # 마지막 수집 시간 (가장 최근 가격 데이터 날짜 또는 스케줄러 상태)
+            # 마지막 수집 시간 (스케줄러의 수집 실행 시간을 우선 사용)
             last_collection = None
 
-            # 방법 1: 데이터베이스에서 가장 최근 데이터 날짜 조회
-            cursor.execute("""
-                SELECT MAX(date) as last_date
-                FROM prices
-            """)
-            last_price_date = cursor.fetchone()[0]
+            # 방법 1: 스케줄러의 마지막 수집 시간 확인 (수집이 실행된 실제 시간)
+            try:
+                scheduler = get_scheduler()
+                status = scheduler.get_status()
+                scheduler_time = status.get("last_collection_time")
+                if scheduler_time:
+                    last_collection = scheduler_time
+            except (AttributeError, KeyError, Exception) as e:
+                logger.warning(f"Failed to get scheduler status: {e}")
 
-            if last_price_date:
-                # 날짜를 datetime으로 변환
-                from datetime import datetime
-                try:
-                    last_collection = datetime.fromisoformat(last_price_date).isoformat()
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to parse last_price_date: {last_price_date}, error: {e}")
-                    last_collection = last_price_date
-            else:
-                # 방법 2: 데이터가 없으면 스케줄러 상태에서 확인
-                try:
-                    scheduler = get_scheduler()
-                    status = scheduler.get_status()
-                    scheduler_time = status.get("last_collection_time")
-                    # 스케줄러에서 가져온 값이 None이거나 없으면 None 유지
-                    last_collection = scheduler_time if scheduler_time else None
-                except (AttributeError, KeyError, Exception) as e:
-                    logger.warning(f"Failed to get scheduler status: {e}")
-                    last_collection = None
+            # 방법 2: 스케줄러 시간이 없으면 데이터베이스에서 가장 최근 데이터 날짜 조회
+            if not last_collection:
+                cursor.execute("""
+                    SELECT MAX(date) as last_date
+                    FROM prices
+                """)
+                last_price_date = cursor.fetchone()[0]
+
+                if last_price_date:
+                    # 날짜를 datetime으로 변환
+                    from datetime import datetime
+                    try:
+                        last_collection = datetime.fromisoformat(last_price_date).isoformat()
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Failed to parse last_price_date: {last_price_date}, error: {e}")
+                        last_collection = last_price_date
 
             # 데이터베이스 파일 크기 (MB)
             db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0

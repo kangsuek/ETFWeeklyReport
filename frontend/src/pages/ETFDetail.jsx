@@ -202,20 +202,6 @@ export default function ETFDetail() {
     const profitLoss = evaluationAmount - totalInvestment
     return profitLoss
   }, [evaluationAmount, totalInvestment])
-  
-  // 디버깅: etf 객체 확인
-  useEffect(() => {
-    if (etf) {
-      console.log('ETF Detail Data:', {
-        ticker: etf.ticker,
-        purchase_price: etf.purchase_price,
-        quantity: etf.quantity,
-        quantityType: typeof etf.quantity,
-        latestPrice: latestPrice?.close_price,
-        evaluationAmount: evaluationAmount
-      })
-    }
-  }, [etf, latestPrice, evaluationAmount])
 
   if (etfLoading) {
     return (
