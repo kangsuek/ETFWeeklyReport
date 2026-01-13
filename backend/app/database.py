@@ -209,6 +209,25 @@ def init_db():
         )
     """)
 
+    # Create collection_status table for tracking data collection
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS collection_status (
+            ticker TEXT PRIMARY KEY,
+            last_price_date DATE,
+            last_trading_flow_date DATE,
+            last_news_collected_at TIMESTAMP,
+            price_records_count INTEGER DEFAULT 0,
+            trading_flow_records_count INTEGER DEFAULT 0,
+            news_records_count INTEGER DEFAULT 0,
+            last_collection_attempt TIMESTAMP,
+            last_successful_collection TIMESTAMP,
+            consecutive_failures INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
     # Create indexes for improved query performance on date-based queries
     logger.info("Creating database indexes for performance optimization")
 
@@ -243,6 +262,12 @@ def init_db():
         ON stock_catalog(is_active)
     """)
 
+    # Create indexes for collection_status
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_collection_status_last_dates
+        ON collection_status(last_price_date, last_trading_flow_date)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []
@@ -275,6 +300,116 @@ def init_db():
     conn.close()
     
     logger.info("Database initialized successfully")
+
+def update_collection_status(ticker: str,
+                            price_date: str = None,
+                            trading_flow_date: str = None,
+                            news_collected: bool = False,
+                            success: bool = True):
+    """
+    종목의 데이터 수집 상태 업데이트
+
+    Args:
+        ticker: 종목 코드
+        price_date: 마지막 수집한 가격 데이터 날짜
+        trading_flow_date: 마지막 수집한 매매동향 데이터 날짜
+        news_collected: 뉴스 수집 여부
+        success: 수집 성공 여부
+    """
+    from datetime import datetime
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # 현재 상태 조회
+        cursor.execute("""
+            SELECT * FROM collection_status WHERE ticker = ?
+        """, (ticker,))
+        current = cursor.fetchone()
+
+        now = datetime.now().isoformat()
+
+        if current:
+            # 기존 레코드 업데이트
+            updates = []
+            params = []
+
+            if price_date:
+                updates.append("last_price_date = ?")
+                params.append(price_date)
+
+            if trading_flow_date:
+                updates.append("last_trading_flow_date = ?")
+                params.append(trading_flow_date)
+
+            if news_collected:
+                updates.append("last_news_collected_at = ?")
+                params.append(now)
+
+            updates.append("last_collection_attempt = ?")
+            params.append(now)
+
+            if success:
+                updates.append("last_successful_collection = ?")
+                updates.append("consecutive_failures = 0")
+                params.append(now)
+            else:
+                updates.append("consecutive_failures = consecutive_failures + 1")
+
+            updates.append("updated_at = ?")
+            params.append(now)
+
+            params.append(ticker)
+
+            cursor.execute(f"""
+                UPDATE collection_status
+                SET {', '.join(updates)}
+                WHERE ticker = ?
+            """, params)
+        else:
+            # 새 레코드 삽입
+            cursor.execute("""
+                INSERT INTO collection_status
+                (ticker, last_price_date, last_trading_flow_date,
+                 last_news_collected_at, last_collection_attempt,
+                 last_successful_collection, consecutive_failures)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ticker,
+                price_date,
+                trading_flow_date,
+                now if news_collected else None,
+                now,
+                now if success else None,
+                0 if success else 1
+            ))
+
+        conn.commit()
+
+def get_collection_status(ticker: str = None):
+    """
+    데이터 수집 상태 조회
+
+    Args:
+        ticker: 종목 코드 (None이면 전체 조회)
+
+    Returns:
+        dict or list: 수집 상태 정보
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        if ticker:
+            cursor.execute("""
+                SELECT * FROM collection_status WHERE ticker = ?
+            """, (ticker,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+        else:
+            cursor.execute("""
+                SELECT * FROM collection_status ORDER BY ticker
+            """)
+            return [dict(row) for row in cursor.fetchall()]
 
 if __name__ == "__main__":
     init_db()
