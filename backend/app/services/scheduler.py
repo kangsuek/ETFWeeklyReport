@@ -69,13 +69,13 @@ class DataCollectionScheduler:
                     stock_info = Config.get_stock_info(ticker)
                     stock_name = stock_info.get('name', ticker) if stock_info else ticker
 
-                    # 1. 가격 데이터 수집 (1일)
-                    price_count = self.collector.collect_and_save_prices(ticker, days=1)
+                    # 1. 가격 데이터 수집 (스마트 수집 사용 - 중복 방지)
+                    price_count = self.collector.collect_and_save_prices_smart(ticker, days=1)
                     total_price_records += price_count
                     logger.info(f"[{ticker}/{stock_name}] 가격 데이터: {price_count}건")
 
-                    # 2. 매매동향 데이터 수집 (1일)
-                    trading_count = self.collector.collect_and_save_trading_flow(ticker, days=1)
+                    # 2. 매매동향 데이터 수집 (스마트 수집 사용 - 중복 방지)
+                    trading_count = self.collector.collect_and_save_trading_flow_smart(ticker, days=1)
                     total_trading_records += trading_count
                     logger.info(f"[{ticker}/{stock_name}] 매매동향: {trading_count}건")
 

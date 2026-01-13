@@ -717,17 +717,18 @@ class ETFDataCollector:
                 error_msg = None
 
                 try:
-                    price_count = self.collect_and_save_prices(ticker, days)
-                    logger.info(f"[일괄 수집] {ticker} - 가격: {price_count}건")
+                    # 스마트 수집 사용 - 중복 방지
+                    price_count = self.collect_and_save_prices_smart(ticker, days)
+                    logger.info(f"[일괄 수집-스마트] {ticker} - 가격: {price_count}건")
                 except Exception as e:
                     logger.error(f"[일괄 수집] {ticker} 가격 수집 실패: {e}")
                     ticker_success = False
                     error_msg = f"Price collection failed: {str(e)}"
 
-                # 매매동향 수집
+                # 매매동향 수집 (스마트)
                 try:
-                    trading_flow_count = self.collect_and_save_trading_flow(ticker, days)
-                    logger.info(f"[일괄 수집] {ticker} - 매매동향: {trading_flow_count}건")
+                    trading_flow_count = self.collect_and_save_trading_flow_smart(ticker, days)
+                    logger.info(f"[일괄 수집-스마트] {ticker} - 매매동향: {trading_flow_count}건")
                 except Exception as e:
                     logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
                     # 매매동향 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
@@ -1382,3 +1383,145 @@ class ETFDataCollector:
 
             logger.info(f"Batch fetched latest prices for {len([v for v in result.values() if v])} tickers")
             return result
+
+    def calculate_missing_days(self, ticker: str, requested_days: int) -> int:
+        """
+        실제로 수집해야 할 일수 계산 (중복 방지 최적화)
+
+        Args:
+            ticker: 종목 코드
+            requested_days: 사용자가 요청한 일수
+
+        Returns:
+            실제로 수집해야 할 일수 (0이면 수집 불필요)
+        """
+        from datetime import date, timedelta
+        from app.database import get_collection_status
+
+        # collection_status에서 마지막 수집 날짜 확인
+        status = get_collection_status(ticker)
+
+        if not status or not status.get('last_price_date'):
+            # 수집 이력이 없으면 요청한 일수만큼 수집
+            logger.info(f"[{ticker}] 수집 이력 없음 → {requested_days}일 수집 필요")
+            return requested_days
+
+        last_date = date.fromisoformat(status['last_price_date'])
+        today = date.today()
+
+        # 마지막 수집 날짜가 오늘이면 수집 불필요
+        if last_date >= today:
+            logger.info(f"[{ticker}] 이미 최신 데이터 보유 ({last_date}) → 수집 불필요")
+            return 0
+
+        # 누락 일수 계산
+        days_gap = (today - last_date).days
+
+        # 요청한 일수보다 갭이 작으면 갭만큼만 수집
+        actual_days = min(days_gap, requested_days)
+
+        logger.info(f"[{ticker}] 마지막 수집: {last_date}, 오늘: {today}, "
+                   f"갭: {days_gap}일 → {actual_days}일 수집")
+
+        return actual_days
+
+    def collect_and_save_prices_smart(self, ticker: str, days: int = 10) -> int:
+        """
+        스마트 가격 데이터 수집 (중복 방지)
+
+        기존 데이터 확인 후 실제로 필요한 부분만 수집합니다.
+
+        Args:
+            ticker: 종목 코드
+            days: 수집할 일수 (최대값)
+
+        Returns:
+            저장된 레코드 수
+        """
+        from datetime import date
+        from app.database import update_collection_status
+
+        # 실제로 수집해야 할 일수 계산
+        actual_days = self.calculate_missing_days(ticker, days)
+
+        if actual_days == 0:
+            logger.info(f"[{ticker}] 스마트 수집: 최신 데이터 보유 → 스킵")
+            return 0
+
+        # 데이터 수집
+        logger.info(f"[{ticker}] 스마트 수집: {actual_days}일치 데이터 수집 시작")
+        price_data = self.fetch_naver_finance_prices(ticker, actual_days)
+
+        if not price_data:
+            logger.warning(f"[{ticker}] 스마트 수집: 데이터 없음")
+            update_collection_status(ticker, success=False)
+            return 0
+
+        # 데이터 저장
+        saved_count = self.save_price_data(price_data)
+
+        # 수집 상태 업데이트
+        if saved_count > 0:
+            latest_date = max(d['date'] for d in price_data)
+            update_collection_status(
+                ticker,
+                price_date=latest_date.isoformat(),
+                success=True
+            )
+            logger.info(f"[{ticker}] 스마트 수집 완료: {saved_count}건 저장, "
+                       f"마지막 날짜: {latest_date}")
+
+        return saved_count
+
+    def collect_and_save_trading_flow_smart(self, ticker: str, days: int = 10) -> int:
+        """
+        스마트 매매동향 데이터 수집 (중복 방지)
+
+        Args:
+            ticker: 종목 코드
+            days: 수집할 일수 (최대값)
+
+        Returns:
+            저장된 레코드 수
+        """
+        from datetime import date, timedelta
+        from app.database import update_collection_status, get_collection_status
+
+        # collection_status에서 마지막 수집 날짜 확인
+        status = get_collection_status(ticker)
+
+        if status and status.get('last_trading_flow_date'):
+            last_date = date.fromisoformat(status['last_trading_flow_date'])
+            today = date.today()
+
+            if last_date >= today:
+                logger.info(f"[{ticker}] 매매동향: 이미 최신 데이터 보유 → 스킵")
+                return 0
+
+            days_gap = (today - last_date).days
+            actual_days = min(days_gap, days)
+            logger.info(f"[{ticker}] 매매동향: {actual_days}일치 수집")
+        else:
+            actual_days = days
+            logger.info(f"[{ticker}] 매매동향: 수집 이력 없음 → {actual_days}일 수집")
+
+        # 데이터 수집
+        trading_data = self.fetch_naver_trading_flow(ticker, actual_days)
+
+        if not trading_data:
+            logger.warning(f"[{ticker}] 매매동향: 데이터 없음")
+            return 0
+
+        # 데이터 저장
+        saved_count = self.save_trading_flow_data(trading_data)
+
+        # 수집 상태 업데이트
+        if saved_count > 0:
+            latest_date = max(d['date'] for d in trading_data)
+            update_collection_status(
+                ticker,
+                trading_flow_date=latest_date.isoformat(),
+                success=True
+            )
+
+        return saved_count
