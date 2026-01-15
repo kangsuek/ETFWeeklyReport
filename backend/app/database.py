@@ -210,13 +210,33 @@ def init_db():
     """)
     
     # quantity 컬럼이 없으면 추가 (마이그레이션)
-    try:
-        cursor.execute(f"ALTER TABLE etfs ADD COLUMN quantity {integer_type}")
-        logger.info("Added quantity column to etfs table")
-    except Exception as e:
-        # 컬럼이 이미 존재하는 경우 무시
-        if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
-            logger.warning(f"Could not add quantity column: {e}")
+    # PostgreSQL에서는 컬럼 존재 여부를 먼저 확인 (트랜잭션 오류 방지)
+    if USE_POSTGRES:
+        try:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='etfs' AND column_name='quantity'
+            """)
+            if not cursor.fetchone():
+                cursor.execute(f"ALTER TABLE etfs ADD COLUMN quantity {integer_type}")
+                logger.info("Added quantity column to etfs table")
+            else:
+                logger.debug("quantity column already exists")
+        except Exception as e:
+            logger.warning(f"Could not check/add quantity column: {e}")
+            # PostgreSQL에서 오류 발생 시 트랜잭션 롤백 후 재시도
+            conn.rollback()
+            # 롤백 후 다시 시도하지 않고 계속 진행 (컬럼이 이미 존재할 수 있음)
+    else:
+        # SQLite는 기존 방식 유지
+        try:
+            cursor.execute(f"ALTER TABLE etfs ADD COLUMN quantity {integer_type}")
+            logger.info("Added quantity column to etfs table")
+        except Exception as e:
+            # 컬럼이 이미 존재하는 경우 무시
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add quantity column: {e}")
     
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS prices (
