@@ -1,0 +1,50 @@
+services:
+  # Backend API Service
+  - type: web
+    name: etf-report-backend
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: etf-report-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false  # 프론트엔드 배포 후 Render 대시보드에서 설정
+      - key: NAVER_CLIENT_ID
+        sync: false  # 선택사항: Render 대시보드에서 설정
+      - key: NAVER_CLIENT_SECRET
+        sync: false  # 선택사항: Render 대시보드에서 설정
+      - key: SCRAPING_INTERVAL_MINUTES
+        value: 60  # 무료 플랜 고려: 1시간마다 수집
+      - key: CACHE_TTL_MINUTES
+        value: 5
+      - key: DB_POOL_SIZE
+        value: 5  # 무료 플랜에 맞게 조정
+
+  # Frontend Static Site
+  - type: web
+    name: etf-report-frontend
+    env: static
+    region: singapore
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false  # 백엔드 URL로 Render 대시보드에서 설정 (예: https://etf-report-backend.onrender.com/api)
+
+databases:
+  # PostgreSQL Database
+  - name: etf-report-db
+    databaseName: etf_report
+    user: etf_report_user
+    plan: free
+    region: singapore
