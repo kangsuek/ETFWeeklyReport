@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
-from app.database import get_db_connection, get_cursor
+from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import (
@@ -307,26 +307,59 @@ class ETFDataCollector:
 
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+                conn = cursor.connection
+            else:
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+
             try:
-                # executemany를 사용한 벌크 insert
-                cursor.executemany("""
-                    INSERT OR REPLACE INTO prices
-                    (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    (
-                        data['ticker'],
-                        data['date'],
-                        data['open_price'],
-                        data['high_price'],
-                        data['low_price'],
-                        data['close_price'],
-                        data['volume'],
-                        data['daily_change_pct']
-                    )
-                    for data in valid_data
-                ])
+                # PostgreSQL과 SQLite의 문법 차이
+                if USE_POSTGRES:
+                    cursor.executemany("""
+                        INSERT INTO prices
+                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (ticker, date) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            close_price = EXCLUDED.close_price,
+                            volume = EXCLUDED.volume,
+                            daily_change_pct = EXCLUDED.daily_change_pct
+                    """, [
+                        (
+                            data['ticker'],
+                            data['date'],
+                            data['open_price'],
+                            data['high_price'],
+                            data['low_price'],
+                            data['close_price'],
+                            data['volume'],
+                            data['daily_change_pct']
+                        )
+                        for data in valid_data
+                    ])
+                else:
+                    cursor.executemany("""
+                        INSERT OR REPLACE INTO prices
+                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, [
+                        (
+                            data['ticker'],
+                            data['date'],
+                            data['open_price'],
+                            data['high_price'],
+                            data['low_price'],
+                            data['close_price'],
+                            data['volume'],
+                            data['daily_change_pct']
+                        )
+                        for data in valid_data
+                    ])
 
                 conn.commit()
                 saved_count = len(valid_data)
@@ -437,12 +470,13 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
+        p = "%s" if USE_POSTGRES else "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
                 FROM prices
-                WHERE ticker = ?
+                WHERE ticker = {p}
             """, (ticker,))
             row = cursor.fetchone()
 
@@ -464,12 +498,13 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
+        p = "%s" if USE_POSTGRES else "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
                 FROM trading_flow
-                WHERE ticker = ?
+                WHERE ticker = {p}
             """, (ticker,))
             row = cursor.fetchone()
 
@@ -498,14 +533,15 @@ class ETFDataCollector:
             PriceData 리스트 (날짜 내림차순 정렬)
         """
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
-            query = """
+            query = f"""
                 SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
                 FROM prices
-                WHERE ticker = ? AND date BETWEEN ? AND ?
+                WHERE ticker = {p} AND date BETWEEN {p} AND {p}
                 ORDER BY date DESC
             """
 
@@ -515,7 +551,7 @@ class ETFDataCollector:
             cursor.execute(query, (ticker, start_date, end_date))
             rows = cursor.fetchall()
             return [PriceData(**dict(row)) for row in rows]
-    
+
     def get_trading_flow(self, ticker: str, start_date: date, end_date: date, limit: Optional[int] = None) -> List[TradingFlow]:
         """
         데이터베이스에서 매매 동향 데이터 조회
@@ -533,14 +569,15 @@ class ETFDataCollector:
             TradingFlow 리스트 (날짜 내림차순 정렬)
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
-            query = """
+            query = f"""
                 SELECT date, individual_net, institutional_net, foreign_net
                 FROM trading_flow
-                WHERE ticker = ? AND date BETWEEN ? AND ?
+                WHERE ticker = {p} AND date BETWEEN {p} AND {p}
                 ORDER BY date DESC
             """
 
@@ -566,19 +603,20 @@ class ETFDataCollector:
             ETFMetrics with calculated values
         """
         logger.info(f"Calculating metrics for {ticker}")
+        p = "%s" if USE_POSTGRES else "?"
 
         try:
-                with get_db_connection() as conn_or_cursor:
-                    cursor = get_cursor(conn_or_cursor)
+            with get_db_connection() as conn_or_cursor:
+                cursor = get_cursor(conn_or_cursor)
 
                 # Get price data for calculations
                 today = date.today()
                 one_year_ago = today - timedelta(days=DAYS_IN_YEAR)
 
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT date, close_price, daily_change_pct
                     FROM prices
-                    WHERE ticker = ? AND date >= ?
+                    WHERE ticker = {p} AND date >= {p}
                     ORDER BY date DESC
                 """, (ticker, one_year_ago))
 
@@ -623,7 +661,10 @@ class ETFDataCollector:
 
                 # Year-to-date return
                 year_start = date(today.year, 1, 1)
-                ytd_prices = [p for p in prices if date.fromisoformat(p['date']) >= year_start]
+                # Handle both date objects (PostgreSQL) and strings (SQLite)
+                def get_date(d):
+                    return d if isinstance(d, date) else date.fromisoformat(d)
+                ytd_prices = [p for p in prices if get_date(p['date']) >= year_start]
                 if len(ytd_prices) >= 2:
                     ytd_start_price = ytd_prices[-1]['close_price']
                     current_price = ytd_prices[0]['close_price']
@@ -1123,23 +1164,50 @@ class ETFDataCollector:
 
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+                conn = cursor.connection
+            else:
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+
             try:
-                # executemany를 사용한 벌크 insert
-                cursor.executemany("""
-                    INSERT OR REPLACE INTO trading_flow
-                    (ticker, date, individual_net, institutional_net, foreign_net)
-                    VALUES (?, ?, ?, ?, ?)
-                """, [
-                    (
-                        data['ticker'],
-                        data['date'],
-                        data.get('individual_net'),
-                        data.get('institutional_net'),
-                        data.get('foreign_net')
-                    )
-                    for data in valid_data
-                ])
+                # PostgreSQL과 SQLite의 문법 차이
+                if USE_POSTGRES:
+                    cursor.executemany("""
+                        INSERT INTO trading_flow
+                        (ticker, date, individual_net, institutional_net, foreign_net)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (ticker, date) DO UPDATE SET
+                            individual_net = EXCLUDED.individual_net,
+                            institutional_net = EXCLUDED.institutional_net,
+                            foreign_net = EXCLUDED.foreign_net
+                    """, [
+                        (
+                            data['ticker'],
+                            data['date'],
+                            data.get('individual_net'),
+                            data.get('institutional_net'),
+                            data.get('foreign_net')
+                        )
+                        for data in valid_data
+                    ])
+                else:
+                    cursor.executemany("""
+                        INSERT OR REPLACE INTO trading_flow
+                        (ticker, date, individual_net, institutional_net, foreign_net)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, [
+                        (
+                            data['ticker'],
+                            data['date'],
+                            data.get('individual_net'),
+                            data.get('institutional_net'),
+                            data.get('foreign_net')
+                        )
+                        for data in valid_data
+                    ])
 
                 conn.commit()
                 saved_count = len(valid_data)
@@ -1200,14 +1268,15 @@ class ETFDataCollector:
             매매동향 데이터 리스트
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
-            query = """
+            query = f"""
                 SELECT date, individual_net, institutional_net, foreign_net
                 FROM trading_flow
-                WHERE ticker = ? AND date BETWEEN ? AND ?
+                WHERE ticker = {p} AND date BETWEEN {p} AND {p}
                 ORDER BY date DESC
             """
 
@@ -1241,18 +1310,19 @@ class ETFDataCollector:
             return {}
 
         logger.info(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
-            placeholders = ','.join('?' * len(tickers))
+            placeholders = ','.join([p] * len(tickers))
 
             # 쿼리 구성
             query = f"""
                 SELECT ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct
                 FROM prices
-                WHERE ticker IN ({placeholders}) AND date BETWEEN ? AND ?
+                WHERE ticker IN ({placeholders}) AND date BETWEEN {p} AND {p}
                 ORDER BY ticker, date DESC
             """
 
@@ -1301,18 +1371,19 @@ class ETFDataCollector:
             return {}
 
         logger.info(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
-            placeholders = ','.join('?' * len(tickers))
+            placeholders = ','.join([p] * len(tickers))
 
             # 쿼리 구성
             query = f"""
                 SELECT ticker, date, individual_net, institutional_net, foreign_net
                 FROM trading_flow
-                WHERE ticker IN ({placeholders}) AND date BETWEEN ? AND ?
+                WHERE ticker IN ({placeholders}) AND date BETWEEN {p} AND {p}
                 ORDER BY ticker, date DESC
             """
 
@@ -1354,12 +1425,13 @@ class ETFDataCollector:
             return {}
 
         logger.info(f"Batch fetching latest prices for {len(tickers)} tickers")
+        p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
-            placeholders = ','.join('?' * len(tickers))
+            placeholders = ','.join([p] * len(tickers))
 
             # 각 종목의 최신 날짜만 조회하는 서브쿼리 사용
             query = f"""
@@ -1409,7 +1481,9 @@ class ETFDataCollector:
             logger.info(f"[{ticker}] 수집 이력 없음 → {requested_days}일 수집 필요")
             return requested_days
 
-        last_date = date.fromisoformat(status['last_price_date'])
+        # Handle both date objects (PostgreSQL) and strings (SQLite)
+        last_price_date = status['last_price_date']
+        last_date = last_price_date if isinstance(last_price_date, date) else date.fromisoformat(last_price_date)
         today = date.today()
 
         # 마지막 수집 날짜가 오늘이면 수집 불필요
@@ -1494,7 +1568,9 @@ class ETFDataCollector:
         status = get_collection_status(ticker)
 
         if status and status.get('last_trading_flow_date'):
-            last_date = date.fromisoformat(status['last_trading_flow_date'])
+            # Handle both date objects (PostgreSQL) and strings (SQLite)
+            last_flow_date = status['last_trading_flow_date']
+            last_date = last_flow_date if isinstance(last_flow_date, date) else date.fromisoformat(last_flow_date)
             today = date.today()
 
             if last_date >= today:

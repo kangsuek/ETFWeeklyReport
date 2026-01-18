@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 from app.config import Config
-from app.database import get_db_connection
+from app.database import get_db_connection, USE_POSTGRES
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +131,14 @@ def sync_stocks_to_db() -> int:
     """
     stocks = load_stocks()
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    with get_db_connection() as conn_or_cursor:
+        # PostgreSQL과 SQLite 처리 분기
+        if USE_POSTGRES:
+            cursor = conn_or_cursor
+            conn = cursor.connection
+        else:
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
         etfs_data = []
         for ticker, info in stocks.items():
@@ -151,10 +157,27 @@ def sync_stocks_to_db() -> int:
                 relevance_keywords_json
             ))
 
-        cursor.executemany("""
-            INSERT OR REPLACE INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, etfs_data)
+        if USE_POSTGRES:
+            # PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
+            cursor.executemany("""
+                INSERT INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    type = EXCLUDED.type,
+                    theme = EXCLUDED.theme,
+                    purchase_date = EXCLUDED.purchase_date,
+                    purchase_price = EXCLUDED.purchase_price,
+                    quantity = EXCLUDED.quantity,
+                    search_keyword = EXCLUDED.search_keyword,
+                    relevance_keywords = EXCLUDED.relevance_keywords
+            """, etfs_data)
+        else:
+            # SQLite: INSERT OR REPLACE
+            cursor.executemany("""
+                INSERT OR REPLACE INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, etfs_data)
 
         conn.commit()
 
@@ -272,26 +295,38 @@ def delete_stock(ticker: str) -> Dict[str, int]:
     # CASCADE delete from database
     deleted_counts = {}
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    # PostgreSQL과 SQLite의 플레이스홀더 차이
+    param_placeholder = "%s" if USE_POSTGRES else "?"
+
+    with get_db_connection() as conn_or_cursor:
+        # PostgreSQL과 SQLite 처리 분기
+        if USE_POSTGRES:
+            cursor = conn_or_cursor
+            conn = cursor.connection
+        else:
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
         # Count and delete prices
-        cursor.execute("SELECT COUNT(*) FROM prices WHERE ticker = ?", (ticker,))
-        deleted_counts["prices"] = cursor.fetchone()[0]
-        cursor.execute("DELETE FROM prices WHERE ticker = ?", (ticker,))
+        cursor.execute(f"SELECT COUNT(*) as cnt FROM prices WHERE ticker = {param_placeholder}", (ticker,))
+        result = cursor.fetchone()
+        deleted_counts["prices"] = result['cnt'] if USE_POSTGRES else result[0]
+        cursor.execute(f"DELETE FROM prices WHERE ticker = {param_placeholder}", (ticker,))
 
         # Count and delete news
-        cursor.execute("SELECT COUNT(*) FROM news WHERE ticker = ?", (ticker,))
-        deleted_counts["news"] = cursor.fetchone()[0]
-        cursor.execute("DELETE FROM news WHERE ticker = ?", (ticker,))
+        cursor.execute(f"SELECT COUNT(*) as cnt FROM news WHERE ticker = {param_placeholder}", (ticker,))
+        result = cursor.fetchone()
+        deleted_counts["news"] = result['cnt'] if USE_POSTGRES else result[0]
+        cursor.execute(f"DELETE FROM news WHERE ticker = {param_placeholder}", (ticker,))
 
         # Count and delete trading_flow
-        cursor.execute("SELECT COUNT(*) FROM trading_flow WHERE ticker = ?", (ticker,))
-        deleted_counts["trading_flow"] = cursor.fetchone()[0]
-        cursor.execute("DELETE FROM trading_flow WHERE ticker = ?", (ticker,))
+        cursor.execute(f"SELECT COUNT(*) as cnt FROM trading_flow WHERE ticker = {param_placeholder}", (ticker,))
+        result = cursor.fetchone()
+        deleted_counts["trading_flow"] = result['cnt'] if USE_POSTGRES else result[0]
+        cursor.execute(f"DELETE FROM trading_flow WHERE ticker = {param_placeholder}", (ticker,))
 
         # Delete from etfs table
-        cursor.execute("DELETE FROM etfs WHERE ticker = ?", (ticker,))
+        cursor.execute(f"DELETE FROM etfs WHERE ticker = {param_placeholder}", (ticker,))
 
         conn.commit()
 

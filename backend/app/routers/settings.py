@@ -369,19 +369,22 @@ async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify
     - 수집에는 시간이 걸릴 수 있습니다 (약 5-10분)
     - 기존 데이터는 업데이트됩니다
     """
+    logger.info(f"[종목목록수집] 요청 수신: {request.method} {request.url.path}")
+    logger.info(f"[종목목록수집] 클라이언트: {request.client.host if request.client else 'unknown'}")
+    
     try:
-        logger.info("Starting ticker catalog collection")
+        logger.info("[종목목록수집] 종목 목록 수집 시작...")
         
         result = ticker_catalog_collector.collect_all_stocks()
         
-        logger.info(f"Ticker catalog collection completed: {result}")
+        logger.info(f"[종목목록수집] 종목 목록 수집 완료: {result}")
         return result
         
     except ScraperException as e:
-        logger.error(f"Failed to collect ticker catalog: {e}")
+        logger.error(f"[종목목록수집] 수집 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error collecting ticker catalog: {e}", exc_info=True)
+        logger.error(f"[종목목록수집] 예상치 못한 에러: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to collect ticker catalog")
 
 

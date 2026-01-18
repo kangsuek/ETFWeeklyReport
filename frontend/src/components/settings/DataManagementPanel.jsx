@@ -11,7 +11,9 @@ export default function DataManagementPanel() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [isResetModalOpen, setIsResetModalOpen] = useState(false)
-  const [collectionDays, setCollectionDays] = useState(10)
+  const [isCollectTickerCatalogModalOpen, setIsCollectTickerCatalogModalOpen] = useState(false)
+  const [isCollectAllModalOpen, setIsCollectAllModalOpen] = useState(false)
+  const [collectionDays, setCollectionDays] = useState(90)
 
   // 데이터 통계 조회
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -47,20 +49,36 @@ export default function DataManagementPanel() {
   // 종목 목록 수집 Mutation
   const collectTickerCatalogMutation = useMutation({
     mutationFn: async () => {
-      const response = await settingsApi.collectTickerCatalog()
-      return response.data
+      console.log('[종목목록수집] API 호출 시작...')
+      try {
+        const response = await settingsApi.collectTickerCatalog()
+        console.log('[종목목록수집] API 호출 성공:', response)
+        return response.data
+      } catch (error) {
+        console.error('[종목목록수집] API 호출 실패:', error)
+        throw error
+      }
     },
     onSuccess: (data) => {
-      // 성공 메시지 표시
-      toast.success(
-        `종목 목록 수집 완료! 총 ${data.total_collected}개 (코스피: ${data.kospi_count}, 코스닥: ${data.kosdaq_count}, ETF: ${data.etf_count})`,
-        5000
-      )
+      console.log('[종목목록수집] 수집 성공:', data)
+      // 성공 메시지 표시 (실제 저장된 건수 사용)
+      const savedCount = data.saved_count || data.total_collected
+      const totalCollected = data.total_collected
+      
+      let message = `종목 목록 수집 완료! 저장: ${savedCount.toLocaleString('ko-KR')}개 (코스피: ${data.kospi_count.toLocaleString('ko-KR')}, 코스닥: ${data.kosdaq_count.toLocaleString('ko-KR')}, ETF: ${data.etf_count.toLocaleString('ko-KR')})`
+      
+      // 수집 건수와 저장 건수가 다를 경우 경고 표시
+      if (totalCollected !== savedCount) {
+        message += `\n⚠️ 수집: ${totalCollected.toLocaleString('ko-KR')}개, 저장: ${savedCount.toLocaleString('ko-KR')}개 (일부 저장 실패)`
+      }
+      
+      toast.success(message, 5000)
 
       // 캐시 무효화
       queryClient.invalidateQueries({ queryKey: ['data-stats'] })
     },
     onError: (error) => {
+      console.error('[종목목록수집] 수집 실패:', error)
       toast.error(`종목 목록 수집 실패: ${error.message}`)
     },
   })
@@ -96,18 +114,69 @@ export default function DataManagementPanel() {
   const handleCollectAll = () => {
     if (collectMutation.isPending) return
 
-    if (window.confirm(`최근 ${collectionDays}일 데이터를 수집하시겠습니까?\n\n소요 시간: 약 ${collectionDays * 6}초`)) {
-      collectMutation.mutate(collectionDays)
+    setIsCollectAllModalOpen(true)
+  }
+
+  // 전체 데이터 수집 확인 핸들러
+  const handleConfirmCollectAll = async () => {
+    setIsCollectAllModalOpen(false)
+
+    // 백엔드 연결 확인
+    try {
+      console.log('[전체데이터수집] 백엔드 연결 확인 중...')
+      const healthCheck = await fetch('/api/health')
+      if (healthCheck.ok) {
+        console.log('[전체데이터수집] 백엔드 연결 확인됨')
+      } else {
+        console.error('[전체데이터수집] 백엔드 연결 실패:', healthCheck.status)
+        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
+        return
+      }
+    } catch (error) {
+      console.error('[전체데이터수집] 백엔드 연결 에러:', error)
+      toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
+      return
     }
+
+    console.log('[전체데이터수집] 확인됨, 수집 시작...')
+    collectMutation.mutate(collectionDays)
   }
 
   // 종목 목록 수집 핸들러
   const handleCollectTickerCatalog = () => {
-    if (collectTickerCatalogMutation.isPending) return
-
-    if (window.confirm(`전체 종목 목록(코스피, 코스닥, ETF)을 수집하시겠습니까?\n\n소요 시간: 약 5-10분\n\n이 작업은 새 종목 추가 시 자동완성 기능을 위해 필요합니다.`)) {
-      collectTickerCatalogMutation.mutate()
+    console.log('[종목목록수집] 버튼 클릭됨')
+    
+    if (collectTickerCatalogMutation.isPending) {
+      console.log('[종목목록수집] 이미 진행 중입니다.')
+      return
     }
+
+    setIsCollectTickerCatalogModalOpen(true)
+  }
+
+  // 종목 목록 수집 확인 핸들러
+  const handleConfirmCollectTickerCatalog = async () => {
+    setIsCollectTickerCatalogModalOpen(false)
+
+    // 백엔드 연결 확인
+    try {
+      console.log('[종목목록수집] 백엔드 연결 확인 중...')
+      const healthCheck = await fetch('/api/health')
+      if (healthCheck.ok) {
+        console.log('[종목목록수집] 백엔드 연결 확인됨')
+      } else {
+        console.error('[종목목록수집] 백엔드 연결 실패:', healthCheck.status)
+        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
+        return
+      }
+    } catch (error) {
+      console.error('[종목목록수집] 백엔드 연결 에러:', error)
+      toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
+      return
+    }
+
+    console.log('[종목목록수집] 확인됨, 수집 시작...')
+    collectTickerCatalogMutation.mutate()
   }
 
   // 데이터베이스 초기화 핸들러
@@ -402,6 +471,142 @@ export default function DataManagementPanel() {
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
               >
                 삭제하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 종목 목록 수집 확인 모달 */}
+      {isCollectTickerCatalogModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <svg className="w-8 h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">종목 목록 수집</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                  전체 종목 목록(코스피, 코스닥, ETF)을 수집하시겠습니까?
+                </p>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>소요 시간: 약 5-10분</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>이 작업은 새 종목 추가 시 자동완성 기능을 위해 필요합니다.</span>
+                  </div>
+                </div>
+                <p className="text-sm text-blue-600 dark:text-blue-400 mt-3 font-medium">
+                  💡 최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsCollectTickerCatalogModalOpen(false)}
+                disabled={collectTickerCatalogMutation.isPending}
+                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleConfirmCollectTickerCatalog}
+                disabled={collectTickerCatalogMutation.isPending}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {collectTickerCatalogMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>수집 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>수집 시작</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 전체 데이터 수집 확인 모달 */}
+      {isCollectAllModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <svg className="w-8 h-8 text-primary-600 dark:text-primary-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">전체 데이터 수집</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                  최근 {collectionDays}일 데이터를 수집하시겠습니까?
+                </p>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>소요 시간: 약 {collectionDays * 6}초</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>모든 종목의 가격, 매매 동향, 뉴스 데이터를 수집합니다.</span>
+                  </div>
+                </div>
+                <p className="text-sm text-primary-600 dark:text-primary-400 mt-3 font-medium">
+                  💡 수집 기간은 상단의 드롭다운에서 변경할 수 있습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsCollectAllModalOpen(false)}
+                disabled={collectMutation.isPending}
+                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleConfirmCollectAll}
+                disabled={collectMutation.isPending}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {collectMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>수집 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>수집 시작</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

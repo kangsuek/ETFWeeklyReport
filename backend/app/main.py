@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import etfs, reports, news, data, settings
 from app.database import init_db
@@ -9,6 +9,7 @@ from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 import logging
 from dotenv import load_dotenv
+import time
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,22 @@ app.add_middleware(
     expose_headers=["X-Total-Count"],
     max_age=3600,
 )
+
+# 요청 로깅 미들웨어
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    logger.info(f"[요청] {request.method} {request.url.path} - 클라이언트: {request.client.host if request.client else 'unknown'}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info(f"[응답] {request.method} {request.url.path} - 상태: {response.status_code} - 소요시간: {process_time:.3f}초")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"[에러] {request.method} {request.url.path} - 에러: {e} - 소요시간: {process_time:.3f}초", exc_info=True)
+        raise
 
 # Initialize database and scheduler on startup
 @app.on_event("startup")
