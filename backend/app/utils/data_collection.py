@@ -43,13 +43,20 @@ def auto_collect_if_needed(
         ScraperException: 데이터 수집 실패
         DatabaseException: DB 오류
     """
-    # 1. DB 데이터 조회
+    # 1. DB 데이터 조회 (먼저 실제 데이터가 있는지 확인)
     data = get_data_fn(ticker, start_date, end_date)
 
-    # 2. 데이터 범위 확인
+    # 2. 실제 조회된 데이터가 충분한지 확인
+    # 데이터가 있고 요청한 날짜 범위를 충분히 커버하는지 확인
+    if data and len(data) > 0:
+        # 실제 데이터가 있으면 수집 불필요
+        logger.debug(f"Found {len(data)} {data_type} records for {ticker} in range {start_date} to {end_date}, skipping collection")
+        return data
+
+    # 3. 데이터 범위 확인 (데이터가 없거나 부족한 경우)
     data_range = get_data_range_fn(ticker)
 
-    # 3. 데이터가 없거나 범위가 부족한 경우 자동 수집
+    # 4. 데이터가 없거나 범위가 부족한 경우에만 자동 수집
     should_collect = False
     collection_days = 0
 
@@ -62,17 +69,16 @@ def auto_collect_if_needed(
         # 요청 범위가 DB 범위를 벗어남
         logger.info(
             f"Requested {data_type} range ({start_date} to {end_date}) exceeds "
-            f"DB range ({data_range['min_date']} to {data_range['max_date']})"
+            f"DB range ({data_range['min_date']} to {data_range['max_date']}) for {ticker}"
         )
         should_collect = True
 
-        # 부족한 기간 계산
-        if data_range['min_date'] > start_date:
-            collection_days = max(collection_days, (data_range['min_date'] - start_date).days)
-        if data_range['max_date'] < end_date:
-            collection_days = max(collection_days, (end_date - data_range['max_date']).days)
-
         # 전체 범위로 다시 수집
+        collection_days = (end_date - start_date).days + 1
+    else:
+        # DB 범위는 충분하지만 실제 데이터가 없는 경우 (데이터 삭제 등)
+        logger.info(f"DB range covers requested range but no data found for {ticker}, collecting {(end_date - start_date).days + 1} days")
+        should_collect = True
         collection_days = (end_date - start_date).days + 1
 
     if should_collect:

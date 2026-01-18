@@ -109,7 +109,8 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
 async def compare_etfs(
     tickers: str = Query(..., description="Comma-separated ticker codes (2-6 tickers)"),
     start_date: Optional[date] = Query(default=None, description="Start date (default: 30 days ago)"),
-    end_date: Optional[date] = Query(default=None, description="End date (default: today)")
+    end_date: Optional[date] = Query(default=None, description="End date (default: today)"),
+    collector: ETFDataCollector = Depends(get_collector)
 ):
     """
     종목 비교 분석
@@ -200,6 +201,29 @@ async def compare_etfs(
 
     try:
         logger.info(f"Comparing tickers: {ticker_list}, date range: {start_date} to {end_date}")
+
+        # 각 종목에 대해 자동 수집 수행 (데이터가 없는 경우)
+        # auto_collect_if_needed를 사용하여 데이터 수집 및 재조회
+        for ticker in ticker_list:
+            try:
+                logger.info(f"Checking and auto-collecting price data for {ticker} if needed")
+                auto_collect_if_needed(
+                    ticker=ticker,
+                    start_date=start_date,
+                    end_date=end_date,
+                    get_data_fn=collector.get_price_data,
+                    get_data_range_fn=collector.get_price_data_range,
+                    collect_fn=collector.collect_and_save_prices,
+                    data_type="price",
+                    pass_dates_to_collect=False
+                )
+                logger.info(f"Price data ready for {ticker}")
+            except ScraperException as e:
+                # 스크래퍼 오류는 로그만 남기고 계속 진행 (다른 종목은 비교 가능)
+                logger.warning(f"Failed to auto-collect price data for {ticker}: {e}")
+            except Exception as e:
+                # 기타 오류도 로그만 남기고 계속 진행
+                logger.warning(f"Unexpected error while auto-collecting for {ticker}: {e}")
 
         # 비교 서비스 생성 및 실행
         comparison_service = ComparisonService()

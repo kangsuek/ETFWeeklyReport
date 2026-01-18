@@ -11,10 +11,15 @@ import { MAX_DATE_RANGE_DAYS } from '../../constants';
  * @param {Function} props.onDateRangeChange - 날짜 범위 변경 콜백 함수
  * @param {string} props.defaultRange - 기본 범위 ('7d', '1m', '3m', 'custom')
  */
-const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, defaultRange = '7d' }) {
+const DateRangeSelector = memo(function DateRangeSelector({ 
+  onDateRangeChange, 
+  defaultRange = '7d',
+  initialStartDate = null,
+  initialEndDate = null
+}) {
   const [selectedRange, setSelectedRange] = useState(defaultRange);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(initialStartDate || '');
+  const [endDate, setEndDate] = useState(initialEndDate || '');
   const [error, setError] = useState('');
 
   // 프리셋 버튼 클릭 핸들러
@@ -83,12 +88,17 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
 
   // 초기 기본값 설정 및 defaultRange prop 변경 시 반영
   useEffect(() => {
+    // 초기 날짜가 이미 설정된 경우 (부모 컴포넌트에서 전달된 경우) 스킵
+    if (initialStartDate && initialEndDate) {
+      return;
+    }
+    
     // 커스텀 범위가 아닌 경우에만 자동으로 설정값 반영
     if (defaultRange !== 'custom') {
       handlePresetClick(defaultRange);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultRange]);
+  }, [defaultRange, initialStartDate, initialEndDate]);
 
   const presetButtons = [
     { label: '7일', value: '7d' },
@@ -175,6 +185,8 @@ const DateRangeSelector = memo(function DateRangeSelector({ onDateRangeChange, d
 DateRangeSelector.propTypes = {
   onDateRangeChange: PropTypes.func.isRequired,
   defaultRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
+  initialStartDate: PropTypes.string,
+  initialEndDate: PropTypes.string,
 }
 
 export default DateRangeSelector;
