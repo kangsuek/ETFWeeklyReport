@@ -10,6 +10,9 @@ import {
 // 프록시를 사용하도록 상대 경로로 설정
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+// API Key (환경 변수에서 로드)
+const API_KEY = import.meta.env.VITE_API_KEY
+
 // 기본 Axios 인스턴스 생성 (기본 타임아웃 사용)
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -22,9 +25,25 @@ const api = axios.create({
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {
+    // 디버깅: 종목 목록 수집 요청 로깅
+    if (config.url && config.url.includes('ticker-catalog/collect')) {
+      console.log('[API] 종목 목록 수집 요청:', {
+        method: config.method,
+        url: config.url,
+        baseURL: config.baseURL,
+        fullURL: `${config.baseURL}${config.url}`,
+        headers: config.headers
+      })
+    }
+    
+    // API Key가 설정된 경우 모든 요청에 추가
+    if (API_KEY) {
+      config.headers['X-API-Key'] = API_KEY
+    }
     return config
   },
   (error) => {
+    console.error('[API] 요청 인터셉터 에러:', error)
     return Promise.reject(error)
   }
 )
@@ -32,9 +51,26 @@ api.interceptors.request.use(
 // 응답 인터셉터
 api.interceptors.response.use(
   (response) => {
+    // 디버깅: 종목 목록 수집 응답 로깅
+    if (response.config.url && response.config.url.includes('ticker-catalog/collect')) {
+      console.log('[API] 종목 목록 수집 응답 성공:', {
+        status: response.status,
+        data: response.data
+      })
+    }
     return response
   },
   (error) => {
+    // 디버깅: 종목 목록 수집 에러 로깅
+    if (error.config && error.config.url && error.config.url.includes('ticker-catalog/collect')) {
+      console.error('[API] 종목 목록 수집 응답 에러:', {
+        message: error.message,
+        response: error.response,
+        request: error.request,
+        config: error.config
+      })
+    }
+    
     // 에러 응답 처리
     if (error.response) {
       // 서버 응답이 있는 경우
@@ -43,6 +79,9 @@ api.interceptors.response.use(
       switch (status) {
         case 400:
           error.message = data.detail || ERROR_MESSAGES.BAD_REQUEST
+          break
+        case 401:
+          error.message = data.detail || '인증이 필요합니다. API 키를 확인해주세요.'
           break
         case 404:
           error.message = data.detail || ERROR_MESSAGES.NOT_FOUND
@@ -55,6 +94,7 @@ api.interceptors.response.use(
       }
     } else if (error.request) {
       // 요청은 보냈으나 응답이 없는 경우
+      console.error('[API] 서버 응답 없음:', error.request)
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
         error.message = ERROR_MESSAGES.TIMEOUT_ERROR
       } else {
@@ -62,6 +102,7 @@ api.interceptors.response.use(
       }
     } else {
       // 요청 설정 중 오류 발생
+      console.error('[API] 요청 설정 에러:', error)
       error.message = error.message || ERROR_MESSAGES.SERVER_ERROR
     }
 

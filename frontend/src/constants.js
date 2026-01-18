@@ -58,13 +58,15 @@ export const NORMAL_API_TIMEOUT = 60000 // 60초
  * 용도:
  * - 데이터 수집 트리거 API
  * - 여러 종목을 처리하는 작업
+ * - 종목 목록 수집 (5-10분 소요)
  * 
  * 예시:
  * - /api/data/collect-all
  * - /api/data/backfill
  * - /api/etfs/{ticker}/collect
+ * - /api/settings/ticker-catalog/collect (5-10분 소요)
  */
-export const LONG_API_TIMEOUT = 60000 // 60초
+export const LONG_API_TIMEOUT = 600000 // 600초 (10분) - 종목 목록 수집을 위해 충분한 시간 확보
 
 // =============================================================================
 // 색상 코드 상수

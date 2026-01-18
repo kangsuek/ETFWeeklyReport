@@ -112,13 +112,15 @@ async def verify_api_key_dependency(api_key: Optional[str] = Depends(api_key_hea
             return {"status": "ok"}
         ```
     """
+    logger.info(f"[인증] API Key 검증 시작 - 제공된 API Key: {'있음' if api_key else '없음'}")
+    
     # 개발 모드: API_KEY가 설정되지 않은 경우 모든 요청 허용
     if not Config.API_KEY:
-        logger.warning("API_KEY가 환경 변수에 설정되지 않았습니다. 모든 요청을 허용합니다. (개발 모드)")
+        logger.info("[인증] 개발 모드: API_KEY 미설정, 모든 요청 허용")
         return "dev-mode"  # Placeholder API key for development
 
     if not api_key:
-        logger.warning("API Key가 제공되지 않았습니다.")
+        logger.warning("[인증] API Key가 제공되지 않았습니다.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API Key가 필요합니다. X-API-Key 헤더를 포함해주세요.",
@@ -126,13 +128,14 @@ async def verify_api_key_dependency(api_key: Optional[str] = Depends(api_key_hea
         )
 
     if not APIKeyAuth.verify_api_key(api_key):
-        logger.warning("잘못된 API Key 시도")
+        logger.warning("[인증] 잘못된 API Key 시도")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="잘못된 API Key입니다.",
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
+    logger.info("[인증] API Key 검증 성공")
     return api_key
 
 

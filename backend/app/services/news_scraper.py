@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import date, datetime, timedelta
 from app.models import News
-from app.database import get_db_connection, get_cursor
+from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
@@ -325,14 +325,25 @@ class NewsScraper:
             return 0
 
         # 중복 체크 및 새로운 뉴스만 필터링
+        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+
         with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+                conn = cursor.connection
+            else:
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+
             try:
                 # 기존 뉴스 URL 조회 (중복 체크)
-                cursor.execute("""
-                    SELECT url FROM news WHERE ticker = ?
+                cursor.execute(f"""
+                    SELECT url FROM news WHERE ticker = {param_placeholder}
                 """, (ticker,))
-                existing_urls = {row[0] for row in cursor.fetchall()}
+                # PostgreSQL RealDictCursor는 dict를 반환
+                existing_urls = {row['url'] if USE_POSTGRES else row[0] for row in cursor.fetchall()}
 
                 # 새로운 뉴스만 필터링
                 new_news = [
@@ -345,20 +356,36 @@ class NewsScraper:
                     return 0
 
                 # 벌크 insert 수행
-                cursor.executemany("""
-                    INSERT INTO news (ticker, date, title, url, source, relevance_score)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, [
-                    (
-                        ticker,
-                        news['date'],
-                        news['title'],
-                        news['url'],
-                        news['source'],
-                        news.get('relevance_score', 0.5)
-                    )
-                    for news in new_news
-                ])
+                if USE_POSTGRES:
+                    cursor.executemany("""
+                        INSERT INTO news (ticker, date, title, url, source, relevance_score)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, [
+                        (
+                            ticker,
+                            news['date'],
+                            news['title'],
+                            news['url'],
+                            news['source'],
+                            news.get('relevance_score', 0.5)
+                        )
+                        for news in new_news
+                    ])
+                else:
+                    cursor.executemany("""
+                        INSERT INTO news (ticker, date, title, url, source, relevance_score)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, [
+                        (
+                            ticker,
+                            news['date'],
+                            news['title'],
+                            news['url'],
+                            news['source'],
+                            news.get('relevance_score', 0.5)
+                        )
+                        for news in new_news
+                    ])
 
                 conn.commit()
                 saved_count = len(new_news)
@@ -429,12 +456,15 @@ class NewsScraper:
         """
         logger.info(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
+        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT date, title, url, source, relevance_score
                 FROM news
-                WHERE ticker = ? AND date BETWEEN ? AND ?
+                WHERE ticker = {param_placeholder} AND date BETWEEN {param_placeholder} AND {param_placeholder}
                 ORDER BY date DESC, relevance_score DESC
             """, (ticker, start_date, end_date))
 

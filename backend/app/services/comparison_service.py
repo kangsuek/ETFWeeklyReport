@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import date
 import numpy as np
 import pandas as pd
-from app.database import get_db_connection
+from app.database import get_db_connection, USE_POSTGRES
 from app.exceptions import ValidationException
 import logging
 
@@ -107,12 +107,22 @@ class ComparisonService:
         """
         prices_data = {}
 
-        with get_db_connection() as conn:
+        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+
+        with get_db_connection() as conn_or_cursor:
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                # PostgreSQL: cursor.connection으로 connection 객체 접근
+                conn = conn_or_cursor.connection
+            else:
+                conn = conn_or_cursor
+
             for ticker in tickers:
-                query = """
+                query = f"""
                     SELECT date, close_price
                     FROM prices
-                    WHERE ticker = ? AND date BETWEEN ? AND ?
+                    WHERE ticker = {param_placeholder} AND date BETWEEN {param_placeholder} AND {param_placeholder}
                     ORDER BY date ASC
                 """
 

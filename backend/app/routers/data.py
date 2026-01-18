@@ -296,27 +296,40 @@ async def get_data_stats(request: Request):
         return cached_result
 
     try:
-        from app.database import get_db_connection, DB_PATH
+        from app.database import get_db_connection, DB_PATH, USE_POSTGRES
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
 
             # 각 테이블의 레코드 수 조회
-            cursor.execute("SELECT COUNT(*) FROM etfs")
-            etfs_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM etfs")
+            result = cursor.fetchone()
+            etfs_count = result['cnt'] if USE_POSTGRES else result[0]
 
-            cursor.execute("SELECT COUNT(*) FROM prices")
-            prices_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM prices")
+            result = cursor.fetchone()
+            prices_count = result['cnt'] if USE_POSTGRES else result[0]
 
-            cursor.execute("SELECT COUNT(*) FROM news")
-            news_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM news")
+            result = cursor.fetchone()
+            news_count = result['cnt'] if USE_POSTGRES else result[0]
 
-            cursor.execute("SELECT COUNT(*) FROM trading_flow")
-            trading_flow_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM trading_flow")
+            result = cursor.fetchone()
+            trading_flow_count = result['cnt'] if USE_POSTGRES else result[0]
 
             # stock_catalog 테이블의 종목 목록 수 조회
-            cursor.execute("SELECT COUNT(*) FROM stock_catalog WHERE is_active = 1")
-            stock_catalog_count = cursor.fetchone()[0]
+            # PostgreSQL: is_active는 BOOLEAN, SQLite: INTEGER (1/0)
+            if USE_POSTGRES:
+                cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = TRUE")
+            else:
+                cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = 1")
+            result = cursor.fetchone()
+            stock_catalog_count = result['cnt'] if USE_POSTGRES else result[0]
 
             # 마지막 수집 시간 (스케줄러의 수집 실행 시간을 우선 사용)
             last_collection = None
@@ -337,19 +350,33 @@ async def get_data_stats(request: Request):
                     SELECT MAX(date) as last_date
                     FROM prices
                 """)
-                last_price_date = cursor.fetchone()[0]
+                result = cursor.fetchone()
+                last_price_date = result['last_date'] if USE_POSTGRES else result[0]
 
                 if last_price_date:
                     # 날짜를 datetime으로 변환
                     from datetime import datetime
                     try:
-                        last_collection = datetime.fromisoformat(last_price_date).isoformat()
+                        # PostgreSQL은 date 객체를 반환할 수 있음
+                        if hasattr(last_price_date, 'isoformat'):
+                            last_collection = last_price_date.isoformat()
+                        else:
+                            last_collection = datetime.fromisoformat(str(last_price_date)).isoformat()
                     except (ValueError, TypeError) as e:
                         logger.warning(f"Failed to parse last_price_date: {last_price_date}, error: {e}")
-                        last_collection = last_price_date
+                        last_collection = str(last_price_date)
 
-            # 데이터베이스 파일 크기 (MB)
-            db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0
+            # 데이터베이스 파일 크기 (MB) - SQLite만 해당
+            if USE_POSTGRES:
+                # PostgreSQL에서는 데이터베이스 크기 조회
+                try:
+                    cursor.execute("SELECT pg_database_size(current_database()) as size")
+                    result = cursor.fetchone()
+                    db_size_bytes = result['size'] if result else 0
+                except Exception:
+                    db_size_bytes = 0
+            else:
+                db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH and DB_PATH.exists() else 0
             db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
 
             result = {
@@ -455,20 +482,29 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
     - 500: 서버 오류
     """
     try:
-        from app.database import get_db_connection
+        from app.database import get_db_connection, USE_POSTGRES
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+                conn = cursor.connection
+            else:
+                conn = conn_or_cursor
+                cursor = conn.cursor()
 
             # 삭제 전 레코드 수 확인
-            cursor.execute("SELECT COUNT(*) FROM prices")
-            prices_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM prices")
+            result = cursor.fetchone()
+            prices_count = result['cnt'] if USE_POSTGRES else result[0]
 
-            cursor.execute("SELECT COUNT(*) FROM news")
-            news_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM news")
+            result = cursor.fetchone()
+            news_count = result['cnt'] if USE_POSTGRES else result[0]
 
-            cursor.execute("SELECT COUNT(*) FROM trading_flow")
-            trading_flow_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) as cnt FROM trading_flow")
+            result = cursor.fetchone()
+            trading_flow_count = result['cnt'] if USE_POSTGRES else result[0]
 
             # 테이블 데이터 삭제 (etfs 제외)
             cursor.execute("DELETE FROM prices")

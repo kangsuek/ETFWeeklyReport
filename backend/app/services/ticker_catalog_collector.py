@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
-from app.database import get_db_connection, get_cursor
+from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,10 @@ try:
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.chrome.options import Options
     from webdriver_manager.chrome import ChromeDriverManager
+    # webdriver_manager의 로깅 레벨을 ERROR로 설정하여 WARNING 메시지 숨김
+    import logging
+    wdm_logger = logging.getLogger('WDM')
+    wdm_logger.setLevel(logging.ERROR)
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
@@ -301,25 +305,50 @@ class TickerCatalogCollector:
             
             # WebDriver 초기화
             try:
-                driver_path = ChromeDriverManager().install()
-                # chromedriver 실행 파일 찾기 (디렉토리 내에서)
                 import os
+                import stat
+                
+                driver_path = ChromeDriverManager().install()
+                
+                # chromedriver 실행 파일 찾기
                 if os.path.isdir(driver_path):
                     # 디렉토리인 경우 chromedriver 실행 파일 찾기
+                    found_driver = None
                     for root, dirs, files in os.walk(driver_path):
                         for file in files:
-                            if file == 'chromedriver' or file.startswith('chromedriver'):
-                                driver_path = os.path.join(root, file)
-                                break
-                        if driver_path != ChromeDriverManager().install():
+                            # 정확히 'chromedriver' 파일만 찾기 (확장자 없음)
+                            if file == 'chromedriver':
+                                candidate_path = os.path.join(root, file)
+                                # 실행 가능한 파일인지 확인
+                                if os.path.isfile(candidate_path) and os.access(candidate_path, os.X_OK):
+                                    found_driver = candidate_path
+                                    break
+                        if found_driver:
                             break
+                    
+                    if found_driver:
+                        driver_path = found_driver
+                    else:
+                        raise FileNotFoundError("chromedriver executable not found in directory")
+                elif not os.path.isfile(driver_path):
+                    raise FileNotFoundError(f"chromedriver not found at {driver_path}")
+                
+                # 실행 권한 확인 및 설정
+                if not os.access(driver_path, os.X_OK):
+                    os.chmod(driver_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
                 
                 service = Service(driver_path)
                 driver = webdriver.Chrome(service=service, options=chrome_options)
             except Exception as e:
                 # ChromeDriverManager 실패 시 시스템 PATH에서 chromedriver 찾기
-                logger.warning(f"ChromeDriverManager failed: {e}, trying system chromedriver")
-                driver = webdriver.Chrome(options=chrome_options)
+                # 경고 메시지는 DEBUG 레벨로 변경 (정상적인 fallback 동작이므로)
+                logger.debug(f"ChromeDriverManager failed: {e}, trying system chromedriver")
+                try:
+                    driver = webdriver.Chrome(options=chrome_options)
+                    logger.debug("Successfully using system chromedriver")
+                except Exception as e2:
+                    logger.error(f"System chromedriver also failed: {e2}, falling back to requests method")
+                    raise
             
             driver.implicitly_wait(5)
             
@@ -507,84 +536,170 @@ class TickerCatalogCollector:
     def _save_to_database(self, stocks: List[Dict[str, Any]]) -> int:
         """
         수집한 종목 목록을 데이터베이스에 저장
-        
+
         기존 종목과 비교하여:
         - 신규 종목: 추가
         - 기존 종목: 업데이트 (종목명 변경 반영)
-        - 상장폐지 종목: is_active = 0으로 표시
+        - 상장폐지 종목: is_active = 0/FALSE로 표시
         """
         if not stocks:
             return 0
-        
+
         saved_count = 0
         updated_count = 0
         deactivated_count = 0
-        
+
+        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+
         with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
-            
-            # 현재 수집된 종목의 티커 코드 집합
-            collected_tickers = {stock["ticker"] for stock in stocks}
-            
-            # 1단계: 먼저 수집된 종목을 모두 저장 (is_active = 1로 설정)
-            for stock in stocks:
-                try:
-                    # 기존 종목인지 확인
-                    cursor.execute("SELECT name FROM stock_catalog WHERE ticker = ?", (stock["ticker"],))
-                    existing = cursor.fetchone()
-                    
-                    if existing:
-                        # 기존 종목 업데이트 (종목명 변경 반영)
-                        if existing[0] != stock["name"]:
-                            logger.debug(f"Updating stock name: {stock['ticker']} - {existing[0]} -> {stock['name']}")
-                        updated_count += 1
+            # PostgreSQL과 SQLite 처리 분기
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+                conn = cursor.connection
+            else:
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+
+            try:
+                # 현재 수집된 종목의 티커 코드 집합
+                collected_tickers = {stock["ticker"] for stock in stocks}
+
+                # 1단계: 먼저 수집된 종목을 모두 저장 (is_active = 1/TRUE로 설정)
+                failed_stocks = []
+                
+                for stock in stocks:
+                    try:
+                        # 데이터 검증
+                        if not stock.get("ticker") or not stock.get("name") or not stock.get("type"):
+                            logger.warning(f"Skipping invalid stock data: {stock}")
+                            failed_stocks.append(stock.get("ticker", "unknown"))
+                            continue
+                        
+                        # 기존 종목인지 확인
+                        cursor.execute(f"SELECT name FROM stock_catalog WHERE ticker = {param_placeholder}", (stock["ticker"],))
+                        existing = cursor.fetchone()
+
+                        if existing:
+                            # 기존 종목 업데이트 (종목명 변경 반영)
+                            existing_name = existing['name'] if USE_POSTGRES else existing[0]
+                            if existing_name != stock["name"]:
+                                logger.debug(f"Updating stock name: {stock['ticker']} - {existing_name} -> {stock['name']}")
+                            updated_count += 1
+                        else:
+                            # 신규 종목 추가
+                            logger.debug(f"Adding new stock: {stock['ticker']} - {stock['name']}")
+
+                        if USE_POSTGRES:
+                            # PostgreSQL에서는 boolean 타입이므로 정수를 boolean으로 변환
+                            is_active_bool = bool(stock["is_active"]) if stock["is_active"] is not None else True
+                            
+                            # SAVEPOINT를 사용하여 개별 종목 저장 실패 시에도 전체 트랜잭션 유지
+                            savepoint_name = f"savepoint_{stock['ticker']}"
+                            cursor.execute(f"SAVEPOINT {savepoint_name}")
+                            
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO stock_catalog
+                                    (ticker, name, type, market, sector, listed_date, last_updated, is_active)
+                                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                                    ON CONFLICT (ticker) DO UPDATE SET
+                                        name = EXCLUDED.name,
+                                        type = EXCLUDED.type,
+                                        market = EXCLUDED.market,
+                                        sector = EXCLUDED.sector,
+                                        listed_date = EXCLUDED.listed_date,
+                                        last_updated = CURRENT_TIMESTAMP,
+                                        is_active = EXCLUDED.is_active
+                                """, (
+                                    stock["ticker"],
+                                    stock["name"],
+                                    stock["type"],
+                                    stock["market"],
+                                    stock["sector"],
+                                    stock["listed_date"],
+                                    is_active_bool
+                                ))
+                                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                                saved_count += 1
+                            except Exception as save_error:
+                                # 개별 종목 저장 실패 시 해당 SAVEPOINT만 롤백
+                                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                                logger.error(f"Failed to save stock {stock.get('ticker')}: {save_error}", exc_info=True)
+                                failed_stocks.append(stock.get("ticker"))
+                        else:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO stock_catalog
+                                (ticker, name, type, market, sector, listed_date, last_updated, is_active)
+                                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                            """, (
+                                stock["ticker"],
+                                stock["name"],
+                                stock["type"],
+                                stock["market"],
+                                stock["sector"],
+                                stock["listed_date"],
+                                stock["is_active"]
+                            ))
+                            saved_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to save stock {stock.get('ticker')}: {e}", exc_info=True)
+                        failed_stocks.append(stock.get("ticker", "unknown"))
+                        # SQLite는 continue로 계속 진행
+                        if not USE_POSTGRES:
+                            continue
+                
+                # 실패한 종목이 있는 경우 로그 출력
+                if failed_stocks:
+                    logger.warning(f"Failed to save {len(failed_stocks)} stocks: {failed_stocks[:10]}{'...' if len(failed_stocks) > 10 else ''}")
+
+                # 2단계: 수집된 종목 저장 후, 상장폐지 종목 찾기 및 비활성화
+                # 기존 데이터베이스의 모든 종목 조회 (수집 전 상태)
+                cursor.execute("SELECT ticker FROM stock_catalog")
+                all_existing_tickers = {row['ticker'] if USE_POSTGRES else row[0] for row in cursor.fetchall()}
+
+                # 상장폐지된 종목 찾기 (기존에는 있지만 수집된 목록에는 없음)
+                deactivated_tickers = all_existing_tickers - collected_tickers
+
+                # 상장폐지 종목 비활성화
+                if deactivated_tickers:
+                    if USE_POSTGRES:
+                        placeholders = ','.join(['%s'] * len(deactivated_tickers))
+                        cursor.execute(f"""
+                            UPDATE stock_catalog
+                            SET is_active = FALSE, last_updated = CURRENT_TIMESTAMP
+                            WHERE ticker IN ({placeholders})
+                        """, list(deactivated_tickers))
                     else:
-                        # 신규 종목 추가
-                        logger.debug(f"Adding new stock: {stock['ticker']} - {stock['name']}")
-                    
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO stock_catalog 
-                        (ticker, name, type, market, sector, listed_date, last_updated, is_active)
-                        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-                    """, (
-                        stock["ticker"],
-                        stock["name"],
-                        stock["type"],
-                        stock["market"],
-                        stock["sector"],
-                        stock["listed_date"],
-                        stock["is_active"]
-                    ))
-                    saved_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to save stock {stock.get('ticker')}: {e}")
-                    continue
-            
-            # 2단계: 수집된 종목 저장 후, 상장폐지 종목 찾기 및 비활성화
-            # 기존 데이터베이스의 모든 종목 조회 (수집 전 상태)
-            cursor.execute("SELECT ticker FROM stock_catalog")
-            all_existing_tickers = {row[0] for row in cursor.fetchall()}
-            
-            # 상장폐지된 종목 찾기 (기존에는 있지만 수집된 목록에는 없음)
-            deactivated_tickers = all_existing_tickers - collected_tickers
-            
-            # 상장폐지 종목 비활성화
-            if deactivated_tickers:
-                placeholders = ','.join(['?'] * len(deactivated_tickers))
-                cursor.execute(f"""
-                    UPDATE stock_catalog 
-                    SET is_active = 0, last_updated = CURRENT_TIMESTAMP
-                    WHERE ticker IN ({placeholders})
-                """, list(deactivated_tickers))
-                deactivated_count = cursor.rowcount
-                logger.info(f"Deactivated {deactivated_count} stocks (delisted)")
-            
-            conn.commit()
-        
+                        placeholders = ','.join(['?'] * len(deactivated_tickers))
+                        cursor.execute(f"""
+                            UPDATE stock_catalog
+                            SET is_active = 0, last_updated = CURRENT_TIMESTAMP
+                            WHERE ticker IN ({placeholders})
+                        """, list(deactivated_tickers))
+                    deactivated_count = cursor.rowcount
+                    logger.info(f"Deactivated {deactivated_count} stocks (delisted)")
+
+                conn.commit()
+            except Exception as e:
+                # 트랜잭션 에러 발생 시 rollback
+                logger.error(f"Database transaction error: {e}", exc_info=True)
+                if USE_POSTGRES:
+                    conn.rollback()
+                raise
+
         logger.info(
             f"Saved {saved_count} stocks to stock_catalog table "
             f"(updated: {updated_count}, deactivated: {deactivated_count})"
         )
+        
+        # 저장 건수와 수집 건수가 다른 경우 경고
+        if len(stocks) != saved_count:
+            logger.warning(
+                f"Collection count mismatch: collected {len(stocks)} stocks but saved {saved_count} stocks. "
+                f"Difference: {len(stocks) - saved_count} stocks failed to save."
+            )
+        
         return saved_count
 
     def search_stocks(self, query: str, stock_type: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
@@ -625,28 +740,31 @@ class TickerCatalogCollector:
             del _search_cache[oldest_key]
         
         # 데이터베이스에서 검색
+        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        p = "%s" if USE_POSTGRES else "?"
+
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
-            
+
             # 티커 코드 또는 종목명으로 검색
             # 검색 시에는 is_active 필터를 제거하여 모든 종목 검색 가능
             # (활성 종목 우선 정렬)
             if stock_type:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT ticker, name, type, market, sector
                     FROM stock_catalog
-                    WHERE type = ?
-                      AND (ticker LIKE ? OR name LIKE ?)
-                    ORDER BY 
+                    WHERE type = {p}
+                      AND (ticker LIKE {p} OR name LIKE {p})
+                    ORDER BY
                         is_active DESC,
-                        CASE 
-                            WHEN ticker = ? THEN 1
-                            WHEN ticker LIKE ? THEN 2
-                            WHEN name LIKE ? THEN 3
+                        CASE
+                            WHEN ticker = {p} THEN 1
+                            WHEN ticker LIKE {p} THEN 2
+                            WHEN name LIKE {p} THEN 3
                             ELSE 4
                         END,
                         name
-                    LIMIT ?
+                    LIMIT {p}
                 """, (
                     stock_type,
                     f"%{query}%",
@@ -657,20 +775,20 @@ class TickerCatalogCollector:
                     limit
                 ))
             else:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT ticker, name, type, market, sector
                     FROM stock_catalog
-                    WHERE (ticker LIKE ? OR name LIKE ?)
-                    ORDER BY 
+                    WHERE (ticker LIKE {p} OR name LIKE {p})
+                    ORDER BY
                         is_active DESC,
-                        CASE 
-                            WHEN ticker = ? THEN 1
-                            WHEN ticker LIKE ? THEN 2
-                            WHEN name LIKE ? THEN 3
+                        CASE
+                            WHEN ticker = {p} THEN 1
+                            WHEN ticker LIKE {p} THEN 2
+                            WHEN name LIKE {p} THEN 3
                             ELSE 4
                         END,
                         name
-                    LIMIT ?
+                    LIMIT {p}
                 """, (
                     f"%{query}%",
                     f"%{query}%",
