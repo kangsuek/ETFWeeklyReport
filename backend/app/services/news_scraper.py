@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import date, datetime, timedelta
 from app.models import News
-from app.database import get_db_connection
+from app.database import get_db_connection, get_cursor
 from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
@@ -325,8 +325,8 @@ class NewsScraper:
             return 0
 
         # 중복 체크 및 새로운 뉴스만 필터링
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             try:
                 # 기존 뉴스 URL 조회 (중복 체크)
                 cursor.execute("""
@@ -429,8 +429,8 @@ class NewsScraper:
         """
         logger.info(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             cursor.execute("""
                 SELECT date, title, url, source, relevance_score
                 FROM news

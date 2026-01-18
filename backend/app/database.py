@@ -144,8 +144,13 @@ def get_db_connection():
     Ensures connection is properly closed even if an exception occurs.
 
     Usage:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            # PostgreSQL: get_db_connection()이 이미 cursor를 반환
+            # SQLite: get_db_connection()이 connection을 반환
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
     """
@@ -161,6 +166,24 @@ def get_db_connection():
             yield conn
     finally:
         pool.return_connection(conn)
+
+def get_cursor(conn_or_cursor):
+    """
+    Get cursor from connection or return cursor if already a cursor.
+    Helper function to handle both PostgreSQL and SQLite.
+    
+    Args:
+        conn_or_cursor: Connection (SQLite) or Cursor (PostgreSQL) from get_db_connection()
+    
+    Returns:
+        cursor: Database cursor
+    """
+    if USE_POSTGRES:
+        # PostgreSQL: get_db_connection()이 이미 cursor를 반환
+        return conn_or_cursor
+    else:
+        # SQLite: get_db_connection()이 connection을 반환
+        return conn_or_cursor.cursor()
 
 def init_db():
     """Initialize database with schema"""
