@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
-from app.database import get_db_connection
+from app.database import get_db_connection, get_cursor
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
@@ -520,8 +520,8 @@ class TickerCatalogCollector:
         updated_count = 0
         deactivated_count = 0
         
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             
             # 현재 수집된 종목의 티커 코드 집합
             collected_tickers = {stock["ticker"] for stock in stocks}
@@ -625,8 +625,8 @@ class TickerCatalogCollector:
             del _search_cache[oldest_key]
         
         # 데이터베이스에서 검색
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             
             # 티커 코드 또는 종목명으로 검색
             # 검색 시에는 is_active 필터를 제거하여 모든 종목 검색 가능

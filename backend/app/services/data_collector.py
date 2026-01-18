@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
-from app.database import get_db_connection
+from app.database import get_db_connection, get_cursor
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import (
@@ -306,8 +306,8 @@ class ETFDataCollector:
             return 0
 
         # 벌크 insert 수행
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             try:
                 # executemany를 사용한 벌크 insert
                 cursor.executemany("""
@@ -374,9 +374,10 @@ class ETFDataCollector:
         """
         import json
         from app.config import Config
+        from app.database import get_cursor
         
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
 
@@ -409,9 +410,11 @@ class ETFDataCollector:
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""
         import json
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM etfs WHERE ticker = ?", (ticker,))
+        from app.database import USE_POSTGRES
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            cursor.execute(f"SELECT * FROM etfs WHERE ticker = {param_placeholder}", (ticker,))
             row = cursor.fetchone()
             if row:
                 row_dict = dict(row)
@@ -434,8 +437,8 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             cursor.execute("""
                 SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
                 FROM prices
@@ -461,8 +464,8 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             cursor.execute("""
                 SELECT MIN(date) as min_date, MAX(date) as max_date, COUNT(*) as count
                 FROM trading_flow
@@ -496,8 +499,8 @@ class ETFDataCollector:
         """
         logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             query = """
                 SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
@@ -531,8 +534,8 @@ class ETFDataCollector:
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             query = """
                 SELECT date, individual_net, institutional_net, foreign_net
@@ -565,8 +568,8 @@ class ETFDataCollector:
         logger.info(f"Calculating metrics for {ticker}")
 
         try:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
+                with get_db_connection() as conn_or_cursor:
+                    cursor = get_cursor(conn_or_cursor)
 
                 # Get price data for calculations
                 today = date.today()
@@ -1119,8 +1122,8 @@ class ETFDataCollector:
             return 0
 
         # 벌크 insert 수행
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
             try:
                 # executemany를 사용한 벌크 insert
                 cursor.executemany("""
@@ -1198,8 +1201,8 @@ class ETFDataCollector:
         """
         logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             query = """
                 SELECT date, individual_net, institutional_net, foreign_net
@@ -1239,8 +1242,8 @@ class ETFDataCollector:
 
         logger.info(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
             placeholders = ','.join('?' * len(tickers))
@@ -1299,8 +1302,8 @@ class ETFDataCollector:
 
         logger.info(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
             placeholders = ','.join('?' * len(tickers))
@@ -1352,8 +1355,8 @@ class ETFDataCollector:
 
         logger.info(f"Batch fetching latest prices for {len(tickers)} tickers")
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
 
             # IN 절을 위한 플레이스홀더 생성
             placeholders = ','.join('?' * len(tickers))
