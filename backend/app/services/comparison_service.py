@@ -10,11 +10,26 @@ from typing import List, Dict, Optional, Tuple
 from datetime import date
 import numpy as np
 import pandas as pd
+import math
 from app.database import get_db_connection, USE_POSTGRES
 from app.exceptions import ValidationException
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_float(value: float) -> float:
+    """
+    JSON 직렬화 가능한 float 값으로 변환
+    NaN, Infinity, -Infinity를 0.0 또는 유효한 값으로 변환
+    """
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        if math.isnan(value) or math.isinf(value):
+            return 0.0
+        return float(value)
+    return 0.0
 
 
 class ComparisonService:
@@ -187,7 +202,9 @@ class ComparisonService:
             for d in sorted_dates:
                 d_datetime = pd.Timestamp(d)
                 if d_datetime in normalized_series.index:
-                    normalized_list.append(float(normalized_series.loc[d_datetime]))
+                    value = float(normalized_series.loc[d_datetime])
+                    # NaN, Infinity 값을 0.0으로 변환 (JSON 직렬화 가능)
+                    normalized_list.append(sanitize_float(value))
                 else:
                     normalized_list.append(None)  # 해당 날짜 데이터 없음
 
@@ -363,11 +380,11 @@ class ComparisonService:
             sharpe_ratio = self.calculate_sharpe_ratio(annualized_return, volatility)
 
             statistics[ticker] = {
-                "period_return": float(period_return),
-                "annualized_return": float(annualized_return),
-                "volatility": float(volatility),
-                "max_drawdown": float(max_drawdown),
-                "sharpe_ratio": float(sharpe_ratio),
+                "period_return": sanitize_float(period_return),
+                "annualized_return": sanitize_float(annualized_return),
+                "volatility": sanitize_float(volatility),
+                "max_drawdown": sanitize_float(max_drawdown),
+                "sharpe_ratio": sanitize_float(sharpe_ratio),
                 "data_points": int(len(df))  # 거래일 수 (데이터 포인트 개수)
             }
 
@@ -412,9 +429,16 @@ class ComparisonService:
         correlation = returns_df.corr()
 
         tickers = list(correlation.columns)
-        matrix = correlation.round(3).values.tolist()
+        # NaN, Infinity 값을 0.0으로 변환
+        matrix = correlation.round(3).fillna(0.0).replace([np.inf, -np.inf], 0.0).values.tolist()
+        
+        # 리스트 내부의 모든 값을 sanitize
+        sanitized_matrix = []
+        for row in matrix:
+            sanitized_row = [sanitize_float(val) for val in row]
+            sanitized_matrix.append(sanitized_row)
 
         return {
             "tickers": tickers,
-            "matrix": matrix
+            "matrix": sanitized_matrix
         }

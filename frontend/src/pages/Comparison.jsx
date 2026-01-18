@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { subMonths, format } from 'date-fns'
 import PageHeader from '../components/common/PageHeader'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
 import TickerSelector from '../components/comparison/TickerSelector'
@@ -10,7 +11,18 @@ import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_SLOW } from '../constants'
 
 export default function Comparison() {
   const [selectedTickers, setSelectedTickers] = useState([])
-  const [dateRange, setDateRange] = useState({ start: null, end: null })
+  
+  // 초기 날짜 범위 설정 (1개월)
+  const initialDateRange = useMemo(() => {
+    const today = new Date()
+    const oneMonthAgo = subMonths(today, 1)
+    return {
+      start: format(oneMonthAgo, 'yyyy-MM-dd'),
+      end: format(today, 'yyyy-MM-dd')
+    }
+  }, [])
+  
+  const [dateRange, setDateRange] = useState(initialDateRange)
 
   // 전체 종목 목록 조회
   const { data: tickers = [], isLoading: tickersLoading } = useQuery({
@@ -39,8 +51,19 @@ export default function Comparison() {
       if (dateRange.start) params.start_date = dateRange.start
       if (dateRange.end) params.end_date = dateRange.end
 
-      const result = await apiService.compareETFs(params)
-      return result
+      try {
+        const result = await apiService.compareETFs(params)
+        // 응답 데이터 검증
+        if (result && result.normalized_prices && result.statistics) {
+          return result
+        } else {
+          console.error('[Comparison] Invalid response format:', result)
+          throw new Error('Invalid response format from server')
+        }
+      } catch (error) {
+        console.error('[Comparison] Error fetching comparison data:', error)
+        throw error
+      }
     },
     enabled: selectedTickers.length >= 2,
     staleTime: CACHE_STALE_TIME_SLOW, // 1분 (종목 비교)
@@ -97,6 +120,8 @@ export default function Comparison() {
           <DateRangeSelector
             onDateRangeChange={handleDateChange}
             defaultRange="1m"
+            initialStartDate={dateRange.start}
+            initialEndDate={dateRange.end}
           />
         </div>
       )}
@@ -151,7 +176,7 @@ export default function Comparison() {
             </div>
           )}
 
-          {showResults && (
+          {showResults && comparisonData && (
             <>
               {/* 정규화 가격 차트 */}
               <NormalizedPriceChart

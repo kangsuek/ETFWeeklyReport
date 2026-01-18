@@ -39,12 +39,17 @@ export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
   const chartData = data.dates.map((date, idx) => {
     const dataPoint = { date }
 
-    Object.keys(data.data).forEach(ticker => {
-      const value = data.data[ticker][idx]
-      if (value !== null && value !== undefined) {
-        dataPoint[ticker] = value
-      }
-    })
+    if (data.data && typeof data.data === 'object') {
+      Object.keys(data.data).forEach(ticker => {
+        const tickerData = data.data[ticker]
+        if (Array.isArray(tickerData) && idx < tickerData.length) {
+          const value = tickerData[idx]
+          if (value !== null && value !== undefined) {
+            dataPoint[ticker] = value
+          }
+        }
+      })
+    }
 
     return dataPoint
   })
@@ -53,12 +58,14 @@ export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
   const colors = CHART_COLOR_PALETTE
 
   // 수익률 순으로 티커 정렬 (높은 수익률부터)
-  const tickers = Object.keys(data.data).sort((a, b) => {
-    if (!statistics) return 0
-    const returnA = statistics[a]?.period_return ?? -Infinity
-    const returnB = statistics[b]?.period_return ?? -Infinity
-    return returnB - returnA // 내림차순
-  })
+  const tickers = data.data && typeof data.data === 'object' 
+    ? Object.keys(data.data).sort((a, b) => {
+        if (!statistics) return 0
+        const returnA = statistics[a]?.period_return ?? -Infinity
+        const returnB = statistics[b]?.period_return ?? -Infinity
+        return returnB - returnA // 내림차순
+      })
+    : []
 
   // X축 날짜 포맷팅
   const formatXAxis = (dateStr) => {
@@ -112,7 +119,10 @@ export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
         {payload.map((entry, index) => {
           const ticker = entry.value
           const name = tickerInfo[ticker]?.name || ticker
-          const lastValue = data.data[ticker][data.data[ticker].length - 1]
+          const tickerData = data.data && data.data[ticker]
+          const lastValue = Array.isArray(tickerData) && tickerData.length > 0 
+            ? tickerData[tickerData.length - 1] 
+            : null
           const change = lastValue ? ((lastValue - 100) / 100 * 100).toFixed(2) : 0
 
           return (
