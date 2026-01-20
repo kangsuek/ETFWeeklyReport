@@ -3,15 +3,50 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import PropTypes from 'prop-types'
 import { newsApi } from '../../services/api'
+import { analyzeNewsList, getSentimentStyle } from '../../utils/newsAnalyzer'
+
+/**
+ * 센티먼트 아이콘 컴포넌트
+ */
+const SentimentBadge = ({ sentiment }) => {
+  const style = getSentimentStyle(sentiment)
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${style.bgColor} ${style.color}`}>
+      <span>{style.icon}</span>
+      <span>{style.label}</span>
+    </span>
+  )
+}
+
+SentimentBadge.propTypes = {
+  sentiment: PropTypes.oneOf(['positive', 'negative', 'neutral']).isRequired
+}
+
+/**
+ * 토픽 태그 컴포넌트
+ */
+const TopicTag = ({ topic }) => (
+  <span className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+    #{topic}
+  </span>
+)
+
+TopicTag.propTypes = {
+  topic: PropTypes.string.isRequired
+}
 
 /**
  * NewsTimeline 컴포넌트
  * 종목 관련 뉴스를 타임라인 형태로 표시
- * 
+ * 센티먼트 분석 및 요약 기능 포함
+ *
  * @param {string} ticker - 종목 티커
  */
 const NewsTimeline = ({ ticker }) => {
   const [limit, setLimit] = useState(10)
+  // 일자별 접힘 상태 관리 (기본: 첫 번째 날짜만 펼침)
+  const [expandedDates, setExpandedDates] = useState({})
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['news', ticker, limit],
@@ -22,12 +57,18 @@ const NewsTimeline = ({ ticker }) => {
     staleTime: 5 * 60 * 1000, // 5분
   })
 
-  // 날짜별로 그룹핑 (hooks는 항상 먼저 호출되어야 함)
+  // 뉴스 분석 (센티먼트, 토픽)
+  const newsAnalysis = useMemo(() => {
+    if (!data || data.length === 0) return null
+    return analyzeNewsList(data)
+  }, [data])
+
+  // 날짜별로 그룹핑 (분석된 뉴스 사용)
   const groupedNews = useMemo(() => {
-    if (!data || data.length === 0) return {}
+    if (!newsAnalysis?.analyzedNews || newsAnalysis.analyzedNews.length === 0) return {}
 
     const groups = {}
-    data.forEach((news) => {
+    newsAnalysis.analyzedNews.forEach((news) => {
       // 날짜 유효성 검사 추가
       if (!news.date) return
 
@@ -41,12 +82,34 @@ const NewsTimeline = ({ ticker }) => {
           groups[dateKey] = []
         }
         groups[dateKey].push(news)
-      } catch (error) {
+      } catch (e) {
         // Invalid date - skip this news item
       }
     })
     return groups
-  }, [data])
+  }, [newsAnalysis])
+
+  // 날짜 목록 (정렬된 순서)
+  const sortedDates = useMemo(() => {
+    return Object.keys(groupedNews).sort((a, b) => new Date(b) - new Date(a))
+  }, [groupedNews])
+
+  // 첫 번째 날짜는 기본적으로 펼침
+  const isDateExpanded = (date) => {
+    if (expandedDates[date] !== undefined) {
+      return expandedDates[date]
+    }
+    // 기본값: 첫 번째 날짜만 펼침
+    return sortedDates.length > 0 && sortedDates[0] === date
+  }
+
+  // 날짜 접기/펼치기 토글
+  const toggleDate = (date) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [date]: !isDateExpanded(date)
+    }))
+  }
 
   // 관련도 점수 색상 반환
   const getRelevanceColor = (score) => {
@@ -85,60 +148,121 @@ const NewsTimeline = ({ ticker }) => {
   }
 
   return (
-    <div className="space-y-6">
-      {Object.entries(groupedNews).map(([date, newsItems]) => (
-        <div key={date}>
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            {format(new Date(date), 'yyyy년 MM월 dd일')}
-          </h4>
-          <div className="space-y-3 ml-4 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
-            {newsItems.map((news, index) => (
-              <div
-                key={news.url || `${news.date}-${index}`}
-                className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700"
-              >
-                <a
-                  href={news.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-base font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                >
-                  {news.title}
-                </a>
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{news.source}</span>
-                  <span>•</span>
-                  <span>
-                    {news.date ? (() => {
-                      try {
-                        const date = new Date(news.date)
-                        return isNaN(date.getTime()) ? '-' : format(date, 'HH:mm')
-                      } catch {
-                        return '-'
-                      }
-                    })() : '-'}
-                  </span>
-                  {news.relevance_score && (
-                    <>
-                      <span>•</span>
-                      <div className="flex items-center gap-1">
-                        <span>관련도</span>
-                        <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${getRelevanceColor(news.relevance_score)}`}
-                            style={{ width: `${news.relevance_score * 100}%` }}
-                          ></div>
-                        </div>
-                        <span>{(news.relevance_score * 100).toFixed(0)}%</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="space-y-4">
+      {/* 뉴스 요약 코멘트 */}
+      {newsAnalysis?.summary && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-100 dark:border-yellow-800/30">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            💡 {newsAnalysis.summary}
+          </p>
+          {newsAnalysis.topics && newsAnalysis.topics.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {newsAnalysis.topics.map(topic => (
+                <TopicTag key={topic} topic={topic} />
+              ))}
+            </div>
+          )}
         </div>
-      ))}
+      )}
+
+      {/* 뉴스 타임라인 */}
+      <div className="space-y-4">
+        {sortedDates.map((date) => {
+          const newsItems = groupedNews[date]
+          const expanded = isDateExpanded(date)
+
+          return (
+            <div key={date} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              {/* 날짜 헤더 (클릭 가능) */}
+              <button
+                onClick={() => toggleDate(date)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    {format(new Date(date), 'yyyy년 MM월 dd일')}
+                  </h4>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">
+                    {newsItems.length}건
+                  </span>
+                </div>
+                <span className="text-gray-400 dark:text-gray-500 text-sm">
+                  {expanded ? '▲' : '▼'}
+                </span>
+              </button>
+
+              {/* 뉴스 목록 (접힘/펼침) */}
+              {expanded && (
+                <div className="space-y-3 p-4 border-t border-gray-200 dark:border-gray-700">
+                  {newsItems.map((news, index) => (
+                    <div
+                      key={news.url || `${news.date}-${index}`}
+                      className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700"
+                    >
+                      {/* 제목 */}
+                      <a
+                        href={news.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-base font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors block"
+                      >
+                        {news.title}
+                      </a>
+
+                      {/* 메타 정보 */}
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{news.source}</span>
+                        <span>•</span>
+                        <span>
+                          {news.date ? (() => {
+                            try {
+                              const d = new Date(news.date)
+                              return isNaN(d.getTime()) ? '-' : format(d, 'HH:mm')
+                            } catch {
+                              return '-'
+                            }
+                          })() : '-'}
+                        </span>
+
+                        {/* 센티먼트 배지 */}
+                        <span>•</span>
+                        <SentimentBadge sentiment={news.sentiment || 'neutral'} />
+
+                        {/* 토픽 태그 */}
+                        {news.tags && news.tags.length > 0 && (
+                          <>
+                            <span>•</span>
+                            {news.tags.map(tag => (
+                              <TopicTag key={tag} topic={tag} />
+                            ))}
+                          </>
+                        )}
+
+                        {/* 관련도 (기존 유지) */}
+                        {news.relevance_score && (
+                          <>
+                            <span>•</span>
+                            <div className="flex items-center gap-1">
+                              <span>관련도</span>
+                              <div className="w-16 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${getRelevanceColor(news.relevance_score)}`}
+                                  style={{ width: `${news.relevance_score * 100}%` }}
+                                ></div>
+                              </div>
+                              <span>{(news.relevance_score * 100).toFixed(0)}%</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -148,4 +272,3 @@ NewsTimeline.propTypes = {
 }
 
 export default NewsTimeline
-

@@ -707,6 +707,9 @@ class ETFDataCollector:
         """
         모든 종목의 가격, 매매동향, 뉴스 데이터를 일괄 수집
 
+        일괄 수집 시에는 최신 데이터 보유 여부와 상관없이
+        요청한 기간 전체 데이터를 수집합니다.
+
         Args:
             days: 수집할 일수 (기본: 1일 - 당일 데이터)
 
@@ -722,8 +725,10 @@ class ETFDataCollector:
                 'details': 종목별 상세 결과
             }
         """
+        from app.database import update_collection_status
+
         start_time = datetime.now()
-        logger.info(f"[일괄 수집] 시작: {days}일치 데이터")
+        logger.info(f"[일괄 수집] 시작: {days}일치 데이터 (전체 기간 수집)")
 
         # 전체 종목 조회
         all_etfs = self.get_all_etfs()
@@ -761,18 +766,35 @@ class ETFDataCollector:
                 error_msg = None
 
                 try:
-                    # 스마트 수집 사용 - 중복 방지
-                    price_count = self.collect_and_save_prices_smart(ticker, days)
-                    logger.info(f"[일괄 수집-스마트] {ticker} - 가격: {price_count}건")
+                    # 일괄 수집: 최신 데이터 보유 여부와 상관없이 전체 기간 수집
+                    price_count = self.collect_and_save_prices(ticker, days)
+                    logger.info(f"[일괄 수집] {ticker} - 가격: {price_count}건")
+
+                    # 수집 상태 업데이트
+                    if price_count > 0:
+                        update_collection_status(
+                            ticker,
+                            price_date=date.today().isoformat(),
+                            success=True
+                        )
                 except Exception as e:
                     logger.error(f"[일괄 수집] {ticker} 가격 수집 실패: {e}")
                     ticker_success = False
                     error_msg = f"Price collection failed: {str(e)}"
+                    update_collection_status(ticker, success=False)
 
-                # 매매동향 수집 (스마트)
+                # 매매동향 수집 (전체 기간)
                 try:
-                    trading_flow_count = self.collect_and_save_trading_flow_smart(ticker, days)
-                    logger.info(f"[일괄 수집-스마트] {ticker} - 매매동향: {trading_flow_count}건")
+                    trading_flow_count = self.collect_and_save_trading_flow(ticker, days)
+                    logger.info(f"[일괄 수집] {ticker} - 매매동향: {trading_flow_count}건")
+
+                    # 수집 상태 업데이트
+                    if trading_flow_count > 0:
+                        update_collection_status(
+                            ticker,
+                            trading_flow_date=date.today().isoformat(),
+                            success=True
+                        )
                 except Exception as e:
                     logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
                     # 매매동향 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)

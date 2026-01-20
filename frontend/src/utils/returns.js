@@ -72,6 +72,100 @@ export function calculateAnnualizedReturn(data) {
 }
 
 /**
+ * 일간 변동성 계산 (표준편차)
+ *
+ * @param {Array} data - 가격 데이터 배열 (최신순 정렬)
+ * @returns {number|null} 일간 변동성 (%)
+ */
+export function calculateVolatility(data) {
+  if (!data || data.length < 2) return null
+
+  // 일간 수익률 계산
+  const dailyReturns = []
+  for (let i = 0; i < data.length - 1; i++) {
+    const today = data[i].close_price
+    const yesterday = data[i + 1].close_price
+    if (yesterday > 0) {
+      dailyReturns.push((today - yesterday) / yesterday)
+    }
+  }
+
+  if (dailyReturns.length === 0) return null
+
+  // 표준편차 계산
+  const mean = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length
+  const variance = dailyReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / dailyReturns.length
+  const stdDev = Math.sqrt(variance) * 100 // 퍼센트로 변환
+
+  return stdDev
+}
+
+/**
+ * 연환산 변동성 계산
+ *
+ * @param {Array} data - 가격 데이터 배열 (최신순 정렬)
+ * @returns {number|null} 연환산 변동성 (%)
+ */
+export function calculateAnnualizedVolatility(data) {
+  const dailyVol = calculateVolatility(data)
+  if (dailyVol === null) return null
+
+  // 연환산: 일간 변동성 × √252 (연간 거래일)
+  return dailyVol * Math.sqrt(252)
+}
+
+/**
+ * 최대 낙폭 (Max Drawdown) 계산
+ *
+ * @param {Array} data - 가격 데이터 배열 (최신순 정렬)
+ * @returns {Object|null} { value: MDD%, peak: 고점가격, trough: 저점가격 }
+ */
+export function calculateMaxDrawdown(data) {
+  if (!data || data.length < 2) return null
+
+  // 데이터는 최신순이므로 역순으로 처리 (시간순)
+  const prices = [...data].reverse().map(d => d.close_price)
+
+  let peak = prices[0]
+  let maxDrawdown = 0
+  let peakPrice = prices[0]
+  let troughPrice = prices[0]
+
+  for (let i = 0; i < prices.length; i++) {
+    if (prices[i] > peak) {
+      peak = prices[i]
+    }
+
+    const drawdown = (peak - prices[i]) / peak * 100
+    if (drawdown > maxDrawdown) {
+      maxDrawdown = drawdown
+      peakPrice = peak
+      troughPrice = prices[i]
+    }
+  }
+
+  return {
+    value: maxDrawdown,
+    peak: peakPrice,
+    trough: troughPrice
+  }
+}
+
+/**
+ * 매입 대비 수익률 계산
+ *
+ * @param {number} currentPrice - 현재가
+ * @param {number} purchasePrice - 매입가
+ * @returns {number|null} 매입 대비 수익률 (%)
+ */
+export function calculatePurchaseReturn(currentPrice, purchasePrice) {
+  if (!purchasePrice || purchasePrice <= 0 || !currentPrice) {
+    return null
+  }
+  return ((currentPrice - purchasePrice) / purchasePrice) * 100
+}
+
+/**
  * 통계 계산
  *
  * @param {Array} data - 가격 데이터 배열 (최신순 정렬)
@@ -87,46 +181,11 @@ export function calculateStats(data, purchasePrice = null, purchaseDate = null) 
   // 현재가 (가장 최신 종가)
   const currentPrice = data[0]?.close_price || 0
 
-  // 매입가가 있으면 매입가 기준으로 수익률 계산
-  let periodReturn, annualizedReturn
-  if (purchasePrice && purchasePrice > 0) {
-    // 매입가 기준 수익률
-    periodReturn = ((currentPrice - purchasePrice) / purchasePrice) * 100
+  // 기간 수익률: 항상 조회 기간의 시작가 → 종료가 기준
+  const periodReturn = calculatePeriodReturn(data)
 
-    // 연환산 수익률 계산
-    // 매입일이 있으면 매입일부터 현재까지의 거래일수 사용
-    // 없으면 전체 데이터 기간 사용
-    let tradingDays = data.length
-    
-    if (purchaseDate) {
-      // 매입일 이후의 데이터만 사용 (data는 최신순 정렬)
-      const purchaseDateObj = new Date(purchaseDate)
-      purchaseDateObj.setHours(0, 0, 0, 0) // 시간 제거하여 날짜만 비교
-      
-      // 매입일 이후의 데이터 필터링
-      const filteredData = data.filter(d => {
-        const dataDate = new Date(d.date)
-        dataDate.setHours(0, 0, 0, 0)
-        return dataDate >= purchaseDateObj
-      })
-      
-      // 필터링된 데이터가 2개 이상이면 사용, 아니면 전체 기간 사용
-      if (filteredData.length >= 2) {
-        tradingDays = filteredData.length
-      }
-    }
-
-    if (tradingDays > 0) {
-      const periodReturnDecimal = (currentPrice - purchasePrice) / purchasePrice
-      annualizedReturn = (Math.pow(1 + periodReturnDecimal, 365 / tradingDays) - 1) * 100
-    } else {
-      annualizedReturn = 0
-    }
-  } else {
-    // 기존 방식: 기간 수익률 및 연환산 수익률
-    periodReturn = calculatePeriodReturn(data)
-    annualizedReturn = calculateAnnualizedReturn(data)
-  }
+  // 매입 대비 수익률: 매입가가 있을 때만 계산
+  const purchaseReturn = calculatePurchaseReturn(currentPrice, purchasePrice)
 
   // 가격 범위 (날짜 포함)
   const prices = data.map((d) => d.close_price)
@@ -140,9 +199,14 @@ export function calculateStats(data, purchasePrice = null, purchaseDate = null) 
 
   const currentPriceDate = data[0]?.date
 
+  // 리스크 지표 계산
+  const dailyVolatility = calculateVolatility(data)
+  const annualizedVolatility = calculateAnnualizedVolatility(data)
+  const maxDrawdown = calculateMaxDrawdown(data)
+
   return {
     periodReturn,
-    annualizedReturn,
+    purchaseReturn,
     highPrice,
     lowPrice,
     avgPrice,
@@ -151,5 +215,9 @@ export function calculateStats(data, purchasePrice = null, purchaseDate = null) 
     highPriceDate: highPriceData?.date,
     lowPriceDate: lowPriceData?.date,
     tradingDays: data.length,
+    // 리스크 지표
+    dailyVolatility,
+    annualizedVolatility,
+    maxDrawdown,
   }
 }
