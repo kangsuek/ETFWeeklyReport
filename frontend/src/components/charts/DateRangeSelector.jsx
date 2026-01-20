@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
-import { subDays, subMonths, format } from 'date-fns';
+import { subDays, subMonths, subYears, startOfYear, format } from 'date-fns';
 import { validateDateRange } from '../../utils/validation';
 import { MAX_DATE_RANGE_DAYS } from '../../constants';
 
@@ -39,6 +39,15 @@ const DateRangeSelector = memo(function DateRangeSelector({
         break;
       case '3m':
         calculatedStartDate = subMonths(today, 3);
+        break;
+      case '6m':
+        calculatedStartDate = subMonths(today, 6);
+        break;
+      case 'ytd':
+        calculatedStartDate = startOfYear(today);
+        break;
+      case '1y':
+        calculatedStartDate = subYears(today, 1);
         break;
       default:
         return;
@@ -104,13 +113,16 @@ const DateRangeSelector = memo(function DateRangeSelector({
     { label: '7일', value: '7d' },
     { label: '1개월', value: '1m' },
     { label: '3개월', value: '3m' },
+    { label: '6개월', value: '6m' },
+    { label: 'YTD', value: 'ytd' },
+    { label: '1년', value: '1y' },
     { label: '커스텀', value: 'custom' }
   ];
 
   return (
     <div className="date-range-selector bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4 transition-colors">
       {/* 프리셋 버튼 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {presetButtons.map(({ label, value }) => (
           <button
             key={value}
@@ -184,7 +196,7 @@ const DateRangeSelector = memo(function DateRangeSelector({
 
 DateRangeSelector.propTypes = {
   onDateRangeChange: PropTypes.func.isRequired,
-  defaultRange: PropTypes.oneOf(['7d', '1m', '3m', 'custom']),
+  defaultRange: PropTypes.oneOf(['7d', '1m', '3m', '6m', 'ytd', '1y', 'custom']),
   initialStartDate: PropTypes.string,
   initialEndDate: PropTypes.string,
 }

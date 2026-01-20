@@ -13,6 +13,7 @@ import PriceTable from '../components/etf/PriceTable'
 import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
+import InsightSummary from '../components/etf/InsightSummary'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
 
@@ -51,6 +52,9 @@ export default function ETFDetail() {
     endDate: '',
     range: defaultRangeFromSettings
   })
+
+  // 가격 테이블 접힘 상태 (기본: 접힘)
+  const [isTableExpanded, setIsTableExpanded] = useState(false)
 
   // 설정 변경 시 날짜 범위 반영 (사용자가 수동으로 변경하지 않은 경우)
   useEffect(() => {
@@ -227,6 +231,12 @@ export default function ETFDetail() {
       {/* Sticky 헤더 */}
       <ETFHeader etf={etf} />
 
+      {/* 투자 인사이트 요약 (최상단) */}
+      <InsightSummary
+        pricesData={pricesData}
+        tradingFlowData={tradingFlowData}
+      />
+
       {/* 기본 정보 섹션 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* 종목 정보 */}
@@ -241,8 +251,8 @@ export default function ETFDetail() {
               <span className="text-sm text-gray-500 dark:text-gray-400">타입</span>
               <p className="text-base font-semibold mt-0.5">
                 <span className={`inline-block px-2 py-1 rounded text-xs ${
-                  etf?.type === 'ETF' 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                  etf?.type === 'ETF'
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
                     : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                 }`}>
                   {etf?.type}
@@ -277,69 +287,84 @@ export default function ETFDetail() {
                 </p>
               </div>
               {/* 가격 정보 그리드 */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">전일 대비 등락률</span>
-                <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
-                  {formatPercent(latestPrice.daily_change_pct)}
-                </p>
-              </div>
-              {etf?.purchase_price && (
-                <>
-                  <div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">매입가</span>
-                    <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(etf.purchase_price)}</p>
-                  </div>
-                  {purchaseReturn !== null && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
+                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">전일 대비 등락률</span>
+                  <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
+                    {formatPercent(latestPrice.daily_change_pct)}
+                  </p>
+                </div>
+                {etf?.purchase_price && (
+                  <>
                     <div>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">매입 대비 수익률</span>
-                      <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(purchaseReturn)}`}>
-                        {formatPercent(purchaseReturn)}
-                      </p>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">매입가</span>
+                      <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(etf.purchase_price)}</p>
                     </div>
-                  )}
-                </>
+                    {purchaseReturn !== null && (
+                      <div>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">매입 대비 수익률</span>
+                        <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(purchaseReturn)}`}>
+                          {formatPercent(purchaseReturn)}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* 보유 수량 */}
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">보유 수량</span>
+                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
+                    {etf?.quantity != null && etf.quantity !== undefined ? formatNumber(etf.quantity) : '-'}
+                  </p>
+                </div>
+                {/* 총 투자 금액 */}
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">총 투자 금액</span>
+                  <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
+                    {totalInvestment != null && totalInvestment !== undefined ? formatPrice(totalInvestment) : '-'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 평가 금액 / 손익 강조 카드 */}
+              {(evaluationAmount != null || currentProfitLoss != null) && (
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  {/* 평가 금액 카드 */}
+                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3">
+                    <span className="text-xs text-blue-600 dark:text-blue-400">평가 금액</span>
+                    <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-0.5">
+                      {evaluationAmount != null ? formatPrice(evaluationAmount) : '-'}
+                    </p>
+                  </div>
+                  {/* 손익 카드 */}
+                  <div className={`rounded-lg p-3 ${
+                    currentProfitLoss != null && currentProfitLoss >= 0
+                      ? 'bg-red-50 dark:bg-red-900/30'
+                      : 'bg-blue-50 dark:bg-blue-900/30'
+                  }`}>
+                    <span className={`text-xs ${
+                      currentProfitLoss != null && currentProfitLoss >= 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-blue-600 dark:text-blue-400'
+                    }`}>현재 손익</span>
+                    <p className={`text-lg font-bold mt-0.5 ${getPriceChangeColor(currentProfitLoss)}`}>
+                      {currentProfitLoss != null
+                        ? `${currentProfitLoss >= 0 ? '+' : ''}${formatPrice(currentProfitLoss)}`
+                        : '-'
+                      }
+                    </p>
+                    {purchaseReturn !== null && (
+                      <span className={`text-xs ${getPriceChangeColor(purchaseReturn)}`}>
+                        ({formatPercent(purchaseReturn)})
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
-              {/* 보유 수량 */}
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">보유 수량</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
-                  {etf?.quantity != null && etf.quantity !== undefined ? formatNumber(etf.quantity) : '-'}
-                </p>
-              </div>
-              {/* 평가 금액 */}
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">평가 금액</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
-                  {evaluationAmount != null && evaluationAmount !== undefined ? formatPrice(evaluationAmount) : '-'}
-                </p>
-              </div>
-              {/* 총 투자 금액 */}
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">총 투자 금액</span>
-                <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
-                  {totalInvestment != null && totalInvestment !== undefined ? formatPrice(totalInvestment) : '-'}
-                </p>
-              </div>
-              {/* 현재 손익 */}
-              <div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">현재 손익</span>
-                <p className={`text-xl font-bold mt-0.5 ${
-                  currentProfitLoss != null && currentProfitLoss !== undefined
-                    ? getPriceChangeColor(currentProfitLoss)
-                    : 'text-gray-900 dark:text-gray-100'
-                }`}>
-                  {currentProfitLoss != null && currentProfitLoss !== undefined 
-                    ? `${currentProfitLoss >= 0 ? '+' : ''}${formatPrice(currentProfitLoss)}`
-                    : '-'
-                  }
-                </p>
-              </div>
-              </div>
             </div>
           ) : (
             <p className="text-gray-500 dark:text-gray-400">가격 데이터가 없습니다</p>
@@ -389,11 +414,30 @@ export default function ETFDetail() {
         purchasePrice={etf?.purchase_price}
       />
 
-      {/* 가격 데이터 테이블 섹션 */}
+      {/* 가격 데이터 테이블 섹션 (접힘 처리) */}
       {pricesData && pricesData.length > 0 && (
         <div className="card mb-4">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">가격 데이터</h3>
-          <PriceTable data={pricesData} itemsPerPage={20} />
+          <button
+            onClick={() => setIsTableExpanded(!isTableExpanded)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              가격 데이터 ({pricesData.length}건)
+            </h3>
+            <span className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1">
+              {isTableExpanded ? (
+                <>접기 <span className="text-xs">▲</span></>
+              ) : (
+                <>펼치기 <span className="text-xs">▼</span></>
+              )}
+            </span>
+          </button>
+
+          {isTableExpanded && (
+            <div className="mt-4">
+              <PriceTable data={pricesData} itemsPerPage={20} />
+            </div>
+          )}
         </div>
       )}
 

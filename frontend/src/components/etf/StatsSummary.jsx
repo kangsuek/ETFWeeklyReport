@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { format } from 'date-fns'
-import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
+import { formatPrice, formatPercent } from '../../utils/format'
 import { calculateStats } from '../../utils/returns'
 
 /**
@@ -275,11 +275,20 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
           value={formatPercent(stats.periodReturn)}
           color={getReturnColor(stats.periodReturn)}
         />
-        <StatItem
-          label="연환산 수익률"
-          value={formatPercent(stats.annualizedReturn)}
-          color={getReturnColor(stats.annualizedReturn)}
-        />
+        {stats.purchaseReturn !== null ? (
+          <StatItem
+            label="매입 대비 수익률"
+            value={formatPercent(stats.purchaseReturn)}
+            color={getReturnColor(stats.purchaseReturn)}
+          />
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 dark:text-gray-400">매입 대비 수익률</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+              (매입가 미설정)
+            </span>
+          </div>
+        )}
         <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-600">
           <div className="flex items-center gap-2">
             <div
