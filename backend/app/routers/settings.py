@@ -53,6 +53,8 @@ async def get_stocks() -> List[Dict[str, Any]]:
     - 500: Server error
     """
     try:
+        # 캐시를 무효화하고 파일에서 직접 읽기 (파일 직접 수정 반영)
+        Config.reload_stock_config()
         stocks_dict = stocks_manager.load_stocks()
         # Convert dict to array with ticker included
         # purchase_date가 None인 경우 null로 변환하여 JSON 직렬화 가능하도록 처리
@@ -120,6 +122,12 @@ async def create_stock(
 
         # Add the stock
         stocks_manager.add_stock(ticker, stock_dict)
+
+        # 캐시 무효화 (ETF 목록 캐시 무효화하여 대시보드에 즉시 반영)
+        from app.utils.cache import get_cache
+        cache = get_cache()
+        cache.invalidate_pattern("etfs")
+        logger.info(f"Cache invalidated for etfs after creating stock {ticker}")
 
         # Return created stock
         return {
@@ -275,6 +283,13 @@ async def delete_stock(
 
         # Delete the stock (cascade)
         deleted_counts = stocks_manager.delete_stock(ticker)
+
+        # 캐시 무효화 (ETF 목록 및 해당 종목 캐시 무효화)
+        from app.utils.cache import get_cache
+        cache = get_cache()
+        cache.invalidate_pattern("etfs")
+        cache.invalidate_pattern(f"etf:{ticker}")
+        logger.info(f"Cache invalidated for etfs after deleting stock {ticker}")
 
         logger.info(f"Successfully deleted stock {ticker}: {deleted_counts}")
 

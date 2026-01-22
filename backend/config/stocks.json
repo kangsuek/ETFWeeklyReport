@@ -35,6 +35,22 @@
     "purchase_price": 45240.0,
     "quantity": 201
   },
+  "284430": {
+    "name": "KODEX 200미국채혼합",
+    "type": "ETF",
+    "theme": "주식채권 혼합",
+    "purchase_date": "2026-01-12",
+    "search_keyword": "KODEX 200미국채혼합",
+    "relevance_keywords": [
+      "KODEX 200미국채혼합",
+      "코스피200",
+      "미국 10년 국채",
+      "자산배분",
+      "변동성 제어"
+    ],
+    "purchase_price": 17870.0,
+    "quantity": 281
+  },
   "449450": {
     "name": "PLUS K방산",
     "type": "ETF",
@@ -68,20 +84,6 @@
     ],
     "purchase_price": null,
     "quantity": null
-  },
-  "284430": {
-    "name": "KODEX 200미국채혼합",
-    "type": "ETF",
-    "theme": "주식채권 혼합",
-    "purchase_date": null,
-    "search_keyword": "KODEX 200미국채혼합",
-    "relevance_keywords": [
-      "KODEX 200미국채혼합",
-      "코스피200",
-      "미국 10년 국채",
-      "자산배분",
-      "변동성 제어"
-    ]
   },
   "487240": {
     "name": "삼성 KODEX AI전력핵심설비 ETF",
@@ -124,14 +126,16 @@
     "name": "KODEX 로봇액티브",
     "type": "ETF",
     "theme": "로봇",
-    "purchase_date": null,
+    "purchase_date": "2026-01-21",
     "search_keyword": "KODEX 로봇액티브",
     "relevance_keywords": [
       "KODEX 로봇액티브",
       "로봇",
       "로봇산업",
       "액티브 ETF"
-    ]
+    ],
+    "purchase_price": 34140.0,
+    "quantity": 305
   },
   "442320": {
     "name": "KB RISE 글로벌원자력 iSelect ETF",
@@ -150,5 +154,37 @@
     ],
     "purchase_price": null,
     "quantity": null
+  },
+  "267260": {
+    "name": "HD현대일렉트릭",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "HD현대일렉트릭",
+    "relevance_keywords": [
+      "HD현대일렉트릭",
+      "현대일렉트릭",
+      "변압기",
+      "에너지솔루션"
+    ]
+  },
+  "091180": {
+    "name": "KODEX 자동차",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "KODEX 자동차",
+    "relevance_keywords": [
+      "KODEX 자동차",
+      "자동차ETF",
+      "국내자동차",
+      "현대차",
+      "기아",
+      "현대모비스"
+    ]
   }
 }
