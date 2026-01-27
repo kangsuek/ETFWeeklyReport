@@ -59,6 +59,21 @@
 **GET** `/api/etfs/compare`
 - Query: `tickers` (쉼표로 구분), `start_date`, `end_date`
 
+### 8.5. 종목 인사이트 조회
+**GET** `/api/etfs/{ticker}/insights`
+- Query: `period` (기본값: "1m", 선택: "1w", "1m", "3m", "6m", "1y")
+- 종목의 투자 전략, 핵심 포인트, 리스크 분석 제공
+- 응답: `strategy` (단기/중기/장기 전략, 종합 추천, 코멘트), `key_points` (최대 3개), `risks` (최대 3개)
+- 캐시: 1분
+
+### 8.6. 종목 지표 조회 (확장)
+**GET** `/api/etfs/{ticker}/metrics`
+- 수익률 (1주, 1개월, YTD)
+- 연환산 변동성
+- 최대 낙폭 (MDD) - **신규 추가**
+- 샤프 비율 - **신규 추가**
+- 캐시: 1분
+
 ### 9. 리포트 생성
 **POST** `/api/reports/generate`
 - Body: `tickers`, `format` (markdown/pdf), `start_date`, `end_date`
@@ -88,6 +103,7 @@
 - ✅ Phase 1: Health, 종목 목록, 가격 데이터, 데이터 수집
 - ✅ Phase 2: 투자자별 매매 동향, 뉴스
 - ✅ Phase 2.5: 티커 카탈로그 수집 및 검색 (종목 목록 수집, 자동완성 검색)
+- ✅ Phase 4: 종목 인사이트 조회 (`/api/etfs/{ticker}/insights`)
 - ⏳ Phase 3-6: 비교, 리포트 생성
 
 ## 참고

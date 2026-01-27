@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { format } from 'date-fns'
 import { formatPrice, formatPercent } from '../../utils/format'
-import { calculateStats } from '../../utils/returns'
+import { calculateStats, calculateAnnualizedReturn } from '../../utils/returns'
 
 /**
  * StatCard 컴포넌트
@@ -266,8 +266,13 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
     return 'text-gray-500 dark:text-gray-400'
   }
 
+  // 연환산 수익률 계산 (3개월 미만은 표기 안 함)
+  const annualizedReturn = useMemo(() => {
+    return calculateAnnualizedReturn(data)
+  }, [data])
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* 수익률 카드 */}
       <StatCard title="수익률" icon="📈">
         <StatItem
@@ -275,6 +280,32 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
           value={formatPercent(stats.periodReturn)}
           color={getReturnColor(stats.periodReturn)}
         />
+        {annualizedReturn.showAnnualized ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {annualizedReturn.label}
+              </span>
+              {annualizedReturn.note && (
+                <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                  ({annualizedReturn.note})
+                </span>
+              )}
+            </div>
+            <span className={`text-sm font-semibold ${getReturnColor(annualizedReturn.value)}`}>
+              {formatPercent(annualizedReturn.value)}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {annualizedReturn.label}
+            </span>
+            <span className={`text-sm font-semibold ${getReturnColor(annualizedReturn.value)}`}>
+              {formatPercent(annualizedReturn.value)}
+            </span>
+          </div>
+        )}
         {stats.purchaseReturn !== null ? (
           <StatItem
             label="매입 대비 수익률"
@@ -337,6 +368,45 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
             formatPrice={formatPrice}
           />
         </div>
+      </StatCard>
+
+      {/* 리스크 지표 카드 */}
+      <StatCard title="리스크 지표" icon="⚠️">
+        {stats.annualizedVolatility !== null ? (
+          <StatItem
+            label="연환산 변동성"
+            value={formatPercent(stats.annualizedVolatility)}
+            color={stats.annualizedVolatility > 30 ? 'text-red-600 dark:text-red-400' : stats.annualizedVolatility < 15 ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}
+          />
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 dark:text-gray-400">연환산 변동성</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+              (데이터 부족)
+            </span>
+          </div>
+        )}
+        {stats.maxDrawdown !== null ? (
+          <StatItem
+            label="최대 낙폭 (MDD)"
+            value={formatPercent(stats.maxDrawdown.value)}
+            color="text-red-600 dark:text-red-400"
+          />
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 dark:text-gray-400">최대 낙폭 (MDD)</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+              (데이터 부족)
+            </span>
+          </div>
+        )}
+        {stats.dailyVolatility !== null && (
+          <StatItem
+            label="일간 변동성"
+            value={formatPercent(stats.dailyVolatility)}
+            color="text-gray-700 dark:text-gray-300"
+          />
+        )}
       </StatCard>
     </div>
   )

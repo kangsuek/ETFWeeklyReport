@@ -3,7 +3,8 @@ from typing import List, Optional
 from datetime import date, timedelta
 from app.models import (
     ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics,
-    ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse
+    ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse,
+    ETFInsights
 )
 from app.services.data_collector import ETFDataCollector
 from app.services.comparison_service import ComparisonService
@@ -664,6 +665,81 @@ async def get_metrics(
     except Exception as e:
         logger.error(f"Unexpected error fetching metrics for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=ERROR_INTERNAL_FETCH_METRICS)
+
+
+@router.get("/{ticker}/insights", response_model=ETFInsights)
+async def get_insights(
+    etf: ETF = Depends(get_etf_or_404),
+    period: str = Query(default="1m", description="분석 기간: 1w, 1m, 3m, 6m, 1y"),
+    collector: ETFDataCollector = Depends(get_collector)
+):
+    """
+    종목 인사이트 조회
+    
+    종목의 투자 전략, 핵심 포인트, 리스크를 분석하여 제공합니다.
+    
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+    
+    **Query Parameters:**
+    - period: 분석 기간 (기본값: "1m")
+      - "1w": 1주
+      - "1m": 1개월
+      - "3m": 3개월
+      - "6m": 6개월
+      - "1y": 1년
+    
+    **Example Request:**
+    ```
+    GET /api/etfs/487240/insights?period=1m
+    ```
+    
+    **Example Response:**
+    ```json
+    {
+      "strategy": {
+        "short_term": "비중확대",
+        "medium_term": "보유",
+        "long_term": "보유",
+        "recommendation": "보유",
+        "comment": "단기 급등 구간, 변동성 확대 예상"
+      },
+      "key_points": [
+        "1개월 수익률 12.5%로 강세 지속",
+        "변동성 확대 구간, 리스크 관리 필요",
+        "외국인 대규모 순매수 지속"
+      ],
+      "risks": [
+        "높은 변동성으로 인한 가격 급등락 리스크",
+        "규제 리스크: 정부 규제 강화 가능성"
+      ]
+    }
+    ```
+    
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 500: 서버 오류
+    """
+    # 캐시 확인
+    cache_key = make_cache_key("insights", ticker=etf.ticker, period=period)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        logger.debug(f"Cache hit for {cache_key}")
+        return cached_result
+    
+    try:
+        from app.services.insights_service import InsightsService
+        insights_service = InsightsService()
+        result = insights_service.get_insights(etf.ticker, period)
+        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱
+        return result
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching insights for {etf.ticker}: {e}")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
+    except Exception as e:
+        logger.error(f"Unexpected error fetching insights for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=ERROR_INTERNAL)
 
 
 @router.post("/batch-summary", response_model=BatchSummaryResponse)

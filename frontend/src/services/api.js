@@ -147,6 +147,13 @@ export const etfApi = {
   // 종목 지표 조회 (일반 조회)
   getMetrics: (ticker) => api.get(`/etfs/${ticker}/metrics`, { timeout: NORMAL_API_TIMEOUT }),
 
+  // 종목 인사이트 조회 (일반 조회)
+  getInsights: (ticker, period = '1m') => 
+    api.get(`/etfs/${ticker}/insights`, { 
+      timeout: NORMAL_API_TIMEOUT,
+      params: { period }
+    }),
+
   // 가격 데이터 수집 트리거 (긴 작업)
   collectPrices: (ticker, days = 10) =>
     api.post(`/etfs/${ticker}/collect`, null, { 

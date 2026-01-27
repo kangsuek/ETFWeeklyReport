@@ -38,12 +38,18 @@ export function calculatePeriodReturn(data) {
  * - 거래일수 = 데이터 포인트 개수
  * - 주말, 공휴일 제외
  *
+ * 개선: 3개월(약 60거래일) 미만 데이터는 연환산 표기 안 함
+ *
  * @param {Array} data - 가격 데이터 배열 (최신순 정렬)
- * @returns {number} 연환산 수익률 (%)
+ * @returns {Object} { value: number, label: string, showAnnualized: boolean, note?: string }
  */
 export function calculateAnnualizedReturn(data) {
   if (!data || data.length < 2) {
-    return 0
+    return {
+      value: 0,
+      label: '기간 수익률',
+      showAnnualized: false
+    }
   }
 
   // 거래일수 = 데이터 포인트 개수
@@ -51,7 +57,11 @@ export function calculateAnnualizedReturn(data) {
   const tradingDays = data.length
 
   if (tradingDays === 0) {
-    return 0
+    return {
+      value: 0,
+      label: '기간 수익률',
+      showAnnualized: false
+    }
   }
 
   // 기간 수익률 (소수)
@@ -59,16 +69,35 @@ export function calculateAnnualizedReturn(data) {
   const lastPrice = data[0].close_price
 
   if (firstPrice === 0) {
-    return 0
+    return {
+      value: 0,
+      label: '기간 수익률',
+      showAnnualized: false
+    }
   }
 
   const periodReturn = (lastPrice - firstPrice) / firstPrice
+  const periodReturnPct = periodReturn * 100
+
+  // 3개월 미만(약 60거래일)은 연환산 표기 안 함
+  if (tradingDays < 60) {
+    return {
+      value: periodReturnPct,
+      label: `${tradingDays}일 수익률`,
+      showAnnualized: false
+    }
+  }
 
   // 연환산: (1 + 기간수익률) ^ (365/거래일수) - 1
   // 복리 효과를 반영한 정확한 연환산 계산
   const annualized = (Math.pow(1 + periodReturn, 365 / tradingDays) - 1) * 100
 
-  return annualized
+  return {
+    value: annualized,
+    label: '연환산 수익률',
+    showAnnualized: true,
+    note: '참고용'
+  }
 }
 
 /**

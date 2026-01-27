@@ -87,14 +87,22 @@ export default function ComparisonTable({ statistics, tickerInfo }) {
 
   const columns = [
     { key: 'period_return', label: '기간 수익률', format: formatPercent },
-    { key: 'annualized_return', label: '연환산 수익률', format: formatPercent },
+    { 
+      key: 'annualized_return', 
+      label: '연환산 수익률', 
+      format: (value) => {
+        if (value === null || value === undefined) return 'N/A (3개월 미만)'
+        return formatPercent(value)
+      },
+      tooltip: '3개월 이상 데이터만 연환산 표시\n(3개월 미만은 N/A)'
+    },
     { key: 'volatility', label: '변동성', format: formatPercent },
     { key: 'max_drawdown', label: '최대 낙폭', format: formatPercent },
     {
       key: 'sharpe_ratio',
       label: '샤프 비율',
       format: formatNumber,
-      tooltip: '위험 대비 수익 지표.\n1+ 양호, 2+ 우수, 3+ 매우 우수'
+      tooltip: '위험 대비 수익 지표.\n1+ 양호, 2+ 우수, 3+ 매우 우수\n(연환산 수익률이 없으면 N/A)'
     },
   ]
 
