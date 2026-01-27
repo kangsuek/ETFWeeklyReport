@@ -687,11 +687,33 @@ class ETFDataCollector:
                     # Annualize: daily std * sqrt(trading days per year)
                     volatility = std_dev * math.sqrt(TRADING_DAYS_PER_YEAR)
 
+                # Calculate Max Drawdown
+                max_drawdown = None
+                if len(prices) >= 2:
+                    import pandas as pd
+                    price_series = pd.Series([p['close_price'] for p in prices])
+                    cumulative_max = price_series.cummax()
+                    drawdown = ((price_series - cumulative_max) / cumulative_max * 100)
+                    max_drawdown = round(drawdown.min(), 2)
+
+                # Calculate Sharpe Ratio (연환산 수익률 기준)
+                sharpe_ratio = None
+                if volatility and volatility > 0:
+                    # 1개월 수익률을 연환산으로 변환 (참고용)
+                    monthly_return = returns.get("1m")
+                    if monthly_return is not None:
+                        # 간단한 연환산: (1 + 월간수익률)^12 - 1
+                        annualized_return = (pow(1 + monthly_return / 100, 12) - 1) * 100
+                        risk_free_rate = 3.0  # 무위험 수익률 3%
+                        sharpe_ratio = round((annualized_return - risk_free_rate) / volatility, 2)
+
                 return ETFMetrics(
                     ticker=ticker,
                     aum=None,  # AUM data not available from scraping
                     returns=returns,
-                    volatility=volatility
+                    volatility=volatility,
+                    max_drawdown=max_drawdown,
+                    sharpe_ratio=sharpe_ratio
                 )
 
         except Exception as e:

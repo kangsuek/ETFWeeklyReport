@@ -40,6 +40,8 @@ class ETFMetrics(BaseModel):
     aum: Optional[float] = None  # in billions KRW
     returns: dict  # {"1w": 0.023, "1m": 0.085, "ytd": 0.153}
     volatility: Optional[float] = None
+    max_drawdown: Optional[float] = None  # 최대 낙폭 (%)
+    sharpe_ratio: Optional[float] = None  # 샤프 비율
 
 class ETFDetailResponse(BaseModel):
     etf: ETF
@@ -105,3 +107,18 @@ class BatchSummaryRequest(BaseModel):
 class BatchSummaryResponse(BaseModel):
     """배치 요약 응답"""
     data: dict  # {ticker: ETFCardSummary}
+
+# Insights API Models
+class StrategyInsights(BaseModel):
+    """투자 전략 인사이트"""
+    short_term: str  # 단기 전략: "비중확대", "보유", "관망", "비중축소"
+    medium_term: str  # 중기 전략
+    long_term: str  # 장기 전략
+    recommendation: str  # 종합 추천
+    comment: str  # 코멘트
+
+class ETFInsights(BaseModel):
+    """종목 인사이트"""
+    strategy: StrategyInsights
+    key_points: List[str]  # 핵심 포인트 (최대 3개)
+    risks: List[str]  # 리스크 요약 (최대 3개)

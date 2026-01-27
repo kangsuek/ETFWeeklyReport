@@ -236,25 +236,31 @@ class ComparisonService:
 
         return ((last_price - first_price) / first_price * 100).round(2)
 
-    def calculate_annualized_return(self, prices: pd.Series, days: int) -> float:
+    def calculate_annualized_return(self, prices: pd.Series, days: int) -> Optional[float]:
         """
         연환산 수익률 계산 (복리 효과 반영)
+        
+        개선: 3개월(약 90일) 미만 데이터는 연환산 계산 안 함 (None 반환)
 
         Args:
             prices: 종가 시리즈
             days: 기간 (일수)
 
         Returns:
-            연환산 수익률 (%)
+            연환산 수익률 (%) 또는 None (3개월 미만인 경우)
         """
         if days == 0 or len(prices) < 2:
-            return 0.0
+            return None
+
+        # 3개월 미만은 연환산 계산 안 함
+        if days < 90:
+            return None
 
         first_price = prices.iloc[0]
         last_price = prices.iloc[-1]
 
         if first_price == 0:
-            return 0.0
+            return None
 
         # 기간 수익률 (소수)
         period_return_decimal = (last_price - first_price) / first_price
@@ -377,14 +383,18 @@ class ComparisonService:
             annualized_return = self.calculate_annualized_return(prices, calendar_days)
             volatility = self.calculate_volatility(prices)
             max_drawdown = self.calculate_max_drawdown(prices)
-            sharpe_ratio = self.calculate_sharpe_ratio(annualized_return, volatility)
+            # 연환산 수익률이 None인 경우 샤프 비율도 None
+            if annualized_return is not None:
+                sharpe_ratio = self.calculate_sharpe_ratio(annualized_return, volatility)
+            else:
+                sharpe_ratio = None
 
             statistics[ticker] = {
                 "period_return": sanitize_float(period_return),
-                "annualized_return": sanitize_float(annualized_return),
+                "annualized_return": sanitize_float(annualized_return) if annualized_return is not None else None,
                 "volatility": sanitize_float(volatility),
                 "max_drawdown": sanitize_float(max_drawdown),
-                "sharpe_ratio": sanitize_float(sharpe_ratio),
+                "sharpe_ratio": sanitize_float(sharpe_ratio) if sharpe_ratio is not None else None,
                 "data_points": int(len(df))  # 거래일 수 (데이터 포인트 개수)
             }
 

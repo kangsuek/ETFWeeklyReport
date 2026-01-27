@@ -14,6 +14,7 @@ import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
 import InsightSummary from '../components/etf/InsightSummary'
+import StrategySummary from '../components/etf/StrategySummary'
 import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
@@ -250,13 +251,33 @@ export default function ETFDetail() {
       {/* Sticky 헤더 */}
       <ETFHeader etf={etf} />
 
-      {/* 투자 인사이트 요약 (최상단) */}
+      {/* 1. 투자 인사이트 요약 (최상단) */}
       <InsightSummary
         pricesData={pricesData}
         tradingFlowData={tradingFlowData}
       />
 
-      {/* 기본 정보 섹션 */}
+      {/* 2. 핵심 인사이트 블록 (전략 요약, 핵심 포인트, 리스크) */}
+      <div className="mb-6">
+        <StrategySummary 
+          ticker={ticker} 
+          period={dateRange.range === '7d' ? '1w' : dateRange.range === '1m' ? '1m' : dateRange.range === '3m' ? '3m' : '1m'}
+        />
+      </div>
+
+      {/* 3. 성과 및 리스크 지표 */}
+      {pricesData && pricesData.length > 0 && (
+        <div className="card mb-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">성과 및 리스크 지표</h3>
+          <StatsSummary 
+            data={pricesData} 
+            purchasePrice={etf?.purchase_price}
+            purchaseDate={etf?.purchase_date}
+          />
+        </div>
+      )}
+
+      {/* 4. 기본 정보 섹션 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* 종목 정보 */}
         <div className="card lg:col-span-2">
@@ -391,26 +412,14 @@ export default function ETFDetail() {
         </div>
       </div>
 
-      {/* 날짜 범위 선택기 */}
+      {/* 5. 날짜 범위 선택기 */}
       <DateRangeSelector
         key={`${defaultRangeFromSettings}-${settings.defaultDateRange}`}
         onDateRangeChange={handleDateRangeChange}
         defaultRange={defaultRangeFromSettings}
       />
 
-      {/* 통계 요약 섹션 */}
-      {pricesData && pricesData.length > 0 && (
-        <div className="card mb-4">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">통계 요약</h3>
-          <StatsSummary 
-            data={pricesData} 
-            purchasePrice={etf?.purchase_price}
-            purchaseDate={etf?.purchase_date}
-          />
-        </div>
-      )}
-
-      {/* 차트 섹션 */}
+      {/* 6. 차트 섹션 */}
       <ETFCharts
         pricesData={pricesData}
         tradingFlowData={tradingFlowData}
