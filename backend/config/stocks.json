@@ -51,6 +51,21 @@
     "purchase_price": 17870.0,
     "quantity": 281
   },
+  "445290": {
+    "name": "KODEX 로봇액티브",
+    "type": "ETF",
+    "theme": "로봇",
+    "purchase_date": "2026-01-21",
+    "search_keyword": "KODEX 로봇액티브",
+    "relevance_keywords": [
+      "KODEX 로봇액티브",
+      "로봇",
+      "로봇산업",
+      "액티브 ETF"
+    ],
+    "purchase_price": 34140.0,
+    "quantity": 305
+  },
   "449450": {
     "name": "PLUS K방산",
     "type": "ETF",
@@ -81,6 +96,24 @@
       "수주잔고",
       "글로벌해운",
       "선박"
+    ],
+    "purchase_price": null,
+    "quantity": null
+  },
+  "442320": {
+    "name": "KB RISE 글로벌원자력 iSelect ETF",
+    "type": "ETF",
+    "theme": "글로벌 원자력",
+    "purchase_date": "2024-01-25",
+    "search_keyword": "원자력",
+    "relevance_keywords": [
+      "원자력",
+      "원전",
+      "Uranium",
+      "SMR",
+      "두산에너빌리티",
+      "클린에너지",
+      "핵발전"
     ],
     "purchase_price": null,
     "quantity": null
@@ -118,39 +151,6 @@
       "Google",
       "양자기술",
       "큐비트"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "445290": {
-    "name": "KODEX 로봇액티브",
-    "type": "ETF",
-    "theme": "로봇",
-    "purchase_date": "2026-01-21",
-    "search_keyword": "KODEX 로봇액티브",
-    "relevance_keywords": [
-      "KODEX 로봇액티브",
-      "로봇",
-      "로봇산업",
-      "액티브 ETF"
-    ],
-    "purchase_price": 34140.0,
-    "quantity": 305
-  },
-  "442320": {
-    "name": "KB RISE 글로벌원자력 iSelect ETF",
-    "type": "ETF",
-    "theme": "글로벌 원자력",
-    "purchase_date": "2024-01-25",
-    "search_keyword": "원자력",
-    "relevance_keywords": [
-      "원자력",
-      "원전",
-      "Uranium",
-      "SMR",
-      "두산에너빌리티",
-      "클린에너지",
-      "핵발전"
     ],
     "purchase_price": null,
     "quantity": null

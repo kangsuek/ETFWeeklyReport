@@ -381,6 +381,28 @@ def init_db():
         ON collection_status(last_price_date, last_trading_flow_date)
     """)
 
+    # Create intraday_prices table for minute-level price data (분봉)
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS intraday_prices (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            datetime TIMESTAMP NOT NULL,
+            price {real_type} NOT NULL,
+            change_amount {real_type},
+            volume {integer_type},
+            bid_volume {integer_type},
+            ask_volume {integer_type},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            UNIQUE(ticker, datetime)
+        )
+    """)
+
+    # Create index for intraday_prices
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_intraday_prices_ticker_datetime
+        ON intraday_prices(ticker, datetime DESC)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []

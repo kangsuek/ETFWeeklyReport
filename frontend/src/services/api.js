@@ -179,6 +179,25 @@ export const etfApi = {
       timeout: NORMAL_API_TIMEOUT
     })
   },
+
+  // 분봉(시간별 체결) 데이터 조회 (일반 조회)
+  getIntraday: (ticker, params = {}) => {
+    const { targetDate, autoCollect = true } = params
+    return api.get(`/etfs/${ticker}/intraday`, {
+      timeout: NORMAL_API_TIMEOUT,
+      params: {
+        target_date: targetDate,
+        auto_collect: autoCollect
+      }
+    })
+  },
+
+  // 분봉 데이터 수집 트리거 (긴 작업)
+  collectIntraday: (ticker, pages = 20) =>
+    api.post(`/etfs/${ticker}/collect-intraday`, null, {
+      timeout: LONG_API_TIMEOUT,
+      params: { pages }
+    }),
 }
 
 // News API 서비스
