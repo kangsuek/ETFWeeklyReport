@@ -818,3 +818,206 @@ async def get_batch_summary(
     except Exception as e:
         logger.error(f"Unexpected error in batch summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=ERROR_INTERNAL)
+
+
+@router.get("/{ticker}/intraday")
+async def get_intraday_prices(
+    etf: ETF = Depends(get_etf_or_404),
+    target_date: Optional[date] = Query(default=None, description="조회할 날짜 (기본: 오늘)"),
+    auto_collect: bool = Query(default=True, description="데이터 없을 시 자동 수집 여부")
+):
+    """
+    분봉(시간별 체결) 데이터 조회
+
+    해당 종목의 당일 시간별 체결 데이터를 조회합니다.
+    장중에는 실시간으로 업데이트되며, 장 마감 후에는 당일 전체 데이터를 반환합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+
+    **Query Parameters:**
+    - target_date: 조회할 날짜 (선택, 기본값: 오늘)
+    - auto_collect: 데이터가 없을 때 자동 수집 여부 (기본: true)
+
+    **Example Request:**
+    ```
+    GET /api/etfs/487240/intraday
+    GET /api/etfs/487240/intraday?target_date=2025-01-24
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "ticker": "487240",
+      "date": "2025-01-24",
+      "data": [
+        {
+          "datetime": "2025-01-24T09:00:00",
+          "price": 12500.0,
+          "change_amount": 100.0,
+          "volume": 1500,
+          "bid_volume": 800,
+          "ask_volume": 700
+        },
+        ...
+      ],
+      "count": 390,
+      "first_time": "09:00",
+      "last_time": "15:30"
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 500: 서버 오류
+
+    **Notes:**
+    - 데이터는 시간순(오래된 시간 → 최신 시간)으로 정렬됨
+    - 장중에는 약 1분 간격으로 데이터 제공
+    - 주말/공휴일은 데이터 없음
+    """
+    from app.services.intraday_collector import IntradayDataCollector
+
+    try:
+        intraday_collector = IntradayDataCollector()
+
+        # 실제 조회할 날짜 결정
+        actual_date = target_date or date.today()
+
+        # 캐시 확인 (실제 날짜 기준)
+        cache_key = make_cache_key("intraday", ticker=etf.ticker, date=actual_date)
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            logger.debug(f"Cache hit for {cache_key}")
+            return cached_result
+
+        # DB에서 데이터 조회
+        intraday_data = intraday_collector.get_intraday_data(etf.ticker, actual_date)
+
+        # 오늘 데이터가 없으면 마지막 거래일 데이터 확인
+        if not intraday_data and target_date is None:
+            last_trading_date = intraday_collector.get_last_trading_date(etf.ticker)
+            if last_trading_date and last_trading_date != date.today():
+                logger.info(f"No intraday data for today, checking last trading date: {last_trading_date}")
+                actual_date = last_trading_date
+                intraday_data = intraday_collector.get_intraday_data(etf.ticker, last_trading_date)
+
+        # 데이터가 없고 자동 수집이 켜져 있으면 수집 시도
+        if not intraday_data and auto_collect:
+            logger.info(f"No intraday data for {etf.ticker}, attempting auto-collection")
+            result = intraday_collector.collect_and_save_intraday(etf.ticker, pages=20)
+
+            if result['collected'] > 0:
+                # 수집된 날짜로 다시 조회
+                actual_date = date.fromisoformat(result.get('date', date.today().isoformat()))
+                intraday_data = intraday_collector.get_intraday_data(etf.ticker, actual_date)
+
+        if not intraday_data:
+            response = {
+                "ticker": etf.ticker,
+                "date": actual_date.isoformat(),
+                "data": [],
+                "count": 0,
+                "first_time": None,
+                "last_time": None,
+                "message": "데이터 없음 (장 마감 또는 휴장일)"
+            }
+            cache.set(cache_key, response, ttl_seconds=60)  # 1분 캐싱 (빈 결과)
+            return response
+
+        # datetime을 ISO 문자열로 변환하고 시간 추출
+        first_time = None
+        last_time = None
+
+        for item in intraday_data:
+            dt_value = item['datetime']
+            if isinstance(dt_value, str):
+                # 문자열인 경우 ISO 형식으로 변환 (공백 -> T)
+                item['datetime'] = dt_value.replace(' ', 'T')
+            else:
+                item['datetime'] = dt_value.isoformat()
+
+        if intraday_data:
+            # 시간 추출 (HH:MM 형식)
+            first_dt = intraday_data[0]['datetime']
+            last_dt = intraday_data[-1]['datetime']
+            first_time = first_dt.split('T')[1][:5] if 'T' in first_dt else first_dt.split(' ')[1][:5]
+            last_time = last_dt.split('T')[1][:5] if 'T' in last_dt else last_dt.split(' ')[1][:5]
+
+        response = {
+            "ticker": etf.ticker,
+            "date": actual_date.isoformat(),
+            "data": intraday_data,
+            "count": len(intraday_data),
+            "first_time": first_time,
+            "last_time": last_time
+        }
+
+        cache.set(cache_key, response, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱
+        return response
+
+    except Exception as e:
+        logger.error(f"Error fetching intraday data for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"분봉 데이터 조회 실패: {str(e)}")
+
+
+@router.post("/{ticker}/collect-intraday")
+async def collect_intraday_prices(
+    etf: ETF = Depends(get_etf_or_404),
+    pages: int = Query(default=20, ge=1, le=50, description="수집할 페이지 수 (1-50)"),
+    api_key: str = Depends(verify_api_key_dependency)
+):
+    """
+    분봉(시간별 체결) 데이터 수집
+
+    네이버 금융에서 해당 종목의 시간별 체결 데이터를 수집합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+
+    **Query Parameters:**
+    - pages: 수집할 페이지 수 (1-50, 기본: 20, 페이지당 약 10건)
+
+    **Example Request:**
+    ```
+    POST /api/etfs/487240/collect-intraday?pages=30
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "ticker": "487240",
+      "collected": 285,
+      "first_time": "09:01",
+      "last_time": "15:29",
+      "message": "285건 수집 완료"
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 404: 종목을 찾을 수 없음
+    - 500: 서버 오류
+
+    **Notes:**
+    - 장중에 호출 시 실시간 데이터 수집
+    - 장 마감 후에는 당일 전체 데이터 수집
+    - 오래된 데이터는 7일 후 자동 삭제
+    """
+    from app.services.intraday_collector import IntradayDataCollector
+
+    try:
+        logger.info(f"Starting intraday collection for {etf.ticker}, pages={pages}")
+
+        intraday_collector = IntradayDataCollector()
+        result = intraday_collector.collect_and_save_intraday(etf.ticker, pages=pages)
+
+        # 수집 후 캐시 무효화
+        cache.invalidate_pattern(f"intraday:{etf.ticker}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error collecting intraday data for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"분봉 데이터 수집 실패: {str(e)}")

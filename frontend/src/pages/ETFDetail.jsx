@@ -14,6 +14,7 @@ import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
 import InsightSummary from '../components/etf/InsightSummary'
+import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
 
@@ -126,6 +127,24 @@ export default function ETFDetail() {
     staleTime: CACHE_STALE_TIME_FAST, // 30초 (매매동향 데이터)
     retry: 1, // 실패 시 1회 재시도
     retryDelay: 1000, // 1초 후 재시도
+  })
+
+  // 분봉 데이터 조회 (시간별 체결)
+  const {
+    data: intradayData,
+    isLoading: intradayLoading,
+    isFetching: intradayFetching,
+    error: intradayError,
+    refetch: refetchIntraday
+  } = useQuery({
+    queryKey: ['intraday', ticker],
+    queryFn: async () => {
+      const response = await etfApi.getIntraday(ticker, { autoCollect: true })
+      return response.data
+    },
+    staleTime: CACHE_STALE_TIME_FAST, // 30초 (분봉 데이터)
+    retry: 1,
+    retryDelay: 1000,
   })
 
   // 날짜 범위 변경 핸들러
@@ -413,6 +432,72 @@ export default function ETFDetail() {
         onTradingFlowChartScroll={handleTradingFlowChartScroll}
         purchasePrice={etf?.purchase_price}
       />
+
+      {/* 분봉 차트 섹션 (당일 시간별 체결) */}
+      <div className="card mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              분봉 차트 (당일)
+            </h3>
+            {intradayData?.date && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {intradayData.date}
+              </span>
+            )}
+            {intradayFetching && (
+              <span className="text-xs text-blue-500 animate-pulse">갱신 중...</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {intradayData?.first_time && intradayData?.last_time && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {intradayData.first_time} ~ {intradayData.last_time}
+              </span>
+            )}
+            <button
+              onClick={() => refetchIntraday()}
+              className="btn btn-outline btn-sm"
+              disabled={intradayFetching}
+              title="분봉 데이터 새로고침"
+            >
+              <svg className={`w-4 h-4 ${intradayFetching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {intradayLoading ? (
+          <div className="flex items-center justify-center h-[300px]">
+            <Spinner />
+          </div>
+        ) : intradayError ? (
+          <div className="flex flex-col items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+            <p>분봉 데이터를 불러올 수 없습니다</p>
+            <button
+              onClick={() => refetchIntraday()}
+              className="mt-2 text-sm text-blue-500 hover:underline"
+            >
+              다시 시도
+            </button>
+          </div>
+        ) : (
+          <IntradayChart
+            data={intradayData?.data || []}
+            ticker={ticker}
+            height={300}
+            showVolume={settings.display.showVolume}
+            previousClose={pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null}
+          />
+        )}
+
+        {intradayData?.count === 0 && !intradayLoading && (
+          <p className="text-center text-sm text-gray-400 dark:text-gray-500 mt-2">
+            장중이 아니거나 휴장일입니다. 장 시작 후 데이터가 수집됩니다.
+          </p>
+        )}
+      </div>
 
       {/* 가격 데이터 테이블 섹션 (접힘 처리) */}
       {pricesData && pricesData.length > 0 && (
