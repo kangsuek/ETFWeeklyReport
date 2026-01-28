@@ -154,13 +154,6 @@ export const etfApi = {
       params: { period }
     }),
 
-  // 벤치마크 대비 분석 조회 (일반 조회)
-  getBenchmarkComparison: (ticker, benchmark = 'KOSPI', period = '1m') =>
-    api.get(`/etfs/${ticker}/benchmark-comparison`, {
-      timeout: NORMAL_API_TIMEOUT,
-      params: { benchmark, period }
-    }),
-
   // 가격 데이터 수집 트리거 (긴 작업)
   collectPrices: (ticker, days = 10) =>
     api.post(`/etfs/${ticker}/collect`, null, { 

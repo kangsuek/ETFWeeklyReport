@@ -45,20 +45,6 @@ class NewsListResponse(BaseModel):
     news: List[NewsWithAnalysis]
     analysis: Optional[Dict] = None  # 전체 분석 결과 (sentiment, topics, summary)
 
-class BenchmarkComparison(BaseModel):
-    """벤치마크 대비 분석 결과"""
-    ticker: str
-    benchmark: str
-    period: str
-    etf_return: Optional[float] = None
-    benchmark_return: Optional[float] = None
-    alpha: Optional[float] = None  # 초과수익률
-    correlation: Optional[float] = None  # 상관계수
-    start_date: str
-    end_date: str
-    data_points: int
-    error: Optional[str] = None
-
 class ETFMetrics(BaseModel):
     ticker: str
     aum: Optional[float] = None  # in billions KRW
