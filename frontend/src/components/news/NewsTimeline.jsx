@@ -51,16 +51,34 @@ const NewsTimeline = ({ ticker }) => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['news', ticker, limit],
     queryFn: async () => {
-      const response = await newsApi.getByTicker(ticker, { days: 7, limit })
+      const response = await newsApi.getByTicker(ticker, { days: 7, limit, analyze: true })
+      // 백엔드에서 분석 결과를 포함한 응답 반환: { news: [...], analysis: {...} }
       return response.data
     },
     staleTime: 5 * 60 * 1000, // 5분
   })
 
-  // 뉴스 분석 (센티먼트, 토픽)
+  // 백엔드 분석 결과 사용 (또는 프론트엔드 분석 fallback)
   const newsAnalysis = useMemo(() => {
-    if (!data || data.length === 0) return null
-    return analyzeNewsList(data)
+    if (!data) return null
+    
+    // 백엔드 응답 형식: { news: [...], analysis: {...} }
+    if (data.news && Array.isArray(data.news)) {
+      // 백엔드에서 분석된 뉴스 사용
+      return {
+        analyzedNews: data.news,
+        sentiment: data.analysis?.sentiment || 'neutral',
+        topics: data.analysis?.topics || [],
+        summary: data.analysis?.summary || null
+      }
+    }
+    
+    // 기존 형식 (배열)인 경우 프론트엔드 분석 사용 (하위 호환성)
+    if (Array.isArray(data) && data.length > 0) {
+      return analyzeNewsList(data)
+    }
+    
+    return null
   }, [data])
 
   // 날짜별로 그룹핑 (분석된 뉴스 사용)
@@ -139,7 +157,10 @@ const NewsTimeline = ({ ticker }) => {
     )
   }
 
-  if (!data || data.length === 0) {
+  // 데이터 확인 (백엔드 응답 형식 또는 기존 형식)
+  const newsList = data?.news || (Array.isArray(data) ? data : [])
+  
+  if (!newsList || newsList.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500 dark:text-gray-400">
         <p>최근 뉴스가 없습니다</p>

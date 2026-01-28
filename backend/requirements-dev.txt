@@ -21,6 +21,7 @@ coverage==7.3.2
 # Development Tools
 ipython==8.18.1
 ipdb==0.13.13
+pre-commit==3.6.0  # Pre-commit hooks
 
 # -r requirements.txt를 포함하여 운영 의존성도 설치
 -r requirements.txt

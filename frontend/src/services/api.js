@@ -148,10 +148,17 @@ export const etfApi = {
   getMetrics: (ticker) => api.get(`/etfs/${ticker}/metrics`, { timeout: NORMAL_API_TIMEOUT }),
 
   // 종목 인사이트 조회 (일반 조회)
-  getInsights: (ticker, period = '1m') => 
-    api.get(`/etfs/${ticker}/insights`, { 
+  getInsights: (ticker, period = '1m') =>
+    api.get(`/etfs/${ticker}/insights`, {
       timeout: NORMAL_API_TIMEOUT,
       params: { period }
+    }),
+
+  // 벤치마크 대비 분석 조회 (일반 조회)
+  getBenchmarkComparison: (ticker, benchmark = 'KOSPI', period = '1m') =>
+    api.get(`/etfs/${ticker}/benchmark-comparison`, {
+      timeout: NORMAL_API_TIMEOUT,
+      params: { benchmark, period }
     }),
 
   // 가격 데이터 수집 트리거 (긴 작업)
@@ -209,16 +216,17 @@ export const etfApi = {
 
 // News API 서비스
 export const newsApi = {
-  // 종목별 뉴스 조회 (일반 조회)
+  // 종목별 뉴스 조회 (분석 결과 포함)
   getByTicker: (ticker, params = {}) => {
-    const { startDate, endDate, days, limit } = params
+    const { startDate, endDate, days, limit, analyze = true } = params
     return api.get(`/news/${ticker}`, {
       timeout: NORMAL_API_TIMEOUT,
       params: {
         start_date: startDate,
         end_date: endDate,
         days,
-        limit
+        limit,
+        analyze
       }
     })
   },

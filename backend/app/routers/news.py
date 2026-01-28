@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional, Dict
 from datetime import date
-from app.models import News, ETF
+from app.models import News, NewsListResponse, NewsWithAnalysis, ETF
 from app.services.news_scraper import NewsScraper
+from app.services.news_analyzer import NewsAnalyzer
 from app.services.data_collector import ETFDataCollector
 from app.exceptions import ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
@@ -29,21 +30,23 @@ scraper = NewsScraper()
 CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
 cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
-@router.get("/{ticker}", response_model=List[News])
+@router.get("/{ticker}", response_model=NewsListResponse)
 async def get_news(
     etf: ETF = Depends(get_etf_or_404),
     start_date: Optional[date] = Query(default=None, description="조회 시작 날짜 (기본: 7일 전)"),
-    end_date: Optional[date] = Query(default=None, description="조회 종료 날짜 (기본: 오늘)")
+    end_date: Optional[date] = Query(default=None, description="조회 종료 날짜 (기본: 오늘)"),
+    analyze: bool = Query(default=True, description="뉴스 분석 포함 여부 (센티먼트, 태그, 요약)")
 ):
     """
-    종목별 뉴스 조회
+    종목별 뉴스 조회 (분석 결과 포함)
 
     - **etf**: 종목 정보 (자동 주입, 검증됨)
     - **start_date**: 시작 날짜 (선택, 기본: 7일 전)
     - **end_date**: 종료 날짜 (선택, 기본: 오늘)
+    - **analyze**: 뉴스 분석 포함 여부 (기본: True)
 
     Returns:
-        뉴스 리스트 (날짜, 제목, URL, 출처, 관련도 점수)
+        뉴스 리스트 + 분석 결과 (센티먼트, 태그, 요약)
     """
     # 날짜 기본값 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
@@ -90,11 +93,64 @@ async def get_news(
         if not news_list:
             logger.warning(f"No news found for {etf.ticker} between {start_date} and {end_date}")
             cache.set(cache_key, [], ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (빈 결과도 캐싱)
-            return []
+            return NewsListResponse(news=[], analysis=None)
 
         logger.info(f"Retrieved {len(news_list)} news articles for {etf.ticker}")
-        cache.set(cache_key, news_list, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (뉴스)
-        return news_list
+
+        # 뉴스 분석 수행
+        if analyze:
+            # News 모델을 딕셔너리로 변환
+            news_dicts = [
+                {
+                    'date': n.date,
+                    'title': n.title,
+                    'url': n.url,
+                    'source': n.source,
+                    'relevance_score': n.relevance_score
+                }
+                for n in news_list
+            ]
+            analysis_result = NewsAnalyzer.analyze_news_list(news_dicts)
+
+            # 분석 결과를 포함한 뉴스 리스트 생성
+            analyzed_news = []
+            for analyzed_item in analysis_result['analyzed_news']:
+                analyzed_news.append(NewsWithAnalysis(
+                    date=analyzed_item['date'],
+                    title=analyzed_item['title'],
+                    url=analyzed_item['url'],
+                    source=analyzed_item['source'],
+                    relevance_score=analyzed_item.get('relevance_score'),
+                    sentiment=analyzed_item.get('sentiment'),
+                    tags=analyzed_item.get('tags', [])
+                ))
+
+            response = NewsListResponse(
+                news=analyzed_news,
+                analysis={
+                    'sentiment': analysis_result['sentiment'],
+                    'topics': analysis_result['topics'],
+                    'summary': analysis_result['summary']
+                }
+            )
+        else:
+            # 분석 없이 기본 뉴스만 반환
+            basic_news = [
+                NewsWithAnalysis(
+                    date=n.date,
+                    title=n.title,
+                    url=n.url,
+                    source=n.source,
+                    relevance_score=n.relevance_score,
+                    sentiment=None,
+                    tags=None
+                )
+                for n in news_list
+            ]
+            response = NewsListResponse(news=basic_news, analysis=None)
+
+        cache.set(cache_key, response, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (뉴스)
+        return response
 
     except sqlite3.Error as e:
         logger.error(f"Database error fetching news for {etf.ticker}: {e}")
