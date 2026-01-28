@@ -74,6 +74,14 @@
 - 샤프 비율 - **신규 추가**
 - 캐시: 1분
 
+### 8.7. 벤치마크 대비 분석
+**GET** `/api/etfs/{ticker}/benchmark-comparison`
+- Query: `benchmark` (기본값: "KOSPI", 선택: "KOSPI", "KOSDAQ", "KOSPI200")
+- Query: `period` (기본값: "1m", 선택: "1w", "1m", "3m", "6m", "1y")
+- 종목과 벤치마크 지수의 성과 비교
+- 응답: `etf_return`, `benchmark_return`, `alpha` (초과수익률), `correlation` (상관계수)
+- 캐시: 1분
+
 ### 9. 리포트 생성
 **POST** `/api/reports/generate`
 - Body: `tickers`, `format` (markdown/pdf), `start_date`, `end_date`
