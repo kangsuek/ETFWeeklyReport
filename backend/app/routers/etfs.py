@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from app.models import (
     ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics,
     ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse,
-    ETFInsights, BenchmarkComparison
+    ETFInsights
 )
 from app.services.data_collector import ETFDataCollector
 from app.services.comparison_service import ComparisonService
@@ -739,97 +739,6 @@ async def get_insights(
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
         logger.error(f"Unexpected error fetching insights for {etf.ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=ERROR_INTERNAL)
-
-
-@router.get("/{ticker}/benchmark-comparison", response_model=BenchmarkComparison)
-async def get_benchmark_comparison(
-    etf: ETF = Depends(get_etf_or_404),
-    benchmark: str = Query("KOSPI", description="벤치마크 지수: KOSPI, KOSDAQ, KOSPI200"),
-    period: str = Query("1m", description="분석 기간: 1w, 1m, 3m, 6m, 1y")
-):
-    """
-    벤치마크 대비 성과 비교
-
-    종목의 수익률을 벤치마크 지수와 비교하여 초과수익률(Alpha)과 상관계수를 계산합니다.
-
-    **Path Parameters:**
-    - ticker: 종목 코드 (예: 487240)
-
-    **Query Parameters:**
-    - benchmark: 벤치마크 지수 (기본값: KOSPI)
-      - KOSPI: 코스피 지수
-      - KOSDAQ: 코스닥 지수
-      - KOSPI200: 코스피200 지수
-    - period: 분석 기간 (기본값: 1m)
-      - 1w: 1주
-      - 1m: 1개월
-      - 3m: 3개월
-      - 6m: 6개월
-      - 1y: 1년
-
-    **Example Request:**
-    ```
-    GET /api/etfs/487240/benchmark-comparison?benchmark=KOSPI&period=1m
-    ```
-
-    **Example Response:**
-    ```json
-    {
-      "ticker": "487240",
-      "benchmark": "KOSPI",
-      "period": "1m",
-      "etf_return": 12.5,
-      "benchmark_return": 8.3,
-      "alpha": 4.2,
-      "correlation": 0.85,
-      "start_date": "2024-12-27",
-      "end_date": "2025-01-27",
-      "data_points": 20
-    }
-    ```
-
-    **Response Fields:**
-    - ticker: 종목 코드
-    - benchmark: 벤치마크 지수 이름
-    - period: 분석 기간
-    - etf_return: ETF 수익률 (%)
-    - benchmark_return: 벤치마크 수익률 (%)
-    - alpha: 초과수익률 (ETF 수익률 - 벤치마크 수익률, %)
-    - correlation: 상관계수 (-1 ~ 1)
-    - start_date: 분석 시작 날짜
-    - end_date: 분석 종료 날짜
-    - data_points: 공통 데이터 포인트 수
-    - error: 에러 메시지 (데이터 부족 시)
-
-    **Status Codes:**
-    - 200: 성공
-    - 404: 종목을 찾을 수 없음
-    - 500: 서버 오류
-
-    **Notes:**
-    - FinanceDataReader를 사용하여 벤치마크 데이터를 가져옵니다
-    - 데이터가 부족한 경우 null 값 반환
-    - 상관계수는 일간 수익률 기준으로 계산됩니다
-    """
-    # 캐시 확인
-    cache_key = make_cache_key("benchmark", ticker=etf.ticker, benchmark=benchmark, period=period)
-    cached_result = cache.get(cache_key)
-    if cached_result is not None:
-        logger.debug(f"Cache hit for {cache_key}")
-        return cached_result
-
-    try:
-        from app.services.benchmark_service import BenchmarkService
-        benchmark_service = BenchmarkService()
-        result = benchmark_service.compare_with_benchmark(etf.ticker, benchmark, period)
-        cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱
-        return result
-    except sqlite3.Error as e:
-        logger.error(f"Database error fetching benchmark comparison for {etf.ticker}: {e}")
-        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
-    except Exception as e:
-        logger.error(f"Unexpected error fetching benchmark comparison for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=ERROR_INTERNAL)
 
 
