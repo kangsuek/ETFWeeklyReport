@@ -27,4 +27,7 @@
 ### 프로젝트 관리
 - **[MILESTONES.md](./docs/project-management/MILESTONES.md)** - 마일스톤 및 진행 상황
 
-      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+### 개발 스킬 및 도구
+- **[DEVELOPMENT_SKILLS_RECOMMENDATIONS.md](./docs/DEVELOPMENT_SKILLS_RECOMMENDATIONS.md)** - 개발 스킬 추천 가이드 ⭐ 신규
+
+ IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import date
 
 class ETF(BaseModel):
@@ -34,6 +34,30 @@ class News(BaseModel):
     url: str
     source: str
     relevance_score: Optional[float] = None
+
+class NewsWithAnalysis(News):
+    """뉴스 + 분석 결과 (센티먼트, 태그)"""
+    sentiment: Optional[str] = None  # 'positive', 'negative', 'neutral'
+    tags: Optional[List[str]] = None  # 토픽 태그 리스트
+
+class NewsListResponse(BaseModel):
+    """뉴스 목록 응답 (분석 결과 포함)"""
+    news: List[NewsWithAnalysis]
+    analysis: Optional[Dict] = None  # 전체 분석 결과 (sentiment, topics, summary)
+
+class BenchmarkComparison(BaseModel):
+    """벤치마크 대비 분석 결과"""
+    ticker: str
+    benchmark: str
+    period: str
+    etf_return: Optional[float] = None
+    benchmark_return: Optional[float] = None
+    alpha: Optional[float] = None  # 초과수익률
+    correlation: Optional[float] = None  # 상관계수
+    start_date: str
+    end_date: str
+    data_points: int
+    error: Optional[str] = None
 
 class ETFMetrics(BaseModel):
     ticker: str

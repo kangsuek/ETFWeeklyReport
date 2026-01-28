@@ -11,10 +11,10 @@ import LoadingIndicator from './components/common/LoadingIndicator'
 import { CACHE_STALE_TIME_FAST, CACHE_GC_TIME } from './constants'
 
 // Lazy loading pages
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const ETFDetail = lazy(() => import('./pages/ETFDetail'))
-const Comparison = lazy(() => import('./pages/Comparison'))
-const Settings = lazy(() => import('./pages/Settings'))
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const ETFDetail = lazy(() => import('./pages/ETFDetail.jsx'))
+const Comparison = lazy(() => import('./pages/Comparison.jsx'))
+const Settings = lazy(() => import('./pages/Settings.jsx'))
 
 // TanStack Query 클라이언트 설정
 // 백엔드 캐시 TTL과 일치하도록 설정

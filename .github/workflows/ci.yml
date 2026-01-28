@@ -1,0 +1,121 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Run tests with coverage
+        working-directory: ./backend
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing -v
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Run tests
+        working-directory: ./frontend
+        run: npm test -- --coverage --run
+      
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Python security check
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety
+          safety check --file requirements.txt || true
+          safety check --file requirements-dev.txt || true
+      
+      - name: Node.js security check
+        working-directory: ./frontend
+        run: |
+          npm audit --audit-level=moderate || true
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Python dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8 isort
+      
+      - name: Check code formatting (Black)
+        working-directory: ./backend
+        run: black --check --line-length=100 app/ tests/
+      
+      - name: Check import sorting (isort)
+        working-directory: ./backend
+        run: isort --check-only --profile=black --line-length=100 app/ tests/
+      
+      - name: Lint with flake8
+        working-directory: ./backend
+        run: flake8 app/ tests/ --max-line-length=100 --extend-ignore=E203,W503

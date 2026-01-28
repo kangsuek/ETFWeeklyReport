@@ -15,6 +15,7 @@ import ETFHeader from '../components/etf/ETFHeader'
 import ETFCharts from '../components/etf/ETFCharts'
 import InsightSummary from '../components/etf/InsightSummary'
 import StrategySummary from '../components/etf/StrategySummary'
+import BenchmarkComparison from '../components/etf/BenchmarkComparison'
 import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
@@ -276,6 +277,15 @@ export default function ETFDetail() {
           />
         </div>
       )}
+
+      {/* 3.5 벤치마크 대비 분석 */}
+      <div className="mb-6">
+        <BenchmarkComparison 
+          ticker={ticker} 
+          benchmark="KOSPI"
+          period={dateRange.range === '7d' ? '1w' : dateRange.range === '1m' ? '1m' : dateRange.range === '3m' ? '3m' : '1m'}
+        />
+      </div>
 
       {/* 4. 기본 정보 섹션 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
