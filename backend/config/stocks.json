@@ -100,24 +100,6 @@
     "purchase_price": null,
     "quantity": null
   },
-  "442320": {
-    "name": "KB RISE 글로벌원자력 iSelect ETF",
-    "type": "ETF",
-    "theme": "글로벌 원자력",
-    "purchase_date": "2024-01-25",
-    "search_keyword": "원자력",
-    "relevance_keywords": [
-      "원자력",
-      "원전",
-      "Uranium",
-      "SMR",
-      "두산에너빌리티",
-      "클린에너지",
-      "핵발전"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
   "487240": {
     "name": "삼성 KODEX AI전력핵심설비 ETF",
     "type": "ETF",
@@ -151,6 +133,24 @@
       "Google",
       "양자기술",
       "큐비트"
+    ],
+    "purchase_price": null,
+    "quantity": null
+  },
+  "442320": {
+    "name": "KB RISE 글로벌원자력 iSelect ETF",
+    "type": "ETF",
+    "theme": "글로벌 원자력",
+    "purchase_date": "2024-01-25",
+    "search_keyword": "원자력",
+    "relevance_keywords": [
+      "원자력",
+      "원전",
+      "Uranium",
+      "SMR",
+      "두산에너빌리티",
+      "클린에너지",
+      "핵발전"
     ],
     "purchase_price": null,
     "quantity": null
