@@ -14,12 +14,14 @@ from app.utils.structured_logging import (
     log_response,
     log_error,
 )
+from pathlib import Path
 from dotenv import load_dotenv
 import os
 import time
 
-# Load environment variables
-load_dotenv()
+# 프로젝트 루트의 .env 로드
+_root_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_root_dir / ".env")
 
 # 구조화된 로깅 설정
 # JSON 형식으로 출력 (프로덕션), 개발 환경에서는 콘솔 형식
