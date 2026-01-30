@@ -18,11 +18,13 @@ build/
 *.sqlite3
 data/
 
-# Environment variables
+# Environment variables (절대 commit/push 하지 않음)
 .env
 .env.local
 .env.production
 .env.development
+backend/.env
+frontend/.env
 
 # IDE
 .vscode/
