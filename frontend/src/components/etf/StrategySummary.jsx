@@ -1,23 +1,17 @@
 import PropTypes from 'prop-types'
-import { useQuery } from '@tanstack/react-query'
-import { etfApi } from '../../services/api'
-import { CACHE_STALE_TIME_SLOW } from '../../constants'
 
 /**
  * StrategySummary Component
  * 
  * 종목의 투자 전략, 핵심 포인트, 리스크를 표시하는 컴포넌트
+ * 
+ * @param {string} ticker - 종목 티커
+ * @param {string} period - 기간 ('1w', '1m', '3m', '6m', '1y')
+ * @param {Object} insights - 인사이트 데이터 (props로 전달 시 API 호출 생략)
+ * @param {boolean} isLoading - 로딩 상태
+ * @param {Error} error - 에러 객체
  */
-export default function StrategySummary({ ticker, period = '1m' }) {
-  const { data: insights, isLoading, error } = useQuery({
-    queryKey: ['insights', ticker, period],
-    queryFn: async () => {
-      const response = await etfApi.getInsights(ticker, period)
-      return response.data
-    },
-    staleTime: CACHE_STALE_TIME_SLOW, // 1분
-    retry: 1,
-  })
+export default function StrategySummary({ ticker, period = '1m', insights, isLoading, error }) {
 
   if (isLoading) {
     return (
@@ -159,4 +153,7 @@ export default function StrategySummary({ ticker, period = '1m' }) {
 StrategySummary.propTypes = {
   ticker: PropTypes.string.isRequired,
   period: PropTypes.string,
+  insights: PropTypes.object,
+  isLoading: PropTypes.bool,
+  error: PropTypes.object,
 }

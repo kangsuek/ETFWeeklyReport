@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { etfApi } from '../services/api'
+import { etfApi, newsApi } from '../services/api'
 import { useSettings } from '../contexts/SettingsContext'
 import PageHeader from '../components/common/PageHeader'
 import Spinner from '../components/common/Spinner'
@@ -17,7 +17,8 @@ import InsightSummary from '../components/etf/InsightSummary'
 import StrategySummary from '../components/etf/StrategySummary'
 import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
-import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST } from '../constants'
+import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_SLOW } from '../constants'
+import { calculateDateRange } from '../utils/dateRange'
 
 /**
  * 설정값의 날짜 범위 형식을 DateRangeSelector 형식으로 변환
@@ -39,6 +40,7 @@ function convertDateRangeFormat(settingRange) {
 export default function ETFDetail() {
   const { ticker } = useParams()
   const { settings } = useSettings()
+  const queryClient = useQueryClient()
   
   // 설정에서 기본 날짜 범위 가져오기 (변환 필요: '7D' -> '7d')
   const defaultRangeFromSettings = useMemo(
@@ -49,11 +51,13 @@ export default function ETFDetail() {
   // 사용자가 수동으로 날짜 범위를 변경했는지 추적
   const userModifiedRef = useRef(false)
 
-  const [dateRange, setDateRange] = useState({
-    startDate: '',
-    endDate: '',
-    range: defaultRangeFromSettings
-  })
+  // 초기 날짜 범위 즉시 계산 (API 호출 지연 방지)
+  const initialDateRange = useMemo(
+    () => calculateDateRange(defaultRangeFromSettings),
+    [defaultRangeFromSettings]
+  )
+
+  const [dateRange, setDateRange] = useState(initialDateRange)
 
   // 가격 테이블 접힘 상태 (기본: 접힘)
   const [isTableExpanded, setIsTableExpanded] = useState(false)
@@ -63,90 +67,111 @@ export default function ETFDetail() {
     const newRange = convertDateRangeFormat(settings.defaultDateRange)
     // 사용자가 수동으로 변경하지 않은 경우에만 설정값으로 업데이트
     if (!userModifiedRef.current && dateRange.range !== newRange) {
-      setDateRange({
-        startDate: '',
-        endDate: '',
-        range: newRange
-      })
+      const calculatedRange = calculateDateRange(newRange)
+      setDateRange(calculatedRange)
     }
-  }, [settings.defaultDateRange])
+  }, [settings.defaultDateRange, dateRange.range])
 
   // 차트 스크롤 동기화를 위한 refs
   const priceChartScrollRef = useRef(null)
   const tradingFlowChartScrollRef = useRef(null)
   const isScrollingSyncRef = useRef(false) // 무한 루프 방지 플래그
 
-  // ETF 기본 정보 조회
-  const { data: etf, isLoading: etfLoading, error: etfError } = useQuery({
-    queryKey: ['etf', ticker],
-    queryFn: async () => {
-      const response = await etfApi.getDetail(ticker)
-      return response.data
-    },
-    staleTime: CACHE_STALE_TIME_STATIC, // 5분 (정적 데이터)
+  // 인사이트 period 계산
+  const insightsPeriod = useMemo(() => {
+    if (dateRange.range === '7d') return '1w'
+    if (dateRange.range === '1m') return '1m'
+    if (dateRange.range === '3m') return '3m'
+    return '1m'
+  }, [dateRange.range])
+
+  // useQueries로 모든 API 병렬 호출 (성능 개선)
+  const queries = useQueries({
+    queries: [
+      // 1순위: 기본 정보 (즉시 표시)
+      {
+        queryKey: ['etf', ticker],
+        queryFn: async () => {
+          const response = await etfApi.getDetail(ticker)
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_STATIC,
+      },
+      // 1순위: 가격 데이터 (차트 필수)
+      {
+        queryKey: ['prices', ticker, dateRange.startDate, dateRange.endDate],
+        queryFn: async () => {
+          const response = await etfApi.getPrices(ticker, {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate
+          })
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_FAST, // 30초
+        refetchOnMount: true, // 컴포넌트 마운트 시 stale이면 갱신
+        retry: 1,
+        retryDelay: 1000,
+      },
+      // 1순위: 매매동향 데이터 (차트 필수)
+      {
+        queryKey: ['tradingFlow', ticker, dateRange.startDate, dateRange.endDate],
+        queryFn: async () => {
+          const response = await etfApi.getTradingFlow(ticker, {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate
+          })
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_FAST, // 30초
+        refetchOnMount: true, // 컴포넌트 마운트 시 stale이면 갱신
+        retry: 1,
+        retryDelay: 1000,
+      },
+      // 2순위: 분봉 데이터 (30초마다 자동 갱신)
+      {
+        queryKey: ['intraday', ticker],
+        queryFn: async () => {
+          const response = await etfApi.getIntraday(ticker, { autoCollect: true })
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_FAST, // 30초
+        refetchInterval: 30000, // 30초마다 자동 갱신
+        refetchOnMount: true, // 컴포넌트 마운트 시 갱신
+        retry: 1,
+        retryDelay: 1000,
+      },
+      // 2순위: 인사이트
+      {
+        queryKey: ['insights', ticker, insightsPeriod],
+        queryFn: async () => {
+          const response = await etfApi.getInsights(ticker, insightsPeriod)
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_SLOW,
+        retry: 1,
+      },
+      // 3순위: 뉴스
+      {
+        queryKey: ['news', ticker, 10],
+        queryFn: async () => {
+          const response = await newsApi.getByTicker(ticker, { days: 7, limit: 10, analyze: true })
+          return response.data
+        },
+        staleTime: 5 * 60 * 1000, // 5분
+        retry: 1,
+      },
+    ],
   })
 
-  // 가격 데이터 조회 (자동 수집 지원)
-  const {
-    data: pricesData,
-    isLoading: pricesLoading,
-    isFetching: pricesFetching,
-    error: pricesError,
-    refetch: refetchPrices
-  } = useQuery({
-    queryKey: ['prices', ticker, dateRange.startDate, dateRange.endDate],
-    queryFn: async () => {
-      const response = await etfApi.getPrices(ticker, {
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate
-      })
-      return response.data
-    },
-    enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: CACHE_STALE_TIME_FAST, // 30초 (가격 데이터)
-    retry: 1, // 실패 시 1회 재시도
-    retryDelay: 1000, // 1초 후 재시도
-  })
-
-  // 매매 동향 데이터 조회 (자동 수집 지원)
-  const {
-    data: tradingFlowData,
-    isLoading: tradingFlowLoading,
-    isFetching: tradingFlowFetching,
-    error: tradingFlowError,
-    refetch: refetchTradingFlow
-  } = useQuery({
-    queryKey: ['tradingFlow', ticker, dateRange.startDate, dateRange.endDate],
-    queryFn: async () => {
-      const response = await etfApi.getTradingFlow(ticker, {
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate
-      })
-      return response.data
-    },
-    enabled: !!dateRange.startDate && !!dateRange.endDate,
-    staleTime: CACHE_STALE_TIME_FAST, // 30초 (매매동향 데이터)
-    retry: 1, // 실패 시 1회 재시도
-    retryDelay: 1000, // 1초 후 재시도
-  })
-
-  // 분봉 데이터 조회 (시간별 체결)
-  const {
-    data: intradayData,
-    isLoading: intradayLoading,
-    isFetching: intradayFetching,
-    error: intradayError,
-    refetch: refetchIntraday
-  } = useQuery({
-    queryKey: ['intraday', ticker],
-    queryFn: async () => {
-      const response = await etfApi.getIntraday(ticker, { autoCollect: true })
-      return response.data
-    },
-    staleTime: CACHE_STALE_TIME_FAST, // 30초 (분봉 데이터)
-    retry: 1,
-    retryDelay: 1000,
-  })
+  // 쿼리 결과 분리
+  const [
+    { data: etf, isLoading: etfLoading, error: etfError },
+    { data: pricesData, isLoading: pricesLoading, isFetching: pricesFetching, error: pricesError, refetch: refetchPrices },
+    { data: tradingFlowData, isLoading: tradingFlowLoading, isFetching: tradingFlowFetching, error: tradingFlowError, refetch: refetchTradingFlow },
+    { data: intradayData, isLoading: intradayLoading, isFetching: intradayFetching, error: intradayError, refetch: refetchIntraday },
+    { data: insightsData, isLoading: insightsLoading, error: insightsError },
+    { data: newsData, isLoading: newsLoading, error: newsError },
+  ] = queries
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (newRange) => {
@@ -182,6 +207,7 @@ export default function ETFDetail() {
       isScrollingSyncRef.current = false
     })
   }, [])
+
 
   // 최근 가격 정보 계산
   // API는 날짜 내림차순(최신이 첫 번째)으로 반환
@@ -261,7 +287,10 @@ export default function ETFDetail() {
       <div className="mb-6">
         <StrategySummary 
           ticker={ticker} 
-          period={dateRange.range === '7d' ? '1w' : dateRange.range === '1m' ? '1m' : dateRange.range === '3m' ? '3m' : '1m'}
+          period={insightsPeriod}
+          insights={insightsData}
+          isLoading={insightsLoading}
+          error={insightsError}
         />
       </div>
 
@@ -539,7 +568,7 @@ export default function ETFDetail() {
       {/* 뉴스 타임라인 섹션 */}
       <div className="card">
         <h3 className="text-lg font-semibold mb-3">최근 뉴스</h3>
-        <NewsTimeline ticker={ticker} />
+        <NewsTimeline ticker={ticker} newsData={newsData} isLoading={newsLoading} error={newsError} />
       </div>
     </div>
   )

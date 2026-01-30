@@ -187,11 +187,11 @@ export const etfApi = {
     })
   },
 
-  // 분봉(시간별 체결) 데이터 조회 (일반 조회)
+  // 분봉(시간별 체결) 데이터 조회 (자동 수집 시 오래 걸릴 수 있음)
   getIntraday: (ticker, params = {}) => {
     const { targetDate, autoCollect = true } = params
     return api.get(`/etfs/${ticker}/intraday`, {
-      timeout: NORMAL_API_TIMEOUT,
+      timeout: LONG_API_TIMEOUT,
       params: {
         target_date: targetDate,
         auto_collect: autoCollect

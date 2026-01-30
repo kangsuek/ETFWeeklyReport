@@ -86,15 +86,36 @@ export default function DataManagementPanel() {
   // 데이터베이스 초기화 Mutation
   const resetMutation = useMutation({
     mutationFn: async () => {
-      const response = await dataApi.reset()
-      return response.data
+      console.log('[데이터베이스초기화] API 호출 시작...')
+      try {
+        const response = await dataApi.reset()
+        console.log('[데이터베이스초기화] API 호출 성공:', response)
+        return response.data
+      } catch (error) {
+        console.error('[데이터베이스초기화] API 호출 실패:', error)
+        console.error('[데이터베이스초기화] 에러 상세:', {
+          message: error.message,
+          response: error.response,
+          status: error.response?.status,
+          data: error.response?.data
+        })
+        throw error
+      }
     },
     onSuccess: (data) => {
       setIsResetModalOpen(false)
 
       // 성공 메시지 표시
+      const deletedCounts = [
+        `가격: ${data.deleted.prices || 0}건`,
+        `뉴스: ${data.deleted.news || 0}건`,
+        `매매 동향: ${data.deleted.trading_flow || 0}건`,
+        `수집 상태: ${data.deleted.collection_status || 0}건`,
+        `분봉: ${data.deleted.intraday_prices || 0}건`
+      ].filter(item => !item.includes(': 0건')).join(', ')
+      
       toast.success(
-        `데이터베이스 초기화 완료. 가격: ${data.deleted.prices}건, 뉴스: ${data.deleted.news}건, 매매 동향: ${data.deleted.trading_flow}건 삭제됨`,
+        `데이터베이스 초기화 완료. ${deletedCounts} 삭제됨`,
         5000
       )
 
@@ -429,7 +450,7 @@ export default function DataManagementPanel() {
             </button>
 
             <p className="text-xs text-red-700 dark:text-red-300 mt-2">
-              종목 정보를 제외한 모든 데이터(가격, 뉴스, 매매 동향)가 삭제됩니다.
+              종목 정보를 제외한 모든 데이터(가격, 뉴스, 매매 동향, 수집 상태, 분봉)가 삭제됩니다.
             </p>
           </div>
         </section>
@@ -452,6 +473,8 @@ export default function DataManagementPanel() {
                   <li>모든 가격 데이터 삭제</li>
                   <li>모든 뉴스 데이터 삭제</li>
                   <li>모든 매매 동향 데이터 삭제</li>
+                  <li>모든 수집 상태 정보 삭제</li>
+                  <li>모든 분봉 데이터 삭제</li>
                 </ul>
                 <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-3">
                   ⚠️ 이 작업은 되돌릴 수 없습니다!

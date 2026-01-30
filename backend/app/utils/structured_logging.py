@@ -27,8 +27,6 @@ def setup_structured_logging(
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
-        # PositionalArgumentsFormatter 제거 - 키워드 인자와 충돌 방지
-        # structlog.stdlib.PositionalArgumentsFormatter(),
     ]
     
     # 타임스탬프 추가
@@ -131,20 +129,5 @@ def log_error(
         error_message=str(error),
         context=context or {},
         exc_info=True,
-        **kwargs
-    )
-
-
-def log_performance(
-    logger: structlog.BoundLogger,
-    operation: str,
-    duration_ms: float,
-    **kwargs: Any
-) -> None:
-    """성능 메트릭 로깅"""
-    logger.info(
-        message="performance_metric",
-        operation=operation,
-        duration_ms=round(duration_ms, 2),
         **kwargs
     )

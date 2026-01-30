@@ -173,6 +173,42 @@ const IntradayChart = memo(function IntradayChart({
   // X축 틱 간격 계산 (약 6-8개 틱)
   const tickInterval = Math.floor(chartData.length / 7)
 
+  // X축 틱 배열 생성 (첫 번째와 마지막 시간 포함, 중복 제거)
+  const xAxisTicks = useMemo(() => {
+    if (!chartData || chartData.length === 0) return []
+    
+    const firstTime = chartData[0]?.time
+    const lastTime = chartData[chartData.length - 1]?.time
+    
+    if (!firstTime || !lastTime) return []
+    
+    // 중복 방지를 위해 Set 사용
+    const ticksSet = new Set()
+    const ticks = []
+    
+    // 첫 번째 시간 추가
+    if (firstTime) {
+      ticksSet.add(firstTime)
+      ticks.push(firstTime)
+    }
+    
+    // 중간 틱 추가 (간격에 따라, 마지막 제외)
+    for (let i = tickInterval; i < chartData.length - 1; i += tickInterval) {
+      const time = chartData[i].time
+      if (time && !ticksSet.has(time)) {
+        ticksSet.add(time)
+        ticks.push(time)
+      }
+    }
+    
+    // 마지막 시간 추가 (중복이 아닌 경우에만)
+    if (lastTime && !ticksSet.has(lastTime)) {
+      ticks.push(lastTime)
+    }
+    
+    return ticks
+  }, [chartData, tickInterval])
+
   return (
     <div
       ref={containerRef}
@@ -191,7 +227,8 @@ const IntradayChart = memo(function IntradayChart({
             tickFormatter={formatXAxis}
             tick={{ fontSize: 11 }}
             stroke={COLORS.CHART_AXIS}
-            interval={tickInterval}
+            interval={0}
+            ticks={xAxisTicks}
             angle={-45}
             textAnchor="end"
             height={50}

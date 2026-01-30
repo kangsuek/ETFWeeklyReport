@@ -42,21 +42,30 @@ TopicTag.propTypes = {
  * 센티먼트 분석 및 요약 기능 포함
  *
  * @param {string} ticker - 종목 티커
+ * @param {Object} newsData - 뉴스 데이터 (props로 전달 시 API 호출 생략)
+ * @param {boolean} isLoading - 로딩 상태
+ * @param {Error} error - 에러 객체
  */
-const NewsTimeline = ({ ticker }) => {
+const NewsTimeline = ({ ticker, newsData, isLoading, error }) => {
   const [limit, setLimit] = useState(10)
   // 일자별 접힘 상태 관리 (기본: 첫 번째 날짜만 펼침)
   const [expandedDates, setExpandedDates] = useState({})
 
-  const { data, isLoading, error } = useQuery({
+  // props로 데이터가 전달되지 않은 경우에만 API 호출 (하위 호환성)
+  const { data: fallbackData, isLoading: fallbackLoading, error: fallbackError } = useQuery({
     queryKey: ['news', ticker, limit],
     queryFn: async () => {
       const response = await newsApi.getByTicker(ticker, { days: 7, limit, analyze: true })
-      // 백엔드에서 분석 결과를 포함한 응답 반환: { news: [...], analysis: {...} }
       return response.data
     },
     staleTime: 5 * 60 * 1000, // 5분
+    enabled: !newsData, // props로 데이터가 전달된 경우 비활성화
   })
+
+  // props 데이터 우선 사용, 없으면 fallback 사용
+  const data = newsData || fallbackData
+  const finalIsLoading = isLoading !== undefined ? isLoading : fallbackLoading
+  const finalError = error || fallbackError
 
   // 백엔드 분석 결과 사용 (또는 프론트엔드 분석 fallback)
   const newsAnalysis = useMemo(() => {
@@ -136,7 +145,7 @@ const NewsTimeline = ({ ticker }) => {
     return 'bg-gray-400'
   }
 
-  if (isLoading) {
+  if (finalIsLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
@@ -149,7 +158,7 @@ const NewsTimeline = ({ ticker }) => {
     )
   }
 
-  if (error) {
+  if (finalError) {
     return (
       <div className="text-center py-8 text-gray-500 dark:text-gray-400">
         <p>뉴스를 불러오는데 실패했습니다</p>
@@ -290,6 +299,9 @@ const NewsTimeline = ({ ticker }) => {
 
 NewsTimeline.propTypes = {
   ticker: PropTypes.string.isRequired,
+  newsData: PropTypes.object,
+  isLoading: PropTypes.bool,
+  error: PropTypes.object,
 }
 
 export default NewsTimeline

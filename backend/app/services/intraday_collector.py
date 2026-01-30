@@ -291,19 +291,47 @@ class IntradayDataCollector:
 
         Args:
             ticker: 종목 코드
-            pages: 수집할 페이지 수
+            pages: 수집할 페이지 수 (기본값: 10, 장 시작부터 수집하려면 최소 40 이상 권장)
             target_date: 수집할 날짜 (None이면 자동 감지)
 
         Returns:
             수집 결과 딕셔너리
         """
-        logger.info(f"[분봉] {ticker} - 수집 시작")
+        logger.info(f"[분봉] {ticker} - 수집 시작 (pages={pages})")
 
         # 대상 날짜 결정
         actual_date = target_date or date.today()
 
+        # 장 시작부터 수집하려면 충분한 페이지 수 필요
+        # 장 시작(09:00) ~ 장 종료(15:30) = 6시간 30분 = 390분 = 약 390개 분봉
+        # 페이지당 약 10개 데이터이므로, 최소 40페이지 필요
+        # 기본값이 10이면 장 시작 데이터를 놓칠 수 있으므로, 자동으로 증가
+        if pages < 40:
+            logger.warning(f"[분봉] {ticker} - pages={pages}는 장 시작(09:00) 데이터 수집에 부족할 수 있습니다. 40으로 증가합니다.")
+            pages = 40
+
         # 오늘 데이터 먼저 시도
         intraday_data = self.fetch_intraday_data(ticker, pages, actual_date)
+        
+        # 장 시작 시간(09:00) 데이터가 있는지 확인
+        if intraday_data:
+            first_datetime = intraday_data[0]['datetime']
+            first_hour = first_datetime.hour
+            first_minute = first_datetime.minute
+            
+            # 장 시작 시간(09:00) 이전 데이터가 있으면 더 많은 페이지 필요
+            if first_hour > 9 or (first_hour == 9 and first_minute > 0):
+                logger.info(f"[분봉] {ticker} - 첫 데이터 시간: {first_hour:02d}:{first_minute:02d}, 장 시작(09:00) 데이터를 위해 추가 수집 시도")
+                # 추가로 20페이지 더 수집
+                additional_data = self.fetch_intraday_data(ticker, pages + 20, actual_date)
+                if additional_data:
+                    # 기존 데이터와 병합 (중복 제거)
+                    existing_datetimes = {d['datetime'] for d in intraday_data}
+                    new_data = [d for d in additional_data if d['datetime'] not in existing_datetimes]
+                    intraday_data.extend(new_data)
+                    # 시간순 정렬
+                    intraday_data.sort(key=lambda x: x['datetime'])
+                    logger.info(f"[분봉] {ticker} - 추가 수집: {len(new_data)}건, 총 {len(intraday_data)}건")
 
         # 오늘 데이터가 없으면 마지막 거래일 데이터 시도
         if not intraday_data and target_date is None:
@@ -312,6 +340,22 @@ class IntradayDataCollector:
                 logger.info(f"[분봉] {ticker} - 오늘 데이터 없음, 마지막 거래일({last_trading_date}) 데이터 수집")
                 actual_date = last_trading_date
                 intraday_data = self.fetch_intraday_data(ticker, pages, last_trading_date)
+                
+                # 마지막 거래일 데이터도 장 시작 시간 확인
+                if intraday_data:
+                    first_datetime = intraday_data[0]['datetime']
+                    first_hour = first_datetime.hour
+                    first_minute = first_datetime.minute
+                    
+                    if first_hour > 9 or (first_hour == 9 and first_minute > 0):
+                        logger.info(f"[분봉] {ticker} - 마지막 거래일 첫 데이터 시간: {first_hour:02d}:{first_minute:02d}, 추가 수집 시도")
+                        additional_data = self.fetch_intraday_data(ticker, pages + 20, last_trading_date)
+                        if additional_data:
+                            existing_datetimes = {d['datetime'] for d in intraday_data}
+                            new_data = [d for d in additional_data if d['datetime'] not in existing_datetimes]
+                            intraday_data.extend(new_data)
+                            intraday_data.sort(key=lambda x: x['datetime'])
+                            logger.info(f"[분봉] {ticker} - 마지막 거래일 추가 수집: {len(new_data)}건, 총 {len(intraday_data)}건")
 
         if not intraday_data:
             return {

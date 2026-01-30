@@ -460,8 +460,9 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
     """
     데이터베이스 초기화 (위험!)
 
-    prices, news, trading_flow 테이블의 모든 데이터를 삭제합니다.
+    prices, news, trading_flow, collection_status, intraday_prices 테이블의 모든 데이터를 삭제합니다.
     etfs 테이블은 유지됩니다.
+    SQLite의 경우 sqlite_sequence 테이블도 초기화하여 AUTOINCREMENT ID를 1부터 다시 시작하도록 합니다.
 
     **⚠️ 경고: 이 작업은 되돌릴 수 없습니다!**
 
@@ -472,7 +473,9 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
       "deleted": {
         "prices": 1500,
         "news": 250,
-        "trading_flow": 180
+        "trading_flow": 180,
+        "collection_status": 6,
+        "intraday_prices": 5000
       }
     }
     ```
@@ -484,6 +487,8 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
     try:
         from app.database import get_db_connection, USE_POSTGRES
 
+        logger.info("Database reset started")
+        
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
             if USE_POSTGRES:
@@ -494,6 +499,7 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
                 cursor = conn.cursor()
 
             # 삭제 전 레코드 수 확인
+            logger.debug("Counting records before deletion...")
             cursor.execute("SELECT COUNT(*) as cnt FROM prices")
             result = cursor.fetchone()
             prices_count = result['cnt'] if USE_POSTGRES else result[0]
@@ -506,14 +512,62 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
             result = cursor.fetchone()
             trading_flow_count = result['cnt'] if USE_POSTGRES else result[0]
 
+            cursor.execute("SELECT COUNT(*) as cnt FROM collection_status")
+            result = cursor.fetchone()
+            collection_status_count = result['cnt'] if USE_POSTGRES else result[0]
+
+            cursor.execute("SELECT COUNT(*) as cnt FROM intraday_prices")
+            result = cursor.fetchone()
+            intraday_prices_count = result['cnt'] if USE_POSTGRES else result[0]
+
+            logger.info(
+                f"Records to delete: prices={prices_count}, news={news_count}, "
+                f"trading_flow={trading_flow_count}, collection_status={collection_status_count}, "
+                f"intraday_prices={intraday_prices_count}"
+            )
+
             # 테이블 데이터 삭제 (etfs 제외)
+            logger.debug("Deleting data from tables...")
             cursor.execute("DELETE FROM prices")
+            deleted_prices = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            logger.debug(f"Deleted {deleted_prices} rows from prices")
+
             cursor.execute("DELETE FROM news")
+            deleted_news = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            logger.debug(f"Deleted {deleted_news} rows from news")
+
             cursor.execute("DELETE FROM trading_flow")
+            deleted_trading_flow = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            logger.debug(f"Deleted {deleted_trading_flow} rows from trading_flow")
 
+            cursor.execute("DELETE FROM collection_status")
+            deleted_collection_status = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            logger.debug(f"Deleted {deleted_collection_status} rows from collection_status")
+
+            cursor.execute("DELETE FROM intraday_prices")
+            deleted_intraday = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            logger.debug(f"Deleted {deleted_intraday} rows from intraday_prices")
+
+            # SQLite의 경우 sqlite_sequence 테이블 초기화 (AUTOINCREMENT ID를 1부터 다시 시작)
+            if not USE_POSTGRES:
+                logger.debug("Resetting SQLite sequences...")
+                try:
+                    cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('prices', 'news', 'trading_flow', 'intraday_prices')")
+                    logger.debug("SQLite sequences reset")
+                except Exception as seq_error:
+                    # sqlite_sequence 테이블이 없을 수도 있음 (테이블에 데이터가 없으면 생성되지 않음)
+                    logger.warning(f"Could not reset sqlite_sequence (may not exist): {seq_error}")
+
+            # 커밋 전 로그
+            logger.debug("Committing transaction...")
             conn.commit()
+            logger.info("Transaction committed successfully")
 
-            logger.warning(f"Database reset: deleted {prices_count} prices, {news_count} news, {trading_flow_count} trading_flow records")
+            logger.warning(
+                f"Database reset: deleted {prices_count} prices, {news_count} news, "
+                f"{trading_flow_count} trading_flow, {collection_status_count} collection_status, "
+                f"{intraday_prices_count} intraday_prices records"
+            )
 
             # 데이터베이스 초기화 후 모든 캐시 무효화
             cache.clear()
@@ -524,7 +578,9 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
                 "deleted": {
                     "prices": prices_count,
                     "news": news_count,
-                    "trading_flow": trading_flow_count
+                    "trading_flow": trading_flow_count,
+                    "collection_status": collection_status_count,
+                    "intraday_prices": intraday_prices_count
                 }
             }
     except sqlite3.Error as e:

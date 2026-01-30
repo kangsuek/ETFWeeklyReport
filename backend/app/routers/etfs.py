@@ -980,9 +980,10 @@ async def get_intraday_prices(
                 intraday_data = intraday_collector.get_intraday_data(etf.ticker, last_trading_date)
 
         # 데이터가 없고 자동 수집이 켜져 있으면 수집 시도
+        # 장 시작(09:00)부터 수집하려면 충분한 페이지 수 필요 (최소 40페이지)
         if not intraday_data and auto_collect:
             logger.info(f"No intraday data for {etf.ticker}, attempting auto-collection")
-            result = intraday_collector.collect_and_save_intraday(etf.ticker, pages=20)
+            result = intraday_collector.collect_and_save_intraday(etf.ticker, pages=40)
 
             if result['collected'] > 0:
                 # 수집된 날짜로 다시 조회
@@ -999,7 +1000,7 @@ async def get_intraday_prices(
                 "last_time": None,
                 "message": "데이터 없음 (장 마감 또는 휴장일)"
             }
-            cache.set(cache_key, response, ttl_seconds=60)  # 1분 캐싱 (빈 결과)
+            # 빈 결과는 캐시하지 않음. 다음 요청(프론트 새로고침 등)에서 auto_collect가 다시 시도되도록 함
             return response
 
         # datetime을 ISO 문자열로 변환하고 시간 추출
@@ -1041,7 +1042,7 @@ async def get_intraday_prices(
 @router.post("/{ticker}/collect-intraday")
 async def collect_intraday_prices(
     etf: ETF = Depends(get_etf_or_404),
-    pages: int = Query(default=20, ge=1, le=50, description="수집할 페이지 수 (1-50)"),
+    pages: int = Query(default=40, ge=1, le=50, description="수집할 페이지 수 (1-50, 장 시작부터 수집하려면 40 이상 권장)"),
     api_key: str = Depends(verify_api_key_dependency)
 ):
     """

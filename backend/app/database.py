@@ -30,8 +30,20 @@ if DATABASE_URL:
     elif parsed.scheme == "sqlite" or DATABASE_URL.startswith("sqlite:///"):
         # sqlite:///path/to/db.db 형식에서 경로 추출
         db_path_str = DATABASE_URL.replace("sqlite:///", "")
-        DB_PATH = Path(db_path_str)
-        logger.info(f"Using SQLite database: {DB_PATH}")
+        
+        # 절대 경로인 경우 그대로 사용
+        if Path(db_path_str).is_absolute():
+            DB_PATH = Path(db_path_str)
+        else:
+            # 상대 경로인 경우 프로젝트 루트 기준으로 해석
+            # backend/data/etf_data.db 또는 ./backend/data/etf_data.db 형식 지원
+            # 프로젝트 루트 찾기 (backend/app/database.py에서 2단계 위로)
+            project_root = Path(__file__).parent.parent.parent
+            # ./ 제거 후 경로 조합
+            db_path_str_clean = db_path_str.lstrip("./")
+            DB_PATH = project_root / db_path_str_clean
+        
+        logger.info(f"Using SQLite database: {DB_PATH} (resolved from: {DATABASE_URL})")
     else:
         logger.warning(f"Unsupported database URL scheme: {parsed.scheme}. Using default SQLite.")
         DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
