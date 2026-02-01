@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { etfApi, newsApi } from '../services/api'
 import { useSettings } from '../contexts/SettingsContext'
@@ -127,19 +127,6 @@ export default function ETFDetail() {
         retry: 1,
         retryDelay: 1000,
       },
-      // 2순위: 분봉 데이터 (30초마다 자동 갱신)
-      {
-        queryKey: ['intraday', ticker],
-        queryFn: async () => {
-          const response = await etfApi.getIntraday(ticker, { autoCollect: true })
-          return response.data
-        },
-        staleTime: CACHE_STALE_TIME_FAST, // 30초
-        refetchInterval: 30000, // 30초마다 자동 갱신
-        refetchOnMount: true, // 컴포넌트 마운트 시 갱신
-        retry: 1,
-        retryDelay: 1000,
-      },
       // 2순위: 인사이트
       {
         queryKey: ['insights', ticker, insightsPeriod],
@@ -163,15 +150,36 @@ export default function ETFDetail() {
     ],
   })
 
-  // 쿼리 결과 분리
+  // 쿼리 결과 분리 (분봉 제외 5개 - 분봉은 페이지 표시 후 별도 요청)
   const [
     { data: etf, isLoading: etfLoading, error: etfError },
     { data: pricesData, isLoading: pricesLoading, isFetching: pricesFetching, error: pricesError, refetch: refetchPrices },
     { data: tradingFlowData, isLoading: tradingFlowLoading, isFetching: tradingFlowFetching, error: tradingFlowError, refetch: refetchTradingFlow },
-    { data: intradayData, isLoading: intradayLoading, isFetching: intradayFetching, error: intradayError, refetch: refetchIntraday },
     { data: insightsData, isLoading: insightsLoading, error: insightsError },
     { data: newsData, isLoading: newsLoading, error: newsError },
   ] = queries
+
+  // 분봉: 상세 페이지가 보인 뒤에만 요청 (초기 로딩 지연 방지)
+  const {
+    data: intradayData,
+    isLoading: intradayLoading,
+    isFetching: intradayFetching,
+    error: intradayError,
+    refetch: refetchIntraday,
+  } = useQuery({
+    queryKey: ['intraday', ticker],
+    queryFn: async () => {
+      const response = await etfApi.getIntraday(ticker, { autoCollect: true })
+      return response.data
+    },
+    enabled: !!ticker && !!etf,
+    staleTime: CACHE_STALE_TIME_FAST,
+    refetchInterval: (query) =>
+      query.state.data?.background_collect_started ? 3000 : 30000,
+    refetchOnMount: true,
+    retry: 1,
+    retryDelay: 1000,
+  })
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (newRange) => {
@@ -521,6 +529,14 @@ export default function ETFDetail() {
               다시 시도
             </button>
           </div>
+        ) : intradayData?.background_collect_started ? (
+          <div className="flex flex-col items-center justify-center h-[300px] text-gray-500 dark:text-gray-400 gap-2">
+            <Spinner />
+            <p className="text-sm">분봉 데이터 수집 중입니다.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              잠시 후 자동으로 갱신됩니다.
+            </p>
+          </div>
         ) : (
           <IntradayChart
             data={intradayData?.data || []}
@@ -531,7 +547,7 @@ export default function ETFDetail() {
           />
         )}
 
-        {intradayData?.count === 0 && !intradayLoading && (
+        {intradayData?.count === 0 && !intradayLoading && !intradayData?.background_collect_started && (
           <p className="text-center text-sm text-gray-400 dark:text-gray-500 mt-2">
             장중이 아니거나 휴장일입니다. 장 시작 후 데이터가 수집됩니다.
           </p>

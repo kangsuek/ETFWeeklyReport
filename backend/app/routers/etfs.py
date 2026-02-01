@@ -32,9 +32,13 @@ from app.constants import (
     CACHE_TTL_FAST_CHANGING,
     CACHE_TTL_SLOW_CHANGING,
 )
+import asyncio
 import sqlite3
 import logging
 import os
+
+# 분봉 백그라운드 수집 중인 티커 (중복 수집 방지)
+_intraday_collecting = set()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -979,16 +983,36 @@ async def get_intraday_prices(
                 actual_date = last_trading_date
                 intraday_data = intraday_collector.get_intraday_data(etf.ticker, last_trading_date)
 
-        # 데이터가 없고 자동 수집이 켜져 있으면 수집 시도
-        # 장 시작(09:00)부터 수집하려면 충분한 페이지 수 필요 (최소 40페이지)
+        # 데이터가 없고 자동 수집이 켜져 있으면 백그라운드에서 수집 시작 (상세 페이지는 즉시 응답)
         if not intraday_data and auto_collect:
-            logger.info(f"No intraday data for {etf.ticker}, attempting auto-collection")
-            result = intraday_collector.collect_and_save_intraday(etf.ticker, pages=40)
+            if etf.ticker not in _intraday_collecting:
+                _intraday_collecting.add(etf.ticker)
+                logger.info(f"No intraday data for {etf.ticker}, starting background collection")
 
-            if result['collected'] > 0:
-                # 수집된 날짜로 다시 조회
-                actual_date = date.fromisoformat(result.get('date', date.today().isoformat()))
-                intraday_data = intraday_collector.get_intraday_data(etf.ticker, actual_date)
+                def _run_intraday_collect(ticker: str) -> None:
+                    try:
+                        from app.services.intraday_collector import IntradayDataCollector
+                        collector = IntradayDataCollector()
+                        collector.collect_and_save_intraday(ticker, pages=40)
+                    finally:
+                        cache_obj = get_cache()
+                        cache_obj.invalidate_pattern(f"intraday:{ticker}")
+                        _intraday_collecting.discard(ticker)
+
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(None, _run_intraday_collect, etf.ticker)
+
+            response = {
+                "ticker": etf.ticker,
+                "date": actual_date.isoformat(),
+                "data": [],
+                "count": 0,
+                "first_time": None,
+                "last_time": None,
+                "background_collect_started": True,
+                "message": "분봉 데이터 수집 중입니다. 잠시 후 새로고침하거나 자동으로 갱신됩니다.",
+            }
+            return response
 
         if not intraday_data:
             response = {
