@@ -230,6 +230,13 @@ PriceRangeBar.propTypes = {
   formatPrice: PropTypes.func.isRequired,
 }
 
+// 수익률 색상 - 순수 함수로 컴포넌트 외부 정의
+const getReturnColor = (value) => {
+  if (value > 0) return 'text-red-600 dark:text-red-400'
+  if (value < 0) return 'text-blue-600 dark:text-blue-400'
+  return 'text-gray-500 dark:text-gray-400'
+}
+
 /**
  * StatsSummary 컴포넌트
  * 가격 데이터의 통계 요약을 카드 형태로 표시
@@ -257,13 +264,6 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
         <p className="text-sm mt-1">최소 2개 이상의 데이터가 필요합니다</p>
       </div>
     )
-  }
-
-  // 수익률 색상
-  const getReturnColor = (value) => {
-    if (value > 0) return 'text-red-600 dark:text-red-400'
-    if (value < 0) return 'text-blue-600 dark:text-blue-400'
-    return 'text-gray-500 dark:text-gray-400'
   }
 
   // 연환산 수익률 계산 (3개월 미만은 표기 안 함)
@@ -389,7 +389,7 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
         {stats.maxDrawdown !== null ? (
           <StatItem
             label="최대 낙폭 (MDD)"
-            value={formatPercent(stats.maxDrawdown.value)}
+            value={formatPercent(-stats.maxDrawdown.value)}
             color="text-red-600 dark:text-red-400"
           />
         ) : (

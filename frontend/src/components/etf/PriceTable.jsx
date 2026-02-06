@@ -79,8 +79,8 @@ export default function PriceTable({ data = [], itemsPerPage = 20 }) {
   // 총 페이지 수
   const totalPages = Math.ceil(sortedData.length / itemsPerPage)
 
-  // 정렬 아이콘
-  const SortIcon = ({ columnKey }) => {
+  // 정렬 아이콘 렌더링
+  const renderSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) {
       return (
         <svg className="w-4 h-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,7 +122,7 @@ export default function PriceTable({ data = [], itemsPerPage = 20 }) {
               >
                 <div className="flex items-center gap-1">
                   <span>일자</span>
-                  <SortIcon columnKey="date" />
+                  {renderSortIcon("date")}
                 </div>
               </th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -140,7 +140,7 @@ export default function PriceTable({ data = [], itemsPerPage = 20 }) {
               >
                 <div className="flex items-center justify-end gap-1">
                   <span>종가</span>
-                  <SortIcon columnKey="close" />
+                  {renderSortIcon("close")}
                 </div>
               </th>
               <th
@@ -149,7 +149,7 @@ export default function PriceTable({ data = [], itemsPerPage = 20 }) {
               >
                 <div className="flex items-center justify-end gap-1">
                   <span>거래량</span>
-                  <SortIcon columnKey="volume" />
+                  {renderSortIcon("volume")}
                 </div>
               </th>
               <th
@@ -158,7 +158,7 @@ export default function PriceTable({ data = [], itemsPerPage = 20 }) {
               >
                 <div className="flex items-center justify-end gap-1">
                   <span>등락률</span>
-                  <SortIcon columnKey="change" />
+                  {renderSortIcon("change")}
                 </div>
               </th>
             </tr>

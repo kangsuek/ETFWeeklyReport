@@ -71,10 +71,12 @@ export default function Comparison() {
   })
 
   // 티커 정보 맵 생성
-  const tickerInfoMap = tickers.reduce((acc, ticker) => {
-    acc[ticker.ticker] = ticker
-    return acc
-  }, {})
+  const tickerInfoMap = useMemo(() => {
+    return tickers.reduce((acc, ticker) => {
+      acc[ticker.ticker] = ticker
+      return acc
+    }, {})
+  }, [tickers])
 
   const handleSelectionChange = (newSelection) => {
     setSelectedTickers(newSelection)

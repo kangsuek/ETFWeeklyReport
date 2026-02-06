@@ -139,9 +139,10 @@ export default function Dashboard() {
       await queryClient.cancelQueries({ queryKey: ['etfs'] })
       const previousETFs = queryClient.getQueryData(['etfs'])
       
-      // ETF 데이터를 새 순서대로 정렬
+      // ETF 데이터를 새 순서대로 정렬 (Map 기반 O(n) 룩업)
       if (previousETFs) {
-        const reordered = newOrder.map(ticker => previousETFs.find(etf => etf.ticker === ticker)).filter(Boolean)
+        const etfMap = new Map(previousETFs.map(etf => [etf.ticker, etf]))
+        const reordered = newOrder.map(ticker => etfMap.get(ticker)).filter(Boolean)
         queryClient.setQueryData(['etfs'], reordered)
       }
       
@@ -166,10 +167,10 @@ export default function Dashboard() {
   const handleOrderChange = useCallback((newOrder) => {
     // 로컬 설정 업데이트 (custom 모드용)
     updateSettings('cardOrder', newOrder)
-    
+
     // 백엔드 stocks.json 동기화
     reorderMutation.mutate(newOrder)
-  }, [updateSettings]) // reorderMutation을 의존성에서 제거
+  }, [updateSettings, reorderMutation])
 
   // 정렬된 데이터 가져오기 (메모이제이션)
   const sortedETFs = useMemo(() => {

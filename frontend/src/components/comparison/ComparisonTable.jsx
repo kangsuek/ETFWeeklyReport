@@ -9,7 +9,7 @@ import PropTypes from 'prop-types'
  * @param {Object} statistics - { ticker: { period_return, annualized_return, volatility, ... } }
  * @param {Object} tickerInfo - { ticker: { name, ... } }
  */
-export default function ComparisonTable({ statistics, tickerInfo }) {
+export default function ComparisonTable({ statistics = null, tickerInfo = {} }) {
   const [sortBy, setSortBy] = useState('period_return')
   const [sortDirection, setSortDirection] = useState('desc')
 
@@ -47,13 +47,17 @@ export default function ComparisonTable({ statistics, tickerInfo }) {
   const getBestValue = (column) => {
     if (sortedData.length === 0) return null
 
-    // max_drawdown은 작을수록 좋음 (음수이므로 큰 값이 좋음)
-    if (column === 'max_drawdown') {
-      return Math.max(...sortedData.map(d => d[column] || -Infinity))
+    const values = sortedData.map(d => d[column]).filter(v => v !== null && v !== undefined)
+    if (values.length === 0) return null
+
+    // 변동성: 낮을수록 좋음
+    // max_drawdown: 음수이므로 큰 값(0에 가까운)이 좋음
+    if (column === 'volatility') {
+      return Math.min(...values)
     }
 
-    // 나머지는 클수록 좋음
-    return Math.max(...sortedData.map(d => d[column] || -Infinity))
+    // 나머지는 클수록 좋음 (period_return, annualized_return, sharpe_ratio, max_drawdown)
+    return Math.max(...values)
   }
 
   const formatNumber = (value, decimals = 2) => {
@@ -303,7 +307,3 @@ ComparisonTable.propTypes = {
   tickerInfo: PropTypes.object.isRequired,
 }
 
-ComparisonTable.defaultProps = {
-  statistics: null,
-  tickerInfo: {},
-}

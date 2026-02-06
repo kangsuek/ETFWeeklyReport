@@ -377,6 +377,8 @@ export default function DataManagementPanel() {
                 <option value={10}>10일</option>
                 <option value={30}>30일 (1개월)</option>
                 <option value={90}>90일 (3개월)</option>
+                <option value={180}>180일 (6개월)</option>
+                <option value={365}>365일 (1년)</option>
               </select>
             </div>
 

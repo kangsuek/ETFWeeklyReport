@@ -160,13 +160,22 @@ export default function ETFDetail() {
   ] = queries
 
   // 장중 여부 판단 (09:00~15:30, 평일) - 분봉 자동 갱신 주기에 사용
-  const isMarketHours = useMemo(() => {
+  const [isMarketHours, setIsMarketHours] = useState(() => {
     const now = new Date()
     const day = now.getDay()
-    const hours = now.getHours()
-    const minutes = now.getMinutes()
-    const timeInMinutes = hours * 60 + minutes
-    return day >= 1 && day <= 5 && timeInMinutes >= 540 && timeInMinutes <= 930 // 09:00~15:30
+    const timeInMinutes = now.getHours() * 60 + now.getMinutes()
+    return day >= 1 && day <= 5 && timeInMinutes >= 540 && timeInMinutes <= 930
+  })
+
+  useEffect(() => {
+    const checkMarketHours = () => {
+      const now = new Date()
+      const day = now.getDay()
+      const timeInMinutes = now.getHours() * 60 + now.getMinutes()
+      setIsMarketHours(day >= 1 && day <= 5 && timeInMinutes >= 540 && timeInMinutes <= 930)
+    }
+    const interval = setInterval(checkMarketHours, 60_000) // 1분마다 재확인
+    return () => clearInterval(interval)
   }, [])
 
   // 분봉 강제 새로고침 플래그 (useQuery queryFn 내부에서 참조)

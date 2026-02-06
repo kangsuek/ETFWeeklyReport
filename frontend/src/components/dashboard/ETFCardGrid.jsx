@@ -16,13 +16,13 @@ import {
 } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import ETFCard from '../etf/ETFCard'
 
 /**
  * 드래그 가능한 카드 래퍼 컴포넌트
  */
-function SortableCard({ etf, summary }) {
+const SortableCard = memo(function SortableCard({ etf, summary }) {
   const {
     attributes,
     listeners,
@@ -62,7 +62,7 @@ function SortableCard({ etf, summary }) {
       />
     </div>
   )
-}
+})
 
 SortableCard.propTypes = {
   etf: PropTypes.object.isRequired,
@@ -115,7 +115,10 @@ export default function ETFCardGrid({ etfs, batchSummary, onOrderChange }) {
   }
 
   // 현재 드래그 중인 ETF 찾기
-  const activeETF = etfs.find((etf) => etf.ticker === activeId)
+  const activeETF = useMemo(() => etfs.find((etf) => etf.ticker === activeId), [etfs, activeId])
+
+  // SortableContext items 배열 메모이제이션
+  const sortableItems = useMemo(() => etfs.map(etf => etf.ticker), [etfs])
 
   return (
     <DndContext
@@ -125,7 +128,7 @@ export default function ETFCardGrid({ etfs, batchSummary, onOrderChange }) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <SortableContext items={etfs.map(etf => etf.ticker)} strategy={rectSortingStrategy}>
+      <SortableContext items={sortableItems} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {etfs.map((etf) => (
             <SortableCard

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { useToast } from '../../contexts/ToastContext'
 
-const Toast = ({ id, message, type, duration }) => {
+const Toast = ({ id, message, type = 'info', duration = 3000 }) => {
   const { removeToast } = useToast()
 
   useEffect(() => {
@@ -89,11 +89,6 @@ Toast.propTypes = {
   message: PropTypes.string.isRequired,
   type: PropTypes.oneOf(['success', 'error', 'warning', 'info']),
   duration: PropTypes.number
-}
-
-Toast.defaultProps = {
-  type: 'info',
-  duration: 3000
 }
 
 export default Toast

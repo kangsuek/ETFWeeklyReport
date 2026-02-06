@@ -10,7 +10,37 @@ import { generateAllInsights } from '../../utils/insights'
  * - 핵심 포인트 (최대 4개): 매매동향, 추세, 변동성 분석
  * - 리스크 요약 (최대 3개): 위험 요소 알림
  */
-export default function InsightSummary({ pricesData, tradingFlowData }) {
+// 인사이트 타입별 스타일 - 순수 함수로 컴포넌트 외부 정의
+const getInsightStyle = (type) => {
+  switch (type) {
+    case 'positive':
+      return {
+        icon: '📈',
+        dotColor: 'bg-green-500',
+        textColor: 'text-green-700 dark:text-green-400'
+      }
+    case 'warning':
+      return {
+        icon: '📉',
+        dotColor: 'bg-orange-500',
+        textColor: 'text-orange-700 dark:text-orange-400'
+      }
+    case 'neutral':
+      return {
+        icon: '➖',
+        dotColor: 'bg-gray-400',
+        textColor: 'text-gray-600 dark:text-gray-400'
+      }
+    default:
+      return {
+        icon: '•',
+        dotColor: 'bg-blue-500',
+        textColor: 'text-gray-700 dark:text-gray-300'
+      }
+  }
+}
+
+export default function InsightSummary({ pricesData = [], tradingFlowData = [] }) {
   const { insights, risks } = useMemo(
     () => generateAllInsights(pricesData, tradingFlowData),
     [pricesData, tradingFlowData]
@@ -19,36 +49,6 @@ export default function InsightSummary({ pricesData, tradingFlowData }) {
   // 데이터가 없거나 인사이트가 없으면 렌더링하지 않음
   if ((!insights || insights.length === 0) && (!risks || risks.length === 0)) {
     return null
-  }
-
-  // 인사이트 타입별 스타일
-  const getInsightStyle = (type) => {
-    switch (type) {
-      case 'positive':
-        return {
-          icon: '📈',
-          dotColor: 'bg-green-500',
-          textColor: 'text-green-700 dark:text-green-400'
-        }
-      case 'warning':
-        return {
-          icon: '📉',
-          dotColor: 'bg-orange-500',
-          textColor: 'text-orange-700 dark:text-orange-400'
-        }
-      case 'neutral':
-        return {
-          icon: '➖',
-          dotColor: 'bg-gray-400',
-          textColor: 'text-gray-600 dark:text-gray-400'
-        }
-      default:
-        return {
-          icon: '•',
-          dotColor: 'bg-blue-500',
-          textColor: 'text-gray-700 dark:text-gray-300'
-        }
-    }
   }
 
   return (
@@ -138,7 +138,3 @@ InsightSummary.propTypes = {
   )
 }
 
-InsightSummary.defaultProps = {
-  pricesData: [],
-  tradingFlowData: []
-}

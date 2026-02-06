@@ -6,6 +6,32 @@ import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
 import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
 
+// 매매 동향 포맷팅 (억 단위, 천 단위 콤마) - 순수 함수로 컴포넌트 외부 정의
+const formatTradingValue = (value) => {
+  if (!value) return '0'
+  const absValue = Math.abs(value)
+  if (absValue >= 100000000) {
+    const billions = (value / 100000000).toFixed(0)
+    return `${new Intl.NumberFormat('ko-KR').format(billions)}억`
+  } else if (absValue >= 10000) {
+    const tenThousands = (value / 10000).toFixed(0)
+    return `${new Intl.NumberFormat('ko-KR').format(tenThousands)}만`
+  }
+  return new Intl.NumberFormat('ko-KR').format(value)
+}
+
+// 날짜 포맷팅 (MM/DD) - 순수 함수로 컴포넌트 외부 정의
+const formatChartDate = (dateStr) => {
+  const date = new Date(dateStr)
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
+// 등락률에 따른 색상 결정 - 순수 함수로 컴포넌트 외부 정의
+const getChangeColor = (changePct) => {
+  if (!changePct) return 'text-gray-600'
+  return changePct > 0 ? 'text-red-600' : changePct < 0 ? 'text-blue-600' : 'text-gray-600'
+}
+
 export default function ETFCard({ etf, summary }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
 
@@ -62,34 +88,6 @@ export default function ETFCard({ etf, summary }) {
   const actualNews = summary?.latest_news || news
 
   const isLoading = !summary && pricesLoading
-
-  // 등락률에 따른 색상 결정
-  const getChangeColor = (changePct) => {
-    if (!changePct) return 'text-gray-600'
-    return changePct > 0 ? 'text-red-600' : changePct < 0 ? 'text-blue-600' : 'text-gray-600'
-  }
-
-  // 포맷팅 함수는 utils/format.js에서 import
-
-  // 매매 동향 포맷팅 (억 단위, 천 단위 콤마)
-  const formatTradingValue = (value) => {
-    if (!value) return '0'
-    const absValue = Math.abs(value)
-    if (absValue >= 100000000) {
-      const billions = (value / 100000000).toFixed(0)
-      return `${new Intl.NumberFormat('ko-KR').format(billions)}억`
-    } else if (absValue >= 10000) {
-      const tenThousands = (value / 10000).toFixed(0)
-      return `${new Intl.NumberFormat('ko-KR').format(tenThousands)}만`
-    }
-    return new Intl.NumberFormat('ko-KR').format(value)
-  }
-
-  // 날짜 포맷팅 (MM/DD)
-  const formatChartDate = (dateStr) => {
-    const date = new Date(dateStr)
-    return `${date.getMonth() + 1}/${date.getDate()}`
-  }
 
   // 미니 캔들스틱 차트 생성 (OHLC)
   const renderMiniChart = () => {

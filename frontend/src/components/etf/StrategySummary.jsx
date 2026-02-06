@@ -1,5 +1,17 @@
 import PropTypes from 'prop-types'
 
+// 전략 배지 색상 - 순수 함수로 컴포넌트 외부 정의
+const STRATEGY_COLORS = {
+  '비중확대': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  '보유': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  '관망': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+  '비중축소': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+}
+
+const getStrategyColor = (strategyType) => {
+  return STRATEGY_COLORS[strategyType] || STRATEGY_COLORS['관망']
+}
+
 /**
  * StrategySummary Component
  * 
@@ -49,17 +61,6 @@ export default function StrategySummary({ ticker, period = '1m', insights, isLoa
   }
 
   const { strategy, key_points, risks } = insights
-
-  // 전략 배지 색상
-  const getStrategyColor = (strategyType) => {
-    const colors = {
-      '비중확대': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      '보유': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-      '관망': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-      '비중축소': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    }
-    return colors[strategyType] || colors['관망']
-  }
 
   return (
     <div className="space-y-6">

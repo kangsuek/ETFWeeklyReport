@@ -34,6 +34,9 @@ frontend/.env
 *.swo
 *~
 
+# Claude Code MCP (개인 설정)
+.mcp.json
+
 # Logs
 logs/
 *.log

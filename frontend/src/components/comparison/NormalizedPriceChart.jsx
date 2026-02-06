@@ -21,7 +21,7 @@ import { CHART_COLOR_PALETTE } from '../../constants'
  * @param {Object} tickerInfo - { ticker: { name, ... } }
  * @param {Object} statistics - { ticker: { period_return, ... } }
  */
-export default function NormalizedPriceChart({ data, tickerInfo, statistics }) {
+export default function NormalizedPriceChart({ data = null, tickerInfo = {}, statistics = null }) {
   if (!data || !data.dates || data.dates.length === 0) {
     return (
       <div className="card">
@@ -204,8 +204,3 @@ NormalizedPriceChart.propTypes = {
   statistics: PropTypes.object,
 }
 
-NormalizedPriceChart.defaultProps = {
-  data: null,
-  tickerInfo: {},
-  statistics: null,
-}
