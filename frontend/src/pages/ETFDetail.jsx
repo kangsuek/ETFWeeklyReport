@@ -19,7 +19,7 @@ import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_SLOW } from '../constants'
 import { calculateDateRange } from '../utils/dateRange'
-import { calculateRSI, calculateMACD } from '../utils/technicalIndicators'
+import { calculateRSI, calculateMACD, calculateSupportResistance } from '../utils/technicalIndicators'
 
 /**
  * 설정값의 날짜 범위 형식을 DateRangeSelector 형식으로 변환
@@ -63,7 +63,10 @@ export default function ETFDetail() {
   // 가격 테이블 접힘 상태 (기본: 접힘)
   const [isTableExpanded, setIsTableExpanded] = useState(false)
 
-  // 기술지표 토글 상태
+  // 고급 분석 모드 토글 (기본: 닫힘 - 일반인을 위한 간결한 화면)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // 기술지표 토글 상태 (기본: 꺼짐 - 고급 분석에서 사용자가 선택)
   const [showRSI, setShowRSI] = useState(false)
   const [showMACD, setShowMACD] = useState(false)
 
@@ -297,6 +300,11 @@ export default function ETFDetail() {
     return calculateMACD(ascending, 12, 26, 9)
   }, [showMACD, extendedPricesData])
 
+  // 지지선/저항선 계산 (pricesData는 내림차순)
+  const supportResistanceData = useMemo(() => {
+    return calculateSupportResistance(pricesData)
+  }, [pricesData])
+
   // 최근 가격 정보 계산
   // API는 날짜 내림차순(최신이 첫 번째)으로 반환
   const latestPrice = useMemo(() => {
@@ -365,13 +373,17 @@ export default function ETFDetail() {
       {/* Sticky 헤더 */}
       <ETFHeader etf={etf} />
 
-      {/* 1. 투자 인사이트 요약 (최상단) */}
+      {/* ========================================== */}
+      {/* 기본 보기: 누구나 이해할 수 있는 핵심 정보   */}
+      {/* ========================================== */}
+
+      {/* 1. 투자 인사이트 요약 (한눈에 보는 핵심 포인트) */}
       <InsightSummary
         pricesData={pricesData}
         tradingFlowData={tradingFlowData}
       />
 
-      {/* 2. 핵심 인사이트 블록 (전략 요약, 핵심 포인트, 리스크) */}
+      {/* 2. 투자 전략 (단기/중기/장기 방향) */}
       <div className="mb-6">
         <StrategySummary 
           ticker={ticker} 
@@ -382,20 +394,7 @@ export default function ETFDetail() {
         />
       </div>
 
-      {/* 3. 성과 및 리스크 지표 */}
-      {pricesData && pricesData.length > 0 && (
-        <div className="card mb-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">성과 및 리스크 지표</h3>
-          <StatsSummary 
-            data={pricesData} 
-            purchasePrice={etf?.purchase_price}
-            purchaseDate={etf?.purchase_date}
-          />
-        </div>
-      )}
-
-
-      {/* 4. 기본 정보 섹션 */}
+      {/* 3. 기본 정보 + 내 투자 현황 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* 종목 정보 */}
         <div className="card lg:col-span-2">
@@ -437,21 +436,21 @@ export default function ETFDetail() {
           <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">최근 가격 정보</h3>
           {latestPrice ? (
             <div className="space-y-3">
-              {/* 일자 - 가장 먼저 표시 */}
+              {/* 일자 */}
               <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
                 <span className="text-sm text-gray-500 dark:text-gray-400">기준일</span>
                 <p className="text-lg font-bold mt-0.5 text-gray-900 dark:text-gray-100">
                   {format(new Date(latestPrice.date), 'yyyy-MM-dd')}
                 </p>
               </div>
-              {/* 가격 정보 그리드 */}
+              {/* 핵심 가격 정보 */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">종가</span>
                   <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</p>
                 </div>
                 <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">전일 대비 등락률</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">전일 대비</span>
                   <p className={`text-xl font-bold mt-0.5 ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
                     {formatPercent(latestPrice.daily_change_pct)}
                   </p>
@@ -472,14 +471,12 @@ export default function ETFDetail() {
                     )}
                   </>
                 )}
-                {/* 보유 수량 */}
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">보유 수량</span>
                   <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
                     {etf?.quantity != null && etf.quantity !== undefined ? formatNumber(etf.quantity) : '-'}
                   </p>
                 </div>
-                {/* 총 투자 금액 */}
                 <div>
                   <span className="text-sm text-gray-500 dark:text-gray-400">총 투자 금액</span>
                   <p className="text-xl font-bold mt-0.5 text-gray-900 dark:text-gray-100">
@@ -488,17 +485,15 @@ export default function ETFDetail() {
                 </div>
               </div>
 
-              {/* 평가 금액 / 손익 강조 카드 */}
+              {/* 평가 금액 / 손익 */}
               {(evaluationAmount != null || currentProfitLoss != null) && (
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  {/* 평가 금액 카드 */}
                   <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3">
                     <span className="text-xs text-blue-600 dark:text-blue-400">평가 금액</span>
                     <p className="text-lg font-bold text-blue-700 dark:text-blue-300 mt-0.5">
                       {evaluationAmount != null ? formatPrice(evaluationAmount) : '-'}
                     </p>
                   </div>
-                  {/* 손익 카드 */}
                   <div className={`rounded-lg p-3 ${
                     currentProfitLoss != null && currentProfitLoss >= 0
                       ? 'bg-red-50 dark:bg-red-900/30'
@@ -530,21 +525,20 @@ export default function ETFDetail() {
         </div>
       </div>
 
-      {/* 5. 날짜 범위 선택기 */}
+      {/* 4. 날짜 범위 선택 + 가격 차트 (가장 기본적인 차트) */}
       <DateRangeSelector
         key={`${defaultRangeFromSettings}-${settings.defaultDateRange}`}
         onDateRangeChange={handleDateRangeChange}
         defaultRange={defaultRangeFromSettings}
       />
 
-      {/* 6. 차트 섹션 */}
       <ETFCharts
         pricesData={pricesData}
         tradingFlowData={tradingFlowData}
         ticker={ticker}
         dateRange={dateRange.range}
         showVolume={settings.display.showVolume}
-        showTradingFlow={settings.display.showTradingFlow}
+        showTradingFlow={showAdvanced && settings.display.showTradingFlow}
         pricesLoading={pricesLoading}
         pricesFetching={pricesFetching}
         tradingFlowLoading={tradingFlowLoading}
@@ -560,18 +554,20 @@ export default function ETFDetail() {
         purchasePrice={etf?.purchase_price}
         rsiData={rsiData}
         macdData={macdData}
-        showRSI={showRSI}
-        showMACD={showMACD}
+        showRSI={showAdvanced && showRSI}
+        showMACD={showAdvanced && showMACD}
         onToggleRSI={() => setShowRSI(v => !v)}
         onToggleMACD={() => setShowMACD(v => !v)}
+        supportResistanceData={showAdvanced ? supportResistanceData : null}
+        showTechnicalSection={showAdvanced}
       />
 
-      {/* 분봉 차트 섹션 (당일 시간별 체결) */}
+      {/* 5. 오늘의 실시간 체결 (분봉 차트) */}
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              분봉 차트 (당일)
+              오늘의 가격 흐름
             </h3>
             {intradayData?.date && (
               <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -592,7 +588,7 @@ export default function ETFDetail() {
               onClick={handleIntradayRefresh}
               className="btn btn-outline btn-sm"
               disabled={intradayFetching}
-              title="분봉 데이터 새로고침 (재수집)"
+              title="새로고침"
             >
               <svg className={`w-4 h-4 ${intradayFetching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -607,7 +603,7 @@ export default function ETFDetail() {
           </div>
         ) : intradayError ? (
           <div className="flex flex-col items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
-            <p>분봉 데이터를 불러올 수 없습니다</p>
+            <p>데이터를 불러올 수 없습니다</p>
             <button
               onClick={() => refetchIntraday()}
               className="mt-2 text-sm text-blue-500 hover:underline"
@@ -618,7 +614,7 @@ export default function ETFDetail() {
         ) : intradayData?.background_collect_started ? (
           <div className="flex flex-col items-center justify-center h-[300px] text-gray-500 dark:text-gray-400 gap-2">
             <Spinner />
-            <p className="text-sm">분봉 데이터 수집 중입니다.</p>
+            <p className="text-sm">데이터 수집 중입니다.</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               잠시 후 자동으로 갱신됩니다.
             </p>
@@ -640,38 +636,87 @@ export default function ETFDetail() {
         )}
       </div>
 
-      {/* 가격 데이터 테이블 섹션 (접힘 처리) */}
-      {pricesData && pricesData.length > 0 && (
-        <div className="card mb-4">
-          <button
-            onClick={() => setIsTableExpanded(!isTableExpanded)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              가격 데이터 ({pricesData.length}건)
-            </h3>
-            <span className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1">
-              {isTableExpanded ? (
-                <>접기 <span className="text-xs">▲</span></>
-              ) : (
-                <>펼치기 <span className="text-xs">▼</span></>
-              )}
-            </span>
-          </button>
+      {/* 6. 최근 뉴스 */}
+      <div className="card mb-4">
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">최근 뉴스</h3>
+        <NewsTimeline ticker={ticker} newsData={newsData} isLoading={newsLoading} error={newsError} />
+      </div>
 
-          {isTableExpanded && (
-            <div className="mt-4">
-              <PriceTable data={pricesData} itemsPerPage={20} />
+      {/* ========================================== */}
+      {/* 고급 분석: 전문 투자자를 위한 상세 지표      */}
+      {/* ========================================== */}
+
+      {/* 고급 분석 토글 버튼 */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 transition-all duration-200 ${
+            showAdvanced
+              ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+          }`}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="font-medium">
+            {showAdvanced ? '고급 분석 접기' : '고급 분석 보기'}
+          </span>
+          <span className="text-xs opacity-60">
+            {showAdvanced ? '' : '(기술지표, 매매동향, 수익률 분석 등)'}
+          </span>
+          <svg
+            className={`w-4 h-4 transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* 고급 분석 콘텐츠 */}
+      {showAdvanced && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* 성과 및 리스크 지표 */}
+          {pricesData && pricesData.length > 0 && (
+            <div className="card">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">성과 및 리스크 지표</h3>
+              <StatsSummary 
+                data={pricesData} 
+                purchasePrice={etf?.purchase_price}
+                purchaseDate={etf?.purchase_date}
+              />
+            </div>
+          )}
+
+          {/* 가격 데이터 테이블 */}
+          {pricesData && pricesData.length > 0 && (
+            <div className="card">
+              <button
+                onClick={() => setIsTableExpanded(!isTableExpanded)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  가격 데이터 ({pricesData.length}건)
+                </h3>
+                <span className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                  {isTableExpanded ? (
+                    <>접기 <span className="text-xs">▲</span></>
+                  ) : (
+                    <>펼치기 <span className="text-xs">▼</span></>
+                  )}
+                </span>
+              </button>
+
+              {isTableExpanded && (
+                <div className="mt-4">
+                  <PriceTable data={pricesData} itemsPerPage={20} />
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-
-      {/* 뉴스 타임라인 섹션 */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-3">최근 뉴스</h3>
-        <NewsTimeline ticker={ticker} newsData={newsData} isLoading={newsLoading} error={newsError} />
-      </div>
     </div>
   )
 }

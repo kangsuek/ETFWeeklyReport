@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import PriceChart from '../charts/PriceChart'
 import TradingFlowChart from '../charts/TradingFlowChart'
@@ -5,6 +6,393 @@ import RSIChart from '../charts/RSIChart'
 import MACDChart from '../charts/MACDChart'
 import LoadingIndicator from '../common/LoadingIndicator'
 import ErrorFallback from '../common/ErrorFallback'
+
+/**
+ * 가격을 포맷팅 (천 단위 콤마)
+ */
+function fmtPrice(val) {
+  if (val == null || isNaN(val)) return '-'
+  return Math.round(val).toLocaleString('ko-KR')
+}
+
+/**
+ * RSI 값에 따른 해석 텍스트와 색상을 반환
+ */
+function getRSIInterpretation(rsiValue) {
+  if (rsiValue == null) return null
+  if (rsiValue >= 80) return { text: '극단적 과매수 — 강한 매도 시그널', color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' }
+  if (rsiValue >= 70) return { text: '과매수 구간 — 매도 시그널, 조정 가능성', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' }
+  if (rsiValue >= 50) return { text: '상승 추세 — 매수세가 우위', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' }
+  if (rsiValue >= 30) return { text: '하락 추세 — 매도세가 우위', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' }
+  if (rsiValue >= 20) return { text: '과매도 구간 — 매수 시그널, 반등 가능성', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' }
+  return { text: '극단적 과매도 — 강한 매수 시그널', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' }
+}
+
+/**
+ * MACD 데이터에 따른 해석 텍스트와 색상을 반환
+ */
+function getMACDInterpretation(macdData) {
+  if (!macdData || macdData.length < 2) return null
+  const validData = macdData.filter(d => d.macd !== null && d.signal !== null)
+  if (validData.length < 2) return null
+
+  const last = validData[validData.length - 1]
+  const prev = validData[validData.length - 2]
+
+  // 골든크로스 / 데드크로스 판별
+  const isGoldenCross = prev.macd <= prev.signal && last.macd > last.signal
+  const isDeadCross = prev.macd >= prev.signal && last.macd < last.signal
+  const macdAboveSignal = last.macd > last.signal
+  const histogramGrowing = last.histogram > prev.histogram
+
+  if (isGoldenCross) return { text: '골든크로스 발생 — MACD가 시그널선 상향 돌파, 상승 전환 시그널', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', icon: '▲' }
+  if (isDeadCross) return { text: '데드크로스 발생 — MACD가 시그널선 하향 돌파, 하락 전환 시그널', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', icon: '▼' }
+  if (macdAboveSignal && histogramGrowing) return { text: '상승 추세 강화 — MACD가 시그널 위, 히스토그램 확대 중', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', icon: '▲' }
+  if (macdAboveSignal && !histogramGrowing) return { text: '상승 추세 약화 — MACD가 시그널 위이나 모멘텀 감소', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', icon: '─' }
+  if (!macdAboveSignal && !histogramGrowing) return { text: '하락 추세 강화 — MACD가 시그널 아래, 히스토그램 확대 중', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', icon: '▼' }
+  if (!macdAboveSignal && histogramGrowing) return { text: '하락 추세 약화 — MACD가 시그널 아래이나 모멘텀 회복', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', icon: '─' }
+  return null
+}
+
+/**
+ * 기술지표 섹션 (RSI + MACD 차트 + 해석)
+ */
+function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onToggleRSI, onToggleMACD }) {
+  // RSI 현재 값 및 해석
+  const currentRSI = useMemo(() => {
+    if (!rsiData || rsiData.length === 0) return null
+    const last = rsiData[rsiData.length - 1]
+    return last?.rsi
+  }, [rsiData])
+
+  const rsiInterpretation = useMemo(() => getRSIInterpretation(currentRSI), [currentRSI])
+
+  // MACD 현재 해석
+  const macdInterpretation = useMemo(() => getMACDInterpretation(macdData), [macdData])
+
+  // MACD 현재 값
+  const currentMACD = useMemo(() => {
+    if (!macdData || macdData.length === 0) return null
+    const validData = macdData.filter(d => d.macd !== null)
+    return validData.length > 0 ? validData[validData.length - 1] : null
+  }, [macdData])
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기술지표</h3>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRSI}
+              onChange={onToggleRSI}
+              className="w-4 h-4 text-purple-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">RSI</span>
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showMACD}
+              onChange={onToggleMACD}
+              className="w-4 h-4 text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">MACD</span>
+          </label>
+        </div>
+      </div>
+
+      {!showRSI && !showMACD && (
+        <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+          RSI 또는 MACD를 선택하면 기술지표 차트가 표시됩니다
+        </p>
+      )}
+
+      {/* RSI 섹션 */}
+      {showRSI && rsiData && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              RSI (14)
+              {currentRSI != null && (
+                <span className={`ml-2 font-semibold ${rsiInterpretation?.color || 'text-gray-700 dark:text-gray-300'}`}>
+                  {currentRSI.toFixed(1)}
+                </span>
+              )}
+            </h4>
+          </div>
+
+          {/* RSI 해석 카드 */}
+          {rsiInterpretation && (
+            <div className={`rounded-md border px-3 py-2 mb-2 ${rsiInterpretation.bg}`}>
+              <p className={`text-sm font-medium ${rsiInterpretation.color}`}>
+                {rsiInterpretation.text}
+              </p>
+            </div>
+          )}
+
+          <RSIChart data={rsiData} />
+
+          {/* RSI 읽는 법 설명 */}
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
+            <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">RSI 읽는 법</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              <p><span className="text-red-500 font-medium">70 이상</span> = 과매수 (매도 고려)</p>
+              <p><span className="text-blue-500 font-medium">30 이하</span> = 과매도 (매수 고려)</p>
+              <p><span className="text-green-600 dark:text-green-400 font-medium">50~70</span> = 상승 추세</p>
+              <p><span className="text-orange-500 font-medium">30~50</span> = 하락 추세</p>
+            </div>
+            <p className="text-gray-400 dark:text-gray-500 mt-1">RSI는 14일간 상승폭과 하락폭의 비율로 0~100 사이의 값을 가집니다.</p>
+          </div>
+        </div>
+      )}
+
+      {/* MACD 섹션 */}
+      {showMACD && macdData && (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              MACD (12, 26, 9)
+              {currentMACD && (
+                <span className={`ml-2 font-semibold ${currentMACD.macd >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                  {currentMACD.macd.toFixed(0)}
+                </span>
+              )}
+            </h4>
+          </div>
+
+          {/* MACD 해석 카드 */}
+          {macdInterpretation && (
+            <div className={`rounded-md border px-3 py-2 mb-2 ${macdInterpretation.bg}`}>
+              <p className={`text-sm font-medium ${macdInterpretation.color}`}>
+                {macdInterpretation.icon && <span className="mr-1">{macdInterpretation.icon}</span>}
+                {macdInterpretation.text}
+              </p>
+            </div>
+          )}
+
+          <MACDChart data={macdData} />
+
+          {/* MACD 읽는 법 설명 */}
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
+            <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">MACD 읽는 법</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              <p><span className="text-green-600 dark:text-green-400 font-medium">골든크로스</span> = MACD가 시그널 상향 돌파 (매수)</p>
+              <p><span className="text-red-500 font-medium">데드크로스</span> = MACD가 시그널 하향 돌파 (매도)</p>
+              <p><span className="text-green-600 dark:text-green-400 font-medium">히스토그램 양수(+)</span> = 상승 모멘텀</p>
+              <p><span className="text-red-500 font-medium">히스토그램 음수(−)</span> = 하락 모멘텀</p>
+            </div>
+            <p className="text-gray-400 dark:text-gray-500 mt-1">MACD는 단기(12일) EMA와 장기(26일) EMA의 차이를 나타내며, 시그널선(9일)과의 교차를 매매 시그널로 사용합니다.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+TechnicalIndicatorsSection.propTypes = {
+  rsiData: PropTypes.array,
+  macdData: PropTypes.array,
+  showRSI: PropTypes.bool,
+  showMACD: PropTypes.bool,
+  onToggleRSI: PropTypes.func,
+  onToggleMACD: PropTypes.func,
+}
+
+/**
+ * 지지선/저항선 카드 섹션
+ */
+function SupportResistanceSection({ data }) {
+  const [showDetail, setShowDetail] = useState(false)
+
+  if (!data) return null
+
+  const { currentPrice, supports, resistances, recentLevels } = data
+
+  // 가장 가까운 지지선/저항선 (각 최대 3개)
+  const nearSupports = supports.slice(0, 3)
+  const nearResistances = resistances.slice(0, 3)
+
+  // 현재가 대비 거리 퍼센트
+  const distPercent = (price) => {
+    const diff = ((price - currentPrice) / currentPrice) * 100
+    return diff >= 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`
+  }
+
+  // 가까운 지지/저항 강도 바 계산 (시각적 표현)
+  const maxDist = Math.max(
+    ...nearResistances.map(r => Math.abs(r.price - currentPrice)),
+    ...nearSupports.map(s => Math.abs(s.price - currentPrice)),
+    1
+  )
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">지지선 / 저항선</h3>
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          현재가 <span className="font-semibold text-gray-900 dark:text-gray-100">{fmtPrice(currentPrice)}</span>원
+        </span>
+      </div>
+
+      {/* 저항선 (위에서 아래로: 먼 저항 → 가까운 저항) */}
+      <div className="space-y-0">
+        {/* 저항선 영역 */}
+        <div className="mb-1">
+          <p className="text-xs font-medium text-red-500 mb-1.5 flex items-center gap-1">
+            <span>▲</span> 저항선 (상방 압력)
+          </p>
+          {nearResistances.length > 0 ? (
+            <div className="space-y-1.5">
+              {[...nearResistances].reverse().map((r, idx) => {
+                const dist = Math.abs(r.price - currentPrice) / maxDist
+                return (
+                  <div key={`r-${idx}`} className="flex items-center gap-2">
+                    <div className="w-28 sm:w-36 text-right">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{r.label}</span>
+                    </div>
+                    <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden relative">
+                      <div
+                        className="h-full bg-red-200 dark:bg-red-900/40 rounded"
+                        style={{ width: `${Math.max(dist * 100, 8)}%` }}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-red-600 dark:text-red-400">
+                        {fmtPrice(r.price)}원 ({distPercent(r.price)})
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-1">근접 저항선 없음</p>
+          )}
+        </div>
+
+        {/* 현재가 라인 */}
+        <div className="flex items-center gap-2 my-2.5">
+          <div className="w-28 sm:w-36 text-right">
+            <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">현재가</span>
+          </div>
+          <div className="flex-1 h-7 bg-indigo-50 dark:bg-indigo-900/30 rounded border-2 border-indigo-400 dark:border-indigo-500 relative">
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-indigo-700 dark:text-indigo-300">
+              {fmtPrice(currentPrice)}원
+            </span>
+          </div>
+        </div>
+
+        {/* 지지선 영역 */}
+        <div className="mt-1">
+          <p className="text-xs font-medium text-blue-500 mb-1.5 flex items-center gap-1">
+            <span>▼</span> 지지선 (하방 지지)
+          </p>
+          {nearSupports.length > 0 ? (
+            <div className="space-y-1.5">
+              {nearSupports.map((s, idx) => {
+                const dist = Math.abs(s.price - currentPrice) / maxDist
+                return (
+                  <div key={`s-${idx}`} className="flex items-center gap-2">
+                    <div className="w-28 sm:w-36 text-right">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate block">{s.label}</span>
+                    </div>
+                    <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden relative">
+                      <div
+                        className="h-full bg-blue-200 dark:bg-blue-900/40 rounded"
+                        style={{ width: `${Math.max(dist * 100, 8)}%` }}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-400">
+                        {fmtPrice(s.price)}원 ({distPercent(s.price)})
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-1">근접 지지선 없음</p>
+          )}
+        </div>
+      </div>
+
+      {/* 최근 고점/저점 정보 */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="bg-red-50 dark:bg-red-900/10 rounded-md px-3 py-2 text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {Math.min(20, supports.length + resistances.length)}일 최고가</p>
+          <p className="text-sm font-semibold text-red-600 dark:text-red-400">{fmtPrice(recentLevels.highestHigh)}원</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{recentLevels.highestDate}</p>
+        </div>
+        <div className="bg-blue-50 dark:bg-blue-900/10 rounded-md px-3 py-2 text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {Math.min(20, supports.length + resistances.length)}일 최저가</p>
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{fmtPrice(recentLevels.lowestLow)}원</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{recentLevels.lowestDate}</p>
+        </div>
+      </div>
+
+      {/* 상세 보기 토글 */}
+      <button
+        onClick={() => setShowDetail(v => !v)}
+        className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+      >
+        {showDetail ? '간략히 보기 ▲' : '전체 레벨 보기 ▼'}
+      </button>
+
+      {showDetail && (
+        <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* 전체 저항선 */}
+            <div>
+              <p className="text-xs font-medium text-red-500 mb-1">저항선 전체</p>
+              <div className="space-y-1">
+                {resistances.map((r, idx) => (
+                  <div key={`rd-${idx}`} className="flex justify-between text-xs">
+                    <span className="text-gray-600 dark:text-gray-400">{r.label}</span>
+                    <span className="text-red-500 font-medium">{fmtPrice(r.price)}원 <span className="text-gray-400">({distPercent(r.price)})</span></span>
+                  </div>
+                ))}
+                {resistances.length === 0 && <p className="text-xs text-gray-400">없음</p>}
+              </div>
+            </div>
+
+            {/* 전체 지지선 */}
+            <div>
+              <p className="text-xs font-medium text-blue-500 mb-1">지지선 전체</p>
+              <div className="space-y-1">
+                {supports.map((s, idx) => (
+                  <div key={`sd-${idx}`} className="flex justify-between text-xs">
+                    <span className="text-gray-600 dark:text-gray-400">{s.label}</span>
+                    <span className="text-blue-500 font-medium">{fmtPrice(s.price)}원 <span className="text-gray-400">({distPercent(s.price)})</span></span>
+                  </div>
+                ))}
+                {supports.length === 0 && <p className="text-xs text-gray-400">없음</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* 읽는 법 */}
+          <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-md p-3 space-y-1">
+            <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">지지선/저항선 읽는 법</p>
+            <p><span className="text-red-500 font-medium">저항선</span> = 가격 상승 시 매도 압력이 강해지는 가격대. 돌파 시 추가 상승 기대</p>
+            <p><span className="text-blue-500 font-medium">지지선</span> = 가격 하락 시 매수세가 유입되는 가격대. 이탈 시 추가 하락 우려</p>
+            <p><span className="text-purple-500 font-medium">피봇 포인트</span> = 전일 고가/저가/종가 기반 당일 핵심 가격대 (단기 트레이딩 참고)</p>
+            <p><span className="text-green-600 dark:text-green-400 font-medium">이동평균선</span> = 일정 기간 평균가로, 추세의 방향과 지지/저항 역할을 동시 수행</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+SupportResistanceSection.propTypes = {
+  data: PropTypes.shape({
+    currentPrice: PropTypes.number,
+    pivot: PropTypes.object,
+    movingAverages: PropTypes.array,
+    recentLevels: PropTypes.object,
+    supports: PropTypes.array,
+    resistances: PropTypes.array,
+  }),
+}
 
 /**
  * ETFCharts 컴포넌트
@@ -36,6 +424,8 @@ export default function ETFCharts({
   showMACD,
   onToggleRSI,
   onToggleMACD,
+  supportResistanceData,
+  showTechnicalSection = true,
 }) {
   return (
     <div className="space-y-4 mb-4">
@@ -64,7 +454,7 @@ export default function ETFCharts({
         </div>
       )}
 
-      {/* 매매 동향 차트 */}
+      {/* 매매 동향 차트 (고급 분석 모드에서만 표시) */}
       {showTradingFlow && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl relative">
           <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">투자자별 매매 동향</h3>
@@ -88,67 +478,21 @@ export default function ETFCharts({
         </div>
       )}
 
-      {/* 기술지표 토글 + 차트 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기술지표</h3>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showRSI}
-                onChange={onToggleRSI}
-                className="w-4 h-4 text-purple-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">RSI</span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showMACD}
-                onChange={onToggleMACD}
-                className="w-4 h-4 text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">MACD</span>
-            </label>
-          </div>
-        </div>
+      {/* 기술지표 + 지지선/저항선 (고급 분석 모드에서만 표시) */}
+      {showTechnicalSection && (
+        <>
+          <TechnicalIndicatorsSection
+            rsiData={rsiData}
+            macdData={macdData}
+            showRSI={showRSI}
+            showMACD={showMACD}
+            onToggleRSI={onToggleRSI}
+            onToggleMACD={onToggleMACD}
+          />
 
-        {!showRSI && !showMACD && (
-          <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
-            RSI 또는 MACD를 선택하면 기술지표 차트가 표시됩니다
-          </p>
-        )}
-
-        {showRSI && rsiData && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-              RSI (14)
-              {rsiData.length > 0 && rsiData[rsiData.length - 1]?.rsi != null && (
-                <span className={`ml-2 font-semibold ${
-                  rsiData[rsiData.length - 1].rsi >= 70
-                    ? 'text-red-500'
-                    : rsiData[rsiData.length - 1].rsi <= 30
-                      ? 'text-blue-500'
-                      : 'text-gray-700 dark:text-gray-300'
-                }`}>
-                  {rsiData[rsiData.length - 1].rsi.toFixed(1)}
-                </span>
-              )}
-            </h4>
-            <RSIChart data={rsiData} />
-          </div>
-        )}
-
-        {showMACD && macdData && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-              MACD (12, 26, 9)
-            </h4>
-            <MACDChart data={macdData} />
-          </div>
-        )}
-      </div>
+          <SupportResistanceSection data={supportResistanceData} />
+        </>
+      )}
     </div>
   )
 }
@@ -179,4 +523,6 @@ ETFCharts.propTypes = {
   showMACD: PropTypes.bool,
   onToggleRSI: PropTypes.func,
   onToggleMACD: PropTypes.func,
+  supportResistanceData: PropTypes.object,
+  showTechnicalSection: PropTypes.bool,
 }

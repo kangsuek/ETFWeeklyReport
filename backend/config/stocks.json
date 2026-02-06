@@ -3,7 +3,7 @@
     "name": "HANARO Fn K-반도체",
     "type": "ETF",
     "theme": "반도체",
-    "purchase_date": "2026-01-02",
+    "purchase_date": "2026-01-26",
     "search_keyword": "반도체",
     "relevance_keywords": [
       "반도체",
@@ -13,8 +13,8 @@
       "HBM",
       "AI반도체"
     ],
-    "purchase_price": 22339.0,
-    "quantity": 3330
+    "purchase_price": 25585.0,
+    "quantity": 6807
   },
   "446770": {
     "name": "ACE 글로벌반도체TOP4 Plus",
@@ -63,7 +63,7 @@
       "로봇산업",
       "액티브 ETF"
     ],
-    "purchase_price": 34140.0,
+    "purchase_price": 34280.0,
     "quantity": 305
   },
   "449450": {
@@ -155,19 +155,19 @@
     "purchase_price": null,
     "quantity": null
   },
-  "267260": {
-    "name": "HD현대일렉트릭",
-    "type": "STOCK",
-    "theme": "미분류",
+  "473640": {
+    "name": "HANARO 글로벌금채굴기업",
+    "type": "ETF",
+    "theme": "금채굴",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "HD현대일렉트릭",
+    "search_keyword": "HANARO 글로벌금채굴기업",
     "relevance_keywords": [
-      "HD현대일렉트릭",
-      "현대일렉트릭",
-      "변압기",
-      "에너지솔루션"
+      "HANARO 글로벌금채굴기업",
+      "HANARO",
+      "글로벌금채굴기업",
+      "금채굴"
     ]
   },
   "091180": {
@@ -185,6 +185,21 @@
       "현대차",
       "기아",
       "현대모비스"
+    ]
+  },
+  "267260": {
+    "name": "HD현대일렉트릭",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "HD현대일렉트릭",
+    "relevance_keywords": [
+      "HD현대일렉트릭",
+      "현대일렉트릭",
+      "변압기",
+      "에너지솔루션"
     ]
   }
 }

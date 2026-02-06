@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { etfApi, settingsApi } from '../../services/api'
+import { formatPrice, formatNumber } from '../../utils/format'
 import TickerForm from './TickerForm'
 import TickerDeleteConfirm from './TickerDeleteConfirm'
 
@@ -224,6 +225,12 @@ export default function TickerManagementPanel() {
               <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 테마
               </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                매입가
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                수량
+              </th>
               <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 작업
               </th>
@@ -282,6 +289,12 @@ export default function TickerManagementPanel() {
                   <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {stock.theme}
                   </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-700 dark:text-gray-300">
+                    {stock.purchase_price ? formatPrice(stock.purchase_price) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-700 dark:text-gray-300">
+                    {stock.quantity ? formatNumber(stock.quantity) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                  </td>
                   <td className="px-6 py-2 whitespace-nowrap text-left text-sm font-medium">
                     <div className="flex items-center gap-3">
                       <button
@@ -310,7 +323,7 @@ export default function TickerManagementPanel() {
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   등록된 종목이 없습니다.
                 </td>
               </tr>
@@ -371,7 +384,13 @@ export default function TickerManagementPanel() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{stock.ticker}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">{stock.theme}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-1">{stock.theme}</p>
+                  {(stock.purchase_price || stock.quantity) && (
+                    <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
+                      {stock.purchase_price && <span>매입가: {formatPrice(stock.purchase_price)}</span>}
+                      {stock.quantity && <span>수량: {formatNumber(stock.quantity)}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
