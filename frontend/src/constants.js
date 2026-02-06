@@ -110,6 +110,17 @@ export const COLORS = {
   // 거래량 색상
   VOLUME_UP: '#ef4444',     // 빨강 (상승 거래량)
   VOLUME_DOWN: '#3b82f6',   // 파랑 (하락 거래량)
+
+  // RSI 차트
+  RSI_LINE: '#8b5cf6',       // 보라 (RSI 라인)
+  RSI_OVERBOUGHT: '#fee2e2', // 연한 빨강 (과매수 영역)
+  RSI_OVERSOLD: '#dbeafe',   // 연한 파랑 (과매도 영역)
+
+  // MACD 차트
+  MACD_LINE: '#2563eb',      // 파랑 (MACD 라인)
+  MACD_SIGNAL: '#f59e0b',    // 주황 (Signal 라인)
+  MACD_HIST_POS: '#ef4444',  // 빨강 (히스토그램 양수)
+  MACD_HIST_NEG: '#3b82f6',  // 파랑 (히스토그램 음수)
 }
 
 /**

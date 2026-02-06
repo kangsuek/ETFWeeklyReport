@@ -19,6 +19,7 @@ import IntradayChart from '../components/charts/IntradayChart'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_SLOW } from '../constants'
 import { calculateDateRange } from '../utils/dateRange'
+import { calculateRSI, calculateMACD } from '../utils/technicalIndicators'
 
 /**
  * 설정값의 날짜 범위 형식을 DateRangeSelector 형식으로 변환
@@ -61,6 +62,10 @@ export default function ETFDetail() {
 
   // 가격 테이블 접힘 상태 (기본: 접힘)
   const [isTableExpanded, setIsTableExpanded] = useState(false)
+
+  // 기술지표 토글 상태
+  const [showRSI, setShowRSI] = useState(false)
+  const [showMACD, setShowMACD] = useState(false)
 
   // 설정 변경 시 날짜 범위 반영 (사용자가 수동으로 변경하지 않은 경우)
   useEffect(() => {
@@ -252,6 +257,45 @@ export default function ETFDetail() {
     })
   }, [])
 
+
+  // 기술지표용 확장 가격 데이터 (60일 앞선 시작일)
+  const extendedDateRange = useMemo(() => {
+    if (!showRSI && !showMACD) return null
+    const today = new Date()
+    const startDate = new Date(dateRange.startDate)
+    startDate.setDate(startDate.getDate() - 60)
+    return {
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(today, 'yyyy-MM-dd'),
+    }
+  }, [showRSI, showMACD, dateRange.startDate])
+
+  const { data: extendedPricesData } = useQuery({
+    queryKey: ['prices-extended', ticker, extendedDateRange?.startDate, extendedDateRange?.endDate],
+    queryFn: async () => {
+      const response = await etfApi.getPrices(ticker, {
+        startDate: extendedDateRange.startDate,
+        endDate: extendedDateRange.endDate,
+      })
+      return response.data
+    },
+    enabled: !!ticker && !!extendedDateRange,
+    staleTime: CACHE_STALE_TIME_FAST,
+    retry: 1,
+  })
+
+  // RSI/MACD 계산 (확장 데이터 사용, 오름차순으로 변환)
+  const rsiData = useMemo(() => {
+    if (!showRSI || !extendedPricesData || extendedPricesData.length < 15) return []
+    const ascending = [...extendedPricesData].reverse()
+    return calculateRSI(ascending, 14)
+  }, [showRSI, extendedPricesData])
+
+  const macdData = useMemo(() => {
+    if (!showMACD || !extendedPricesData || extendedPricesData.length < 35) return []
+    const ascending = [...extendedPricesData].reverse()
+    return calculateMACD(ascending, 12, 26, 9)
+  }, [showMACD, extendedPricesData])
 
   // 최근 가격 정보 계산
   // API는 날짜 내림차순(최신이 첫 번째)으로 반환
@@ -514,6 +558,12 @@ export default function ETFDetail() {
         onPriceChartScroll={handlePriceChartScroll}
         onTradingFlowChartScroll={handleTradingFlowChartScroll}
         purchasePrice={etf?.purchase_price}
+        rsiData={rsiData}
+        macdData={macdData}
+        showRSI={showRSI}
+        showMACD={showMACD}
+        onToggleRSI={() => setShowRSI(v => !v)}
+        onToggleMACD={() => setShowMACD(v => !v)}
       />
 
       {/* 분봉 차트 섹션 (당일 시간별 체결) */}

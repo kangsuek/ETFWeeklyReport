@@ -45,6 +45,9 @@ export default function Header() {
             <Link to="/" className={navLinkClass('/')}>
               Dashboard
             </Link>
+            <Link to="/portfolio" className={navLinkClass('/portfolio')}>
+              Portfolio
+            </Link>
             <Link to="/compare" className={navLinkClass('/compare')}>
               Comparison
             </Link>
@@ -96,6 +99,13 @@ export default function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Dashboard
+            </Link>
+            <Link
+              to="/portfolio"
+              className={mobileNavLinkClass('/portfolio')}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Portfolio
             </Link>
             <Link
               to="/compare"

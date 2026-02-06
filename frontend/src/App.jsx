@@ -14,6 +14,7 @@ import { CACHE_STALE_TIME_FAST, CACHE_GC_TIME } from './constants'
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const ETFDetail = lazy(() => import('./pages/ETFDetail.jsx'))
 const Comparison = lazy(() => import('./pages/Comparison.jsx'))
+const Portfolio = lazy(() => import('./pages/Portfolio.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 
 // TanStack Query 클라이언트 설정
@@ -49,6 +50,7 @@ function App() {
                         <Routes>
                           <Route path="/" element={<Dashboard />} />
                           <Route path="/etf/:ticker" element={<ETFDetail />} />
+                          <Route path="/portfolio" element={<Portfolio />} />
                           <Route path="/compare" element={<Comparison />} />
                           <Route path="/settings" element={<Settings />} />
                         </Routes>

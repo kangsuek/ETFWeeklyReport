@@ -1,32 +1,14 @@
 import PropTypes from 'prop-types'
 import PriceChart from '../charts/PriceChart'
 import TradingFlowChart from '../charts/TradingFlowChart'
+import RSIChart from '../charts/RSIChart'
+import MACDChart from '../charts/MACDChart'
 import LoadingIndicator from '../common/LoadingIndicator'
 import ErrorFallback from '../common/ErrorFallback'
 
 /**
  * ETFCharts 컴포넌트
- * ETF 상세 페이지의 차트 섹션 (가격 차트, 매매 동향 차트)
- * 
- * @param {Object} props
- * @param {Array} props.pricesData - 가격 데이터 배열
- * @param {Array} props.tradingFlowData - 매매 동향 데이터 배열
- * @param {string} props.ticker - 종목 티커
- * @param {string} props.dateRange - 날짜 범위 ('7d', '1m', '3m', 'custom')
- * @param {boolean} props.showVolume - 거래량 표시 여부
- * @param {boolean} props.showTradingFlow - 매매 동향 표시 여부
- * @param {boolean} props.pricesLoading - 가격 데이터 로딩 상태
- * @param {boolean} props.pricesFetching - 가격 데이터 페칭 상태
- * @param {boolean} props.tradingFlowLoading - 매매 동향 데이터 로딩 상태
- * @param {boolean} props.tradingFlowFetching - 매매 동향 데이터 페칭 상태
- * @param {Object} props.pricesError - 가격 데이터 에러
- * @param {Object} props.tradingFlowError - 매매 동향 데이터 에러
- * @param {Function} props.refetchPrices - 가격 데이터 재조회 함수
- * @param {Function} props.refetchTradingFlow - 매매 동향 데이터 재조회 함수
- * @param {Object} props.priceChartScrollRef - 가격 차트 스크롤 ref
- * @param {Object} props.tradingFlowChartScrollRef - 매매 동향 차트 스크롤 ref
- * @param {Function} props.onPriceChartScroll - 가격 차트 스크롤 핸들러
- * @param {Function} props.onTradingFlowChartScroll - 매매 동향 차트 스크롤 핸들러
+ * ETF 상세 페이지의 차트 섹션 (가격 차트, 매매 동향 차트, RSI, MACD)
  */
 export default function ETFCharts({
   pricesData,
@@ -48,6 +30,12 @@ export default function ETFCharts({
   onPriceChartScroll,
   onTradingFlowChartScroll,
   purchasePrice,
+  rsiData,
+  macdData,
+  showRSI,
+  showMACD,
+  onToggleRSI,
+  onToggleMACD,
 }) {
   return (
     <div className="space-y-4 mb-4">
@@ -99,6 +87,68 @@ export default function ETFCharts({
           )}
         </div>
       )}
+
+      {/* 기술지표 토글 + 차트 */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 ease-in-out hover:shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기술지표</h3>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showRSI}
+                onChange={onToggleRSI}
+                className="w-4 h-4 text-purple-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">RSI</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showMACD}
+                onChange={onToggleMACD}
+                className="w-4 h-4 text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">MACD</span>
+            </label>
+          </div>
+        </div>
+
+        {!showRSI && !showMACD && (
+          <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+            RSI 또는 MACD를 선택하면 기술지표 차트가 표시됩니다
+          </p>
+        )}
+
+        {showRSI && rsiData && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+              RSI (14)
+              {rsiData.length > 0 && rsiData[rsiData.length - 1]?.rsi != null && (
+                <span className={`ml-2 font-semibold ${
+                  rsiData[rsiData.length - 1].rsi >= 70
+                    ? 'text-red-500'
+                    : rsiData[rsiData.length - 1].rsi <= 30
+                      ? 'text-blue-500'
+                      : 'text-gray-700 dark:text-gray-300'
+                }`}>
+                  {rsiData[rsiData.length - 1].rsi.toFixed(1)}
+                </span>
+              )}
+            </h4>
+            <RSIChart data={rsiData} />
+          </div>
+        )}
+
+        {showMACD && macdData && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+              MACD (12, 26, 9)
+            </h4>
+            <MACDChart data={macdData} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -123,5 +173,10 @@ ETFCharts.propTypes = {
   onPriceChartScroll: PropTypes.func,
   onTradingFlowChartScroll: PropTypes.func,
   purchasePrice: PropTypes.number,
+  rsiData: PropTypes.array,
+  macdData: PropTypes.array,
+  showRSI: PropTypes.bool,
+  showMACD: PropTypes.bool,
+  onToggleRSI: PropTypes.func,
+  onToggleMACD: PropTypes.func,
 }
-

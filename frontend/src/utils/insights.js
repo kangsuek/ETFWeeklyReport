@@ -5,6 +5,8 @@
  * 사용자에게 즉각적인 투자 인사이트를 제공합니다.
  */
 
+import { calculateRSI, calculateMACD, generateRSIInsight, generateMACDInsight } from './technicalIndicators'
+
 /**
  * 연속 매수/매도일 계산
  * @param {Array} data - 매매동향 데이터 (최신순)
@@ -292,6 +294,25 @@ export function generatePriceInsights(pricesData) {
       priority: 1,
       text: `${consecutiveDown}일 연속 하락 중`
     })
+  }
+
+  // RSI 인사이트 (30건 이상)
+  if (pricesData.length >= 30) {
+    const ascending = [...pricesData].reverse()
+    const rsiResult = calculateRSI(ascending, 14)
+    const validRsi = rsiResult.filter(d => d.rsi !== null)
+    if (validRsi.length > 0) {
+      const rsiInsight = generateRSIInsight(validRsi[validRsi.length - 1].rsi)
+      if (rsiInsight) insights.push(rsiInsight)
+    }
+  }
+
+  // MACD 인사이트 (40건 이상)
+  if (pricesData.length >= 40) {
+    const ascending = [...pricesData].reverse()
+    const macdResult = calculateMACD(ascending, 12, 26, 9)
+    const macdInsight = generateMACDInsight(macdResult)
+    if (macdInsight) insights.push(macdInsight)
   }
 
   return insights
