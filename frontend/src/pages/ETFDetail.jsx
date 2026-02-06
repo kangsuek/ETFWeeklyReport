@@ -626,6 +626,7 @@ export default function ETFDetail() {
             height={300}
             showVolume={settings.display.showVolume}
             previousClose={pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null}
+            pivotLevels={showAdvanced ? supportResistanceData?.pivot : null}
           />
         )}
 

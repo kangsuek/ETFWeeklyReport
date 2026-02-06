@@ -96,7 +96,8 @@ const IntradayChart = memo(function IntradayChart({
   ticker,
   height = 300,
   showVolume = true,
-  previousClose = null
+  previousClose = null,
+  pivotLevels = null,
 }) {
   // 컨테이너 너비 측정
   const { containerRef, width: containerWidth } = useContainerWidth()
@@ -150,10 +151,46 @@ const IntradayChart = memo(function IntradayChart({
     )
   }
 
-  // Y축 도메인 계산 (가격)
+  // 표시할 피봇 레벨 결정
+  const visiblePivotLevels = useMemo(() => {
+    if (!pivotLevels) return []
+    const prices = chartData.map((d) => d.price).filter((p) => p != null)
+    if (prices.length === 0) return []
+    const dataMin = Math.min(...prices)
+    const dataMax = Math.max(...prices)
+    const range = dataMax - dataMin
+    const expandedMin = dataMin - range * 0.3
+    const expandedMax = dataMax + range * 0.3
+
+    const levels = [
+      { key: 'r1', label: 'R1', value: pivotLevels.r1, color: '#f87171', dash: '5 5', width: 1 },
+      { key: 'r2', label: 'R2', value: pivotLevels.r2, color: '#ef4444', dash: '4 4', width: 1 },
+      { key: 'r3', label: 'R3', value: pivotLevels.r3, color: '#dc2626', dash: '3 3', width: 0.8 },
+      { key: 'pp', label: 'PP', value: pivotLevels.pp, color: '#8b5cf6', dash: '6 3', width: 1.5 },
+      { key: 's1', label: 'S1', value: pivotLevels.s1, color: '#60a5fa', dash: '5 5', width: 1 },
+      { key: 's2', label: 'S2', value: pivotLevels.s2, color: '#3b82f6', dash: '4 4', width: 1 },
+      { key: 's3', label: 'S3', value: pivotLevels.s3, color: '#2563eb', dash: '3 3', width: 0.8 },
+    ]
+
+    // PP, R1, R2, S1, S2는 기본 표시. R3/S3는 범위 내일 때만
+    return levels.filter(l => {
+      if (l.value == null) return false
+      if (l.key === 'r3' || l.key === 's3') {
+        return l.value >= expandedMin && l.value <= expandedMax
+      }
+      return true
+    })
+  }, [pivotLevels, chartData])
+
+  // Y축 도메인 계산 (가격 + 피봇 레벨 포함)
   const prices = chartData.map((d) => d.price).filter((p) => p != null)
-  const minPrice = Math.min(...prices)
-  const maxPrice = Math.max(...prices)
+  const allPriceValues = [
+    ...prices,
+    ...visiblePivotLevels.map(l => l.value),
+    ...(previousClose != null ? [previousClose] : []),
+  ]
+  const minPrice = Math.min(...allPriceValues)
+  const maxPrice = Math.max(...allPriceValues)
   const priceMargin = (maxPrice - minPrice) * 0.05 || maxPrice * 0.01
   const priceDomain = [
     Math.floor(minPrice - priceMargin),
@@ -311,6 +348,24 @@ const IntradayChart = memo(function IntradayChart({
               }}
             />
           )}
+
+          {/* 피봇 레벨 수평선 */}
+          {visiblePivotLevels.map((level) => (
+            <ReferenceLine
+              key={level.key}
+              yAxisId="left"
+              y={level.value}
+              stroke={level.color}
+              strokeDasharray={level.dash}
+              strokeWidth={level.width}
+              label={{
+                value: `${level.label} ${formatPrice(level.value)}`,
+                position: 'insideTopLeft',
+                fill: level.color,
+                fontSize: 9,
+              }}
+            />
+          ))}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -332,6 +387,15 @@ IntradayChart.propTypes = {
   height: PropTypes.number,
   showVolume: PropTypes.bool,
   previousClose: PropTypes.number,
+  pivotLevels: PropTypes.shape({
+    pp: PropTypes.number,
+    r1: PropTypes.number,
+    r2: PropTypes.number,
+    r3: PropTypes.number,
+    s1: PropTypes.number,
+    s2: PropTypes.number,
+    s3: PropTypes.number,
+  }),
 }
 
 export default IntradayChart

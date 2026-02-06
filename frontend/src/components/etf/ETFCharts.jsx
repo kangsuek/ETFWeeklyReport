@@ -379,6 +379,7 @@ function SupportResistanceSection({ data }) {
           </div>
         </div>
       )}
+
     </div>
   )
 }
