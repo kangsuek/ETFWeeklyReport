@@ -5,6 +5,7 @@ import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import ETFCardGrid from '../components/dashboard/ETFCardGrid'
+import PortfolioHeatmap from '../components/dashboard/PortfolioHeatmap'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_STATUS } from '../constants'
@@ -394,6 +395,12 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* 포트폴리오 히트맵 (전체 조감) */}
+      <PortfolioHeatmap
+        etfs={sortedETFs}
+        batchSummary={batchSummary}
+      />
 
       {/* 종목 그리드 */}
       <ETFCardGrid

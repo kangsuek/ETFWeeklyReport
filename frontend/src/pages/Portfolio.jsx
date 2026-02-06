@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { etfApi } from '../services/api'
 import PageHeader from '../components/common/PageHeader'
@@ -8,6 +8,7 @@ import PortfolioSummaryCards from '../components/portfolio/PortfolioSummaryCards
 import AllocationPieChart from '../components/portfolio/AllocationPieChart'
 import PortfolioTrendChart from '../components/portfolio/PortfolioTrendChart'
 import ContributionTable from '../components/portfolio/ContributionTable'
+import PortfolioAnalysisReport from '../components/portfolio/PortfolioAnalysisReport'
 import {
   classifyETFs,
   calculatePortfolioSummary,
@@ -64,6 +65,9 @@ export default function Portfolio() {
     () => calculateContribution(invested, batchSummary, summary.totalInvestment),
     [invested, batchSummary, summary.totalInvestment]
   )
+
+  // 분석 리포트 토글
+  const [showAnalysisReport, setShowAnalysisReport] = useState(false)
 
   const isLoading = etfsLoading || summaryLoading
 
@@ -125,6 +129,45 @@ export default function Portfolio() {
 
       {/* 기여도 테이블 */}
       <ContributionTable contributions={contributions} trackingETFs={trackingOnly} />
+
+      {/* 포트폴리오 분석 리포트 토글 */}
+      <div className="mt-6 mb-4">
+        <button
+          onClick={() => setShowAnalysisReport(v => !v)}
+          className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 transition-all duration-200 ${
+            showAnalysisReport
+              ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+          }`}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span className="font-medium">
+            {showAnalysisReport ? '분석 리포트 접기' : '포트폴리오 분석 리포트'}
+          </span>
+          {!showAnalysisReport && (
+            <span className="text-xs opacity-60">(진단, 조정 제안, 종목 건강 점검)</span>
+          )}
+          <svg
+            className={`w-4 h-4 transition-transform duration-200 ${showAnalysisReport ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {showAnalysisReport && (
+        <PortfolioAnalysisReport
+          investedETFs={invested}
+          trackingETFs={trackingOnly}
+          batchSummary={batchSummary}
+          allocation={allocation}
+          contributions={contributions}
+          summary={summary}
+        />
+      )}
     </div>
   )
 }
