@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { etfApi, dataApi, settingsApi } from '../services/api'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
@@ -14,6 +14,7 @@ export default function Dashboard() {
   const { settings, updateSettings } = useSettings()
   const toast = useToast()
   const [lastUpdate, setLastUpdate] = useState(new Date())
+  const [isRefreshing, setIsRefreshing] = useState(false)
   // 기본 정렬은 'config' (stocks.json 순서)
   // 저장된 카드 순서가 있으면 'custom' 모드로 시작
   const [sortBy, setSortBy] = useState(() =>
@@ -33,14 +34,32 @@ export default function Dashboard() {
     staleTime: CACHE_STALE_TIME_STATUS, // 10초 (상태 정보)
   })
 
-  // 전체 데이터 새로고침 함수
+  // 전체 데이터 새로고침: 네이버에서 최신 데이터 수집 후 화면 갱신
   const handleRefreshAll = useCallback(async () => {
-    // 모든 쿼리 무효화하여 재조회
-    await queryClient.invalidateQueries({ queryKey: ['etfs'] })
-    await queryClient.invalidateQueries({ queryKey: ['batch-summary'] })
-    await queryClient.invalidateQueries({ queryKey: ['scheduler-status'] })
-    setLastUpdate(new Date())
-  }, [queryClient])
+    if (isRefreshing) return
+    setIsRefreshing(true)
+    try {
+      // 1. 백엔드에 데이터 수집 요청 (네이버 금융에서 최신 가격/매매동향 수집)
+      toast.info('데이터 수집 중... 잠시 기다려주세요', 3000)
+      await dataApi.collectAll(1) // 최근 1일 데이터 수집
+
+      // 2. 프론트엔드 React Query 캐시 전체 무효화 후 재요청
+      await queryClient.refetchQueries({ queryKey: ['etfs'] })
+      await queryClient.refetchQueries({ queryKey: ['batch-summary'] })
+      await queryClient.refetchQueries({ queryKey: ['scheduler-status'] })
+
+      setLastUpdate(new Date())
+      toast.success('데이터가 갱신되었습니다', 2000)
+    } catch (error) {
+      console.error('Refresh failed:', error)
+      // 수집 실패해도 캐시 무효화하여 DB 최신 데이터 재조회
+      await queryClient.invalidateQueries()
+      setLastUpdate(new Date())
+      toast.warning('수집 실패, 기존 데이터로 갱신했습니다', 3000)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [queryClient, isRefreshing, toast])
 
   // 전체 종목 목록 조회
   const { data: etfs, isLoading: etfsLoading, error, refetch, dataUpdatedAt } = useQuery({
@@ -363,13 +382,14 @@ export default function Dashboard() {
           <button
             onClick={handleRefreshAll}
             className="btn btn-outline btn-sm"
+            disabled={isRefreshing}
             aria-label="모든 데이터 새로고침"
-            title="모든 데이터 새로고침"
+            title="최신 데이터 수집 후 갱신"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span className="hidden sm:inline ml-1">새로고침</span>
+            <span className="hidden sm:inline ml-1">{isRefreshing ? '수집 중...' : '새로고침'}</span>
           </button>
         </div>
       </div>

@@ -52,7 +52,7 @@ app.add_middleware(
     allow_origins=Config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-Key", "Authorization"],
+    allow_headers=["Content-Type", "X-API-Key", "Authorization", "X-No-Cache"],
     expose_headers=["X-Total-Count"],
     max_age=3600,
 )
@@ -62,6 +62,13 @@ app.add_middleware(
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     client_host = request.client.host if request.client else "unknown"
+
+    # X-No-Cache 헤더가 있으면 백엔드 캐시 클리어 (프론트엔드 새로고침 용도)
+    if request.headers.get("X-No-Cache") == "true":
+        from app.utils.cache import get_cache
+        cache = get_cache()
+        cache.clear()
+        logger.info("Cache cleared via X-No-Cache header")
     
     # 요청 로깅
     log_request(

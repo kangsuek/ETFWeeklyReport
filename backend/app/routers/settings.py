@@ -506,24 +506,22 @@ async def reorder_stocks(
         # 현재 종목 목록 로드
         stocks = stocks_manager.load_stocks()
         
-        # 티커 검증: 모든 기존 종목이 포함되어야 함
+        # 티커 검증: stocks.json에 있는 종목만 사용, 없는 종목은 무시
         current_tickers = set(stocks.keys())
-        new_tickers = set(tickers)
         
-        if current_tickers != new_tickers:
-            missing = current_tickers - new_tickers
-            extra = new_tickers - current_tickers
-            error_msg = []
-            if missing:
-                error_msg.append(f"Missing tickers: {list(missing)}")
-            if extra:
-                error_msg.append(f"Extra tickers: {list(extra)}")
-            raise HTTPException(status_code=400, detail="; ".join(error_msg))
-        
-        # 새로운 순서로 재정렬
+        # 새로운 순서로 재정렬 (stocks.json에 존재하는 종목만)
         reordered_stocks = {}
         for ticker in tickers:
-            reordered_stocks[ticker] = stocks[ticker]
+            if ticker in stocks:
+                reordered_stocks[ticker] = stocks[ticker]
+            else:
+                logger.debug(f"Skipping ticker not in stocks.json: {ticker}")
+        
+        # stocks.json에는 있지만 요청에 빠진 종목은 맨 뒤에 추가
+        for ticker in stocks:
+            if ticker not in reordered_stocks:
+                reordered_stocks[ticker] = stocks[ticker]
+                logger.debug(f"Appending missing ticker to end: {ticker}")
         
         # 저장
         stocks_manager.save_stocks(reordered_stocks)
