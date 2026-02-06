@@ -159,6 +159,19 @@ export default function ETFDetail() {
     { data: newsData, isLoading: newsLoading, error: newsError },
   ] = queries
 
+  // 장중 여부 판단 (09:00~15:30, 평일) - 분봉 자동 갱신 주기에 사용
+  const isMarketHours = useMemo(() => {
+    const now = new Date()
+    const day = now.getDay()
+    const hours = now.getHours()
+    const minutes = now.getMinutes()
+    const timeInMinutes = hours * 60 + minutes
+    return day >= 1 && day <= 5 && timeInMinutes >= 540 && timeInMinutes <= 930 // 09:00~15:30
+  }, [])
+
+  // 분봉 강제 새로고침 플래그 (useQuery queryFn 내부에서 참조)
+  const forceRefreshRef = useRef(false)
+
   // 분봉: 상세 페이지가 보인 뒤에만 요청 (초기 로딩 지연 방지)
   const {
     data: intradayData,
@@ -169,17 +182,31 @@ export default function ETFDetail() {
   } = useQuery({
     queryKey: ['intraday', ticker],
     queryFn: async () => {
-      const response = await etfApi.getIntraday(ticker, { autoCollect: true })
+      const isForce = forceRefreshRef.current
+      forceRefreshRef.current = false
+      const response = await etfApi.getIntraday(ticker, {
+        autoCollect: true,
+        forceRefresh: isForce,
+      })
       return response.data
     },
     enabled: !!ticker && !!etf,
-    staleTime: CACHE_STALE_TIME_FAST,
-    refetchInterval: (query) =>
-      query.state.data?.background_collect_started ? 3000 : 30000,
+    staleTime: isMarketHours ? 10 * 1000 : CACHE_STALE_TIME_FAST, // 장중: 10초, 장외: 30초
+    refetchInterval: (query) => {
+      if (query.state.data?.background_collect_started) return 3000   // 수집 중: 3초 (장중/장외 무관)
+      if (isMarketHours) return 20 * 1000                             // 장중: 20초
+      return false                                                     // 장외: 자동 갱신 끔
+    },
     refetchOnMount: true,
     retry: 1,
     retryDelay: 1000,
   })
+
+  // 분봉 새로고침 버튼 핸들러 (캐시 무시 + 재수집 트리거)
+  const handleIntradayRefresh = useCallback(() => {
+    forceRefreshRef.current = true
+    refetchIntraday()
+  }, [refetchIntraday])
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (newRange) => {
@@ -503,10 +530,10 @@ export default function ETFDetail() {
               </span>
             )}
             <button
-              onClick={() => refetchIntraday()}
+              onClick={handleIntradayRefresh}
               className="btn btn-outline btn-sm"
               disabled={intradayFetching}
-              title="분봉 데이터 새로고침"
+              title="분봉 데이터 새로고침 (재수집)"
             >
               <svg className={`w-4 h-4 ${intradayFetching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

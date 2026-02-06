@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, time as dtime
 from app.models import (
     ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics,
     ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse,
@@ -904,7 +904,8 @@ async def get_batch_summary(
 async def get_intraday_prices(
     etf: ETF = Depends(get_etf_or_404),
     target_date: Optional[date] = Query(default=None, description="조회할 날짜 (기본: 오늘)"),
-    auto_collect: bool = Query(default=True, description="데이터 없을 시 자동 수집 여부")
+    auto_collect: bool = Query(default=True, description="데이터 없을 시 자동 수집 여부"),
+    force_refresh: bool = Query(default=False, description="캐시 무시 및 재수집 트리거")
 ):
     """
     분봉(시간별 체결) 데이터 조회
@@ -918,11 +919,13 @@ async def get_intraday_prices(
     **Query Parameters:**
     - target_date: 조회할 날짜 (선택, 기본값: 오늘)
     - auto_collect: 데이터가 없을 때 자동 수집 여부 (기본: true)
+    - force_refresh: 캐시를 무시하고 재수집을 트리거 (기본: false)
 
     **Example Request:**
     ```
     GET /api/etfs/487240/intraday
     GET /api/etfs/487240/intraday?target_date=2025-01-24
+    GET /api/etfs/487240/intraday?force_refresh=true
     ```
 
     **Example Response:**
@@ -965,12 +968,16 @@ async def get_intraday_prices(
         # 실제 조회할 날짜 결정
         actual_date = target_date or date.today()
 
-        # 캐시 확인 (실제 날짜 기준)
+        # 캐시 확인 (실제 날짜 기준, force_refresh 시 캐시 무시)
         cache_key = make_cache_key("intraday", ticker=etf.ticker, date=actual_date)
-        cached_result = cache.get(cache_key)
-        if cached_result is not None:
-            logger.debug(f"Cache hit for {cache_key}")
-            return cached_result
+        if force_refresh:
+            cache.invalidate_pattern(f"intraday:{etf.ticker}")
+            logger.info(f"Force refresh: cache invalidated for intraday:{etf.ticker}")
+        else:
+            cached_result = cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"Cache hit for {cache_key}")
+                return cached_result
 
         # DB에서 데이터 조회
         intraday_data = intraday_collector.get_intraday_data(etf.ticker, actual_date)
@@ -983,36 +990,75 @@ async def get_intraday_prices(
                 actual_date = last_trading_date
                 intraday_data = intraday_collector.get_intraday_data(etf.ticker, last_trading_date)
 
-        # 데이터가 없고 자동 수집이 켜져 있으면 백그라운드에서 수집 시작 (상세 페이지는 즉시 응답)
-        if not intraday_data and auto_collect:
+        # 장중 여부 판단 (09:00 ~ 15:30 KST, 평일)
+        now = datetime.now()
+        is_market_hours = (
+            now.weekday() < 5  # 월~금
+            and dtime(9, 0) <= now.time() <= dtime(15, 30)
+            and actual_date == date.today()
+        )
+
+        # force_refresh 또는 장중에 마지막 체결 시간이 3분 이상 지났으면 재수집
+        need_recollect = force_refresh  # force_refresh 시 무조건 재수집
+        if intraday_data and is_market_hours and auto_collect and not need_recollect:
+            last_dt_str = intraday_data[-1].get('datetime')
+            if last_dt_str:
+                try:
+                    if isinstance(last_dt_str, str):
+                        last_dt = datetime.fromisoformat(last_dt_str.replace(' ', 'T'))
+                    else:
+                        last_dt = last_dt_str
+                    elapsed = (now - last_dt).total_seconds()
+                    if elapsed > 180:  # 3분
+                        need_recollect = True
+                        logger.info(f"Intraday data for {etf.ticker} is {int(elapsed)}s old, triggering re-collection")
+                except Exception as e:
+                    logger.warning(f"Could not parse last intraday datetime: {e}")
+
+        # 데이터가 없거나, 재수집이 필요할 때 백그라운드 수집 시작
+        bg_collect_triggered = False
+        if (not intraday_data or need_recollect) and auto_collect:
             if etf.ticker not in _intraday_collecting:
                 _intraday_collecting.add(etf.ticker)
-                logger.info(f"No intraday data for {etf.ticker}, starting background collection")
+                bg_collect_triggered = True
+                # 기존 데이터가 있으면 증분 수집 (빠름), 없으면 전체 수집
+                use_incremental = bool(intraday_data)
+                log_msg = f"incremental re-collect" if use_incremental else "full collect (no data)"
+                logger.info(f"Intraday {log_msg} for {etf.ticker}, starting background collection")
 
-                def _run_intraday_collect(ticker: str) -> None:
+                def _run_intraday_collect(ticker: str, incremental: bool) -> None:
                     try:
                         from app.services.intraday_collector import IntradayDataCollector
                         collector = IntradayDataCollector()
-                        collector.collect_and_save_intraday(ticker, pages=40)
+                        if incremental:
+                            collector.incremental_collect_and_save(ticker)
+                        else:
+                            collector.collect_and_save_intraday(ticker, pages=40)
                     finally:
                         cache_obj = get_cache()
                         cache_obj.invalidate_pattern(f"intraday:{ticker}")
                         _intraday_collecting.discard(ticker)
 
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(None, _run_intraday_collect, etf.ticker)
+                loop.run_in_executor(None, _run_intraday_collect, etf.ticker, use_incremental)
+            else:
+                # 이미 수집 중이면 그 사실을 알림
+                bg_collect_triggered = True
 
-            response = {
-                "ticker": etf.ticker,
-                "date": actual_date.isoformat(),
-                "data": [],
-                "count": 0,
-                "first_time": None,
-                "last_time": None,
-                "background_collect_started": True,
-                "message": "분봉 데이터 수집 중입니다. 잠시 후 새로고침하거나 자동으로 갱신됩니다.",
-            }
-            return response
+            # 데이터가 아예 없으면 수집 중 응답 반환
+            if not intraday_data:
+                response = {
+                    "ticker": etf.ticker,
+                    "date": actual_date.isoformat(),
+                    "data": [],
+                    "count": 0,
+                    "first_time": None,
+                    "last_time": None,
+                    "background_collect_started": True,
+                    "message": "분봉 데이터 수집 중입니다. 잠시 후 자동으로 갱신됩니다.",
+                }
+                return response
+            # 기존 데이터가 있으면 아래에서 데이터와 함께 background_collect_started 플래그 포함
 
         if not intraday_data:
             response = {
@@ -1055,7 +1101,14 @@ async def get_intraday_prices(
             "last_time": last_time
         }
 
-        cache.set(cache_key, response, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱
+        # 백그라운드 수집이 진행 중이면 플래그 추가 (프론트엔드가 3초 간격 polling)
+        if bg_collect_triggered:
+            response["background_collect_started"] = True
+            # 수집 중에는 캐시하지 않음 (다음 요청에서 새 데이터 반영)
+        else:
+            # 장중에는 캐시 TTL을 짧게(15초), 장 외에는 기본값(30초) 사용
+            intraday_cache_ttl = 15 if is_market_hours else CACHE_TTL_FAST_CHANGING
+            cache.set(cache_key, response, ttl_seconds=intraday_cache_ttl)
         return response
 
     except Exception as e:
