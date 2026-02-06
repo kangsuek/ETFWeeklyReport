@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { etfApi, dataApi, settingsApi } from '../services/api'
 import ETFCardSkeleton from '../components/common/ETFCardSkeleton'
 import PageHeader from '../components/common/PageHeader'
@@ -63,7 +63,7 @@ export default function Dashboard() {
   }, [queryClient, isRefreshing, toast])
 
   // 전체 종목 목록 조회
-  const { data: etfs, isLoading: etfsLoading, error, refetch, dataUpdatedAt } = useQuery({
+  const { data: etfs, isLoading: etfsLoading, error, refetch } = useQuery({
     queryKey: ['etfs'],
     queryFn: async () => {
       const response = await etfApi.getAll()

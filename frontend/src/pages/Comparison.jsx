@@ -193,8 +193,6 @@ export default function Comparison() {
                 tickerInfo={tickerInfoMap}
               />
 
-              {/* 상관관계 행렬 (선택) - 나중에 추가 가능 */}
-              {/* <CorrelationMatrix data={comparisonData.correlation_matrix} /> */}
             </>
           )}
         </div>
