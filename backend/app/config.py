@@ -78,7 +78,7 @@ class Config:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            logger.info(f"Loaded {len(config)} stocks from {config_path}")
+            logger.debug(f"Loaded {len(config)} stocks from {config_path}")
             cls._stock_config_cache = config
             return config
             

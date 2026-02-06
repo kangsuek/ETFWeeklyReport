@@ -24,7 +24,7 @@ class NewsScraper:
         
         # Load stock configuration from Config
         self.stock_config = Config.get_stock_config()
-        logger.info(f"Loaded {len(self.stock_config)} stocks from configuration")
+        logger.debug(f"Loaded {len(self.stock_config)} stocks from configuration")
 
         if not self.client_id or not self.client_secret:
             logger.warning("Naver API credentials not found in environment variables")
@@ -231,7 +231,7 @@ class NewsScraper:
         Returns:
             뉴스 데이터 리스트
         """
-        logger.info(f"Fetching news for keyword: {keyword} (last {days} days)")
+        logger.debug(f"Fetching news for keyword: {keyword} (last {days} days)")
 
         try:
             # API 호출
@@ -267,7 +267,7 @@ class NewsScraper:
                     'relevance_score': item['relevance_score']
                 })
 
-            logger.info(f"Collected {len(news_data)} news items for keyword: {keyword}")
+            logger.debug(f"Collected {len(news_data)} news items for keyword: {keyword}")
             return news_data
 
         except Exception as e:
@@ -352,7 +352,7 @@ class NewsScraper:
                 ]
 
                 if not new_news:
-                    logger.info(f"No new news records to save for {ticker} (all duplicates)")
+                    logger.debug(f"No new news records to save for {ticker} (all duplicates)")
                     return 0
 
                 # 벌크 insert 수행
@@ -409,7 +409,7 @@ class NewsScraper:
         Returns:
             수집 결과 딕셔너리
         """
-        logger.info(f"Starting news collection for {ticker} (last {days} days)")
+        logger.debug(f"Starting news collection for {ticker} (last {days} days)")
 
         # 최신 설정을 매번 읽어옴 (캐시 무효화)
         Config._stock_config_cache = None
@@ -454,7 +454,7 @@ class NewsScraper:
         Returns:
             뉴스 리스트
         """
-        logger.info(f"Fetching news for {ticker} from {start_date} to {end_date}")
+        logger.debug(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
         # PostgreSQL과 SQLite의 플레이스홀더 차이
         param_placeholder = "%s" if USE_POSTGRES else "?"
@@ -480,5 +480,5 @@ class NewsScraper:
                     relevance_score=row['relevance_score']
                 ))
 
-        logger.info(f"Retrieved {len(news_list)} news articles for {ticker}")
+        logger.debug(f"Retrieved {len(news_list)} news articles for {ticker}")
         return news_list

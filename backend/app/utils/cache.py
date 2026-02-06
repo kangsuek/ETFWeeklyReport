@@ -145,7 +145,7 @@ class MemoryCache:
         with self._lock:
             count = len(self._cache)
             self._cache.clear()
-            logger.info(f"Cache cleared: {count} items removed")
+            logger.debug(f"Cache cleared: {count} items removed")
 
     def invalidate_pattern(self, pattern: str):
         """

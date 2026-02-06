@@ -52,7 +52,7 @@ class ETFDataCollector:
         max_pages = (days // 10) + 2  # 한 페이지당 10개씩, 여유있게 +2
 
         try:
-            logger.info(f"Fetching up to {days} days of data from Naver Finance for {ticker}")
+            logger.debug(f"Fetching up to {days} days of data from Naver Finance for {ticker}")
 
             while len(price_data) < days and page <= max_pages:
                 url = f"https://finance.naver.com/item/sise_day.naver?code={ticker}&page={page}"
@@ -124,7 +124,7 @@ class ETFDataCollector:
 
                 page += 1
 
-            logger.info(f"Collected {len(price_data)} price records for {ticker} from {page-1} pages")
+            logger.debug(f"Collected {len(price_data)} price records for {ticker} from {page-1} pages")
             return price_data
 
         except requests.exceptions.RequestException as e:
@@ -363,7 +363,7 @@ class ETFDataCollector:
 
                 conn.commit()
                 saved_count = len(valid_data)
-                logger.info(f"Saved {saved_count} price records to database (bulk insert)")
+                logger.debug(f"Saved {saved_count} price records to database (bulk insert)")
 
             except Exception as e:
                 conn.rollback()
@@ -383,7 +383,7 @@ class ETFDataCollector:
         Returns:
             저장된 레코드 수
         """
-        logger.info(f"Starting price collection for {ticker} (last {days} days)")
+        logger.debug(f"Starting price collection for {ticker} (last {days} days)")
         
         # 데이터 수집
         price_data = self.fetch_naver_finance_prices(ticker, days)
@@ -1008,7 +1008,7 @@ class ETFDataCollector:
             # 최대 days일이지만, 주말이 포함되면 더 적을 수 있음
             target_count = days  # 여전히 days를 목표로 하되, 날짜 범위를 벗어나면 종료
 
-        logger.info(f"Fetching trading flow from Naver Finance for {ticker} (target: {target_count} days, max pages: {max_pages}, date range: {start_date} to {end_date})")
+        logger.debug(f"Fetching trading flow from Naver Finance for {ticker} (target: {target_count} days, max pages: {max_pages}, date range: {start_date} to {end_date})")
 
         should_stop = False  # 전체 루프 종료 플래그
 
@@ -1016,7 +1016,7 @@ class ETFDataCollector:
             try:
                 # Naver Finance 투자자별 매매동향 페이지 (페이지 파라미터 포함)
                 url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
-                logger.info(f"Fetching trading flow page {page} for {ticker}")
+                logger.debug(f"Fetching trading flow page {page} for {ticker}")
 
                 with self.rate_limiter:
                     response = requests.get(url, headers=self.headers, timeout=10)
@@ -1099,7 +1099,7 @@ class ETFDataCollector:
                         logger.warning(f"Failed to parse trading flow row for {ticker} on page {page}: {e}")
                         continue
 
-                logger.info(f"Collected {page_data_count} trading flow records from page {page} for {ticker} (total: {len(trading_data)})")
+                logger.debug(f"Collected {page_data_count} trading flow records from page {page} for {ticker} (total: {len(trading_data)})")
 
                 # 현재 페이지에서 데이터가 없으면 더 이상 페이지가 없는 것으로 간주
                 if page_data_count == 0:
@@ -1118,7 +1118,7 @@ class ETFDataCollector:
                 logger.error(f"Unexpected error fetching trading flow page {page} for {ticker}: {e}")
                 break
 
-        logger.info(f"Collected total {len(trading_data)} trading flow records for {ticker} from {page-1} pages")
+        logger.debug(f"Collected total {len(trading_data)} trading flow records for {ticker} from {page-1} pages")
         return trading_data
     
     def _parse_trading_volume(self, text: str) -> Optional[int]:
@@ -1255,7 +1255,7 @@ class ETFDataCollector:
 
                 conn.commit()
                 saved_count = len(valid_data)
-                logger.info(f"Saved {saved_count} trading flow records (bulk insert)")
+                logger.debug(f"Saved {saved_count} trading flow records (bulk insert)")
 
             except Exception as e:
                 logger.error(f"Database error saving trading flow: {e}")
@@ -1277,8 +1277,8 @@ class ETFDataCollector:
         Returns:
             저장된 레코드 수
         """
-        logger.info(f"Starting trading flow collection for {ticker} (last {days} days, date range: {start_date} to {end_date})")
-        
+        logger.debug(f"Starting trading flow collection for {ticker} (last {days} days, date range: {start_date} to {end_date})")
+
         # 데이터 수집
         trading_data = self.fetch_naver_trading_flow(ticker, days, start_date, end_date)
         
@@ -1353,7 +1353,7 @@ class ETFDataCollector:
         if not tickers:
             return {}
 
-        logger.info(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
+        logger.debug(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
         p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
@@ -1389,7 +1389,7 @@ class ETFDataCollector:
                 for ticker in result:
                     result[ticker] = result[ticker][:limit]
 
-            logger.info(f"Batch fetched {sum(len(v) for v in result.values())} total price records")
+            logger.debug(f"Batch fetched {sum(len(v) for v in result.values())} total price records")
             return result
 
     def get_trading_flow_batch(
@@ -1414,7 +1414,7 @@ class ETFDataCollector:
         if not tickers:
             return {}
 
-        logger.info(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
+        logger.debug(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
         p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
@@ -1449,7 +1449,7 @@ class ETFDataCollector:
                 for ticker in result:
                     result[ticker] = result[ticker][:limit]
 
-            logger.info(f"Batch fetched {sum(len(v) for v in result.values())} total trading flow records")
+            logger.debug(f"Batch fetched {sum(len(v) for v in result.values())} total trading flow records")
             return result
 
     def get_latest_prices_batch(
@@ -1500,7 +1500,7 @@ class ETFDataCollector:
                 ticker = row_dict.pop('ticker')
                 result[ticker] = PriceData(**row_dict)
 
-            logger.info(f"Batch fetched latest prices for {len([v for v in result.values() if v])} tickers")
+            logger.debug(f"Batch fetched latest prices for {len([v for v in result.values() if v])} tickers")
             return result
 
     def calculate_missing_days(self, ticker: str, requested_days: int) -> int:

@@ -95,7 +95,7 @@ async def get_news(
             cache.set(cache_key, [], ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (빈 결과도 캐싱)
             return NewsListResponse(news=[], analysis=None)
 
-        logger.info(f"Retrieved {len(news_list)} news articles for {etf.ticker}")
+        logger.debug(f"Retrieved {len(news_list)} news articles for {etf.ticker}")
 
         # 뉴스 분석 수행
         if analyze:
@@ -178,7 +178,7 @@ async def collect_news(
         수집 결과 및 저장된 레코드 수
     """
     try:
-        logger.info(f"Starting news collection for {etf.ticker}, days={days}")
+        logger.debug(f"Starting news collection for {etf.ticker}, days={days}")
         result = scraper.collect_and_save_news(etf.ticker, days)
 
         # 수집 후 해당 티커의 뉴스 캐시 무효화

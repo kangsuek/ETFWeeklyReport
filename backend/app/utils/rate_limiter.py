@@ -47,7 +47,7 @@ class RateLimiter:
         self._total_requests = 0
         self._total_wait_time = 0.0
         
-        logger.info(
+        logger.debug(
             f"RateLimiter 초기화: min_interval={min_interval}초, "
             f"max_concurrent={max_concurrent}"
         )

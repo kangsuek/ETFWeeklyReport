@@ -10,8 +10,6 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.structured_logging import (
     setup_structured_logging,
     get_logger,
-    log_request,
-    log_response,
     log_error,
 )
 from pathlib import Path
@@ -57,9 +55,9 @@ app.add_middleware(
     max_age=3600,
 )
 
-# 요청 로깅 미들웨어 (구조화된 로깅 사용)
+# HTTP 미들웨어 (요청/응답 매 요청 로깅은 제거, 에러 시에만 로깅)
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def http_middleware(request: Request, call_next):
     start_time = time.time()
     client_host = request.client.host if request.client else "unknown"
 
@@ -69,34 +67,12 @@ async def log_requests(request: Request, call_next):
         cache = get_cache()
         cache.clear()
         logger.info("Cache cleared via X-No-Cache header")
-    
-    # 요청 로깅
-    log_request(
-        logger,
-        method=request.method,
-        path=str(request.url.path),
-        client_host=client_host,
-        query_params=str(request.url.query) if request.url.query else None,
-    )
-    
+
     try:
         response = await call_next(request)
-        process_time = time.time() - start_time
-        
-        # 응답 로깅
-        log_response(
-            logger,
-            method=request.method,
-            path=str(request.url.path),
-            status_code=response.status_code,
-            duration_ms=process_time,
-        )
-        
         return response
     except Exception as e:
         process_time = time.time() - start_time
-        
-        # 에러 로깅
         log_error(
             logger,
             error=e,
@@ -128,15 +104,12 @@ async def startup_event():
     logger.info(message="starting_scheduler", phase="app_startup")
     scheduler = get_scheduler()
     scheduler.start()
-    logger.info(message="scheduler_started", phase="app_startup", status="success")
 
 # Graceful shutdown on application shutdown
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info(message="stopping_scheduler", phase="app_shutdown")
     scheduler = get_scheduler()
     scheduler.stop()
-    logger.info(message="scheduler_stopped", phase="app_shutdown", status="success")
 
 # Include routers
 app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])

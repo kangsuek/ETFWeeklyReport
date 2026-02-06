@@ -566,7 +566,7 @@ async def collect_trading_flow(
         수집 결과 및 저장된 레코드 수
     """
     try:
-        logger.info(f"Starting trading flow collection for {etf.ticker}, days={days}")
+        logger.debug(f"Starting trading flow collection for {etf.ticker}, days={days}")
         saved_count = collector.collect_and_save_trading_flow(etf.ticker, days)
 
         # 수집 후 해당 티커의 캐시 무효화
@@ -819,24 +819,24 @@ async def get_batch_summary(
         return cached_result
 
     try:
-        logger.info(f"Fetching batch summary for {len(request.tickers)} tickers")
+        logger.debug(f"Fetching batch summary for {len(request.tickers)} tickers")
 
         result_data = {}
 
         # 날짜 계산
         end_date = date.today()
         start_date = end_date - timedelta(days=request.price_days)
-        logger.info(f"Date range: {start_date} to {end_date}")
+        logger.debug(f"Date range: {start_date} to {end_date}")
 
         # 배치 쿼리로 모든 종목의 데이터를 한 번에 조회 (IN 절 활용)
         try:
             # 1. 가격 데이터 배치 조회
             prices_batch = collector.get_price_data_batch(request.tickers, start_date, end_date)
-            logger.info(f"Batch fetched prices for {len(prices_batch)} tickers")
+            logger.debug(f"Batch fetched prices for {len(prices_batch)} tickers")
 
             # 2. 매매동향 배치 조회
             trading_flow_batch = collector.get_trading_flow_batch(request.tickers, start_date, end_date)
-            logger.info(f"Batch fetched trading flow for {len(trading_flow_batch)} tickers")
+            logger.debug(f"Batch fetched trading flow for {len(trading_flow_batch)} tickers")
 
             # 3. 뉴스는 ticker별로 조회 (뉴스는 IN 절 최적화 필요 없음 - 데이터 적음)
             from app.services.news_scraper import NewsScraper
@@ -892,7 +892,7 @@ async def get_batch_summary(
         response = BatchSummaryResponse(data=result_data)
         cache.set(cache_key, response, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (배치 요약)
 
-        logger.info(f"Successfully fetched batch summary for {len(result_data)} tickers")
+        logger.debug(f"Successfully fetched batch summary for {len(result_data)} tickers")
         return response
 
     except Exception as e:

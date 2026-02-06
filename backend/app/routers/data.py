@@ -111,13 +111,13 @@ async def collect_all_data(
             scheduler = get_scheduler()
             KST = pytz.timezone('Asia/Seoul')
             scheduler.last_collection_time = datetime.now(KST)
-            logger.info(f"스케줄러 마지막 수집 시간 업데이트: {scheduler.last_collection_time}")
+            logger.debug(f"스케줄러 마지막 수집 시간 업데이트: {scheduler.last_collection_time}")
         except Exception as e:
             logger.warning(f"스케줄러 마지막 수집 시간 업데이트 실패 (무시): {e}")
 
         # 수집 후 모든 캐시 무효화 (전체 데이터 갱신)
         cache.clear()
-        logger.info("Cache cleared after data collection")
+        logger.debug("Cache cleared after data collection")
 
         return {
             "message": f"Data collection completed for {result['total_tickers']} tickers",
@@ -158,7 +158,7 @@ async def backfill_data(
 
         # 백필 후 모든 캐시 무효화 (히스토리 데이터 갱신)
         cache.clear()
-        logger.info("Cache cleared after backfill")
+        logger.debug("Cache cleared after backfill")
 
         return {
             "message": f"Backfill completed for {result['total_tickers']} tickers ({days} days)",
@@ -571,7 +571,7 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
 
             # 데이터베이스 초기화 후 모든 캐시 무효화
             cache.clear()
-            logger.info("Cache cleared after database reset")
+            logger.debug("Cache cleared after database reset")
 
             return {
                 "message": "Database reset successfully",

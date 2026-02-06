@@ -107,7 +107,7 @@ fi
 # ========================================
 echo ""
 echo "🔧 [3/5] 백엔드 서버 시작 중 (포트 8000)..."
-$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+$PYTHON_CMD -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "   ✅ 백엔드 서버 시작 (PID: $BACKEND_PID)"
 echo "   📝 로그: $PROJECT_ROOT/logs/backend.log"
