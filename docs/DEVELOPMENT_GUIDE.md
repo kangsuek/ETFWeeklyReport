@@ -10,29 +10,10 @@
 ### JavaScript/React (프론트엔드)
 - **ESLint** 규칙 준수, 2 spaces 들여쓰기
 - 함수형 컴포넌트 + Hooks
-- Props 문서화 (JSDoc)
+- Props 문서화 (PropTypes 필수, JSDoc 권장)
 
 ## 프로젝트 구조
-
-### 백엔드
-```
-backend/app/
-├── routers/      # API 엔드포인트
-├── services/      # 비즈니스 로직
-├── models.py     # Pydantic 모델
-├── database.py   # DB 연결
-└── main.py       # FastAPI 앱
-```
-
-### 프론트엔드
-```
-frontend/src/
-├── pages/        # 라우트 컴포넌트
-├── components/   # 재사용 컴포넌트
-├── hooks/        # Custom Hooks
-├── services/     # API 클라이언트
-└── utils/        # 유틸리티 함수
-```
+상세 구조는 [ARCHITECTURE.md](./ARCHITECTURE.md), [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) 참고.
 
 ## 네이밍 규칙
 
@@ -60,7 +41,7 @@ type(scope): subject
 ## 테스트 전략
 - **커버리지 목표**: 백엔드 80%, 프론트엔드 70%, Critical Path 100%
 - **패턴**: Given-When-Then 구조
-- **⚠️ 중요**: 모든 기능은 테스트 100% 완료 후 다음 단계로 진행
+- **테스트 정책**: AGENTS.md 및 프로젝트 완료 기준 문서 참고
 
 ## 성능 최적화
 
@@ -72,9 +53,5 @@ type(scope): subject
 - React.memo: 불필요한 리렌더링 방지
 - Code Splitting: `React.lazy()` 사용
 
-## 보안 체크리스트
-- [ ] `.env` 파일을 `.gitignore`에 추가
-- [ ] CORS 설정: 허용된 origin만 명시
-- [ ] SQL Injection 방지: 파라미터화된 쿼리
-- [ ] XSS 방지: 사용자 입력 sanitize
-- [ ] HTTPS 사용 (프로덕션)
+## 보안
+상세 항목은 [SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md) 참고.

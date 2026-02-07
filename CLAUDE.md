@@ -12,16 +12,18 @@
 
 ### 기술 문서
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - 시스템 아키텍처
+- **[PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** - 프로젝트 파일 구조 (표준 정합성)
 - **[API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)** - REST API 명세
 - **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - DB 스키마
 - **[TECH_STACK.md](./docs/TECH_STACK.md)** - 기술 스택
+- **[INTRADAY.md](./docs/INTRADAY.md)** - 분봉 차트 조회·수집
 
 ### 개발 가이드
-- **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드
-- **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정 및 실행 가이드
+- **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드 (코드 품질, 네이밍, Git, 테스트)
+- **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정, 실행, Pre-commit
 
-### 최적화 & 보안
-- **[DATA_COLLECTION_OPTIMIZATION.md](./docs/DATA_COLLECTION_OPTIMIZATION.md)** - 데이터 수집 최적화 가이드 ⭐ 최신
+### 배포 & 보안
+- **[RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md)** - Render.com 배포 (환경 변수 포함)
 - **[SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md)** - 보안 체크리스트
 
 ### 프로젝트 관리

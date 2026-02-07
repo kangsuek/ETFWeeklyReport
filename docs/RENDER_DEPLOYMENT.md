@@ -33,10 +33,11 @@ git push origin main
 배포 후 Render 대시보드에서 각 서비스의 환경 변수를 설정하세요:
 
 **Backend 서비스 (`etf-report-backend`):**
+- `API_KEY`: 관리용 API 키 (수집·설정·DB 초기화 등, 프로덕션 권장)
 - `CORS_ORIGINS`: 프론트엔드 URL (예: `https://etf-report-frontend.onrender.com`)
-- `NAVER_CLIENT_ID`: Naver API Client ID (선택사항)
-- `NAVER_CLIENT_SECRET`: Naver API Client Secret (선택사항)
-- `SCRAPING_INTERVAL_MINUTES`: `60` (기본값)
+- `NAVER_CLIENT_ID`: Naver API Client ID (뉴스 수집 시 선택)
+- `NAVER_CLIENT_SECRET`: Naver API Client Secret (뉴스 수집 시 선택)
+- `SCRAPING_INTERVAL_MINUTES`: `60` (무료 플랜 권장)
 - `CACHE_TTL_MINUTES`: `5` (기본값)
 
 **Frontend 서비스 (`etf-report-frontend`):**
@@ -44,6 +45,21 @@ git push origin main
 
 **데이터베이스:**
 - `DATABASE_URL`은 자동으로 설정됩니다 (수동 설정 불필요)
+
+#### 환경 변수 상세 (참고)
+
+| 서비스 | 변수 | 설명 | 비고 |
+|--------|------|------|------|
+| Backend | `DATABASE_URL` | PostgreSQL 연결 문자열 | render.yaml에서 자동 연결 |
+| Backend | `API_KEY` | 관리용 API 키 (수집·설정·DB 초기화) | 프로덕션 권장 |
+| Backend | `CORS_ORIGINS` | 프론트엔드 도메인 | 프론트 배포 후 설정 |
+| Backend | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 수집 | 선택 |
+| Backend | `SCRAPING_INTERVAL_MINUTES` | 수집 간격(분) | 무료 플랜 권장 60 |
+| Backend | `CACHE_TTL_MINUTES` | 캐시(분) | 기본 5 |
+| Backend | `DB_POOL_SIZE` | DB 연결 풀 | 무료 플랜 권장 5 |
+| Frontend | `VITE_API_BASE_URL` | 백엔드 API URL (예: `https://xxx.onrender.com/api`) | 필수 |
+
+`PYTHON_VERSION`, `API_HOST`, `API_PORT`는 render.yaml에서 자동 설정됩니다. URL 끝에 슬래시(`/`)를 붙이지 마세요.
 
 ### 방법 2: 수동 배포
 
@@ -74,6 +90,7 @@ git push origin main
    - **Plan**: `Free`
 4. "Advanced" → "Add Environment Variable":
    - `DATABASE_URL`: 1단계에서 복사한 Internal Database URL
+   - `API_KEY`: 관리용 API 키 (프로덕션 권장)
    - `CORS_ORIGINS`: `https://etf-report-frontend.onrender.com` (나중에 프론트엔드 URL로 변경)
    - `NAVER_CLIENT_ID`: (선택사항)
    - `NAVER_CLIENT_SECRET`: (선택사항)

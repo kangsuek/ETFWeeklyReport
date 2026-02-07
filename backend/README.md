@@ -27,22 +27,15 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-### 3. 환경 변수 설정
 
-```bash
-# .env.example을 .env로 복사 (이미 .env 파일이 있다면 건너뛰기)
-cp .env.example .env
 
-# .env 파일을 편집하여 필요한 설정 변경
-```
-
-### 4. 데이터베이스 초기화
+### 3. 데이터베이스 초기화
 
 ```bash
 python -m app.database
 ```
 
-### 5. 서버 실행
+### 4. 서버 실행
 
 ```bash
 # 개발 모드 (hot reload)
@@ -140,9 +133,8 @@ backend/
 ├── requirements-dev.txt     # 개발 의존성
 ├── pytest.ini              # Pytest 설정
 ├── pyproject.toml          # 프로젝트 메타데이터 및 도구 설정
-├── .flake8                 # Flake8 설정
-├── .env.example            # 환경변수 예시
-└── .env                    # 실제 환경변수 (git 제외)
+└── .flake8                 # Flake8 설정
+
 ```
 
 ## 🛠️ 개발 워크플로우
@@ -208,13 +200,13 @@ backend/
 
 ## 🔐 환경 변수
 
-`.env` 파일에 다음 변수들을 설정하세요:
+**프로젝트 루트**의 `.env` 파일에 다음 변수들을 설정하세요. (`backend/.env`는 사용하지 않음)
 
 - `API_HOST`: API 서버 호스트 (기본: 0.0.0.0)
 - `API_PORT`: API 서버 포트 (기본: 8000)
-- `DATABASE_URL`: 데이터베이스 URL
+- `DATABASE_URL`: 데이터베이스 URL (예: `sqlite:///backend/data/etf_data.db`)
 - `CACHE_TTL_MINUTES`: 캐시 TTL (분)
-- `NEWS_MAX_RESULTS`: 뉴스 최대 결과 수
+- `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`: 뉴스 수집용 (선택)
 
 ## 📖 API 문서
 

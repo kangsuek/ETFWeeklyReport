@@ -33,12 +33,13 @@
 - `.gitignore`에 `.env` 추가됨 ✅
 
 #### 권장 사항:
+- 환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용. `backend/.env`, `frontend/.env`는 사용하지 않음.
 ```bash
 # .env 파일이 커밋되지 않았는지 확인
 git ls-files | grep -E '\.env$'  # 아무것도 나오지 않아야 함
 
-# .env.example은 커밋해야 함
-git add backend/.env.example frontend/.env.example
+# .env.example은 루트에 있으며 커밋됨
+git add .env.example
 ```
 
 ---
@@ -73,28 +74,15 @@ if not valid_api_key:
 
 ### 3. CORS 설정 강화 ⚠️ **낮음**
 
-#### 현재 코드 (backend/app/main.py:34-40):
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=Config.CORS_ORIGINS,
-    allow_credentials=True,  # ⚠️ 너무 관대함
-    allow_methods=["*"],     # ⚠️ 모든 메서드 허용
-    allow_headers=["*"],     # ⚠️ 모든 헤더 허용
-)
-```
+#### 현재 코드 (backend/app/main.py):
+- `allow_origins`: Config.CORS_ORIGINS
+- `allow_credentials`: True
+- `allow_methods`: `["GET", "POST", "PUT", "DELETE", "OPTIONS"]` (명시적)
+- `allow_headers`: `["Content-Type", "X-API-Key", "Authorization", "X-No-Cache"]` (명시적)
 
-#### 권장 사항:
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=Config.CORS_ORIGINS,
-    allow_credentials=False,  # 쿠키 불필요하면 False
-    allow_methods=["GET", "POST", "PUT", "DELETE"],  # 명시적 메서드만
-    allow_headers=["Content-Type", "Authorization"],  # 필요한 헤더만
-    max_age=600,  # preflight 캐시 시간 (초)
-)
-```
+#### 권장 사항 (선택):
+- 쿠키를 사용하지 않는다면 `allow_credentials=False`로 변경 검토
+- `max_age=600` 추가 시 preflight 캐시로 요청 감소
 
 ---
 

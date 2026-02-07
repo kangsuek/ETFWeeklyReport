@@ -1,10 +1,14 @@
 name: CI/CD Pipeline
 
+# 푸시/PR 시 자동 실행 비활성화. 수동 실행만 가능.
+# 자동 실행을 다시 켜려면 아래 on: 을 원래대로 되돌리고 이 블록을 제거하세요.
+#   on:
+#     push:
+#       branches: [main, develop]
+#     pull_request:
+#       branches: [main, develop]
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+  workflow_dispatch: {}
 
 jobs:
   backend-test:
