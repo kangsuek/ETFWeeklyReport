@@ -52,6 +52,7 @@
 
 | 구분 | 도구 | 용도 |
 |------|------|------|
+| **로컬 Python 환경** | uv | 패키지·가상환경 관리 (필수). `uv venv`, `uv pip install`, `uv run` |
 | **백엔드 테스트** | pytest, pytest-asyncio, pytest-cov, pytest-mock, httpx | 단위·API 테스트, 커버리지 (requirements-dev.txt) |
 | **백엔드 포맷** | black, isort | 코드 포맷팅 (line-length 100) |
 | **백엔드 린트** | flake8, pylint | 스타일·정적 분석 |

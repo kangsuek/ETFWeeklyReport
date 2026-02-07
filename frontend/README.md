@@ -2,52 +2,18 @@
 
 React + Vite 기반 프론트엔드 애플리케이션
 
-## 기술 스택
-
-- **프레임워크**: React 18.2.0, Vite 5.0.0
-- **라우팅**: React Router DOM 6.20.0
-- **상태·캐시**: TanStack React Query 5.8.4
-- **HTTP**: Axios 1.6.2
-- **스타일**: Tailwind CSS 3.3.5
-- **차트**: Recharts 2.10.3
-- **드래그앤드롭**: @dnd-kit (카드 순서 변경)
-- **날짜**: date-fns 2.30.0
-- **테스트**: Vitest 4.0.8, React Testing Library 16.3.0, MSW
+**전체 환경 설정·실행**: [docs/SETUP_GUIDE.md](../docs/SETUP_GUIDE.md) · **기술 스택 상세**: [docs/TECH_STACK.md](../docs/TECH_STACK.md)
 
 ## 시작하기
 
-### 1. 환경 설정
-
 ```bash
-# 패키지 설치
 npm install
-```
-
-**환경 변수**: 프론트엔드는 **프로젝트 루트**의 `.env`를 사용합니다 (`vite.config.js`의 `envDir: '..'`). 루트에 `.env`가 있으면 `VITE_API_BASE_URL` 등이 적용됩니다. 로컬 개발 시 프록시(`/api` → `http://localhost:8000`)가 설정되어 있어 별도 설정 없이도 동작합니다.
-
-### 2. 개발 서버 실행
-
-```bash
-npm run dev
-```
-
-브라우저에서 http://localhost:5173 접속
-
-### 3. 프로덕션 빌드
-
-```bash
-npm run build
-```
-
-빌드 결과물: `dist/` 디렉토리
-
-### 4. 빌드 미리보기
-
-```bash
+npm run dev   # http://localhost:5173
+npm run build # dist/
 npm run preview
 ```
 
-브라우저에서 http://localhost:4173 접속
+환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용합니다 (`vite.config.js` `envDir: '..'`). 로컬 개발 시 프록시로 `/api` → 백엔드 연결되며 별도 설정 없이 동작합니다.
 
 ## 프로젝트 구조
 
@@ -172,10 +138,7 @@ Publish directory: dist
 
 ## 환경 변수
 
-**프로젝트 루트**의 `.env`를 사용합니다 (`vite.config.js`의 `envDir: '..'`). `frontend/.env`는 사용하지 않습니다.
-
-- `VITE_API_BASE_URL`: API Base URL (개발 시 프록시로 `/api` 사용 가능, 프로덕션 빌드 시 백엔드 URL 지정)
-- `VITE_APP_TITLE`: 앱 제목 (선택)
+**프로젝트 루트** `.env`만 사용. `VITE_API_BASE_URL`, `VITE_APP_TITLE` 등 (상세: [SETUP_GUIDE.md](../docs/SETUP_GUIDE.md))
 
 ## 개발 가이드
 

@@ -3,6 +3,8 @@
 ETF Weekly Report를 Render.com에 무료로 배포하는 방법입니다.  
 프로젝트 루트의 **render.yaml**로 Blueprint 배포를 지원하며, 백엔드(FastAPI)·프론트엔드(Static Site)·PostgreSQL 구성을 정의합니다.
 
+> **참고**: 로컬 개발 환경은 **uv**를 사용합니다. Render 등 클라우드 빌드에서는 uv 미제공으로 **pip**를 사용합니다.
+
 ## 📋 사전 요구사항
 
 1. **Render.com 계정**: https://render.com 에서 무료 계정 생성

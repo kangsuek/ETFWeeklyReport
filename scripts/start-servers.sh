@@ -16,17 +16,19 @@ mkdir -p "$PROJECT_ROOT/logs"
 echo "  - 백엔드 서버 시작 중 (포트 8000)..."
 cd "$PROJECT_ROOT/backend"
 
-# 가상환경 활성화 및 서버 시작
-if [ -d "venv" ]; then
-  source venv/bin/activate
-  python -m uvicorn app.main:app --reload --port 8000 > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
-  BACKEND_PID=$!
-  echo "    ✓ 백엔드 서버 시작 완료 (PID: $BACKEND_PID)"
-  echo "    📝 로그: $PROJECT_ROOT/logs/backend.log"
-else
-  echo "    ❌ 가상환경을 찾을 수 없습니다. backend/venv 디렉토리를 확인하세요."
+# uv 전용: .venv + uv 필수
+if ! command -v uv &> /dev/null; then
+  echo "    ❌ uv가 설치되어 있지 않습니다. 설치: curl -LsSf https://astral.sh/uv/install.sh | sh 또는 brew install uv"
   exit 1
 fi
+if [ ! -d ".venv" ]; then
+  echo "    ❌ backend/.venv가 없습니다. 먼저 실행: cd backend && uv venv && uv pip install -r requirements-dev.txt"
+  exit 1
+fi
+uv run uvicorn app.main:app --reload --port 8000 > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+BACKEND_PID=$!
+echo "    ✓ 백엔드 서버 시작 완료 (PID: $BACKEND_PID)"
+echo "    📝 로그: $PROJECT_ROOT/logs/backend.log"
 
 # 백엔드 서버 시작 대기
 sleep 2
@@ -58,13 +60,7 @@ echo "  - 프론트엔드:  http://localhost:5173 (또는 5174)"
 echo "  - Swagger UI:  http://localhost:8000/docs"
 echo ""
 echo "💡 팁:"
+echo "  - 백엔드 로그: tail -f logs/backend.log"
 echo "  - 프론트엔드 로그: tail -f logs/frontend.log"
 echo "  - 서버 종료: ./scripts/stop-servers.sh"
-echo "  - Ctrl+C로 로그 표시 중단 (서버는 계속 실행됨)"
 echo ""
-echo "📝 백엔드 로그 표시 중..."
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-# 백엔드 로그를 실시간으로 표시
-tail -f "$PROJECT_ROOT/logs/backend.log"

@@ -84,12 +84,14 @@ frontend/
 
 ## 문서 (docs/)
 
+**표준**: 환경 설정·실행 절차는 **SETUP_GUIDE.md** 단일 소스. 루트/backend/frontend README는 요약만 두고 상세는 본 문서로 링크.
+
 | 문서 | 용도 |
 |------|------|
 | `API_SPECIFICATION.md` | REST API 명세 |
 | `ARCHITECTURE.md` | 시스템·디렉터리 구조 |
 | `FEATURES.md` | 기능 목록 |
-| `SETUP_GUIDE.md` | 환경 설정·실행 |
+| `SETUP_GUIDE.md` | 환경 설정·실행 (단일 소스) |
 | `DATABASE_SCHEMA.md` | DB 스키마 |
 | `DEVELOPMENT_GUIDE.md` | 개발 가이드 |
 | `INTRADAY.md` | 분봉 조회·수집 방식 |

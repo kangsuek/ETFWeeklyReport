@@ -2,19 +2,28 @@
 
 ## Commands
 
-**Backend (from `backend/`):**
-- Test all: `pytest` or `pytest -v`
-- Test single: `pytest tests/test_api.py::TestHealthCheck::test_health_check`
-- Coverage: `pytest --cov=app --cov-report=html`
-- Lint: `flake8 app/` (max-line-length: 100)
-- Run: `uvicorn app.main:app --reload --port 8000`
+**just (프로젝트 루트, 권장):**
+- `just` / `just --list` — 사용 가능한 명령 목록
+- `just setup` — 의존성·.env 설정
+- `just db` — DB 초기화
+- `just dev` — 백엔드+프론트 서버 동시 시작
+- `just backend` / `just frontend` — 서버 개별 실행
+- `just test` — 백엔드+프론트 테스트
+- `just test-backend` / `just test-frontend` / `just lint` 등
+
+**Backend (from `backend/`): uv 전용**
+- Test all: `uv run pytest` or `just test-backend`
+- Test single: `uv run pytest tests/test_api.py::TestHealthCheck::test_health_check`
+- Coverage: `uv run pytest --cov=app --cov-report=html` or `just test-backend-cov`
+- Lint: `uv run flake8 app/` (max-line-length: 100)
+- Run: `uv run uvicorn app.main:app --reload --port 8000` or `just backend`
 
 **Frontend (from `frontend/`):**
-- Test all: `npm test` (Vitest watch) or `npm test -- --run` (single run)
+- Test all: `npm test` or `just test-frontend`
 - Test single: `npm test -- --run ErrorBoundary.test.jsx`
-- Coverage: `npm run test:coverage`
-- Lint: `npm run lint`
-- Dev: `npm run dev` (port 5173)
+- Coverage: `npm run test:coverage` or `just test-frontend-cov`
+- Lint: `npm run lint` or `just lint-frontend`
+- Dev: `npm run dev` (port 5173) or `just frontend`
 
 ## Code Style
 

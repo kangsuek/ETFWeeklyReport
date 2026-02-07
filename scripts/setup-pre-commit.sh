@@ -12,61 +12,34 @@ cd "$PROJECT_ROOT" || exit 1
 echo "🔧 통합 Pre-commit hooks 설정 중..."
 echo "📂 프로젝트 루트: $PROJECT_ROOT"
 
-# Python 및 pip 명령어 확인
-PYTHON_CMD=""
-PIP_CMD=""
-
-# 백엔드 가상환경 확인
-if [ -d "backend/venv" ]; then
-    echo "📦 백엔드 가상환경 발견, 활성화 중..."
-    if source backend/venv/bin/activate 2>/dev/null; then
-        PYTHON_CMD="python"
-        PIP_CMD="pip"
-        echo "   ✅ 가상환경 활성화 완료"
-    else
-        echo "   ⚠️  가상환경 활성화 실패, 시스템 Python 사용"
-        PYTHON_CMD="python3"
-        PIP_CMD="pip3"
-    fi
-else
-    echo "   ⚠️  백엔드 가상환경이 없습니다. 시스템 Python 사용"
-    PYTHON_CMD="python3"
-    PIP_CMD="pip3"
+# uv 전용: backend/.venv 필수
+if ! command -v uv &> /dev/null; then
+    echo "   ❌ uv가 설치되어 있지 않습니다. 설치: curl -LsSf https://astral.sh/uv/install.sh | sh 또는 brew install uv"
+    exit 1
 fi
-
-# Python 명령어 확인
-if ! command -v "$PYTHON_CMD" &> /dev/null; then
-    echo "   ❌ $PYTHON_CMD 명령어를 찾을 수 없습니다."
-    echo "   💡 Python을 설치하거나 가상환경을 생성하세요:"
-    echo "      cd backend && python3 -m venv venv"
+if [ ! -d "backend/.venv" ]; then
+    echo "   ❌ backend/.venv가 없습니다. 먼저 실행: cd backend && uv venv && uv pip install -r requirements-dev.txt"
     exit 1
 fi
 
-# pip 명령어 확인
-if ! command -v "$PIP_CMD" &> /dev/null; then
-    echo "   ❌ $PIP_CMD 명령어를 찾을 수 없습니다."
-    echo "   💡 pip를 설치하세요: $PYTHON_CMD -m ensurepip --upgrade"
-    exit 1
-fi
-
+echo "📦 backend/.venv 사용 (uv)"
+PYTHON_CMD="backend/.venv/bin/python"
+PIP_CMD="backend/.venv/bin/pip"
+PRECOMMIT_CMD="backend/.venv/bin/pre-commit"
 echo "   ✅ Python: $PYTHON_CMD ($($PYTHON_CMD --version))"
-echo "   ✅ pip: $PIP_CMD ($($PIP_CMD --version))"
 
-# Pre-commit 설치 확인
-if ! command -v pre-commit &> /dev/null; then
+if ! [ -f "backend/.venv/bin/pre-commit" ] || ! $PRECOMMIT_CMD --version &> /dev/null; then
     echo "📦 pre-commit 설치 중..."
-    if ! $PIP_CMD install pre-commit; then
-        echo "   ❌ pre-commit 설치 실패"
-        exit 1
-    fi
+    (cd backend && uv pip install pre-commit)
+    PRECOMMIT_CMD="backend/.venv/bin/pre-commit"
     echo "   ✅ pre-commit 설치 완료"
 else
-    echo "   ✅ pre-commit 이미 설치됨 ($(pre-commit --version))"
+    echo "   ✅ pre-commit 이미 설치됨 ($($PRECOMMIT_CMD --version))"
 fi
 
 # Pre-commit hooks 설치
 echo "📝 Pre-commit hooks 설치 중..."
-if pre-commit install; then
+if $PRECOMMIT_CMD install; then
     echo "   ✅ Pre-commit hooks 설치 완료"
 else
     echo "   ❌ Pre-commit hooks 설치 실패"
@@ -81,6 +54,5 @@ echo "  - 커밋 시 자동으로 hooks 실행 (백엔드 + 프론트엔드 모�
 echo "  - 수동 실행: pre-commit run --all-files"
 echo "  - 특정 hook만 실행: pre-commit run <hook-id>"
 echo ""
-echo "💡 백엔드 가상환경이 활성화되지 않은 경우:"
-echo "  cd backend && source venv/bin/activate  # macOS/Linux"
-echo "  cd backend && venv\\Scripts\\activate     # Windows"
+echo "💡 백엔드 환경이 없는 경우:"
+echo "  cd backend && uv venv && uv pip install -r requirements-dev.txt"

@@ -129,11 +129,12 @@ logger.info("API Key validation successful")
 ```bash
 # 1. 취약점 스캔 (정기적으로 실행)
 cd backend
-pip install safety
-safety check
+uv pip install safety  # 필요 시
+uv run safety check --file requirements.txt
+uv run safety check --file requirements-dev.txt
 
-# 2. 의존성 업데이트
-pip list --outdated
+# 2. 의존성 업데이트 확인
+uv pip list --outdated
 
 # 3. GitHub Dependabot 활성화 (저장소 설정)
 ```

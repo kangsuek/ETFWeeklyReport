@@ -4,29 +4,44 @@
 
 | 항목 | 버전 | 확인 명령어 |
 |------|------|-------------|
-| Python | 3.11+ | `python3 --version` |
+| **uv** | 최신 | `uv --version` (필수: Python 패키지·가상환경 관리) |
+| **just** | 최신 | `just --version` (명령 러너, 권장) |
+| Python | 3.11 | `backend/.python-version`에 고정 (psycopg2-binary 등 wheel 호환용) |
 | Node.js | 18+ | `node --version` |
 | npm | 9+ | `npm --version` |
 | Git | 최신 | `git --version` |
 
+**uv 설치**: `curl -LsSf https://astral.sh/uv/install.sh | sh` 또는 `brew install uv`  
+**just 설치**: https://github.com/casey/just#installation (예: `brew install just`)
+
 ---
 
-## 한 번에 설정·실행 (권장)
+## 한 번에 설정·실행
 
+**로컬 백엔드는 uv만 사용합니다.** (가상환경 활성화 없이 `uv run`으로 실행)
+
+**just 사용 시 (권장):**
+```bash
+just setup    # 백엔드·프론트 의존성, .env 복사
+just db       # DB 초기화
+just dev      # 백엔드 + 프론트 서버 동시 시작
+```
+
+**수동 실행:**
 ```bash
 # 1. 백엔드
 cd backend
-python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements-dev.txt
+uv venv
+uv pip install -r requirements-dev.txt
 cd .. && cp .env.example .env && cd backend
-python -m app.database
+uv run python -m app.database
 
 # 2. 프론트엔드 (새 터미널)
 cd frontend && npm install
 
 # 3. 서버 시작 (프로젝트 루트에서)
-./scripts/start-servers.sh
+just dev
+# 또는: ./scripts/start-servers.sh
 ```
 
 - **백엔드**: http://localhost:8000/docs  
@@ -37,18 +52,16 @@ cd frontend && npm install
 
 ## 백엔드 설정
 
-### 1. 가상환경 생성 및 활성화
+### 1. 가상환경 생성
 ```bash
 cd backend
-python3 -m venv venv
-source venv/bin/activate  # macOS/Linux
-# venv\Scripts\activate   # Windows
+uv venv
+# uv가 .venv를 생성합니다. 활성화 없이 uv run으로 실행합니다.
 ```
 
 ### 2. 의존성 설치
 ```bash
-pip install --upgrade pip
-pip install -r requirements-dev.txt  # 개발환경 (권장)
+uv pip install -r requirements-dev.txt
 ```
 
 ### 3. 환경 변수 설정
@@ -62,19 +75,19 @@ cd backend
 
 ### 4. 데이터베이스 초기화
 ```bash
-python -m app.database
+uv run python -m app.database
 ```
 
 ### 5. 개발 서버 실행
 ```bash
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 서버 확인: http://localhost:8000/docs
 
 ### 6. 테스트 실행
 ```bash
-pytest
-pytest -v --cov=app --cov-report=term-missing
+uv run pytest
+uv run pytest -v --cov=app --cov-report=term-missing
 ```
 
 ---
@@ -103,7 +116,7 @@ npm run dev
 커밋 전 자동으로 코드 품질 검사·포매팅을 적용하려면 **프로젝트 루트**에서:
 
 ```bash
-# 백엔드 가상환경이 있으면 스크립트가 자동으로 사용 (없으면 시스템 Python)
+# backend/.venv(uv) 필수. 없으면 먼저: cd backend && uv venv && uv pip install -r requirements-dev.txt
 ./scripts/setup-pre-commit.sh
 ```
 
@@ -119,13 +132,12 @@ npm run dev
 ## 설정 확인 체크리스트
 
 ### 백엔드
-- [ ] Python 3.11+ 설치됨
-- [ ] 가상환경 생성 및 활성화됨
-- [ ] `requirements-dev.txt` 설치 완료
+- [ ] uv 설치됨
+- [ ] `backend/.venv` 생성 후 `uv pip install -r requirements-dev.txt` 완료
 - [ ] **프로젝트 루트** `.env` 파일 생성 및 설정 완료
-- [ ] 데이터베이스 초기화 완료
-- [ ] 서버 실행 성공
-- [ ] 테스트 실행 성공
+- [ ] 데이터베이스 초기화 완료 (`uv run python -m app.database`)
+- [ ] 서버 실행 성공 (`uv run uvicorn app.main:app --reload`)
+- [ ] 테스트 실행 성공 (`uv run pytest`)
 
 ### 프론트엔드
 - [ ] Node.js 18+ 설치됨
@@ -137,19 +149,20 @@ npm run dev
 
 ## 서버 실행
 
+**just 사용:** `just dev` (동시) / `just backend` (백엔드만) / `just frontend` (프론트만)
+
 ### 백엔드
 ```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+just backend
+# 또는: cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 - Health: http://localhost:8000/api/health
 - Swagger: http://localhost:8000/docs
 
 ### 프론트엔드
 ```bash
-cd frontend
-npm run dev
+just frontend
+# 또는: cd frontend && npm run dev
 ```
 - 앱: http://localhost:5173
 
@@ -159,10 +172,12 @@ npm run dev
 
 | 문제 | 해결 |
 |------|------|
-| `command not found: python` | `python3` 사용 |
-| 포트 이미 사용 중 | `uvicorn ... --port 8001`, `npm run dev -- --port 5174` |
-| 패키지 설치 오류 | `pip cache purge` 후 `pip install -r requirements-dev.txt --no-cache-dir` |
-| 서버 미시작 | 가상환경 활성화 확인, 다른 포트 시도 |
+| `command not found: uv` | uv 설치: `curl -LsSf https://astral.sh/uv/install.sh \| sh` 또는 `brew install uv` |
+| `.venv가 없습니다` | `cd backend && uv venv && uv pip install -r requirements-dev.txt` |
+| `psycopg2-binary` 빌드 실패 / `pg_config not found` | `backend/.python-version`이 3.11인지 확인. 기존 `.venv` 삭제 후 `uv venv`로 재생성 (Python 3.14에서는 wheel 미지원) |
+| 포트 이미 사용 중 | `uv run uvicorn ... --port 8001`, `npm run dev -- --port 5174` |
+| 패키지 설치 오류 | `uv pip install -r requirements-dev.txt` 재실행, 필요 시 `.venv` 삭제 후 `uv venv` 다시 실행 |
+| 서버 미시작 | `backend/.venv` 존재·uv 설치 확인, 다른 포트 시도 |
 | 데이터 수집 실패 | `curl https://finance.naver.com/` 연결 확인, 종목 DB 등록 여부 확인 |
 
 ---
@@ -200,5 +215,5 @@ SELECT * FROM prices WHERE ticker = '487240' ORDER BY date DESC LIMIT 10;
 ## 참고
 
 - **문서 인덱스**: [CLAUDE.md](../CLAUDE.md)
-- **상세 실행·스크립트**: [README.md](../README.md)
+- **프로젝트 개요·Quick Start**: [README.md](../README.md)
 - **배포**: [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md), [frontend/DEPLOYMENT.md](../frontend/DEPLOYMENT.md)

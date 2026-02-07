@@ -4,51 +4,11 @@ FastAPI 기반 ETF 분석 백엔드 API
 
 ## 🚀 빠른 시작
 
-### 1. 가상환경 생성 및 활성화
+**환경 설정·실행 절차는 [docs/SETUP_GUIDE.md](../docs/SETUP_GUIDE.md)를 따르세요.** (uv 필수, 루트 `.env` 사용)
 
-```bash
-# 가상환경 생성
-python -m venv venv
+요약: `uv venv` → `uv pip install -r requirements-dev.txt` → 루트에서 `cp .env.example .env` → `uv run python -m app.database` → `uv run uvicorn app.main:app --reload`
 
-# 활성화 (macOS/Linux)
-source venv/bin/activate
-
-# 활성화 (Windows)
-venv\Scripts\activate
-```
-
-### 2. 의존성 설치
-
-```bash
-# 운영 환경
-pip install -r requirements.txt
-
-# 개발 환경 (테스트, 린터 포함)
-pip install -r requirements-dev.txt
-```
-
-
-
-### 3. 데이터베이스 초기화
-
-```bash
-python -m app.database
-```
-
-### 4. 서버 실행
-
-```bash
-# 개발 모드 (hot reload)
-uvicorn app.main:app --reload
-
-# 프로덕션 모드
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-서버 실행 후:
-- API 문서: http://localhost:8000/docs
-- Alternative API 문서: http://localhost:8000/redoc
-- Health Check: http://localhost:8000/api/health
+- API 문서: http://localhost:8000/docs · Health: http://localhost:8000/api/health
 
 ## 🧪 테스트
 
@@ -56,27 +16,27 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 # 모든 테스트 실행
-pytest
+uv run pytest
 
 # 특정 테스트 파일 실행
-pytest tests/test_etfs.py
+uv run pytest tests/test_etfs.py
 
 # 커버리지 리포트와 함께 실행
-pytest --cov=app --cov-report=html
+uv run pytest --cov=app --cov-report=html
 
 # 마커별 실행
-pytest -m unit  # 단위 테스트만
-pytest -m api   # API 테스트만
+uv run pytest -m unit  # 단위 테스트만
+uv run pytest -m api   # API 테스트만
 ```
 
 ### 테스트 커버리지 확인
 
 ```bash
 # 터미널에서 확인
-pytest --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 
 # HTML 리포트 생성 (htmlcov/index.html)
-pytest --cov=app --cov-report=html
+uv run pytest --cov=app --cov-report=html
 open htmlcov/index.html  # macOS
 ```
 
@@ -174,10 +134,10 @@ backend/
 3. **테스트 실행**
    ```bash
    # 테스트 실행 (100% 통과 필수!)
-   pytest
+   uv run pytest
    
    # 커버리지 확인
-   pytest --cov=app --cov-report=term-missing
+   uv run pytest --cov=app --cov-report=term-missing
    ```
 
 4. **커밋 및 푸시**
@@ -189,12 +149,8 @@ backend/
 
 ## 📚 주요 의존성
 
-- **FastAPI**: 웹 프레임워크
-- **Uvicorn**: ASGI 서버
-- **Pydantic**: 데이터 검증
-- **Pandas**: 데이터 처리
-- **FinanceDataReader**: 금융 데이터 수집
-- **BeautifulSoup4**: 웹 스크래핑
+상세 버전·목록: [docs/TECH_STACK.md](../docs/TECH_STACK.md)  
+FastAPI, Uvicorn, Pydantic, Pandas, FinanceDataReader, BeautifulSoup4 등
 
 ## 🧪 테스트 정책
 
@@ -205,7 +161,7 @@ backend/
 - 커버리지 80% 이상 유지
 - 모든 PR은 테스트 통과 필수
 
-자세한 내용은 [DEVELOPMENT_GUIDE.md](../docs/DEVELOPMENT_GUIDE.md) 및 [AGENTS.md](../AGENTS.md) 참조
+자세한 내용: [DEVELOPMENT_GUIDE.md](../docs/DEVELOPMENT_GUIDE.md), [AGENTS.md](../AGENTS.md)
 
 ## 🔐 환경 변수
 

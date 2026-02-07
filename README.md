@@ -35,72 +35,44 @@
 
 | 요구사항 | 버전 | 확인 명령어 |
 |---------|------|------------|
-| Python | 3.11+ | `python3 --version` |
+| **uv** | 최신 | `uv --version` (백엔드 필수) |
+| **just** | 최신 | `just --version` (명령 러너, 권장) |
 | Node.js | 18+ | `node --version` |
 | npm | 9+ | `npm --version` |
 | Git | 최신 | `git --version` |
 
-### 한 번에 설정하기 (권장)
+uv 설치: `curl -LsSf https://astral.sh/uv/install.sh | sh` 또는 `brew install uv`  
+just 설치: https://github.com/casey/just#installation (예: `brew install just`)
 
-```bash
-# 1. 프로젝트 클론
-git clone https://github.com/your-repo/ETFWeeklyReport.git
-cd ETFWeeklyReport
+### 한 번에 설정·실행
 
-# 2. 백엔드 설정
-cd backend
-python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements-dev.txt
-cd .. && cp .env.example .env && cd backend   # 루트에 .env 생성 (백엔드/프론트 공용)
-python -m app.database
+상세 절차는 **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**를 따르세요. 요약:
 
-# 3. 프론트엔드 설정 (새 터미널에서)
-cd ../frontend
-npm install
-
-# 4. 서버 시작 (프로젝트 루트에서)
-cd ..
-./scripts/start-servers.sh
-```
+1. `backend`에서 `uv venv` → `uv pip install -r requirements-dev.txt`  
+2. 프로젝트 루트에서 `cp .env.example .env` (필요 시 편집)  
+3. `backend`에서 `uv run python -m app.database` (DB 초기화)  
+4. `frontend`에서 `npm install`  
+5. 프로젝트 루트에서 `./scripts/start-servers.sh` (백엔드 8000 + 프론트 5173)
 
 - **백엔드**: http://localhost:8000 (API 문서: `/docs`)
 - **프론트엔드**: http://localhost:5173
 
 ---
 
-## 상세 설정 가이드
+## just 명령 (권장)
 
-### Backend
+프로젝트 루트에 `justfile`이 있습니다. `just --list`로 전체 명령을 볼 수 있습니다.
 
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements-dev.txt
-# 환경 변수: 프로젝트 루트의 .env 만 사용 (루트에서 cp .env.example .env)
-python -m app.database
-uvicorn app.main:app --reload
-```
-
-- **API 문서 (Swagger)**: http://localhost:8000/docs
-- **Health**: http://localhost:8000/api/health
-
-환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용합니다. 루트에서 `cp .env.example .env` 후 `API_KEY`(관리용, 선택), `DATABASE_URL`, `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`(뉴스 수집용, 선택) 등을 설정하세요.
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-- **웹 앱**: http://localhost:5173
-
-`.env`에 `VITE_API_BASE_URL`(기본: `/api`), `VITE_APP_TITLE` 등 설정 가능합니다.
-
----
+| 명령 | 설명 |
+|------|------|
+| `just dev` / `just start` | 백엔드(8000) + 프론트(5173) 동시 시작 |
+| `just stop` | 실행 중인 서버 종료 |
+| `just setup` | 백엔드·프론트 의존성 설치 및 .env 복사 |
+| `just db` | DB 초기화 |
+| `just backend` | 백엔드만 실행 |
+| `just frontend` | 프론트엔드만 실행 |
+| `just test` | 백엔드 + 프론트엔드 테스트 |
+| `just run` | run.sh 실행 (의존성 설치 포함 전체 실행) |
 
 ## 스크립트
 
@@ -113,15 +85,9 @@ npm run dev
 
 ## 테스트
 
-```bash
-# 백엔드
-cd backend && source venv/bin/activate && pytest -v
-pytest --cov=app --cov-report=html
-
-# 프론트엔드
-cd frontend && npm test
-npm run test:coverage
-```
+- **한 번에**: `just test` (백엔드 + 프론트)
+- **백엔드**: `just test-backend` 또는 `cd backend && uv run pytest` (상세: [SETUP_GUIDE.md](./docs/SETUP_GUIDE.md))
+- **프론트엔드**: `just test-frontend` 또는 `cd frontend && npm test` / `npm run test:coverage`
 
 ---
 
@@ -141,10 +107,8 @@ npm run test:coverage
 
 ## 기술 스택
 
-| 구분 | 기술 |
-|------|------|
-| **Backend** | FastAPI, Python 3.11, SQLite / PostgreSQL, APScheduler, Pandas |
-| **Frontend** | React 18, Vite 5, Tailwind CSS, TanStack React Query, Recharts, React Router 6 |
+상세: [docs/TECH_STACK.md](./docs/TECH_STACK.md)  
+Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React 18, Vite 5, Tailwind, TanStack Query, Recharts
 
 ---
 
