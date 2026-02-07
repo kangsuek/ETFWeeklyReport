@@ -318,6 +318,12 @@ export const settingsApi = {
 
   // 종목 순서 변경 (일반 작업)
   reorderStocks: (tickers) => api.post('/settings/stocks/reorder', tickers, { timeout: NORMAL_API_TIMEOUT }),
+
+  // API 키 조회 (마스킹된 값)
+  getApiKeys: () => api.get('/settings/api-keys', { timeout: FAST_API_TIMEOUT }),
+
+  // API 키 저장
+  updateApiKeys: (data) => api.put('/settings/api-keys', data, { timeout: NORMAL_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

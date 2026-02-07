@@ -1,6 +1,7 @@
 import PageHeader from '../components/common/PageHeader'
 import TickerManagementPanel from '../components/settings/TickerManagementPanel'
 import GeneralSettingsPanel from '../components/settings/GeneralSettingsPanel'
+import ApiKeysPanel from '../components/settings/ApiKeysPanel'
 import DataManagementPanel from '../components/settings/DataManagementPanel'
 
 export default function Settings() {
@@ -14,6 +15,11 @@ export default function Settings() {
       {/* 종목 관리 섹션 */}
       <div className="mt-4 sm:mt-6">
         <TickerManagementPanel />
+      </div>
+
+      {/* API 키 설정 섹션 */}
+      <div className="mt-6 sm:mt-8">
+        <ApiKeysPanel />
       </div>
 
       {/* 일반 설정 섹션 */}
