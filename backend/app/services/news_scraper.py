@@ -19,14 +19,11 @@ class NewsScraper:
 
     def __init__(self):
         """Initialize Naver News API client"""
-        self.client_id = os.getenv("NAVER_CLIENT_ID")
-        self.client_secret = os.getenv("NAVER_CLIENT_SECRET")
-        
         # Load stock configuration from Config
         self.stock_config = Config.get_stock_config()
         logger.debug(f"Loaded {len(self.stock_config)} stocks from configuration")
 
-        if not self.client_id or not self.client_secret:
+        if not os.getenv("NAVER_CLIENT_ID") or not os.getenv("NAVER_CLIENT_SECRET"):
             logger.warning("Naver API credentials not found in environment variables")
         
         # Rate Limiter 초기화
@@ -59,8 +56,8 @@ class NewsScraper:
         url = "https://openapi.naver.com/v1/search/news.json"
 
         headers = {
-            "X-Naver-Client-Id": self.client_id,
-            "X-Naver-Client-Secret": self.client_secret
+            "X-Naver-Client-Id": os.getenv("NAVER_CLIENT_ID", ""),
+            "X-Naver-Client-Secret": os.getenv("NAVER_CLIENT_SECRET", ""),
         }
 
         params = {

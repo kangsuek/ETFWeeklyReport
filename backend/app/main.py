@@ -88,6 +88,10 @@ async def http_middleware(request: Request, call_next):
 # Initialize database and scheduler on startup
 @app.on_event("startup")
 async def startup_event():
+    # 저장된 API 키 로드 (api-keys.json → os.environ)
+    from app.routers.settings import load_api_keys_to_env
+    load_api_keys_to_env()
+
     logger.info(message="initializing_database", phase="app_startup")
     init_db()
     logger.info(message="database_initialized", phase="app_startup", status="success")
