@@ -23,22 +23,29 @@ if ! command -v node &> /dev/null; then
   exit 1
 fi
 
-# 3. 프론트엔드 빌드
+# 3. 앱 아이콘 생성
+echo ">>> 앱 아이콘 생성 중..."
+cd "$DESKTOP_DIR"
+npm run generate-icons
+echo "앱 아이콘 생성 완료."
+echo ""
+
+# 4. 프론트엔드 빌드
 echo ">>> 프론트엔드 빌드 중..."
 cd "$PROJECT_ROOT/frontend"
 npm install
-ELECTRON_BUILD=1 VITE_API_BASE_URL=http://localhost:8000/api npm run build
+ELECTRON_BUILD=1 VITE_API_BASE_URL=http://localhost:18000/api npm run build
 echo "프론트엔드 빌드 완료."
 echo ""
 
-# 4. 백엔드 의존성 확인
+# 5. 백엔드 의존성 확인
 echo ">>> 백엔드 의존성 확인 중..."
 cd "$PROJECT_ROOT/backend"
 uv sync 2>/dev/null || uv pip install -r requirements.txt
 echo "백엔드 의존성 확인 완료."
 echo ""
 
-# 5. Electron 앱 빌드
+# 6. Electron 앱 빌드
 echo ">>> Electron 앱 빌드 중..."
 cd "$DESKTOP_DIR"
 npm install

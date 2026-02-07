@@ -63,6 +63,7 @@ htmlcov/
 desktop/node_modules/
 desktop/release/
 desktop/dist/
+desktop/icons/
 
 # Temporary files
 *.tmp

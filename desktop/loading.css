@@ -20,6 +20,10 @@ body {
   text-align: center;
 }
 
+.icon {
+  margin-bottom: 16px;
+}
+
 h1 {
   font-size: 28px;
   font-weight: 600;
