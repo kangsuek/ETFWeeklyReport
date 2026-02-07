@@ -4,15 +4,15 @@ React + Vite 기반 프론트엔드 애플리케이션
 
 ## 기술 스택
 
-- **프레임워크**: React 18.2.0
-- **빌드 도구**: Vite 5.0.0
+- **프레임워크**: React 18.2.0, Vite 5.0.0
 - **라우팅**: React Router DOM 6.20.0
-- **상태 관리**: @tanstack/react-query 5.8.4
-- **HTTP 클라이언트**: Axios 1.6.2
-- **스타일링**: Tailwind CSS 3.3.5
+- **상태·캐시**: TanStack React Query 5.8.4
+- **HTTP**: Axios 1.6.2
+- **스타일**: Tailwind CSS 3.3.5
 - **차트**: Recharts 2.10.3
-- **날짜 처리**: date-fns 2.30.0
-- **테스트**: Vitest 4.0.8, React Testing Library 16.3.0
+- **드래그앤드롭**: @dnd-kit (카드 순서 변경)
+- **날짜**: date-fns 2.30.0
+- **테스트**: Vitest 4.0.8, React Testing Library 16.3.0, MSW
 
 ## 시작하기
 
@@ -21,16 +21,9 @@ React + Vite 기반 프론트엔드 애플리케이션
 ```bash
 # 패키지 설치
 npm install
-
-# 환경 변수 파일 생성
-cp .env.example .env
 ```
 
-`.env` 파일 수정:
-```bash
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_APP_TITLE=ETF Weekly Report
-```
+**환경 변수**: 프론트엔드는 **프로젝트 루트**의 `.env`를 사용합니다 (`vite.config.js`의 `envDir: '..'`). 루트에 `.env`가 있으면 `VITE_API_BASE_URL` 등이 적용됩니다. 로컬 개발 시 프록시(`/api` → `http://localhost:8000`)가 설정되어 있어 별도 설정 없이도 동작합니다.
 
 ### 2. 개발 서버 실행
 
@@ -62,63 +55,69 @@ npm run preview
 frontend/
 ├── src/
 │   ├── components/          # React 컴포넌트
-│   │   ├── common/          # 공통 컴포넌트 (Skeleton 등)
-│   │   ├── etf/             # ETF 관련 컴포넌트
-│   │   └── layout/          # 레이아웃 컴포넌트 (Header, Footer)
-│   ├── pages/               # 페이지 컴포넌트
-│   │   ├── Dashboard.jsx    # 메인 대시보드
-│   │   ├── ETFDetail.jsx    # 종목 상세 페이지
-│   │   └── Comparison.jsx   # 종목 비교 페이지
-│   ├── services/            # API 서비스 레이어
-│   │   └── api.js           # Axios 인스턴스 및 API 함수
-│   ├── hooks/               # Custom Hooks (추후 추가)
-│   ├── utils/               # 유틸리티 함수
-│   ├── styles/              # 전역 스타일
-│   │   └── index.css        # Tailwind CSS 설정
-│   ├── App.jsx              # 앱 루트 컴포넌트
-│   └── main.jsx             # 앱 진입점
-├── public/                  # 정적 파일
+│   │   ├── common/          # 공통 (ErrorBoundary, Spinner, Toast, Skeleton 등)
+│   │   ├── dashboard/       # DashboardFilters, ETFCardGrid, PortfolioHeatmap
+│   │   ├── etf/             # ETFCard, ETFHeader, ETFCharts, StrategySummary, StatsSummary, PriceTable 등
+│   │   ├── charts/          # PriceChart, TradingFlowChart, IntradayChart, RSIChart, MACDChart, DateRangeSelector
+│   │   ├── comparison/      # TickerSelector, NormalizedPriceChart, ComparisonTable
+│   │   ├── portfolio/       # PortfolioSummaryCards, AllocationPieChart, PortfolioTrendChart, ContributionTable 등
+│   │   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel
+│   │   ├── news/            # NewsTimeline
+│   │   └── layout/          # Header, Footer
+│   ├── pages/               # 페이지
+│   │   ├── Dashboard.jsx    # 대시보드 (히트맵 + 카드 그리드)
+│   │   ├── ETFDetail.jsx    # 종목 상세 (인사이트, 차트, 분봉, 뉴스)
+│   │   ├── Comparison.jsx   # 종목 비교
+│   │   ├── Portfolio.jsx    # 포트폴리오 (요약, 비중, 추이, 기여도)
+│   │   └── Settings.jsx     # 설정 (종목 관리, 일반 설정, 데이터 관리)
+│   ├── services/            # api.js (etfApi, newsApi, dataApi, settingsApi)
+│   ├── contexts/            # SettingsContext, ToastContext
+│   ├── hooks/               # useContainerWidth, useWindowSize 등
+│   ├── utils/               # format, dateRange, portfolio, technicalIndicators 등
+│   ├── styles/              # index.css (Tailwind)
+│   ├── App.jsx
+│   └── main.jsx
+├── public/
 ├── dist/                    # 빌드 결과물 (gitignore)
-├── vite.config.js           # Vite 설정
-├── tailwind.config.js       # Tailwind CSS 설정
-├── vitest.config.js         # Vitest 설정
+├── vite.config.js           # envDir: '..' (루트 .env 사용)
+├── tailwind.config.js
+├── vitest.config.js
 └── package.json
 ```
 
 ## 주요 기능
 
 ### 1. Dashboard (메인 페이지)
-- 6개 종목(ETF 4개 + 주식 2개) 카드 표시
-- 실시간 가격 정보 (종가, 등락률, 거래량)
-- 정렬 기능 (이름순, 타입별, 코드순)
+- **히트맵**: 등록된 종목 전체 현황, 일간 변동률·주간 수익률, 투자/관심 종목 구분
+- **카드 그리드**: 종가, 등락률, 거래량, 미니 차트, 매매동향, 뉴스 미리보기
+- 정렬: 설정 순서, 타입, 이름, 테마, 사용자 지정 순서 (드래그앤드롭)
 - 자동/수동 새로고침
-- 반응형 디자인 (모바일/태블릿/데스크톱)
+- 반응형 (모바일/태블릿/데스크톱)
 
-### 2. API 통합
-- React Query로 데이터 캐싱 및 자동 갱신
-- 에러 처리 및 재시도 로직
-- 로딩/에러 상태 UI
+### 2. 종목 상세·비교·포트폴리오
+- **종목 상세**: 인사이트, 가격/통계, 가격·매매동향·RSI·MACD·분봉 차트, 뉴스 타임라인
+- **종목 비교**: 2~6종목, 정규화 가격 차트, 수익률·변동성·MDD·샤프 비교
+- **포트폴리오**: 총 투자금·평가금·수익률, 비중 차트, 일별 추이, 종목별 기여도
 
-### 3. 레이아웃
-- Header: 네비게이션 메뉴, GitHub 링크
-- Footer: 저작권 정보, 데이터 출처, 업데이트 시간
-- 모바일 햄버거 메뉴
+### 3. API 통합·레이아웃
+- TanStack Query로 캐싱·갱신 (staleTime 등), 배치 API(batch-summary)로 N+1 최소화
+- 에러 바운더리, 로딩/에러 UI
+- Header/Footer, 다크 모드
 
-## API 엔드포인트
+## API 엔드포인트 (사용처)
 
 ### ETF API
-- `GET /api/etfs` - 전체 종목 조회
-- `GET /api/etfs/{ticker}` - 개별 종목 정보
-- `GET /api/etfs/{ticker}/prices` - 가격 데이터
-- `GET /api/etfs/{ticker}/trading-flow` - 매매 동향
+- `GET /api/etfs`, `GET /api/etfs/{ticker}` - 종목 목록·상세
+- `GET /api/etfs/{ticker}/prices`, `trading-flow`, `metrics`, `insights`, `intraday` - 가격·매매동향·지표·인사이트·분봉
+- `POST /api/etfs/batch-summary` - 대시보드/포트폴리오 일괄 요약
+- `GET /api/etfs/compare` - 종목 비교
 
-### News API
+### News / Data / Settings
 - `GET /api/news/{ticker}` - 종목별 뉴스
+- `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats` 등
+- `GET/POST /api/settings/stocks`, `GET /api/settings/stocks/search` 등
 
-### Data Collection API
-- `POST /api/data/collect-all` - 전체 데이터 수집
-- `POST /api/data/backfill` - 히스토리 백필
-- `GET /api/data/status` - 수집 상태 조회
+상세: [docs/API_SPECIFICATION.md](../docs/API_SPECIFICATION.md)
 
 ## 테스트
 
@@ -135,18 +134,11 @@ npm run test:coverage
 
 ## 성능 최적화
 
-### 번들 크기 (gzip)
-- react-vendor: 52.75 kB
-- query-vendor: 11.90 kB
-- index (앱 코드): 23.32 kB
-- **총 크기**: 88.73 kB
-
-### 최적화 기법
-- ✅ 코드 스플리팅 (React, React Query 분리)
-- ✅ Esbuild minification
-- ✅ 압축 (Gzip)
-- ✅ React Query 캐싱 (staleTime: 5분)
-- ✅ 윈도우 포커스 시 자동 갱신
+- ✅ 코드 스플리팅 (manualChunks: react-vendor, query-vendor 등)
+- ✅ Esbuild minification, 압축
+- ✅ React Query 캐싱 (staleTime/gcTime, constants.js)
+- ✅ 배치 API(batch-summary)로 N+1 방지
+- ✅ Lazy loading (페이지 단위 React.lazy)
 
 ## 브라우저 호환성
 
@@ -180,33 +172,25 @@ Publish directory: dist
 
 ## 환경 변수
 
-### 개발 환경 (.env)
-```bash
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_APP_TITLE=ETF Weekly Report
-```
+**프로젝트 루트**의 `.env`를 사용합니다 (`vite.config.js`의 `envDir: '..'`). `frontend/.env`는 사용하지 않습니다.
 
-### 프로덕션 환경 (.env.production)
-```bash
-VITE_API_BASE_URL=https://your-backend-domain.com/api
-VITE_APP_TITLE=ETF Weekly Report
-```
+- `VITE_API_BASE_URL`: API Base URL (개발 시 프록시로 `/api` 사용 가능, 프로덕션 빌드 시 백엔드 URL 지정)
+- `VITE_APP_TITLE`: 앱 제목 (선택)
 
 ## 개발 가이드
 
 ### 컴포넌트 작성 규칙
-1. 함수형 컴포넌트 사용
-2. PropTypes 또는 TypeScript 타입 정의 (추후)
-3. Hooks 사용 (useState, useEffect, useQuery 등)
-4. Tailwind CSS로 스타일링
+1. 함수형 컴포넌트 + Hooks (useState, useEffect, useQuery 등)
+2. PropTypes 필수 ([AGENTS.md](../AGENTS.md))
+3. Tailwind CSS 스타일링
 
 ### API 호출 패턴
 ```javascript
-// React Query 사용
+// TanStack Query (constants.js의 CACHE_STALE_TIME_* 사용)
 const { data, isLoading, error } = useQuery({
   queryKey: ['etfs'],
-  queryFn: () => etfApi.getAll(),
-  staleTime: 5 * 60 * 1000, // 5분
+  queryFn: async () => (await etfApi.getAll()).data,
+  staleTime: CACHE_STALE_TIME_STATIC, // 정적 데이터 5분 등
   retry: 2,
 });
 ```

@@ -18,7 +18,6 @@
 | `docs/` | 프로젝트 문서 | ✅ |
 | `scripts/` | 루트 수준 스크립트 (서버 시작/종료 등) | ✅ |
 | `promptTemplate/` | 프롬프트 템플릿 (AI/외부용) | ✅ (폴더명 표준: Template) |
-| `archive/` | 구버전/보관 코드 | ✅ |
 
 - **환경 변수**: 백엔드·프론트엔드 모두 **루트의 `.env` 한 파일만** 사용. `backend/.env`, `frontend/.env` 미사용.
 

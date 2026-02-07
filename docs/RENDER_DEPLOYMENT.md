@@ -1,107 +1,118 @@
 # Render.com 배포 가이드
 
-이 문서는 ETF Weekly Report 애플리케이션을 Render.com에 무료로 배포하는 방법을 설명합니다.
+ETF Weekly Report를 Render.com에 무료로 배포하는 방법입니다.  
+프로젝트 루트의 **render.yaml**로 Blueprint 배포를 지원하며, 백엔드(FastAPI)·프론트엔드(Static Site)·PostgreSQL 구성을 정의합니다.
 
 ## 📋 사전 요구사항
 
 1. **Render.com 계정**: https://render.com 에서 무료 계정 생성
 2. **GitHub 저장소**: 프로젝트가 GitHub에 푸시되어 있어야 함
-3. **Naver API 키** (선택사항): 뉴스 수집 기능 사용 시 필요
+3. **Naver API 키** (선택): 뉴스 수집 기능 사용 시만 필요
 
 ## 🚀 배포 단계
 
-### 방법 1: render.yaml 사용 (권장)
+### 방법 1: render.yaml Blueprint (권장)
 
 #### 1단계: GitHub에 코드 푸시
 
 ```bash
 git add .
-git commit -m "Add Render.com deployment configuration"
+git commit -m "Add Render deployment configuration"
 git push origin main
 ```
 
-#### 2단계: Render.com에서 Blueprint 배포
+#### 2단계: Render에서 Blueprint 배포
 
-1. Render.com 대시보드 접속
-2. "New +" 버튼 클릭 → "Blueprint" 선택
+1. Render 대시보드 접속
+2. **New +** → **Blueprint** 선택
 3. GitHub 저장소 연결
-4. `render.yaml` 파일이 자동으로 감지됨
-5. "Apply" 클릭하여 배포 시작
+4. 저장소 루트의 **render.yaml**이 자동으로 감지됨
+5. **Apply** 클릭하여 배포 시작
 
-#### 3단계: 환경 변수 설정
+**render.yaml 요약** (현재 소스 기준):
 
-배포 후 Render 대시보드에서 각 서비스의 환경 변수를 설정하세요:
+| 서비스 | 타입 | 빌드/시작 |
+|--------|------|------------|
+| **etf-report-backend** | Web (Python) | Build: `pip install -r backend/requirements.txt` / Start: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| **etf-report-frontend** | Static | Build: `cd frontend && npm install && npm run build` / Publish: `frontend/dist` |
+| **etf-report-db** | PostgreSQL | 자동 생성, Backend에 `DATABASE_URL` 연결 |
 
-**Backend 서비스 (`etf-report-backend`):**
-- `API_KEY`: 관리용 API 키 (수집·설정·DB 초기화 등, 프로덕션 권장)
-- `CORS_ORIGINS`: 프론트엔드 URL (예: `https://etf-report-frontend.onrender.com`)
-- `NAVER_CLIENT_ID`: Naver API Client ID (뉴스 수집 시 선택)
-- `NAVER_CLIENT_SECRET`: Naver API Client Secret (뉴스 수집 시 선택)
-- `SCRAPING_INTERVAL_MINUTES`: `60` (무료 플랜 권장)
-- `CACHE_TTL_MINUTES`: `5` (기본값)
+render.yaml에 `sync: false`로 되어 있는 변수는 **반드시 Render 대시보드에서 수동 설정**해야 합니다.
 
-**Frontend 서비스 (`etf-report-frontend`):**
-- `VITE_API_BASE_URL`: 백엔드 API URL (예: `https://etf-report-backend.onrender.com/api`)
+#### 3단계: 환경 변수 설정 (대시보드)
 
-**데이터베이스:**
-- `DATABASE_URL`은 자동으로 설정됩니다 (수동 설정 불필요)
+배포 후 각 서비스 → **Environment** 탭에서 아래 변수를 설정하세요.
+
+**Backend (`etf-report-backend`)**  
+(yaml에서 이미 설정된 것: `PYTHON_VERSION`, `API_HOST`, `DATABASE_URL`, `SCRAPING_INTERVAL_MINUTES`, `CACHE_TTL_MINUTES`, `DB_POOL_SIZE`)
+
+- **`API_KEY`**: 관리용 API 키 (수집·설정·DB 초기화 등, 프로덕션 권장). render.yaml에 없으므로 대시보드에서 추가.
+- **`CORS_ORIGINS`**: 프론트엔드 URL (예: `https://etf-report-frontend.onrender.com`). 프론트 배포 후 URL 확정되면 설정.
+- **`NAVER_CLIENT_ID`** / **`NAVER_CLIENT_SECRET`**: 뉴스 수집 시 선택.
+
+**Frontend (`etf-report-frontend`)**
+
+- **`VITE_API_BASE_URL`**: 백엔드 API URL (예: `https://etf-report-backend.onrender.com/api`). 끝에 슬래시(`/`) 붙이지 마세요.
+
+**데이터베이스**
+
+- **`DATABASE_URL`**: render.yaml의 `fromDatabase`로 Backend에 자동 연결되므로 별도 설정 불필요.
 
 #### 환경 변수 상세 (참고)
 
 | 서비스 | 변수 | 설명 | 비고 |
 |--------|------|------|------|
-| Backend | `DATABASE_URL` | PostgreSQL 연결 문자열 | render.yaml에서 자동 연결 |
-| Backend | `API_KEY` | 관리용 API 키 (수집·설정·DB 초기화) | 프로덕션 권장 |
-| Backend | `CORS_ORIGINS` | 프론트엔드 도메인 | 프론트 배포 후 설정 |
-| Backend | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 수집 | 선택 |
-| Backend | `SCRAPING_INTERVAL_MINUTES` | 수집 간격(분) | 무료 플랜 권장 60 |
-| Backend | `CACHE_TTL_MINUTES` | 캐시(분) | 기본 5 |
-| Backend | `DB_POOL_SIZE` | DB 연결 풀 | 무료 플랜 권장 5 |
-| Frontend | `VITE_API_BASE_URL` | 백엔드 API URL (예: `https://xxx.onrender.com/api`) | 필수 |
+| Backend | `DATABASE_URL` | PostgreSQL 연결 문자열 | render.yaml에서 DB 자동 연결 |
+| Backend | `API_KEY` | 관리용 API 키 | 대시보드에서 설정 (yaml 없음) |
+| Backend | `CORS_ORIGINS` | 프론트엔드 도메인 | 대시보드에서 설정 (sync: false) |
+| Backend | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 수집 | 선택, 대시보드에서 설정 |
+| Backend | `SCRAPING_INTERVAL_MINUTES` | 수집 간격(분) | yaml 기본값 60 |
+| Backend | `CACHE_TTL_MINUTES` | 캐시(분) | yaml 기본값 5 |
+| Backend | `DB_POOL_SIZE` | DB 연결 풀 | yaml 기본값 5 |
+| Frontend | `VITE_API_BASE_URL` | 백엔드 API URL | 필수, 대시보드에서 설정 |
 
-`PYTHON_VERSION`, `API_HOST`, `API_PORT`는 render.yaml에서 자동 설정됩니다. URL 끝에 슬래시(`/`)를 붙이지 마세요.
+로컬에서는 프로젝트 루트의 `.env`를 사용하지만, Render에는 `.env`가 없으므로 **모든 설정은 Render 환경 변수**에서 읽습니다. URL 끝에 슬래시(`/`)를 붙이지 마세요.
 
 ### 방법 2: 수동 배포
 
 #### 1단계: PostgreSQL 데이터베이스 생성
 
-1. Render 대시보드에서 "New +" → "PostgreSQL" 선택
+1. Render 대시보드에서 **New +** → **PostgreSQL** 선택
 2. 설정:
    - **Name**: `etf-report-db`
    - **Database**: `etf_report`
    - **User**: `etf_report_user`
-   - **Region**: `Singapore` (또는 가장 가까운 지역)
+   - **Region**: `Singapore` (또는 가까운 지역)
    - **Plan**: `Free`
-3. "Create Database" 클릭
-4. 생성 후 "Connections" 탭에서 `Internal Database URL` 복사
+3. **Create Database** 클릭
+4. 생성 후 **Connections** 탭에서 **Internal Database URL** 복사
 
-#### 2단계: Backend 서비스 배포
+#### 2단계: Backend Web Service 배포
 
-1. "New +" → "Web Service" 선택
+1. **New +** → **Web Service** 선택
 2. GitHub 저장소 연결
 3. 설정:
    - **Name**: `etf-report-backend`
    - **Region**: `Singapore`
    - **Branch**: `main`
-   - **Root Directory**: (비워두기)
+   - **Root Directory**: (비움 — 저장소 루트 기준)
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r backend/requirements.txt`
    - **Start Command**: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    - **Plan**: `Free`
-4. "Advanced" → "Add Environment Variable":
+4. **Environment** (또는 Advanced → Add Environment Variable):
    - `DATABASE_URL`: 1단계에서 복사한 Internal Database URL
    - `API_KEY`: 관리용 API 키 (프로덕션 권장)
-   - `CORS_ORIGINS`: `https://etf-report-frontend.onrender.com` (나중에 프론트엔드 URL로 변경)
-   - `NAVER_CLIENT_ID`: (선택사항)
-   - `NAVER_CLIENT_SECRET`: (선택사항)
+   - `CORS_ORIGINS`: `https://etf-report-frontend.onrender.com` (프론트 배포 후 실제 URL로 변경)
+   - `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`: (선택)
    - `SCRAPING_INTERVAL_MINUTES`: `60`
    - `CACHE_TTL_MINUTES`: `5`
    - `DB_POOL_SIZE`: `5`
-5. "Create Web Service" 클릭
+5. **Create Web Service** 클릭
 
-#### 3단계: Frontend 서비스 배포
+#### 3단계: Frontend Static Site 배포
 
-1. "New +" → "Static Site" 선택
+1. **New +** → **Static Site** 선택
 2. GitHub 저장소 연결
 3. 설정:
    - **Name**: `etf-report-frontend`
@@ -111,20 +122,21 @@ git push origin main
    - **Build Command**: `npm install && npm run build`
    - **Publish Directory**: `dist`
    - **Plan**: `Free`
-4. "Advanced" → "Add Environment Variable":
-   - `VITE_API_BASE_URL`: 백엔드 서비스 URL + `/api` (예: `https://etf-report-backend.onrender.com/api`)
-5. "Create Static Site" 클릭
+4. **Environment**에서:
+   - `VITE_API_BASE_URL`: 백엔드 URL + `/api` (예: `https://etf-report-backend.onrender.com/api`). 끝에 `/` 제외.
+5. **Create Static Site** 클릭
 
 ## 🔧 배포 후 설정
 
 ### 데이터베이스 초기화
 
-Backend 서비스가 처음 시작될 때 자동으로 데이터베이스가 초기화됩니다. 
-만약 수동으로 초기화해야 한다면:
+Backend 서비스 시작 시 **앱 진입점(`app.main`)에서 `init_db()`가 자동 호출**되므로, 별도 DB 초기화는 필요하지 않습니다.  
+테이블 생성·stocks 동기화는 모두 시작 시점에 수행됩니다.
 
-1. Render 대시보드에서 Backend 서비스 선택
-2. "Shell" 탭 클릭
-3. 다음 명령 실행:
+수동으로 DB만 초기화해야 할 때 (예: 스키마 문제 복구):
+
+1. Render 대시보드 → Backend 서비스 → **Shell** 탭
+2. 다음 실행:
 ```bash
 cd backend
 python -m app.database
@@ -132,12 +144,11 @@ python -m app.database
 
 ### CORS 설정 업데이트
 
-Frontend URL이 생성된 후, Backend의 `CORS_ORIGINS` 환경 변수를 업데이트하세요:
+Frontend 배포 후 생성된 URL로 Backend의 CORS를 맞춰주세요.
 
-1. Backend 서비스 → "Environment" 탭
-2. `CORS_ORIGINS` 값을 프론트엔드 URL로 변경
-3. "Save Changes" 클릭
-4. 서비스 재시작 (자동)
+1. Backend 서비스 → **Environment** 탭
+2. `CORS_ORIGINS`를 프론트엔드 URL로 설정 (예: `https://etf-report-frontend.onrender.com`)
+3. **Save Changes** (재시작은 자동)
 
 ## 📝 무료 플랜 제한사항
 
@@ -195,9 +206,9 @@ Frontend URL이 생성된 후, Backend의 `CORS_ORIGINS` 환경 변수를 업데
 **증상**: 배포 시 빌드 에러
 
 **해결책**:
-1. 로그 확인: Render 대시보드 → 서비스 → "Logs" 탭
-2. `requirements.txt`에 모든 의존성이 포함되어 있는지 확인
-3. Python 버전 확인 (3.11.9 권장)
+1. 로그 확인: Render 대시보드 → 서비스 → **Logs** 탭
+2. Backend: `backend/requirements.txt` 경로 및 의존성 확인. render.yaml 기준 Python 3.11.9 사용.
+3. Frontend: Root Directory `frontend`일 때 `npm install && npm run build`가 정상 동작하는지 로컬에서 확인 (Node 18+).
 
 ### 프론트엔드 API 호출 실패
 

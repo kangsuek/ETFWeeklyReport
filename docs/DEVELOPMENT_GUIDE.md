@@ -41,7 +41,7 @@ type(scope): subject
 ## 테스트 전략
 - **커버리지 목표**: 백엔드 80%, 프론트엔드 70%, Critical Path 100%
 - **패턴**: Given-When-Then 구조
-- **테스트 정책**: AGENTS.md 및 프로젝트 완료 기준 문서 참고
+- **테스트 정책**: [AGENTS.md](../AGENTS.md) 참고
 
 ## 성능 최적화
 

@@ -86,7 +86,7 @@ uvicorn app.main:app --reload
 - **API 문서 (Swagger)**: http://localhost:8000/docs
 - **Health**: http://localhost:8000/api/health
 
-환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용합니다. 루트에서 `cp .env.example .env` 후 `DATABASE_URL`, `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`(뉴스 수집용, 선택) 등을 설정하세요.
+환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용합니다. 루트에서 `cp .env.example .env` 후 `API_KEY`(관리용, 선택), `DATABASE_URL`, `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`(뉴스 수집용, 선택) 등을 설정하세요.
 
 ### Frontend
 
@@ -129,12 +129,11 @@ npm run test:coverage
 
 | 구분 | 엔드포인트 예시 |
 |------|-----------------|
-| 종목 | `GET /api/etfs`, `GET /api/etfs/{ticker}`, `GET /api/etfs/{ticker}/prices`, `GET /api/etfs/{ticker}/trading-flow`, `GET /api/etfs/{ticker}/insights` |
-| 배치 | `POST /api/etfs/batch-summary` (대시보드용 일괄 요약) |
-| 비교 | `GET /api/etfs/compare?tickers=...` |
+| 종목 | `GET /api/etfs`, `GET /api/etfs/{ticker}`, `GET /api/etfs/{ticker}/prices`, `GET /api/etfs/{ticker}/trading-flow`, `GET /api/etfs/{ticker}/metrics`, `GET /api/etfs/{ticker}/insights`, `GET /api/etfs/{ticker}/intraday` |
+| 배치·비교 | `POST /api/etfs/batch-summary`, `GET /api/etfs/compare?tickers=...` |
 | 뉴스 | `GET /api/news/{ticker}` |
 | 데이터 | `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats`, `DELETE /api/data/reset` |
-| 설정 | `GET/POST /api/settings/stocks`, `PUT /api/settings/stocks/{ticker}`, `DELETE /api/settings/stocks/{ticker}`, `POST /api/settings/ticker-catalog/collect` |
+| 설정 | `GET/POST /api/settings/stocks`, `PUT/DELETE /api/settings/stocks/{ticker}`, `GET /api/settings/stocks/search`, `POST /api/settings/stocks/reorder`, `POST /api/settings/ticker-catalog/collect` |
 
 상세 스펙은 [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) 및 [docs/FEATURES.md](./docs/FEATURES.md)를 참고하세요.
 
@@ -162,15 +161,15 @@ npm run test:coverage
 | [docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) | 파일 구조 (표준 정합성) |
 | [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | DB 스키마 |
 | [docs/INTRADAY.md](./docs/INTRADAY.md) | 분봉 차트 조회·수집 |
+| [docs/TECH_STACK.md](./docs/TECH_STACK.md) | 기술 스택 |
 | [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md) | Render.com 배포 |
 | [docs/SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md) | 보안 체크리스트 |
-| [docs/DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md) | 완료 기준 |
 
 ---
 
 ## 데이터 소스
 
-- **네이버 금융**: 가격, 투자자별 매매 동향
+- **네이버 금융**: 가격, 투자자별 매매 동향, 분봉
 - **네이버 검색 API**: 뉴스 (선택, API 키 필요)
 
 ---

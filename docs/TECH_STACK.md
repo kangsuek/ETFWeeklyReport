@@ -19,7 +19,8 @@
 | **APScheduler** | 3.10.4 | 스케줄 작업 (일일 데이터 수집) |
 | **slowapi** | 0.1.9 | Rate limiting |
 | **limits** | 4.2 | Rate limit 백엔드 |
-| **python-dotenv** | 1.0.0 | `.env` 로드 |
+| **python-dotenv** | 1.0.0 | 루트 `.env` 로드 |
+| **python-multipart** | 0.0.6 | multipart 폼 파싱 |
 | **structlog** | 23.2.0 | 구조화 로깅 |
 | **Selenium** | 4.15.2 | 브라우저 자동화 (분봉 등) |
 | **webdriver-manager** | 4.0.1 | WebDriver 자동 관리 |
@@ -43,6 +44,7 @@
 | **date-fns** | 2.30.0 | 날짜 포맷·계산 |
 | **@dnd-kit/core** | 6.3.1 | 드래그 앤 드롭 (카드 순서 변경) |
 | **@dnd-kit/sortable** | 10.0.0 | 정렬 가능 리스트 |
+| **@dnd-kit/utilities** | 3.2.2 | dnd-kit 유틸리티 |
 | **clsx** | 2.0.0 | 조건부 클래스명 |
 | **prop-types** | 15.8.1 | 런타임 props 검증 |
 
@@ -50,19 +52,21 @@
 
 | 구분 | 도구 | 용도 |
 |------|------|------|
-| **백엔드 테스트** | pytest, pytest-asyncio, pytest-cov, pytest-mock, httpx | 단위·API 테스트, 커버리지 |
-| **백엔드 포맷** | black, isort | 코드 포맷팅 |
+| **백엔드 테스트** | pytest, pytest-asyncio, pytest-cov, pytest-mock, httpx | 단위·API 테스트, 커버리지 (requirements-dev.txt) |
+| **백엔드 포맷** | black, isort | 코드 포맷팅 (line-length 100) |
 | **백엔드 린트** | flake8, pylint | 스타일·정적 분석 |
 | **백엔드 타입** | mypy | 정적 타입 검사 |
 | **백엔드 기타** | pre-commit, coverage | 훅·커버리지 리포팅 |
-| **프론트엔드 테스트** | Vitest, React Testing Library, MSW, jsdom | 단위·컴포넌트 테스트, API 목업 |
+| **프론트엔드 테스트** | Vitest, React Testing Library, @testing-library/user-event, MSW, jsdom | 단위·컴포넌트 테스트, API 목업 |
 | **프론트엔드 린트** | ESLint (react, hooks, refresh) | 린트 |
-| **프론트엔드 빌드** | PostCSS, autoprefixer | CSS 후처리 |
+| **프론트엔드 빌드** | PostCSS, autoprefixer | CSS 후처리 (Tailwind) |
 
 ## 배포
 
 | 구분 | 옵션 |
 |------|------|
-| **프론트엔드** | Vite 빌드 산출물 정적 호스팅 (Vercel, Netlify 등) |
-| **백엔드** | Uvicorn 기반 (Render, Railway, Fly.io 등) |
-| **데이터베이스** | SQLite(파일) 또는 PostgreSQL (Supabase, Neon 등) |
+| **프론트엔드** | Vite 빌드 → `dist/` 정적 호스팅 (Render Static Site, Vercel, Netlify 등) |
+| **백엔드** | Uvicorn 기반 (Render Web Service, Railway, Fly.io 등). `render.yaml` Blueprint 지원. |
+| **데이터베이스** | SQLite(로컬·기본) 또는 PostgreSQL (Render 등 프로덕션) |
+
+버전 고정: 백엔드는 `requirements.txt` / `requirements-dev.txt`, 프론트엔드는 `package.json` (^ 범위) 참고.

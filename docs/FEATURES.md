@@ -335,8 +335,14 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 ## 문서
 
 - [README.md](../README.md) - 프로젝트 개요
+- [CLAUDE.md](../CLAUDE.md) - 문서 인덱스
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처
 - [API_SPECIFICATION.md](./API_SPECIFICATION.md) - API 명세
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) - DB 스키마
 - [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) - 개발 가이드
-- [DEFINITION_OF_DONE.md](./DEFINITION_OF_DONE.md) - 작업 완료 기준
+- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - 파일 구조
+- [SETUP_GUIDE.md](./SETUP_GUIDE.md) - 환경 설정·실행
+- [INTRADAY.md](./INTRADAY.md) - 분봉 조회·수집
+- [TECH_STACK.md](./TECH_STACK.md) - 기술 스택
+- [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) - Render.com 배포
+- [SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md) - 보안 체크리스트

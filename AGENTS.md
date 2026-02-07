@@ -10,8 +10,8 @@
 - Run: `uvicorn app.main:app --reload --port 8000`
 
 **Frontend (from `frontend/`):**
-- Test all: `npm test`
-- Test single: `npm test -- ErrorBoundary.test.jsx`
+- Test all: `npm test` (Vitest watch) or `npm test -- --run` (single run)
+- Test single: `npm test -- --run ErrorBoundary.test.jsx`
 - Coverage: `npm run test:coverage`
 - Lint: `npm run lint`
 - Dev: `npm run dev` (port 5173)
@@ -28,4 +28,4 @@
 
 **Documentation:** Korean for business logic comments, English for technical terms, update API_SPECIFICATION.md for new endpoints, update DATABASE_SCHEMA.md for schema changes
 
-**Critical Rules:** Read CLAUDE.md first, all tests must pass 100% before next phase (see DEFINITION_OF_DONE.md), update TODO.md when completing tasks, respond in Korean
+**Critical Rules:** Read CLAUDE.md first, all tests must pass before merging (see DEVELOPMENT_GUIDE.md for test policy), respond in Korean

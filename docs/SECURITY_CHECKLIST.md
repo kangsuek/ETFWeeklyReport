@@ -26,63 +26,50 @@
 
 ## ⚠️ 개선이 필요한 보안 항목
 
-### 1. 환경 변수 관리 ⚠️ **높음**
+### 1. 환경 변수 관리 ✅ **현재 정책 반영**
 
 #### 현재 상황:
-- `.env.example` 파일 생성됨 ✅
-- `.gitignore`에 `.env` 추가됨 ✅
+- `.env.example`은 **프로젝트 루트**에 있으며 커밋됨 ✅
+- `.gitignore`에 `.env` 포함됨 ✅
+- 백엔드·프론트엔드 모두 **루트의 `.env` 한 파일만** 사용 (`backend/.env`, `frontend/.env` 미사용). 백엔드는 `load_dotenv(루트/.env)`, 프론트는 Vite `envDir: '..'` 사용.
 
-#### 권장 사항:
-- 환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용. `backend/.env`, `frontend/.env`는 사용하지 않음.
+#### 배포 시:
+- Render 등에서는 `.env` 파일 없이 **플랫폼 환경 변수**만 사용. 루트 `.env`는 로컬/개발용.
+
+#### 확인:
 ```bash
-# .env 파일이 커밋되지 않았는지 확인
-git ls-files | grep -E '\.env$'  # 아무것도 나오지 않아야 함
-
-# .env.example은 루트에 있으며 커밋됨
-git add .env.example
+git ls-files | grep -E '\.env$'   # 결과 없어야 함 (.env 미커밋)
+ls -la .env.example              # 루트에 존재
 ```
 
 ---
 
 ### 2. API Key 인증 ⚠️ **중간**
 
-#### 현재 코드 (backend/app/middleware/auth.py:86-87):
-```python
-if not valid_api_key:
-    logger.warning("API_KEY가 환경 변수에 설정되지 않았습니다. 모든 요청을 허용합니다.")
-    return True  # API Key 미설정 시 모든 요청 허용 (개발 환경)
-```
-
-#### 문제점:
-- 프로덕션 환경에서 실수로 API_KEY 미설정 시 모든 엔드포인트가 열림
+#### 현재 동작 (backend/app/middleware/auth.py, app/dependencies.py):
+- 보호된 엔드포인트(수집·설정·DB 초기화·캐시 삭제 등)는 `Depends(verify_api_key_dependency)` 사용.
+- **API_KEY 미설정 시**: `verify_api_key_dependency`가 `"dev-mode"`를 반환하여 요청 허용 (개발 편의).
+- **API_KEY 설정 시**: `X-API-Key` 헤더 검증, 불일치 시 401 반환.
+- `APIKeyAuth.verify_api_key()`는 API_KEY 미설정 시 `False` 반환(거부)하지만, 실제 라우터는 dependency만 사용하므로 미설정 시에는 통과함.
 
 #### 권장 사항:
-```python
-# 프로덕션 환경에서는 API Key 필수로 변경
-import os
-
-if not valid_api_key:
-    if os.getenv("ENV") == "production":
-        logger.error("프로덕션 환경에서 API_KEY가 설정되지 않았습니다!")
-        return False  # 프로덕션에서는 거부
-    else:
-        logger.warning("개발 환경: API_KEY 미설정, 모든 요청 허용")
-        return True
-```
+- **프로덕션 배포 시 반드시 환경 변수 `API_KEY` 설정.** (Render 등에서는 대시보드에서 설정.)
+- 개발 시에는 미설정 시 허용으로 편의를 두었으므로, 프로덕션에서는 누락되지 않도록 체크리스트에서 확인.
 
 ---
 
-### 3. CORS 설정 강화 ⚠️ **낮음**
+### 3. CORS 설정 ✅ **현재 구현**
 
 #### 현재 코드 (backend/app/main.py):
-- `allow_origins`: Config.CORS_ORIGINS
+- `allow_origins`: Config.CORS_ORIGINS (환경 변수, 쉼표 구분)
 - `allow_credentials`: True
 - `allow_methods`: `["GET", "POST", "PUT", "DELETE", "OPTIONS"]` (명시적)
 - `allow_headers`: `["Content-Type", "X-API-Key", "Authorization", "X-No-Cache"]` (명시적)
+- `expose_headers`: `["X-Total-Count"]`
+- `max_age`: 3600 (preflight 캐시 1시간)
 
 #### 권장 사항 (선택):
-- 쿠키를 사용하지 않는다면 `allow_credentials=False`로 변경 검토
-- `max_age=600` 추가 시 preflight 캐시로 요청 감소
+- 쿠키를 사용하지 않는다면 `allow_credentials=False` 검토 가능. 프로덕션에서 CORS_ORIGINS를 프론트 도메인으로만 제한할 것.
 
 ---
 
@@ -119,14 +106,16 @@ chmod 600 backend/data/etf_data.db
 #### 체크 사항:
 ```python
 # ❌ 나쁜 예
-logger.info(f"API Key: {api_key}")  # 절대 로깅하지 말 것
+logger.info(f"API Key: {api_key}")       # 절대 로깅 금지
+logger.info(f"API Key: {api_key[:8]}...")  # 일부도 로깅 금지
 
 # ✅ 좋은 예
 logger.info("API Key validation successful")
 ```
 
 #### 권장 사항:
-모든 로깅 코드를 검토하여 민감한 정보(API Key, 비밀번호 등)가 로깅되지 않는지 확인
+- 민감한 정보(API Key, 비밀번호, 토큰)는 **전체·일부 모두** 로그에 남기지 않기.
+- 인증 실패 시 경로·메서드만 로깅하고, 헤더 값은 로깅하지 않기.
 
 ---
 
@@ -158,8 +147,9 @@ pip list --outdated
 - `dangerouslySetInnerHTML` 사용 금지 (코드 검색 결과 사용 안함 ✅)
 
 #### Content Security Policy (CSP) 권장
+- Vite 프로젝트 기준 진입 HTML은 `frontend/index.html`. 필요 시 해당 파일에 CSP 메타 태그 추가 검토.
 ```html
-<!-- public/index.html에 추가 -->
+<!-- frontend/index.html에 추가 (선택) -->
 <meta http-equiv="Content-Security-Policy" 
       content="default-src 'self'; 
                script-src 'self' 'unsafe-inline'; 

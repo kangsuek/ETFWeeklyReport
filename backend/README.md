@@ -85,14 +85,14 @@ open htmlcov/index.html  # macOS
 ### Linting
 
 ```bash
-# Black (코드 포매팅)
+# Black (코드 포매팅, max-line-length 100)
 black app/ tests/
 
-# isort (import 정렬)
+# isort (import 정렬, black 프로필)
 isort app/ tests/
 
-# Flake8 (스타일 검사)
-flake8 app/ tests/
+# Flake8 (스타일 검사, .flake8 기준)
+flake8 app/
 
 # Pylint (코드 분석)
 pylint app/
@@ -108,7 +108,7 @@ mypy app/
 black app/ tests/ && isort app/ tests/
 
 # 검사
-flake8 app/ tests/ && pylint app/ && mypy app/
+flake8 app/ && pylint app/ && mypy app/
 ```
 
 ## 📁 프로젝트 구조
@@ -117,24 +117,33 @@ flake8 app/ tests/ && pylint app/ && mypy app/
 backend/
 ├── app/
 │   ├── main.py              # FastAPI 애플리케이션 진입점
-│   ├── config.py            # 설정 관리
-│   ├── database.py          # 데이터베이스 연결
-│   ├── models.py            # Pydantic 모델
+│   ├── config.py            # 설정 (환경 변수, stocks.json)
+│   ├── database.py          # DB 연결 (SQLite/PostgreSQL)
+│   ├── models.py            # Pydantic 요청/응답 모델
 │   ├── routers/             # API 라우터
-│   │   ├── etfs.py
-│   │   ├── reports.py
-│   │   └── news.py
-│   └── services/            # 비즈니스 로직
-│       ├── data_collector.py
-│       └── news_scraper.py
-├── tests/                   # 테스트 파일
-├── data/                    # 데이터베이스 파일
-├── requirements.txt         # 운영 의존성
-├── requirements-dev.txt     # 개발 의존성
-├── pytest.ini              # Pytest 설정
-├── pyproject.toml          # 프로젝트 메타데이터 및 도구 설정
-└── .flake8                 # Flake8 설정
-
+│   │   ├── etfs.py          # 종목, 가격, 매매동향, 지표, 인사이트, 비교, 배치요약, 분봉
+│   │   ├── news.py          # 뉴스 조회·수집
+│   │   ├── data.py          # 일괄 수집, 백필, 상태, 캐시, DB 초기화
+│   │   └── settings.py     # 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   ├── services/            # 비즈니스 로직
+│   │   ├── data_collector.py
+│   │   ├── intraday_collector.py
+│   │   ├── news_scraper.py
+│   │   ├── news_analyzer.py
+│   │   ├── insights_service.py
+│   │   ├── comparison_service.py
+│   │   ├── scheduler.py
+│   │   ├── ticker_scraper.py
+│   │   └── ticker_catalog_collector.py
+│   ├── middleware/          # API Key, Rate Limit
+│   └── utils/               # cache, stocks_manager 등
+├── config/                  # stocks.json
+├── tests/                   # pytest 테스트
+├── data/                    # SQLite DB 파일 (gitignore)
+├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
+└── .flake8
 ```
 
 ## 🛠️ 개발 워크플로우
@@ -196,16 +205,18 @@ backend/
 - 커버리지 80% 이상 유지
 - 모든 PR은 테스트 통과 필수
 
-자세한 내용은 `../docs/DEFINITION_OF_DONE.md` 참조
+자세한 내용은 [DEVELOPMENT_GUIDE.md](../docs/DEVELOPMENT_GUIDE.md) 및 [AGENTS.md](../AGENTS.md) 참조
 
 ## 🔐 환경 변수
 
-**프로젝트 루트**의 `.env` 파일에 다음 변수들을 설정하세요. (`backend/.env`는 사용하지 않음)
+**프로젝트 루트**의 `.env` 파일만 사용합니다. (`backend/.env`는 사용하지 않음)
 
+- `API_KEY`: 관리용 API 키 (수집·설정·DB 초기화 등, 미설정 시 개발 모드에서 모든 요청 허용)
 - `API_HOST`: API 서버 호스트 (기본: 0.0.0.0)
 - `API_PORT`: API 서버 포트 (기본: 8000)
-- `DATABASE_URL`: 데이터베이스 URL (예: `sqlite:///backend/data/etf_data.db`)
-- `CACHE_TTL_MINUTES`: 캐시 TTL (분)
+- `DATABASE_URL`: 데이터베이스 URL (미설정 시 `backend/data/etf_data.db` 사용)
+- `CACHE_TTL_MINUTES`: 캐시 TTL (분, 기본: 3)
+- `SCRAPING_INTERVAL_MINUTES`: 스케줄러 주기 수집 간격 (분, 기본: 3)
 - `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`: 뉴스 수집용 (선택)
 
 ## 📖 API 문서
