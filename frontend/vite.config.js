@@ -4,6 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: process.env.ELECTRON_BUILD ? './' : '/',
   // 환경 변수는 프로젝트 루트의 .env 파일 사용
   envDir: '..',
   resolve: {

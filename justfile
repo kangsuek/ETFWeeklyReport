@@ -93,3 +93,11 @@ pre-commit:
 # 백엔드 보안 스캔 (safety)
 security:
     cd {{project_root}}/backend && ./scripts/security_check.sh
+
+# 데스크톱 앱 개발 모드 실행
+desktop-dev:
+    cd {{project_root}}/desktop && npm start
+
+# 데스크톱 앱 빌드 (.dmg 생성)
+desktop-build:
+    bash {{project_root}}/desktop/scripts/build.sh
