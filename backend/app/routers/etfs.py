@@ -217,10 +217,8 @@ async def compare_etfs(
                     start_date=start_date,
                     end_date=end_date,
                     get_data_fn=collector.get_price_data,
-                    get_data_range_fn=collector.get_price_data_range,
                     collect_fn=collector.collect_and_save_prices,
                     data_type="price",
-                    pass_dates_to_collect=False
                 )
                 logger.info(f"Price data ready for {ticker}")
             except ScraperException as e:
@@ -382,7 +380,7 @@ async def get_prices(
     - 최대 조회 가능 기간: 1년 (365일)
     - 데이터 부족 시 자동 수집 (최대 30초 소요)
     """
-    logger.info(f"Fetching prices for {etf.ticker}")
+    logger.debug(f"Fetching prices for {etf.ticker}")
 
     # 날짜 범위 설정
     start_date, end_date = apply_default_dates(start_date, end_date, default_days=7)
@@ -401,13 +399,11 @@ async def get_prices(
             start_date=start_date,
             end_date=end_date,
             get_data_fn=collector.get_price_data,
-            get_data_range_fn=collector.get_price_data_range,
             collect_fn=collector.collect_and_save_prices,
             data_type="price",
-            pass_dates_to_collect=False
         )
 
-        logger.info(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
+        logger.debug(f"Successfully fetched {len(prices)} price records for {etf.ticker}")
         cache.set(cache_key, prices, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (가격 데이터)
         return prices
 
@@ -520,7 +516,6 @@ async def get_trading_flow(
             start_date=start_date,
             end_date=end_date,
             get_data_fn=collector.get_trading_flow_data,
-            get_data_range_fn=collector.get_trading_flow_data_range,
             collect_fn=collector.collect_and_save_trading_flow,
             data_type="trading flow",
             pass_dates_to_collect=True
@@ -531,7 +526,7 @@ async def get_trading_flow(
             cache.set(cache_key, [], ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (빈 결과도 캐싱)
             return []
 
-        logger.info(f"Retrieved {len(trading_data)} trading flow records for {etf.ticker}")
+        logger.debug(f"Retrieved {len(trading_data)} trading flow records for {etf.ticker}")
         cache.set(cache_key, trading_data, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (매매동향)
         return trading_data
 
@@ -986,7 +981,7 @@ async def get_intraday_prices(
         if not intraday_data and target_date is None:
             last_trading_date = intraday_collector.get_last_trading_date(etf.ticker)
             if last_trading_date and last_trading_date != date.today():
-                logger.info(f"No intraday data for today, checking last trading date: {last_trading_date}")
+                logger.debug(f"No intraday data for today, checking last trading date: {last_trading_date}")
                 actual_date = last_trading_date
                 intraday_data = intraday_collector.get_intraday_data(etf.ticker, last_trading_date)
 
@@ -1024,7 +1019,7 @@ async def get_intraday_prices(
                 # 기존 데이터가 있으면 증분 수집 (빠름), 없으면 전체 수집
                 use_incremental = bool(intraday_data)
                 log_msg = f"incremental re-collect" if use_incremental else "full collect (no data)"
-                logger.info(f"Intraday {log_msg} for {etf.ticker}, starting background collection")
+                logger.debug(f"Intraday {log_msg} for {etf.ticker}, starting background collection")
 
                 def _run_intraday_collect(ticker: str, incremental: bool) -> None:
                     try:

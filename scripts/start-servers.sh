@@ -25,7 +25,7 @@ if [ ! -d ".venv" ]; then
   echo "    ❌ backend/.venv가 없습니다. 먼저 실행: cd backend && uv venv && uv pip install -r requirements-dev.txt"
   exit 1
 fi
-uv run uvicorn app.main:app --reload --port 8000 > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+uv run uvicorn app.main:app --reload --port 8000 --no-access-log > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "    ✓ 백엔드 서버 시작 완료 (PID: $BACKEND_PID)"
 echo "    📝 로그: $PROJECT_ROOT/logs/backend.log"

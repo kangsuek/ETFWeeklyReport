@@ -115,43 +115,55 @@ class ComparisonService:
         end_date: date
     ) -> Dict[str, pd.DataFrame]:
         """
-        종목별 가격 데이터 조회
+        종목별 가격 데이터 조회 (배치 쿼리)
 
         Returns:
             {ticker: DataFrame(date, close_price)}
         """
-        prices_data = {}
+        if not tickers:
+            return {}
 
         # PostgreSQL과 SQLite의 플레이스홀더 차이
         param_placeholder = "%s" if USE_POSTGRES else "?"
 
+        # IN 절 플레이스홀더 생성
+        in_placeholders = ", ".join([param_placeholder] * len(tickers))
+
+        query = f"""
+            SELECT ticker, date, close_price
+            FROM prices
+            WHERE ticker IN ({in_placeholders})
+              AND date BETWEEN {param_placeholder} AND {param_placeholder}
+            ORDER BY ticker, date ASC
+        """
+
+        params = tuple(tickers) + (start_date, end_date)
+
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             if USE_POSTGRES:
-                # PostgreSQL: cursor.connection으로 connection 객체 접근
                 conn = conn_or_cursor.connection
             else:
                 conn = conn_or_cursor
 
+            df_all = pd.read_sql_query(
+                query,
+                conn,
+                params=params,
+                parse_dates=['date']
+            )
+
+        # ticker별로 DataFrame 분리
+        prices_data = {}
+        if not df_all.empty:
             for ticker in tickers:
-                query = f"""
-                    SELECT date, close_price
-                    FROM prices
-                    WHERE ticker = {param_placeholder} AND date BETWEEN {param_placeholder} AND {param_placeholder}
-                    ORDER BY date ASC
-                """
-
-                df = pd.read_sql_query(
-                    query,
-                    conn,
-                    params=(ticker, start_date, end_date),
-                    parse_dates=['date']
-                )
-
-                if not df.empty:
-                    prices_data[ticker] = df
+                df_ticker = df_all[df_all['ticker'] == ticker][['date', 'close_price']].reset_index(drop=True)
+                if not df_ticker.empty:
+                    prices_data[ticker] = df_ticker
                 else:
                     logger.warning(f"No price data for {ticker} in range {start_date} to {end_date}")
+        else:
+            for ticker in tickers:
+                logger.warning(f"No price data for {ticker} in range {start_date} to {end_date}")
 
         return prices_data
 

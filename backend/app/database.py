@@ -373,6 +373,12 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_news_ticker_date
         ON news(ticker, date DESC)
     """)
+
+    # news 테이블에 UNIQUE 인덱스 추가 (ON CONFLICT 패턴 지원)
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_news_ticker_url
+        ON news(ticker, url)
+    """)
     
     # Create indexes for stock_catalog
     cursor.execute("""

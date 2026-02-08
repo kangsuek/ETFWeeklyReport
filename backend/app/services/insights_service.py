@@ -40,7 +40,7 @@ class InsightsService:
                 "risks": [...]
             }
         """
-        logger.info(f"Generating insights for {ticker} (period: {period})")
+        logger.debug(f"Generating insights for {ticker} (period: {period})")
         
         # 기간에 따른 날짜 범위 계산
         today = date.today()
