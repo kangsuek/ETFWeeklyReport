@@ -147,8 +147,26 @@ function createMainWindow() {
 // ─── Custom Protocol (app://) ────────────────────────────────────────────
 function registerAppProtocol() {
   protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    let urlPath = decodeURIComponent(url.pathname);
+
+    // /api 요청은 백엔드 서버로 프록시
+    if (urlPath.startsWith('/api')) {
+      const backendUrl = `http://localhost:${BACKEND_PORT}${urlPath}${url.search || ''}`;
+      const fetchOptions = {
+        method: request.method,
+        headers: request.headers,
+      };
+      // GET/HEAD 이외의 메서드는 body 전달
+      if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
+        fetchOptions.body = request.body;
+        fetchOptions.duplex = 'half';
+      }
+      return net.fetch(backendUrl, fetchOptions);
+    }
+
+    // 정적 파일 서빙
     const frontendDist = getFrontendDistPath();
-    let urlPath = decodeURIComponent(new URL(request.url).pathname);
 
     if (urlPath === '/' || urlPath === './') {
       urlPath = '/index.html';
