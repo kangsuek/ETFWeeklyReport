@@ -66,9 +66,9 @@ export default function ETFDetail() {
   // 고급 분석 모드 토글 (기본: 닫힘 - 일반인을 위한 간결한 화면)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  // 기술지표 토글 상태 (기본: 꺼짐 - 고급 분석에서 사용자가 선택)
-  const [showRSI, setShowRSI] = useState(false)
-  const [showMACD, setShowMACD] = useState(false)
+  // 기술지표 토글 상태 (기본: 켜짐)
+  const [showRSI, setShowRSI] = useState(true)
+  const [showMACD, setShowMACD] = useState(true)
 
   // 설정 변경 시 날짜 범위 반영 (사용자가 수동으로 변경하지 않은 경우)
   useEffect(() => {

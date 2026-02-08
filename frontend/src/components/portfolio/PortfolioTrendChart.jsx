@@ -52,7 +52,10 @@ export default function PortfolioTrendChart({ data }) {
               border: '1px solid var(--tooltip-border, #e5e7eb)',
               borderRadius: '8px',
               fontSize: '12px',
+              color: 'var(--tooltip-color, #111827)',
             }}
+            labelStyle={{ color: 'var(--tooltip-color, #111827)' }}
+            itemStyle={{ color: 'var(--tooltip-color, #111827)' }}
           />
           <ReferenceLine y={0} stroke={COLORS.CHART_GRID} strokeWidth={1.5} />
           <Area

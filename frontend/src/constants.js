@@ -102,9 +102,9 @@ export const COLORS = {
   MA_10: '#10b981',  // 초록 (10일 이동평균)
   MA_20: '#ef4444',  // 빨강 (20일 이동평균)
 
-  // 차트 그리드/축
-  CHART_GRID: '#e5e7eb',    // 회색 (그리드)
-  CHART_AXIS: '#6b7280',    // 회색 (축)
+  // 차트 그리드/축 (CSS 변수로 다크모드 자동 대응)
+  CHART_GRID: 'var(--chart-grid, #e5e7eb)',    // 라이트: gray-200, 다크: gray-700
+  CHART_AXIS: 'var(--chart-axis, #6b7280)',    // 라이트: gray-500, 다크: gray-400
   CHART_CURSOR: '#6b7280',  // 회색 (커서)
 
   // 거래량 색상

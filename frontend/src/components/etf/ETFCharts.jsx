@@ -20,12 +20,12 @@ function fmtPrice(val) {
  */
 function getRSIInterpretation(rsiValue) {
   if (rsiValue == null) return null
-  if (rsiValue >= 80) return { text: '극단적 과매수 — 강한 매도 시그널', color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' }
-  if (rsiValue >= 70) return { text: '과매수 구간 — 매도 시그널, 조정 가능성', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' }
-  if (rsiValue >= 50) return { text: '상승 추세 — 매수세가 우위', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' }
-  if (rsiValue >= 30) return { text: '하락 추세 — 매도세가 우위', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' }
-  if (rsiValue >= 20) return { text: '과매도 구간 — 매수 시그널, 반등 가능성', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' }
-  return { text: '극단적 과매도 — 강한 매수 시그널', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' }
+  if (rsiValue >= 80) return { text: '극단적 과매수 — 강한 매도 시그널', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' }
+  if (rsiValue >= 70) return { text: '과매수 구간 — 매도 시그널, 조정 가능성', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' }
+  if (rsiValue >= 50) return { text: '상승 추세 — 매수세가 우위', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900' }
+  if (rsiValue >= 30) return { text: '하락 추세 — 매도세가 우위', color: 'text-orange-600 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900' }
+  if (rsiValue >= 20) return { text: '과매도 구간 — 매수 시그널, 반등 가능성', color: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900' }
+  return { text: '극단적 과매도 — 강한 매수 시그널', color: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900' }
 }
 
 /**
@@ -45,12 +45,12 @@ function getMACDInterpretation(macdData) {
   const macdAboveSignal = last.macd > last.signal
   const histogramGrowing = last.histogram > prev.histogram
 
-  if (isGoldenCross) return { text: '골든크로스 발생 — MACD가 시그널선 상향 돌파, 상승 전환 시그널', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', icon: '▲' }
-  if (isDeadCross) return { text: '데드크로스 발생 — MACD가 시그널선 하향 돌파, 하락 전환 시그널', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', icon: '▼' }
-  if (macdAboveSignal && histogramGrowing) return { text: '상승 추세 강화 — MACD가 시그널 위, 히스토그램 확대 중', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', icon: '▲' }
-  if (macdAboveSignal && !histogramGrowing) return { text: '상승 추세 약화 — MACD가 시그널 위이나 모멘텀 감소', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', icon: '─' }
-  if (!macdAboveSignal && !histogramGrowing) return { text: '하락 추세 강화 — MACD가 시그널 아래, 히스토그램 확대 중', color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', icon: '▼' }
-  if (!macdAboveSignal && histogramGrowing) return { text: '하락 추세 약화 — MACD가 시그널 아래이나 모멘텀 회복', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', icon: '─' }
+  if (isGoldenCross) return { text: '골든크로스 발생 — MACD가 시그널선 상향 돌파, 상승 전환 시그널', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900', icon: '▲' }
+  if (isDeadCross) return { text: '데드크로스 발생 — MACD가 시그널선 하향 돌파, 하락 전환 시그널', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900', icon: '▼' }
+  if (macdAboveSignal && histogramGrowing) return { text: '상승 추세 강화 — MACD가 시그널 위, 히스토그램 확대 중', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900', icon: '▲' }
+  if (macdAboveSignal && !histogramGrowing) return { text: '상승 추세 약화 — MACD가 시그널 위이나 모멘텀 감소', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900', icon: '─' }
+  if (!macdAboveSignal && !histogramGrowing) return { text: '하락 추세 강화 — MACD가 시그널 아래, 히스토그램 확대 중', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900', icon: '▼' }
+  if (!macdAboveSignal && histogramGrowing) return { text: '하락 추세 약화 — MACD가 시그널 아래이나 모멘텀 회복', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900', icon: '─' }
   return null
 }
 
@@ -138,12 +138,12 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
             <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">RSI 읽는 법</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-              <p><span className="text-red-500 font-medium">70 이상</span> = 과매수 (매도 고려)</p>
-              <p><span className="text-blue-500 font-medium">30 이하</span> = 과매도 (매수 고려)</p>
+              <p><span className="text-red-600 dark:text-red-300 font-medium">70 이상</span> = 과매수 (매도 고려)</p>
+              <p><span className="text-blue-600 dark:text-blue-300 font-medium">30 이하</span> = 과매도 (매수 고려)</p>
               <p><span className="text-green-600 dark:text-green-400 font-medium">50~70</span> = 상승 추세</p>
-              <p><span className="text-orange-500 font-medium">30~50</span> = 하락 추세</p>
+              <p><span className="text-orange-600 dark:text-orange-300 font-medium">30~50</span> = 하락 추세</p>
             </div>
-            <p className="text-gray-400 dark:text-gray-500 mt-1">RSI는 14일간 상승폭과 하락폭의 비율로 0~100 사이의 값을 가집니다.</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">RSI는 14일간 상승폭과 하락폭의 비율로 0~100 사이의 값을 가집니다.</p>
           </div>
         </div>
       )}
@@ -155,7 +155,7 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
               MACD (12, 26, 9)
               {currentMACD && (
-                <span className={`ml-2 font-semibold ${currentMACD.macd >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                <span className={`ml-2 font-semibold ${currentMACD.macd >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-300'}`}>
                   {currentMACD.macd.toFixed(0)}
                 </span>
               )}
@@ -179,11 +179,11 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">MACD 읽는 법</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
               <p><span className="text-green-600 dark:text-green-400 font-medium">골든크로스</span> = MACD가 시그널 상향 돌파 (매수)</p>
-              <p><span className="text-red-500 font-medium">데드크로스</span> = MACD가 시그널 하향 돌파 (매도)</p>
+              <p><span className="text-red-600 dark:text-red-300 font-medium">데드크로스</span> = MACD가 시그널 하향 돌파 (매도)</p>
               <p><span className="text-green-600 dark:text-green-400 font-medium">히스토그램 양수(+)</span> = 상승 모멘텀</p>
-              <p><span className="text-red-500 font-medium">히스토그램 음수(−)</span> = 하락 모멘텀</p>
+              <p><span className="text-red-600 dark:text-red-300 font-medium">히스토그램 음수(−)</span> = 하락 모멘텀</p>
             </div>
-            <p className="text-gray-400 dark:text-gray-500 mt-1">MACD는 단기(12일) EMA와 장기(26일) EMA의 차이를 나타내며, 시그널선(9일)과의 교차를 매매 시그널로 사용합니다.</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">MACD는 단기(12일) EMA와 장기(26일) EMA의 차이를 나타내며, 시그널선(9일)과의 교차를 매매 시그널로 사용합니다.</p>
           </div>
         </div>
       )}
