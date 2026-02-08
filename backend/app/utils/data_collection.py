@@ -6,7 +6,7 @@
 
 import logging
 from datetime import date
-from typing import Callable, Optional, Dict, Any, List
+from typing import Callable, Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ def auto_collect_if_needed(
     start_date: date,
     end_date: date,
     get_data_fn: Callable[[str, date, date], List[Any]],
-    get_data_range_fn: Callable[[str], Optional[Dict[str, date]]],
     collect_fn: Callable,
     data_type: str = "data",
     pass_dates_to_collect: bool = False
@@ -29,7 +28,6 @@ def auto_collect_if_needed(
         start_date: 조회 시작 날짜
         end_date: 조회 종료 날짜
         get_data_fn: 데이터 조회 함수 (ticker, start_date, end_date) -> List
-        get_data_range_fn: 데이터 범위 조회 함수 (ticker) -> Dict or None
         collect_fn: 데이터 수집 함수
             - pass_dates_to_collect=False: (ticker, days) -> count
             - pass_dates_to_collect=True: (ticker, days, start_date, end_date) -> count
@@ -43,56 +41,26 @@ def auto_collect_if_needed(
         ScraperException: 데이터 수집 실패
         DatabaseException: DB 오류
     """
-    # 1. DB 데이터 조회 (먼저 실제 데이터가 있는지 확인)
+    # 1. DB 데이터 조회
     data = get_data_fn(ticker, start_date, end_date)
 
-    # 2. 실제 조회된 데이터가 충분한지 확인
-    # 데이터가 있고 요청한 날짜 범위를 충분히 커버하는지 확인
+    # 2. 데이터가 있으면 바로 반환
     if data and len(data) > 0:
-        # 실제 데이터가 있으면 수집 불필요
         logger.debug(f"Found {len(data)} {data_type} records for {ticker} in range {start_date} to {end_date}, skipping collection")
         return data
 
-    # 3. 데이터 범위 확인 (데이터가 없거나 부족한 경우)
-    data_range = get_data_range_fn(ticker)
+    # 3. 데이터가 없으면 자동 수집
+    collection_days = (end_date - start_date).days + 1
+    logger.info(f"No {data_type} data for {ticker}, auto-collecting {collection_days} days")
 
-    # 4. 데이터가 없거나 범위가 부족한 경우에만 자동 수집
-    should_collect = False
-    collection_days = 0
-
-    if not data_range:
-        # DB에 데이터가 전혀 없음
-        logger.info(f"No {data_type} data in DB for {ticker}, collecting {(end_date - start_date).days + 1} days")
-        should_collect = True
-        collection_days = (end_date - start_date).days + 1
-    elif data_range['min_date'] > start_date or data_range['max_date'] < end_date:
-        # 요청 범위가 DB 범위를 벗어남
-        logger.info(
-            f"Requested {data_type} range ({start_date} to {end_date}) exceeds "
-            f"DB range ({data_range['min_date']} to {data_range['max_date']}) for {ticker}"
-        )
-        should_collect = True
-
-        # 전체 범위로 다시 수집
-        collection_days = (end_date - start_date).days + 1
+    if pass_dates_to_collect:
+        collected_count = collect_fn(ticker, collection_days, start_date, end_date)
     else:
-        # DB 범위는 충분하지만 실제 데이터가 없는 경우 (데이터 삭제 등)
-        logger.info(f"DB range covers requested range but no data found for {ticker}, collecting {(end_date - start_date).days + 1} days")
-        should_collect = True
-        collection_days = (end_date - start_date).days + 1
+        collected_count = collect_fn(ticker, collection_days)
 
-    if should_collect:
-        logger.info(f"Auto-collecting {collection_days} days of {data_type} data for {ticker}")
+    logger.info(f"Auto-collected {collected_count} {data_type} records for {ticker}")
 
-        # 수집 함수 호출 (날짜 전달 여부에 따라 다르게 호출)
-        if pass_dates_to_collect:
-            collected_count = collect_fn(ticker, collection_days, start_date, end_date)
-        else:
-            collected_count = collect_fn(ticker, collection_days)
-
-        logger.info(f"Auto-collected {collected_count} {data_type} records for {ticker}")
-
-        # 다시 조회
-        data = get_data_fn(ticker, start_date, end_date)
+    # 수집 후 재조회
+    data = get_data_fn(ticker, start_date, end_date)
 
     return data

@@ -563,6 +563,12 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
             conn.commit()
             logger.info("Transaction committed successfully")
 
+            # SQLite VACUUM: 전체 초기화이므로 빈 페이지를 회수하여 파일 크기 축소
+            if not USE_POSTGRES:
+                logger.debug("Running VACUUM to reclaim disk space...")
+                conn.execute("VACUUM")
+                logger.info("VACUUM completed")
+
             logger.warning(
                 f"Database reset: deleted {prices_count} prices, {news_count} news, "
                 f"{trading_flow_count} trading_flow, {collection_status_count} collection_status, "

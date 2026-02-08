@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
 from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.utils.retry import retry_with_backoff
@@ -532,7 +533,7 @@ class ETFDataCollector:
         Returns:
             PriceData 리스트 (날짜 내림차순 정렬)
         """
-        logger.info(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        logger.debug(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
         p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
@@ -568,7 +569,7 @@ class ETFDataCollector:
         Returns:
             TradingFlow 리스트 (날짜 내림차순 정렬)
         """
-        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        logger.debug(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
         p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:
@@ -602,7 +603,7 @@ class ETFDataCollector:
         Returns:
             ETFMetrics with calculated values
         """
-        logger.info(f"Calculating metrics for {ticker}")
+        logger.debug(f"Calculating metrics for {ticker}")
         p = "%s" if USE_POSTGRES else "?"
 
         try:
@@ -725,34 +726,120 @@ class ETFDataCollector:
                 volatility=None
             )
     
-    def collect_all_tickers(self, days: int = 1) -> dict:
+    def _collect_single_ticker(self, ticker: str, days: int) -> dict:
         """
-        모든 종목의 가격, 매매동향, 뉴스 데이터를 일괄 수집
-
-        일괄 수집 시에는 최신 데이터 보유 여부와 상관없이
-        요청한 기간 전체 데이터를 수집합니다.
+        단일 종목의 가격, 매매동향, 뉴스 데이터를 수집 (ThreadPoolExecutor용)
 
         Args:
-            days: 수집할 일수 (기본: 1일 - 당일 데이터)
+            ticker: 종목 코드
+            days: 수집할 일수
 
         Returns:
-            수집 결과 딕셔너리 {
-                'total_tickers': 전체 종목 수,
-                'success_count': 성공한 종목 수,
-                'fail_count': 실패한 종목 수,
-                'total_price_records': 총 가격 레코드 수,
-                'total_trading_flow_records': 총 매매동향 레코드 수,
-                'total_news_records': 총 뉴스 수,
-                'duration_seconds': 소요 시간(초),
-                'details': 종목별 상세 결과
-            }
+            종목별 수집 결과 딕셔너리
         """
         from app.database import update_collection_status
 
-        start_time = datetime.now()
-        logger.info(f"[일괄 수집] 시작: {days}일치 데이터 (전체 기간 수집)")
+        try:
+            etf_info = self.get_etf_info(ticker)
+            if not etf_info:
+                logger.warning(f"[일괄 수집] 종목 정보 없음: {ticker}")
+                return {
+                    'name': ticker,
+                    'success': False,
+                    'price_records': 0,
+                    'trading_flow_records': 0,
+                    'news_records': 0,
+                    'error': 'ETF info not found'
+                }
 
-        # 전체 종목 조회
+            price_count = 0
+            trading_flow_count = 0
+            news_count = 0
+            ticker_success = True
+            error_msg = None
+
+            # 가격 데이터 수집
+            try:
+                price_count = self.collect_and_save_prices(ticker, days)
+                logger.info(f"[일괄 수집] {ticker} - 가격: {price_count}건")
+                if price_count > 0:
+                    update_collection_status(
+                        ticker,
+                        price_date=date.today().isoformat(),
+                        success=True
+                    )
+            except Exception as e:
+                logger.error(f"[일괄 수집] {ticker} 가격 수집 실패: {e}")
+                ticker_success = False
+                error_msg = f"Price collection failed: {str(e)}"
+                update_collection_status(ticker, success=False)
+
+            # 매매동향 수집
+            try:
+                trading_flow_count = self.collect_and_save_trading_flow(ticker, days)
+                logger.info(f"[일괄 수집] {ticker} - 매매동향: {trading_flow_count}건")
+                if trading_flow_count > 0:
+                    update_collection_status(
+                        ticker,
+                        trading_flow_date=date.today().isoformat(),
+                        success=True
+                    )
+            except Exception as e:
+                logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
+
+            # 뉴스 수집
+            try:
+                logger.info(f"[일괄 수집] {ticker} - 뉴스 수집 시작 (최근 {days}일)")
+                news_result = self.news_scraper.collect_and_save_news(ticker, days)
+                news_count = news_result.get('collected', 0)
+                logger.info(f"[일괄 수집] {ticker} - 뉴스: {news_count}건 수집 완료")
+            except Exception as e:
+                logger.error(f"[일괄 수집] {ticker} 뉴스 수집 실패: {e}", exc_info=True)
+                news_count = 0
+
+            success = ticker_success and price_count > 0
+            if success:
+                logger.info(f"[일괄 수집] {ticker} ({etf_info.name}): 성공")
+            else:
+                logger.warning(f"[일괄 수집] {ticker} ({etf_info.name}): 실패")
+
+            return {
+                'name': etf_info.name,
+                'success': success,
+                'price_records': price_count,
+                'trading_flow_records': trading_flow_count,
+                'news_records': news_count,
+                'error': error_msg
+            }
+
+        except Exception as e:
+            logger.error(f"[일괄 수집] {ticker} 실패: {e}")
+            return {
+                'name': ticker,
+                'success': False,
+                'price_records': 0,
+                'trading_flow_records': 0,
+                'news_records': 0,
+                'error': str(e)
+            }
+
+    def collect_all_tickers(self, days: int = 1, max_workers: int = 3) -> dict:
+        """
+        모든 종목의 가격, 매매동향, 뉴스 데이터를 병렬 일괄 수집
+
+        ThreadPoolExecutor를 사용하여 종목별 병렬 수집.
+        공유 rate_limiter로 API 호출 속도 제한 유지.
+
+        Args:
+            days: 수집할 일수 (기본: 1일 - 당일 데이터)
+            max_workers: 병렬 처리 워커 수 (기본: 3)
+
+        Returns:
+            수집 결과 딕셔너리
+        """
+        start_time = datetime.now()
+        logger.info(f"[일괄 수집] 시작: {days}일치 데이터 (병렬 {max_workers} workers)")
+
         all_etfs = self.get_all_etfs()
         tickers = [etf.ticker for etf in all_etfs]
 
@@ -763,12 +850,27 @@ class ETFDataCollector:
         total_news_records = 0
         details = {}
 
-        for ticker in tickers:
-            try:
-                # 종목 정보 확인
-                etf_info = self.get_etf_info(ticker)
-                if not etf_info:
-                    logger.warning(f"[일괄 수집] 종목 정보 없음: {ticker}")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._collect_single_ticker, ticker, days): ticker
+                for ticker in tickers
+            }
+            for future in as_completed(futures):
+                ticker = futures[future]
+                try:
+                    result = future.result()
+                    details[ticker] = result
+
+                    if result['success']:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+
+                    total_price_records += result['price_records']
+                    total_trading_flow_records += result['trading_flow_records']
+                    total_news_records += result['news_records']
+                except Exception as e:
+                    logger.error(f"[일괄 수집] {ticker} future 실패: {e}")
                     fail_count += 1
                     details[ticker] = {
                         'name': ticker,
@@ -776,94 +878,8 @@ class ETFDataCollector:
                         'price_records': 0,
                         'trading_flow_records': 0,
                         'news_records': 0,
-                        'error': 'ETF info not found'
+                        'error': str(e)
                     }
-                    continue
-
-                # 가격 데이터 수집
-                price_count = 0
-                trading_flow_count = 0
-                news_count = 0
-                ticker_success = True
-                error_msg = None
-
-                try:
-                    # 일괄 수집: 최신 데이터 보유 여부와 상관없이 전체 기간 수집
-                    price_count = self.collect_and_save_prices(ticker, days)
-                    logger.info(f"[일괄 수집] {ticker} - 가격: {price_count}건")
-
-                    # 수집 상태 업데이트
-                    if price_count > 0:
-                        update_collection_status(
-                            ticker,
-                            price_date=date.today().isoformat(),
-                            success=True
-                        )
-                except Exception as e:
-                    logger.error(f"[일괄 수집] {ticker} 가격 수집 실패: {e}")
-                    ticker_success = False
-                    error_msg = f"Price collection failed: {str(e)}"
-                    update_collection_status(ticker, success=False)
-
-                # 매매동향 수집 (전체 기간)
-                try:
-                    trading_flow_count = self.collect_and_save_trading_flow(ticker, days)
-                    logger.info(f"[일괄 수집] {ticker} - 매매동향: {trading_flow_count}건")
-
-                    # 수집 상태 업데이트
-                    if trading_flow_count > 0:
-                        update_collection_status(
-                            ticker,
-                            trading_flow_date=date.today().isoformat(),
-                            success=True
-                        )
-                except Exception as e:
-                    logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
-                    # 매매동향 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
-
-                # 뉴스 수집
-                try:
-                    logger.info(f"[일괄 수집] {ticker} - 뉴스 수집 시작 (최근 {days}일)")
-                    news_result = self.news_scraper.collect_and_save_news(ticker, days)
-                    news_count = news_result.get('collected', 0)
-                    logger.info(f"[일괄 수집] {ticker} - 뉴스: {news_count}건 수집 완료 (결과: {news_result})")
-                except Exception as e:
-                    logger.error(f"[일괄 수집] {ticker} 뉴스 수집 실패: {e}", exc_info=True)
-                    # 뉴스 실패는 경고로만 처리 (가격 데이터가 있으면 성공으로 간주)
-                    news_count = 0
-
-                # 통계 업데이트
-                total_price_records += price_count
-                total_trading_flow_records += trading_flow_count
-                total_news_records += news_count
-
-                if ticker_success and price_count > 0:
-                    success_count += 1
-                    logger.info(f"[일괄 수집] {ticker} ({etf_info.name}): 성공")
-                else:
-                    fail_count += 1
-                    logger.warning(f"[일괄 수집] {ticker} ({etf_info.name}): 실패")
-
-                details[ticker] = {
-                    'name': etf_info.name,
-                    'success': ticker_success and price_count > 0,
-                    'price_records': price_count,
-                    'trading_flow_records': trading_flow_count,
-                    'news_records': news_count,
-                    'error': error_msg
-                }
-
-            except Exception as e:
-                logger.error(f"[일괄 수집] {ticker} 실패: {e}")
-                fail_count += 1
-                details[ticker] = {
-                    'name': ticker,
-                    'success': False,
-                    'price_records': 0,
-                    'trading_flow_records': 0,
-                    'news_records': 0,
-                    'error': str(e)
-                }
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -887,79 +903,108 @@ class ETFDataCollector:
 
         return result
     
-    def backfill_all_tickers(self, days: int = 90) -> dict:
+    def _backfill_single_ticker(self, ticker: str, days: int) -> dict:
         """
-        모든 종목의 히스토리 데이터를 백필
-        
+        단일 종목의 히스토리 데이터를 백필 (ThreadPoolExecutor용)
+
+        Args:
+            ticker: 종목 코드
+            days: 백필할 일수
+
+        Returns:
+            종목별 백필 결과 딕셔너리
+        """
+        try:
+            etf_info = self.get_etf_info(ticker)
+            if not etf_info:
+                logger.warning(f"[백필] 종목 정보 없음: {ticker}")
+                return {
+                    'ticker': ticker,
+                    'status': 'failed',
+                    'reason': 'ETF info not found',
+                    'collected': 0
+                }
+
+            collected_count = self.collect_and_save_prices(ticker, days)
+
+            if collected_count > 0:
+                logger.info(f"[백필] {ticker} ({etf_info.name}): {collected_count}개 수집")
+                return {
+                    'ticker': ticker,
+                    'name': etf_info.name,
+                    'status': 'success',
+                    'collected': collected_count
+                }
+            else:
+                logger.warning(f"[백필] {ticker}: 수집 데이터 없음")
+                return {
+                    'ticker': ticker,
+                    'name': etf_info.name,
+                    'status': 'failed',
+                    'reason': 'No data collected',
+                    'collected': 0
+                }
+
+        except Exception as e:
+            logger.error(f"[백필] {ticker} 실패: {e}")
+            return {
+                'ticker': ticker,
+                'status': 'failed',
+                'reason': str(e),
+                'collected': 0
+            }
+
+    def backfill_all_tickers(self, days: int = 90, max_workers: int = 3) -> dict:
+        """
+        모든 종목의 히스토리 데이터를 병렬 백필
+
         Args:
             days: 백필할 일수 (기본: 90일)
-        
+            max_workers: 병렬 처리 워커 수 (기본: 3)
+
         Returns:
             백필 결과 딕셔너리
         """
         start_time = datetime.now()
-        logger.info(f"[백필] 시작: {days}일치 데이터")
-        
-        # 전체 종목 조회
+        logger.info(f"[백필] 시작: {days}일치 데이터 (병렬 {max_workers} workers)")
+
         all_etfs = self.get_all_etfs()
         tickers = [etf.ticker for etf in all_etfs]
-        
+
         success_count = 0
         fail_count = 0
         total_records = 0
         details = []
-        
-        for ticker in tickers:
-            try:
-                etf_info = self.get_etf_info(ticker)
-                if not etf_info:
-                    logger.warning(f"[백필] 종목 정보 없음: {ticker}")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._backfill_single_ticker, ticker, days): ticker
+                for ticker in tickers
+            }
+            for future in as_completed(futures):
+                ticker = futures[future]
+                try:
+                    result = future.result()
+                    details.append(result)
+
+                    if result['status'] == 'success':
+                        success_count += 1
+                        total_records += result['collected']
+                    else:
+                        fail_count += 1
+                except Exception as e:
+                    logger.error(f"[백필] {ticker} future 실패: {e}")
                     fail_count += 1
                     details.append({
                         'ticker': ticker,
                         'status': 'failed',
-                        'reason': 'ETF info not found',
+                        'reason': str(e),
                         'collected': 0
                     })
-                    continue
-                
-                # 히스토리 데이터 수집
-                collected_count = self.collect_and_save_prices(ticker, days)
-                
-                if collected_count > 0:
-                    logger.info(f"[백필] {ticker} ({etf_info.name}): {collected_count}개 수집")
-                    total_records += collected_count
-                    success_count += 1
-                    details.append({
-                        'ticker': ticker,
-                        'name': etf_info.name,
-                        'status': 'success',
-                        'collected': collected_count
-                    })
-                else:
-                    logger.warning(f"[백필] {ticker}: 수집 데이터 없음")
-                    fail_count += 1
-                    details.append({
-                        'ticker': ticker,
-                        'name': etf_info.name,
-                        'status': 'failed',
-                        'reason': 'No data collected',
-                        'collected': 0
-                    })
-                    
-            except Exception as e:
-                logger.error(f"[백필] {ticker} 실패: {e}")
-                fail_count += 1
-                details.append({
-                    'ticker': ticker,
-                    'status': 'failed',
-                    'reason': str(e),
-                    'collected': 0
-                })
-        
+
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
+
         result = {
             'success_count': success_count,
             'fail_count': fail_count,
@@ -969,12 +1014,12 @@ class ETFDataCollector:
             'duration_seconds': round(duration, 2),
             'details': details
         }
-        
+
         logger.info(
             f"[백필] 완료: 성공 {success_count}/{len(tickers)}, "
             f"총 {total_records}개 레코드, 소요 시간 {duration:.2f}초"
         )
-        
+
         return result
     
     @retry_with_backoff(
@@ -1311,7 +1356,7 @@ class ETFDataCollector:
         Returns:
             매매동향 데이터 리스트
         """
-        logger.info(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
+        logger.debug(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
         p = "%s" if USE_POSTGRES else "?"
 
         with get_db_connection() as conn_or_cursor:

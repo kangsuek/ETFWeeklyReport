@@ -63,3 +63,6 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
+
+# Desktop app build output
+desktop/

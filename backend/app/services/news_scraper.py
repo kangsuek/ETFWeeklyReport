@@ -306,9 +306,9 @@ class NewsScraper:
     def save_news_data(self, ticker: str, news_data: List[dict]) -> int:
         """
         뉴스 데이터를 데이터베이스에 저장
-        
-        벌크 insert를 사용하여 성능 최적화
-        중복 체크는 먼저 수행하고, 새로운 뉴스만 벌크 insert
+
+        ON CONFLICT 패턴으로 중복 처리 (SELECT 없이 1회 쿼리)
+        Thread-safe: 별도 SELECT 없이 DB 레벨에서 중복 방지
 
         Args:
             ticker: 종목 코드
@@ -321,12 +321,13 @@ class NewsScraper:
             logger.warning("No news data to save")
             return 0
 
-        # 중복 체크 및 새로운 뉴스만 필터링
-        # PostgreSQL과 SQLite의 플레이스홀더 차이
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        # URL이 없는 뉴스는 제외
+        valid_news = [news for news in news_data if news.get('url')]
+        if not valid_news:
+            logger.debug(f"No valid news records to save for {ticker}")
+            return 0
 
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             if USE_POSTGRES:
                 cursor = conn_or_cursor
                 conn = cursor.connection
@@ -335,63 +336,38 @@ class NewsScraper:
                 cursor = conn.cursor()
 
             try:
-                # 기존 뉴스 URL 조회 (중복 체크)
-                cursor.execute(f"""
-                    SELECT url FROM news WHERE ticker = {param_placeholder}
-                """, (ticker,))
-                # PostgreSQL RealDictCursor는 dict를 반환
-                existing_urls = {row['url'] if USE_POSTGRES else row[0] for row in cursor.fetchall()}
-
-                # 새로운 뉴스만 필터링
-                new_news = [
-                    news for news in news_data
-                    if news.get('url') and news['url'] not in existing_urls
+                insert_data = [
+                    (
+                        ticker,
+                        news['date'],
+                        news['title'],
+                        news['url'],
+                        news['source'],
+                        news.get('relevance_score', 0.5)
+                    )
+                    for news in valid_news
                 ]
 
-                if not new_news:
-                    logger.debug(f"No new news records to save for {ticker} (all duplicates)")
-                    return 0
-
-                # 벌크 insert 수행
                 if USE_POSTGRES:
                     cursor.executemany("""
                         INSERT INTO news (ticker, date, title, url, source, relevance_score)
                         VALUES (%s, %s, %s, %s, %s, %s)
-                    """, [
-                        (
-                            ticker,
-                            news['date'],
-                            news['title'],
-                            news['url'],
-                            news['source'],
-                            news.get('relevance_score', 0.5)
-                        )
-                        for news in new_news
-                    ])
+                        ON CONFLICT (ticker, url) DO NOTHING
+                    """, insert_data)
                 else:
                     cursor.executemany("""
-                        INSERT INTO news (ticker, date, title, url, source, relevance_score)
+                        INSERT OR IGNORE INTO news (ticker, date, title, url, source, relevance_score)
                         VALUES (?, ?, ?, ?, ?, ?)
-                    """, [
-                        (
-                            ticker,
-                            news['date'],
-                            news['title'],
-                            news['url'],
-                            news['source'],
-                            news.get('relevance_score', 0.5)
-                        )
-                        for news in new_news
-                    ])
+                    """, insert_data)
 
                 conn.commit()
-                saved_count = len(new_news)
-                logger.info(f"Saved {saved_count} news records for {ticker} (bulk insert)")
+                saved_count = cursor.rowcount if cursor.rowcount >= 0 else len(valid_news)
+                logger.info(f"Saved {saved_count} news records for {ticker} (ON CONFLICT)")
 
             except Exception as e:
                 logger.error(f"Database error saving news: {e}")
                 conn.rollback()
-                saved_count = 0  # 롤백 시 저장된 레코드 없음
+                saved_count = 0
 
         return saved_count
 
