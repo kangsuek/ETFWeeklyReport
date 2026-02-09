@@ -371,6 +371,15 @@ export default function DataManagementPanel() {
     resetMutation.mutate()
   }
 
+  // 수집 소요 시간 문구 (60초 이상이면 분 단위로 표시)
+  const formatCollectionDuration = (seconds) => {
+    if (seconds >= 60) {
+      const minutes = Math.ceil(seconds / 60)
+      return minutes < 60 ? `약 ${minutes}분` : `약 ${Math.ceil(minutes / 60)}시간`
+    }
+    return `약 ${seconds}초`
+  }
+
   // 날짜 포맷팅
   const formatDate = (dateStr) => {
     // null, undefined, 빈 문자열인 경우 "-" 반환
@@ -586,7 +595,7 @@ export default function DataManagementPanel() {
             )}
 
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
+              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: {formatCollectionDuration(collectionDays * 6)}
             </p>
             </div>
           </div>
@@ -767,7 +776,7 @@ export default function DataManagementPanel() {
                     <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>소요 시간: 약 {collectionDays * 6}초</span>
+                    <span>소요 시간: {formatCollectionDuration(collectionDays * 6)}</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

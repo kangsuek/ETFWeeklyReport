@@ -12,19 +12,19 @@ export default function Settings() {
         description="종목 관리 및 환경 설정"
       />
 
-      {/* 종목 관리 섹션 */}
+      {/* 일반 설정 (테마, 자동 갱신, 날짜 범위, 표시 옵션) */}
       <div className="mt-4 sm:mt-6">
+        <GeneralSettingsPanel />
+      </div>
+
+      {/* 종목 관리 섹션 */}
+      <div className="mt-6 sm:mt-8">
         <TickerManagementPanel />
       </div>
 
       {/* API 키 설정 섹션 */}
       <div className="mt-6 sm:mt-8">
         <ApiKeysPanel />
-      </div>
-
-      {/* 일반 설정 섹션 */}
-      <div className="mt-6 sm:mt-8">
-        <GeneralSettingsPanel />
       </div>
 
       {/* 데이터 관리 섹션 */}
