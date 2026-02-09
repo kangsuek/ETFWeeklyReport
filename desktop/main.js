@@ -457,7 +457,7 @@ async function startBackend() {
     }
 
     pythonCmd = venvPython;
-    args = ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)];
+    args = ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT), '--no-access-log'];
 
     // 환경 변수로 경로 설정 (백엔드 코드가 읽기 전용 번들 외부에 쓸 수 있도록)
     env.DATABASE_URL = `sqlite:///${path.join(dataDir, 'etf_data.db')}`;
@@ -491,7 +491,7 @@ async function startBackend() {
   } else {
     // 개발 모드: uv run 사용
     pythonCmd = uvPath;
-    args = ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)];
+    args = ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT), '--no-access-log'];
     log('INFO', `Starting backend (dev): ${pythonCmd} ${args.join(' ')}`);
   }
 
