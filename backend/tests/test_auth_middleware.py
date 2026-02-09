@@ -161,7 +161,7 @@ class TestAuthMiddleware:
             assert APIKeyAuth.verify_api_key(None) is False
             assert APIKeyAuth.verify_api_key("") is False
 
-        # API_KEY 미설정 시 모두 허용
+        # API_KEY 미설정 시 보안 강화로 모든 요청 거부 (verify_api_key 기준)
         with patch("app.middleware.auth.Config.API_KEY", None):
-            assert APIKeyAuth.verify_api_key("any-key") is True
-            assert APIKeyAuth.verify_api_key(None) is False  # 단, None은 여전히 거부
+            assert APIKeyAuth.verify_api_key("any-key") is False
+            assert APIKeyAuth.verify_api_key(None) is False

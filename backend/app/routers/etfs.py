@@ -112,7 +112,7 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
 
 @router.get("/compare")
 async def compare_etfs(
-    tickers: str = Query(..., description="Comma-separated ticker codes (2-6 tickers)"),
+    tickers: str = Query(..., description="Comma-separated ticker codes (2-20 tickers)"),
     start_date: Optional[date] = Query(default=None, description="Start date (default: 30 days ago)"),
     end_date: Optional[date] = Query(default=None, description="End date (default: today)"),
     collector: ETFDataCollector = Depends(get_collector)
@@ -123,7 +123,7 @@ async def compare_etfs(
     여러 종목의 가격 변화를 비교하고 통계 지표를 제공합니다.
 
     **Query Parameters:**
-    - tickers: 쉼표로 구분된 종목 코드 (2-6개, 예: "487240,466920,042660")
+    - tickers: 쉼표로 구분된 종목 코드 (2-20개, 예: "487240,466920,042660")
     - start_date: 조회 시작 날짜 (선택, 기본값: 30일 전)
     - end_date: 조회 종료 날짜 (선택, 기본값: 오늘)
 
@@ -186,7 +186,7 @@ async def compare_etfs(
     - 500: 서버 오류
 
     **Notes:**
-    - 최소 2개, 최대 6개 종목 비교 가능
+    - 최소 2개, 최대 20개 종목 비교 가능
     - 최대 조회 기간: 1년 (365일)
     - 데이터가 없는 종목은 결과에서 제외
     - 상관관계는 일일 수익률 기준으로 계산

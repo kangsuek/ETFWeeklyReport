@@ -47,7 +47,7 @@ class ComparisonService:
         여러 종목의 비교 데이터 조회
 
         Args:
-            tickers: 비교할 종목 코드 리스트 (2-6개)
+            tickers: 비교할 종목 코드 리스트 (2-20개)
             start_date: 시작 날짜
             end_date: 종료 날짜
 
@@ -98,8 +98,8 @@ class ComparisonService:
         if len(tickers) < 2:
             raise ValidationException("At least 2 tickers are required for comparison")
 
-        if len(tickers) > 6:
-            raise ValidationException("Maximum 6 tickers allowed for comparison")
+        if len(tickers) > 20:
+            raise ValidationException("Maximum 20 tickers allowed for comparison")
 
         if start_date >= end_date:
             raise ValidationException("start_date must be before end_date")

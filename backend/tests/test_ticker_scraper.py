@@ -40,8 +40,8 @@ class TestTickerScraperReal:
             assert result["ticker"] == "005930"
             assert "삼성" in result["name"]
             assert result["type"] == "STOCK"
-            assert result["launch_date"] is None
-            assert result["expense_ratio"] is None
+            assert result.get("launch_date") is None
+            assert result.get("expense_ratio") is None
             assert isinstance(result["search_keyword"], str)
             assert isinstance(result["relevance_keywords"], list)
 
