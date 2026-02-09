@@ -173,7 +173,7 @@
   "091180": {
     "name": "KODEX 자동차",
     "type": "ETF",
-    "theme": "미분류",
+    "theme": "자동차",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
@@ -190,7 +190,7 @@
   "267260": {
     "name": "HD현대일렉트릭",
     "type": "STOCK",
-    "theme": "미분류",
+    "theme": "에너지솔루션",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
@@ -200,6 +200,95 @@
       "현대일렉트릭",
       "변압기",
       "에너지솔루션"
+    ]
+  },
+  "0131V0": {
+    "name": "1Q 미국우주항공테크",
+    "type": "ETF",
+    "theme": "미국우주항공테크",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "1Q 미국우주항공테크",
+    "relevance_keywords": [
+      "1Q 미국우주항공테크",
+      "1Q",
+      "미국우주항공테크",
+      "우주항공"
+    ]
+  },
+  "0138Y0": {
+    "name": "PLUS 금채권혼합",
+    "type": "ETF",
+    "theme": "금채권혼합",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "PLUS 금채권혼합",
+    "relevance_keywords": [
+      "PLUS 금채권혼합",
+      "PLUS",
+      "금채권혼합",
+      "미분류"
+    ]
+  },
+  "453870": {
+    "name": "TIGER 인도니프티50",
+    "type": "ETF",
+    "theme": "인도 (대형 우량주 50)",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "TIGER 인도니프티50",
+    "relevance_keywords": [
+      "TIGER 인도니프티50",
+      "TIGER",
+      "인도니프티50",
+      "미분류"
+    ]
+  },
+  "0065G0": {
+    "name": "KODEX 차이나테크TOP10",
+    "type": "ETF",
+    "theme": "중국 4대 핵심산업(기술·소비·헬스케어·자본재)",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "차이나테크TOP10",
+    "relevance_keywords": [
+      "KODEX 차이나테크TOP10",
+      "차이나테크TOP10",
+      "중국",
+      "차이나"
+    ]
+  },
+  "241180": {
+    "name": "TIGER 일본니케이225",
+    "type": "ETF",
+    "theme": "일본",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "TIGER 일본니케이225",
+    "relevance_keywords": [
+      "TIGER 일본니케이225",
+      "TIGER",
+      "일본니케이225",
+      "일본"
+    ]
+  },
+  "360750": {
+    "name": "TIGER 미국S&P500",
+    "type": "ETF",
+    "theme": "미국S&P500",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "TIGER 미국S&P500",
+    "relevance_keywords": [
+      "TIGER 미국S&P500",
+      "TIGER",
+      "S&P500"
     ]
   }
 }
