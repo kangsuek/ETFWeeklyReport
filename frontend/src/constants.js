@@ -199,6 +199,12 @@ export const MIN_SEARCH_LENGTH = 2
  */
 export const DEFAULT_DATE_RANGE_DAYS = 7
 
+/**
+ * 비교 페이지 최대 종목 선택 수
+ * - Comparison.jsx, TickerSelector.jsx에서 공통 사용 (한 곳만 수정하면 반영)
+ */
+export const COMPARE_MAX_TICKERS = 20
+
 // =============================================================================
 // 차트 관련 상수
 // =============================================================================
