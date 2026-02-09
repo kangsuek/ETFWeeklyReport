@@ -93,7 +93,7 @@ export default function Comparison() {
     })
   }
 
-  const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= 6
+  const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= 20
   const showResults = canCompare && comparisonData
 
   return (
@@ -227,12 +227,12 @@ export default function Comparison() {
             </svg>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                {selectedTickers.length < 2 ? '종목을 더 선택해주세요' : '최대 6개까지 선택 가능합니다'}
+                {selectedTickers.length < 2 ? '종목을 더 선택해주세요' : '최대 20개까지 선택 가능합니다'}
               </h3>
               <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
                 {selectedTickers.length < 2
                   ? `현재 ${selectedTickers.length}개 선택됨. 최소 2개 이상의 종목을 선택해야 비교할 수 있습니다.`
-                  : `현재 ${selectedTickers.length}개 선택됨. 최대 6개까지 선택 가능합니다.`
+                  : `현재 ${selectedTickers.length}개 선택됨. 최대 20개까지 선택 가능합니다.`
                 }
               </p>
             </div>
