@@ -1,5 +1,10 @@
 # Agent Guide for ETF Weekly Report
 
+## 용어 (Terminology)
+
+- **app** — desktop 앱 관련 (Electron, `desktop/` 폴더 등)
+- **web** — 웹서버/웹 앱 관련 (백엔드, 프론트엔드, API 등)
+
 ## Commands
 
 **just (프로젝트 루트, 권장):**
