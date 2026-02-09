@@ -837,11 +837,16 @@ class ETFDataCollector:
         Returns:
             수집 결과 딕셔너리
         """
+        from app.services.progress import update_progress, clear_progress
+
         start_time = datetime.now()
         logger.info(f"[일괄 수집] 시작: {days}일치 데이터 (병렬 {max_workers} workers)")
 
         all_etfs = self.get_all_etfs()
         tickers = [etf.ticker for etf in all_etfs]
+        # ticker → name 매핑 (진행률 표시용)
+        ticker_names = {etf.ticker: etf.name for etf in all_etfs}
+        total = len(tickers)
 
         success_count = 0
         fail_count = 0
@@ -849,6 +854,16 @@ class ETFDataCollector:
         total_trading_flow_records = 0
         total_news_records = 0
         details = {}
+        completed = 0
+
+        update_progress("collect-all", {
+            "status": "in_progress",
+            "current": 0,
+            "total": total,
+            "current_ticker": "",
+            "current_ticker_name": "",
+            "message": "수집 준비 중..."
+        })
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -880,6 +895,27 @@ class ETFDataCollector:
                         'news_records': 0,
                         'error': str(e)
                     }
+                    result = details[ticker]
+
+                completed += 1
+                ticker_name = result.get('name', ticker_names.get(ticker, ticker))
+                update_progress("collect-all", {
+                    "status": "in_progress",
+                    "current": completed,
+                    "total": total,
+                    "current_ticker": ticker,
+                    "current_ticker_name": ticker_name,
+                    "message": f"{ticker_name} 수집 완료 ({completed}/{total})"
+                })
+
+        update_progress("collect-all", {
+            "status": "completed",
+            "current": total,
+            "total": total,
+            "current_ticker": "",
+            "current_ticker_name": "",
+            "message": "수집 완료"
+        })
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()

@@ -66,7 +66,7 @@ export const NORMAL_API_TIMEOUT = 60000 // 60초
  * - /api/etfs/{ticker}/collect
  * - /api/settings/ticker-catalog/collect (5-10분 소요)
  */
-export const LONG_API_TIMEOUT = 600000 // 600초 (10분) - 종목 목록 수집을 위해 충분한 시간 확보
+export const LONG_API_TIMEOUT = 1800000 // 1800초 (30분) - 대량 데이터 수집을 위해 충분한 시간 확보
 
 // =============================================================================
 // 색상 코드 상수

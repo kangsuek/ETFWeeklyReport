@@ -406,15 +406,28 @@ async def validate_ticker(
         raise HTTPException(status_code=500, detail="Failed to validate ticker")
 
 
+@router.get("/ticker-catalog/collect-progress")
+async def get_ticker_catalog_progress(request: Request):
+    """
+    종목 목록 수집 진행률 조회
+
+    Returns:
+        현재 수집 진행 상태 (idle, in_progress, completed)
+    """
+    from app.services.progress import get_progress
+    progress = get_progress("ticker-catalog")
+    return progress or {"status": "idle"}
+
+
 @router.post("/ticker-catalog/collect")
 @limiter.limit(RateLimitConfig.DANGEROUS)
 async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify_api_key_dependency)) -> Dict[str, Any]:
     """
     종목 목록 수집 트리거 (관리자용)
-    
+
     네이버 금융에서 전체 종목 목록(코스피, 코스닥, ETF)을 수집하여
     stock_catalog 테이블에 저장합니다.
-    
+
     **Example Response:**
     ```json
     {
@@ -426,26 +439,28 @@ async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify
       "timestamp": "2025-01-15T10:30:00"
     }
     ```
-    
+
     **Status Codes:**
     - 200: Successfully collected
     - 500: Collection error
-    
+
     **Notes:**
     - 수집에는 시간이 걸릴 수 있습니다 (약 5-10분)
     - 기존 데이터는 업데이트됩니다
     """
+    import asyncio
+
     logger.info(f"[종목목록수집] 요청 수신: {request.method} {request.url.path}")
     logger.info(f"[종목목록수집] 클라이언트: {request.client.host if request.client else 'unknown'}")
-    
+
     try:
         logger.info("[종목목록수집] 종목 목록 수집 시작...")
-        
-        result = ticker_catalog_collector.collect_all_stocks()
-        
+
+        result = await asyncio.to_thread(ticker_catalog_collector.collect_all_stocks)
+
         logger.info(f"[종목목록수집] 종목 목록 수집 완료: {result}")
         return result
-        
+
     except ScraperException as e:
         logger.error(f"[종목목록수집] 수집 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

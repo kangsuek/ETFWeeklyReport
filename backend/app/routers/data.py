@@ -40,6 +40,19 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
 cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
+@router.get("/collect-progress")
+async def get_collect_progress(request: Request):
+    """
+    전체 데이터 수집 진행률 조회
+
+    Returns:
+        현재 수집 진행 상태 (idle, in_progress, completed)
+    """
+    from app.services.progress import get_progress
+    progress = get_progress("collect-all")
+    return progress or {"status": "idle"}
+
+
 @router.post("/collect-all")
 @limiter.limit(RateLimitConfig.DATA_COLLECTION)
 async def collect_all_data(
@@ -102,10 +115,12 @@ async def collect_all_data(
     try:
         from datetime import datetime
         import pytz
-        
+        import asyncio
+        from app.services.progress import clear_progress
+
         collector = ETFDataCollector()
-        result = collector.collect_all_tickers(days=days)
-        
+        result = await asyncio.to_thread(collector.collect_all_tickers, days=days)
+
         # 수집 완료 후 스케줄러의 마지막 수집 시간 업데이트
         try:
             scheduler = get_scheduler()
@@ -118,6 +133,9 @@ async def collect_all_data(
         # 수집 후 모든 캐시 무효화 (전체 데이터 갱신)
         cache.clear()
         logger.debug("Cache cleared after data collection")
+
+        # 진행률 정보 정리 (완료 후 5초 뒤 삭제 - 프론트에서 완료 상태를 읽을 시간 확보)
+        # clear_progress는 다음 수집 시작 시 자동으로 덮어쓰므로 여기서는 하지 않음
 
         return {
             "message": f"Data collection completed for {result['total_tickers']} tickers",

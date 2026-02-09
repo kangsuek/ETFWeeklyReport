@@ -278,6 +278,9 @@ export const dataApi = {
   // 데이터베이스 초기화 (위험!) (긴 작업)
   reset: () => api.delete('/data/reset', { timeout: LONG_API_TIMEOUT }),
 
+  // 전체 데이터 수집 진행률 조회 (빠른 조회)
+  getCollectProgress: () => api.get('/data/collect-progress', { timeout: FAST_API_TIMEOUT }),
+
   // 백엔드 캐시 클리어 후 요청 (새로고침용 헬퍼)
   // X-No-Cache 헤더를 포함한 GET 요청을 보내면 백엔드 미들웨어가 캐시를 클리어한 뒤 처리
   fetchWithNoCache: (url, options = {}) =>
@@ -315,6 +318,9 @@ export const settingsApi = {
 
   // 종목 목록 수집 트리거 (긴 작업)
   collectTickerCatalog: () => api.post('/settings/ticker-catalog/collect', null, { timeout: LONG_API_TIMEOUT }),
+
+  // 종목 목록 수집 진행률 조회 (빠른 조회)
+  getTickerCatalogProgress: () => api.get('/settings/ticker-catalog/collect-progress', { timeout: FAST_API_TIMEOUT }),
 
   // 종목 순서 변경 (일반 작업)
   reorderStocks: (tickers) => api.post('/settings/stocks/reorder', tickers, { timeout: NORMAL_API_TIMEOUT }),

@@ -52,40 +52,74 @@ class TickerCatalogCollector:
     def collect_all_stocks(self) -> Dict[str, Any]:
         """
         전체 종목 목록 수집 (코스피, 코스닥, ETF)
-        
+
         Returns:
             Dict with collection statistics
         """
+        from app.services.progress import update_progress
+
         logger.info("Starting ticker catalog collection from Naver Finance")
-        
+
         all_stocks = []
-        
+
         try:
             # 1. 코스피 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "kospi",
+                "step_index": 0,
+                "total_steps": 4,
+                "items_collected": 0,
+                "message": "코스피 종목 수집 중..."
+            })
             logger.info("Collecting KOSPI stocks...")
             kospi_stocks = self._collect_kospi_stocks()
             all_stocks.extend(kospi_stocks)
             logger.info(f"Collected {len(kospi_stocks)} KOSPI stocks")
-            
+
             # 2. 코스닥 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "kosdaq",
+                "step_index": 1,
+                "total_steps": 4,
+                "items_collected": len(kospi_stocks),
+                "message": f"코스닥 종목 수집 중... (코스피 {len(kospi_stocks)}개 완료)"
+            })
             logger.info("Collecting KOSDAQ stocks...")
             kosdaq_stocks = self._collect_kosdaq_stocks()
             all_stocks.extend(kosdaq_stocks)
             logger.info(f"Collected {len(kosdaq_stocks)} KOSDAQ stocks")
-            
+
             # 3. ETF 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "etf",
+                "step_index": 2,
+                "total_steps": 4,
+                "items_collected": len(kospi_stocks) + len(kosdaq_stocks),
+                "message": f"ETF 종목 수집 중... (코스피 {len(kospi_stocks)}개, 코스닥 {len(kosdaq_stocks)}개 완료)"
+            })
             logger.info("Collecting ETF stocks...")
             etf_stocks = self._collect_etf_stocks()
             all_stocks.extend(etf_stocks)
             logger.info(f"Collected {len(etf_stocks)} ETF stocks")
-            
+
             # 4. 데이터베이스에 저장
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "saving",
+                "step_index": 3,
+                "total_steps": 4,
+                "items_collected": len(all_stocks),
+                "message": f"데이터베이스에 저장 중... (총 {len(all_stocks)}개)"
+            })
             logger.info(f"Saving {len(all_stocks)} stocks to database...")
             saved_count = self._save_to_database(all_stocks)
-            
+
             # 5. 검색 캐시 무효화 (새로운 데이터가 추가되었으므로)
             self.clear_search_cache()
-            
+
             result = {
                 "total_collected": len(all_stocks),
                 "kospi_count": len(kospi_stocks),
@@ -94,11 +128,24 @@ class TickerCatalogCollector:
                 "saved_count": saved_count,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
+            update_progress("ticker-catalog", {
+                "status": "completed",
+                "step": "done",
+                "step_index": 4,
+                "total_steps": 4,
+                "items_collected": len(all_stocks),
+                "message": f"수집 완료! 총 {saved_count}개 저장"
+            })
+
             logger.info(f"Ticker catalog collection completed: {result}")
             return result
-            
+
         except Exception as e:
+            update_progress("ticker-catalog", {
+                "status": "error",
+                "message": f"수집 실패: {str(e)}"
+            })
             logger.error(f"Error collecting ticker catalog: {e}", exc_info=True)
             raise ScraperException(f"종목 목록 수집 실패: {e}")
 
