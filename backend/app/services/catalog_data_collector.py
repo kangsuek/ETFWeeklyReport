@@ -325,6 +325,9 @@ class CatalogDataCollector:
                     if cursor.rowcount > 0:
                         saved += 1
 
+                # sector가 NULL인 종목에 이름 기반 섹터 자동 매핑
+                self._update_sectors(cursor, p)
+
                 conn.commit()
 
             except Exception as e:
@@ -335,6 +338,95 @@ class CatalogDataCollector:
 
         logger.info(f"stock_catalog 업데이트: {saved}/{len(all_tickers)}건")
         return saved
+
+    def _update_sectors(self, cursor, p: str) -> int:
+        """
+        sector가 NULL인 종목에 대해 이름 기반으로 섹터 자동 매핑
+
+        Returns:
+            업데이트된 종목 수
+        """
+        # ETF 이름 키워드 → 섹터 매핑 (순서 중요: 먼저 매칭되는 것 우선)
+        SECTOR_KEYWORDS = [
+            # 반도체
+            (['반도체', '필라델피아', 'SOX'], '반도체'),
+            # 2차전지/배터리
+            (['2차전지', '배터리', '리튬', '에너지저장'], '2차전지'),
+            # AI/로봇
+            (['AI', '인공지능', '로봇', '자율주행', 'GPT', '생성형'], 'AI/로봇'),
+            # 바이오/헬스케어
+            (['바이오', '헬스케어', '제약', '의료', '게놈', '진단'], '바이오'),
+            # 자동차/모빌리티
+            (['자동차', '전기차', 'EV', '모빌리티', '완성차'], '자동차'),
+            # 금융
+            (['은행', '금융', '보험', '증권', 'KRX은행'], '금융'),
+            # 에너지/소재
+            (['태양광', '풍력', '신재생', '에너지', '원자력', '우라늄', '탄소'], '에너지'),
+            # IT/소프트웨어
+            (['소프트웨어', 'IT', '클라우드', '사이버보안', '게임', '미디어', '메타버스', '플랫폼'], 'IT/SW'),
+            # 건설/인프라
+            (['건설', '인프라', '조선', '해운', '항공', '운송'], '건설/인프라'),
+            # 화학/소재
+            (['화학', '소재', '철강', '비철금속', '희토류'], '화학/소재'),
+            # 식품/유통
+            (['식품', '유통', '음식료', '필수소비재'], '식품/유통'),
+            # 방산/우주
+            (['방산', '우주항공', '국방', '방위'], '방산/우주'),
+            # 통신
+            (['통신', '5G', '6G', 'K-뉴딜'], '통신'),
+            # 부동산/리츠
+            (['부동산', '리츠', 'REIT'], '부동산'),
+            # 배당
+            (['배당', '고배당', '커버드콜', '인컴'], '배당'),
+            # 채권
+            (['채권', '국채', '회사채', '금리', '국고채', '통안채'], '채권'),
+            # 금/원자재
+            (['금', '골드', '은', '원자재', '구리', '곡물', '원유', 'WTI', '천연가스'], '원자재'),
+            # 미국/해외
+            (['미국', 'S&P', '나스닥', 'NASDAQ', 'S&P500', '다우', '선진국', '글로벌'], '해외'),
+            # 중국/신흥국
+            (['중국', '차이나', '인도', '베트남', '일본', '신흥국'], '해외/신흥'),
+            # 레버리지/인버스
+            (['레버리지', '2X', '3X'], '레버리지'),
+            (['인버스', 'INVERSE'], '인버스'),
+            # 코스피/코스닥 지수
+            (['코스피200', 'KOSPI', 'TOP10'], '지수'),
+            (['코스닥150', 'KOSDAQ'], '코스닥지수'),
+        ]
+
+        cursor.execute("""
+            SELECT ticker, name FROM stock_catalog
+            WHERE (sector IS NULL OR sector = '') AND is_active = 1
+        """)
+        rows = cursor.fetchall()
+
+        updated = 0
+        for row in rows:
+            ticker = row['ticker'] if isinstance(row, dict) else row[0]
+            name = row['name'] if isinstance(row, dict) else row[1]
+            if not name:
+                continue
+
+            matched_sector = None
+            name_upper = name.upper()
+            for keywords, sector in SECTOR_KEYWORDS:
+                for kw in keywords:
+                    if kw.upper() in name_upper:
+                        matched_sector = sector
+                        break
+                if matched_sector:
+                    break
+
+            if matched_sector:
+                cursor.execute(
+                    f"UPDATE stock_catalog SET sector = {p} WHERE ticker = {p}",
+                    (matched_sector, ticker)
+                )
+                if cursor.rowcount > 0:
+                    updated += 1
+
+        logger.info(f"섹터 자동 매핑: {updated}/{len(rows)}건 업데이트")
+        return updated
 
     @staticmethod
     def _parse_int(text: str) -> Optional[int]:
