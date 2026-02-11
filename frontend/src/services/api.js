@@ -372,6 +372,9 @@ export const screeningApi = {
 
   // 데이터 수집 진행률 조회 (빠른 조회)
   getCollectProgress: () => api.get('/screening/collect-progress', { timeout: FAST_API_TIMEOUT }),
+
+  // 데이터 수집 중지
+  cancelCollect: () => api.post('/screening/cancel-collect', null, { timeout: FAST_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

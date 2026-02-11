@@ -8,6 +8,7 @@ import threading
 from typing import Dict, Any, Optional
 
 _progress: Dict[str, Dict[str, Any]] = {}
+_cancelled: Dict[str, bool] = {}
 _lock = threading.Lock()
 
 
@@ -27,3 +28,16 @@ def clear_progress(task_id: str):
     """Clear progress for a completed task."""
     with _lock:
         _progress.pop(task_id, None)
+        _cancelled.pop(task_id, None)
+
+
+def request_cancel(task_id: str):
+    """Request cancellation of a running task."""
+    with _lock:
+        _cancelled[task_id] = True
+
+
+def is_cancelled(task_id: str) -> bool:
+    """Check if a task has been cancelled."""
+    with _lock:
+        return _cancelled.get(task_id, False)

@@ -339,9 +339,26 @@ async def get_collect_progress():
 async def trigger_collect_data(background_tasks: BackgroundTasks):
     """카탈로그 데이터 수동 수집 트리거"""
     from app.services.catalog_data_collector import CatalogDataCollector
+    from app.services.progress import clear_progress
+
+    # 이전 취소 플래그 초기화
+    clear_progress("catalog-data")
 
     collector = CatalogDataCollector()
 
     background_tasks.add_task(collector.collect_all)
 
     return {"message": "카탈로그 데이터 수집이 시작되었습니다", "status": "started"}
+
+
+@router.post("/cancel-collect")
+async def cancel_collect_data():
+    """진행 중인 카탈로그 데이터 수집 중지"""
+    from app.services.progress import request_cancel, get_progress
+
+    progress = get_progress("catalog-data")
+    if not progress or progress.get("status") != "in_progress":
+        return {"message": "진행 중인 수집이 없습니다", "status": "idle"}
+
+    request_cancel("catalog-data")
+    return {"message": "수집 중지 요청됨", "status": "cancelling"}

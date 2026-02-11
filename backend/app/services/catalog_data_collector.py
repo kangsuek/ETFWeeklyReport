@@ -34,14 +34,16 @@ class CatalogDataCollector:
         Returns:
             수집 통계 dict
         """
-        from app.services.progress import update_progress
+        from app.services.progress import update_progress, is_cancelled
+
+        TASK_ID = "catalog-data"
 
         logger.info("Starting catalog data collection")
         start_time = datetime.now()
 
         try:
             # Phase 1: ETF 목록 페이지에서 가격/거래량 일괄 수집
-            update_progress("catalog-data", {
+            update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "prices",
                 "step_index": 0,
@@ -53,21 +55,37 @@ class CatalogDataCollector:
             price_data = self._collect_etf_prices()
             logger.info(f"Phase 1 완료: {len(price_data)}개 ETF 가격 수집")
 
+            if is_cancelled(TASK_ID):
+                update_progress(TASK_ID, {"status": "cancelled", "message": "수집이 중지되었습니다."})
+                logger.info("Catalog data collection cancelled after Phase 1")
+                return {"cancelled": True}
+
             # Phase 2: 개별 종목 수급 데이터 수집
-            update_progress("catalog-data", {
+            update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "supply_demand",
                 "step_index": 1,
                 "total_steps": 3,
                 "items_collected": len(price_data),
-                "message": f"수급 데이터 수집 중... ({len(price_data)}개 ETF)"
+                "message": f"수급 데이터 수집 중... ({len(price_data):,}개 ETF)"
             })
 
             supply_data = self._collect_supply_demand(list(price_data.keys()))
+
+            if is_cancelled(TASK_ID):
+                # 이미 수집된 데이터는 저장
+                logger.info("Cancelled during Phase 2, saving partial data")
+                saved_count = self._save_to_database(price_data, supply_data)
+                update_progress(TASK_ID, {
+                    "status": "cancelled",
+                    "message": f"수집 중지됨 (부분 저장: {saved_count:,}개)"
+                })
+                return {"cancelled": True, "saved_count": saved_count}
+
             logger.info(f"Phase 2 완료: {len(supply_data)}개 ETF 수급 수집")
 
             # Phase 3: DB 저장
-            update_progress("catalog-data", {
+            update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "saving",
                 "step_index": 2,
@@ -87,20 +105,20 @@ class CatalogDataCollector:
                 "timestamp": datetime.now().isoformat()
             }
 
-            update_progress("catalog-data", {
+            update_progress(TASK_ID, {
                 "status": "completed",
                 "step": "done",
                 "step_index": 3,
                 "total_steps": 3,
                 "items_collected": saved_count,
-                "message": f"수집 완료! {saved_count}개 ETF 업데이트 ({duration:.0f}초)"
+                "message": f"수집 완료! {saved_count:,}개 ETF 업데이트 ({duration:.0f}초)"
             })
 
             logger.info(f"Catalog data collection completed: {result}")
             return result
 
         except Exception as e:
-            update_progress("catalog-data", {
+            update_progress(TASK_ID, {
                 "status": "error",
                 "message": f"수집 실패: {str(e)}"
             })
@@ -165,12 +183,16 @@ class CatalogDataCollector:
         Returns:
             {ticker: {foreign_net, institutional_net, weekly_return}} dict
         """
-        from app.services.progress import update_progress
+        from app.services.progress import update_progress, is_cancelled
 
         result = {}
         total = len(tickers)
 
         for idx, ticker in enumerate(tickers):
+            if is_cancelled("catalog-data"):
+                logger.info(f"수급 데이터 수집 중지됨 ({idx}/{total})")
+                break
+
             try:
                 data = self._fetch_supply_data(ticker)
                 if data:
@@ -186,7 +208,7 @@ class CatalogDataCollector:
                         "items_collected": idx + 1,
                         "items_total": total,
                         "percent": pct,
-                        "message": f"수급 데이터 수집 중... ({idx + 1}/{total}, {pct}%)"
+                        "message": f"수급 데이터 수집 중... ({idx + 1:,}/{total:,})"
                     })
 
                 if (idx + 1) % 50 == 0:

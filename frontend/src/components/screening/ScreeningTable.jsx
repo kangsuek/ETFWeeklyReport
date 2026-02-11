@@ -40,19 +40,6 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
 
   const totalPages = Math.ceil(total / pageSize)
 
-  const navigateToAdd = (item) => {
-    navigate('/settings', {
-      state: {
-        addStock: {
-          ticker: item.ticker,
-          name: item.name,
-          type: item.type,
-          theme: item.sector || '',
-        },
-      },
-    })
-  }
-
   const SortIcon = ({ column }) => {
     if (sortBy !== column) {
       return <span className="text-gray-300 dark:text-gray-600 ml-0.5">↕</span>
@@ -87,9 +74,6 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
                   </span>
                 </th>
               ))}
-              <th className="px-3 py-2.5 text-xs font-medium text-gray-500 dark:text-gray-400 text-center">
-                추가
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -148,19 +132,6 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
                 {/* 기관 */}
                 <td className={`px-3 py-2.5 text-right tabular-nums ${getChangeColor(item.institutional_net)}`}>
                   {formatSignedNumber(item.institutional_net)}
-                </td>
-                {/* 추가 버튼 */}
-                <td className="px-3 py-2.5 text-center">
-                  {item.is_registered ? (
-                    <span className="text-xs text-gray-400 dark:text-gray-500">등록됨</span>
-                  ) : (
-                    <button
-                      onClick={() => navigateToAdd(item)}
-                      className="text-xs px-2 py-1 rounded border border-primary-300 dark:border-primary-600 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                    >
-                      + 추가
-                    </button>
-                  )}
                 </td>
               </tr>
             ))}

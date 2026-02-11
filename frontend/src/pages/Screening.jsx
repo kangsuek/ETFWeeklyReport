@@ -83,20 +83,48 @@ export default function Screening() {
       try {
         const res = await screeningApi.getCollectProgress()
         const p = res.data
-        setProgress(p)
 
         if (p.status === 'completed') {
+          // 폴링 즉시 중지 후 상태 업데이트
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
           setIsCollecting(false)
           setProgress(null)
           toast.success(p.message || '데이터 수집 완료!', 3000)
-          // 검색 결과 및 추천 캐시 무효화
           queryClient.invalidateQueries({ queryKey: ['screening'] })
           queryClient.invalidateQueries({ queryKey: ['screening-themes'] })
           queryClient.invalidateQueries({ queryKey: ['screening-recommendations'] })
+        } else if (p.status === 'cancelled') {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
+          setIsCollecting(false)
+          setProgress(null)
+          toast.info(p.message || '수집이 중지되었습니다.', 3000)
+          queryClient.invalidateQueries({ queryKey: ['screening'] })
+          queryClient.invalidateQueries({ queryKey: ['screening-themes'] })
         } else if (p.status === 'error') {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
           setIsCollecting(false)
           setProgress(null)
           toast.error(p.message || '수집 중 오류 발생', 3000)
+        } else if (p.status === 'idle') {
+          // 서버에 진행 정보가 없으면 중지
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
+          setIsCollecting(false)
+          setProgress(null)
+        } else {
+          // in_progress만 UI 업데이트
+          setProgress(p)
         }
       } catch {
         // 폴링 실패는 무시
@@ -169,6 +197,15 @@ export default function Screening() {
     }
   }
 
+  const handleCancelCollect = async () => {
+    try {
+      await screeningApi.cancelCollect()
+      setProgress((prev) => prev ? { ...prev, message: '중지 요청 중...' } : prev)
+    } catch {
+      // 무시
+    }
+  }
+
   // 마지막 데이터 갱신 시각
   const lastUpdated = data?.items?.[0]?.catalog_updated_at
 
@@ -236,6 +273,13 @@ export default function Screening() {
                 {progress.percent}%
               </span>
             )}
+            <button
+              onClick={handleCancelCollect}
+              className="flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+              title="수집 중지"
+            >
+              중지
+            </button>
           </div>
         </div>
       )}
