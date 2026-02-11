@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, Fragment } from 'react'
 import PropTypes from 'prop-types'
+import { useSettings } from '../../contexts/SettingsContext'
 
 /**
  * 상관계수 값에 따른 배경색 계산
@@ -71,11 +72,13 @@ function getTextColor(value, isDark) {
  * @param {Object} tickerInfo - { ticker: { name, ... } }
  */
 export default function CorrelationHeatmap({ correlationMatrix = null, tickerInfo = {} }) {
-  // 다크모드 감지
+  const { settings } = useSettings()
+
+  // 다크모드 감지 (테마 변경 시 반응)
   const isDark = useMemo(() => {
     if (typeof document === 'undefined') return false
     return document.documentElement.classList.contains('dark')
-  }, [])
+  }, [settings.theme])
 
   // 종목명 매핑
   const tickerNames = useMemo(() => {
@@ -139,10 +142,9 @@ export default function CorrelationHeatmap({ correlationMatrix = null, tickerInf
 
           {/* 데이터 행 */}
           {matrix.map((row, rowIdx) => (
-            <>
+            <Fragment key={`row-${rowIdx}`}>
               {/* 행 헤더 */}
               <div
-                key={`row-header-${rowIdx}`}
                 className="p-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 truncate flex items-center justify-end"
                 title={tickerNames[rowIdx]}
               >
@@ -172,7 +174,7 @@ export default function CorrelationHeatmap({ correlationMatrix = null, tickerInf
                   </div>
                 )
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

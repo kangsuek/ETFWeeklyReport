@@ -424,6 +424,45 @@ def init_db():
         ON intraday_prices(ticker, datetime DESC)
     """)
 
+    # Create alert_rules table for price alerts
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS alert_rules (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            alert_type {text_type} NOT NULL,
+            direction {text_type} NOT NULL,
+            target_price {real_type} NOT NULL,
+            memo {text_type},
+            is_active {integer_type} DEFAULT 1,
+            created_at TIMESTAMP {timestamp_default},
+            last_triggered_at TIMESTAMP,
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alert_rules_ticker
+        ON alert_rules(ticker, is_active)
+    """)
+
+    # Create alert_history table for alert logs
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS alert_history (
+            id {id_type},
+            rule_id {integer_type} NOT NULL,
+            ticker {text_type} NOT NULL,
+            alert_type {text_type} NOT NULL,
+            message {text_type},
+            triggered_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alert_history_ticker
+        ON alert_history(ticker, triggered_at DESC)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []

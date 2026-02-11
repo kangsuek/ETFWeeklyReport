@@ -1,9 +1,24 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useAlertStore } from '../../contexts/AlertContext'
 
 export default function Header() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [alertDropdownOpen, setAlertDropdownOpen] = useState(false)
+  const { alerts, unreadCount, markAllRead, clearAll } = useAlertStore()
+  const dropdownRef = useRef(null)
+
+  // 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setAlertDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const isActive = (path) => {
     return location.pathname === path
@@ -51,6 +66,63 @@ export default function Header() {
             <Link to="/compare" className={navLinkClass('/compare')}>
               Comparison
             </Link>
+            {/* 알림 벨 아이콘 */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => { setAlertDropdownOpen(!alertDropdownOpen); if (!alertDropdownOpen) markAllRead() }}
+                className="relative px-2 py-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="알림"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {alertDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">알림</h3>
+                    {alerts.length > 0 && (
+                      <button onClick={clearAll} className="text-xs text-gray-400 hover:text-red-500 transition-colors">모두 지우기</button>
+                    )}
+                  </div>
+                  <div className="overflow-y-auto max-h-72">
+                    {alerts.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-xs text-gray-400 dark:text-gray-500">
+                        <svg className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <p>알림이 없습니다</p>
+                        <p className="mt-1 text-gray-300 dark:text-gray-600">종목 상세에서 알림을 설정하세요</p>
+                      </div>
+                    ) : (
+                      alerts.map(alert => (
+                        <Link key={alert.id} to={`/etf/${alert.ticker}`} onClick={() => setAlertDropdownOpen(false)}
+                          className={`block px-4 py-2.5 border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${!alert.read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                          <div className="flex items-start gap-2">
+                            <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                              alert.alert_type === 'buy' ? 'bg-red-400' : alert.alert_type === 'sell' ? 'bg-blue-400' : alert.alert_type === 'price_change' ? 'bg-orange-400' : 'bg-purple-400'
+                            }`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-gray-800 dark:text-gray-200 leading-relaxed">{alert.message}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {new Date(alert.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Link to="/settings" className={navLinkClass('/settings')}>
               <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

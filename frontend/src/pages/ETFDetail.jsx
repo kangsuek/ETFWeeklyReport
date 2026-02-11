@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { etfApi, newsApi } from '../services/api'
+import { etfApi, newsApi, alertApi } from '../services/api'
 import { useSettings } from '../contexts/SettingsContext'
 import PageHeader from '../components/common/PageHeader'
 import Spinner from '../components/common/Spinner'
@@ -16,6 +16,8 @@ import ETFCharts from '../components/etf/ETFCharts'
 import InsightSummary from '../components/etf/InsightSummary'
 import StrategySummary from '../components/etf/StrategySummary'
 import IntradayChart from '../components/charts/IntradayChart'
+import PriceTargetPanel from '../components/etf/PriceTargetPanel'
+import useAlertChecker from '../hooks/useAlertChecker'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_SLOW } from '../constants'
 import { calculateDateRange } from '../utils/dateRange'
@@ -224,6 +226,30 @@ export default function ETFDetail() {
     forceRefreshRef.current = true
     refetchIntraday()
   }, [refetchIntraday])
+
+  // 알림 규칙 (목표가) 조회 - 분봉 차트에 표시
+  const { data: alertRules = [] } = useQuery({
+    queryKey: ['alertRules', ticker],
+    queryFn: async () => {
+      const res = await alertApi.getRules(ticker, false)
+      return res.data
+    },
+    enabled: !!ticker,
+    staleTime: 30_000,
+  })
+
+  // 전일 종가 (분봉 차트 + 알림 체크용)
+  const previousClose = pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null
+
+  // 3종 알림 감지 훅
+  useAlertChecker({
+    ticker,
+    tickerName: etf?.name || '',
+    alertRules,
+    intradayData,
+    previousClose,
+    tradingFlowData: tradingFlowData || [],
+  })
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (newRange) => {
@@ -625,8 +651,9 @@ export default function ETFDetail() {
             ticker={ticker}
             height={300}
             showVolume={settings.display.showVolume}
-            previousClose={pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null}
+            previousClose={previousClose}
             pivotLevels={showAdvanced ? supportResistanceData?.pivot : null}
+            priceTargets={alertRules}
           />
         )}
 
@@ -635,6 +662,16 @@ export default function ETFDetail() {
             장중이 아니거나 휴장일입니다. 장 시작 후 데이터가 수집됩니다.
           </p>
         )}
+
+        {/* 목표가 설정 패널 */}
+        <PriceTargetPanel
+          ticker={ticker}
+          currentPrice={
+            intradayData?.data?.length > 0
+              ? intradayData.data[intradayData.data.length - 1].price
+              : pricesData?.[0]?.close_price ?? null
+          }
+        />
       </div>
 
       {/* 6. 최근 뉴스 */}

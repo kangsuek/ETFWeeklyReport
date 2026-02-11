@@ -132,3 +132,33 @@ class ETFInsights(BaseModel):
     strategy: StrategyInsights
     key_points: List[str]  # 핵심 포인트 (최대 3개)
     risks: List[str]  # 리스크 요약 (최대 3개)
+
+
+# Alert Models
+class AlertRuleCreate(BaseModel):
+    """알림 규칙 생성 요청"""
+    ticker: str
+    alert_type: str  # "buy", "sell", "price_change", "trading_signal"
+    direction: str  # "above", "below", "both"
+    target_price: float  # 목표가(buy/sell) 또는 임계%(price_change) 또는 0(trading_signal)
+    memo: Optional[str] = None
+
+class AlertRuleUpdate(BaseModel):
+    """알림 규칙 수정 요청"""
+    alert_type: Optional[str] = None
+    direction: Optional[str] = None
+    target_price: Optional[float] = None
+    memo: Optional[str] = None
+    is_active: Optional[int] = None
+
+class AlertRuleResponse(BaseModel):
+    """알림 규칙 응답"""
+    id: int
+    ticker: str
+    alert_type: str
+    direction: str
+    target_price: float
+    memo: Optional[str] = None
+    is_active: int = 1
+    created_at: Optional[str] = None
+    last_triggered_at: Optional[str] = None
