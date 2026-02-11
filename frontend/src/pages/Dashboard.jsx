@@ -6,6 +6,7 @@ import PageHeader from '../components/common/PageHeader'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import ETFCardGrid from '../components/dashboard/ETFCardGrid'
 import PortfolioHeatmap from '../components/dashboard/PortfolioHeatmap'
+import RecommendationCards from '../components/dashboard/RecommendationCards'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_STATUS } from '../constants'
@@ -401,6 +402,9 @@ export default function Dashboard() {
         etfs={sortedETFs}
         batchSummary={batchSummary}
       />
+
+      {/* ETF 추천 카드 */}
+      <RecommendationCards />
 
       {/* 종목 그리드 */}
       <ETFCardGrid

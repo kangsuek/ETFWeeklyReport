@@ -162,3 +162,42 @@ class AlertRuleResponse(BaseModel):
     is_active: int = 1
     created_at: Optional[str] = None
     last_triggered_at: Optional[str] = None
+
+
+# Screening Models
+class ScreeningItem(BaseModel):
+    """스크리닝 결과 항목"""
+    ticker: str
+    name: str
+    type: str
+    market: Optional[str] = None
+    sector: Optional[str] = None
+    close_price: Optional[float] = None
+    daily_change_pct: Optional[float] = None
+    volume: Optional[int] = None
+    weekly_return: Optional[float] = None
+    foreign_net: Optional[int] = None
+    institutional_net: Optional[int] = None
+    catalog_updated_at: Optional[str] = None
+    is_registered: bool = False
+
+class ScreeningResponse(BaseModel):
+    """스크리닝 검색 응답"""
+    items: List[ScreeningItem]
+    total: int
+    page: int
+    page_size: int
+
+class ThemeGroup(BaseModel):
+    """테마/섹터 그룹"""
+    sector: str
+    count: int
+    avg_weekly_return: Optional[float] = None
+    top_performers: List[ScreeningItem]
+
+class RecommendationPreset(BaseModel):
+    """추천 프리셋"""
+    preset_id: str
+    title: str
+    description: str
+    items: List[ScreeningItem]

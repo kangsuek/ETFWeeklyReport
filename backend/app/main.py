@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import etfs, news, data, settings, alerts
+from app.routers import etfs, news, data, settings, alerts, screening
 from app.database import init_db
 from app.services.scheduler import get_scheduler
 from app.config import Config
@@ -121,6 +121,7 @@ app.include_router(data.router, prefix="/api/data", tags=["Data Collection"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
+app.include_router(screening.router, prefix="/api/screening", tags=["Screening"])
 
 @app.get("/api/health")
 async def health_check():

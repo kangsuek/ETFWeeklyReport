@@ -60,6 +60,9 @@ export default function Header() {
             <Link to="/" className={navLinkClass('/')}>
               Dashboard
             </Link>
+            <Link to="/screening" className={navLinkClass('/screening')}>
+              종목 발굴
+            </Link>
             <Link to="/portfolio" className={navLinkClass('/portfolio')}>
               Portfolio
             </Link>
@@ -171,6 +174,13 @@ export default function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Dashboard
+            </Link>
+            <Link
+              to="/screening"
+              className={mobileNavLinkClass('/screening')}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              종목 발굴
             </Link>
             <Link
               to="/portfolio"

@@ -355,6 +355,25 @@ export const alertApi = {
     api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
 }
 
+// Screening API 서비스
+export const screeningApi = {
+  // 조건 검색 (일반 조회)
+  search: (params = {}) => api.get('/screening', { params, timeout: NORMAL_API_TIMEOUT }),
+
+  // 테마 탐색 (일반 조회)
+  getThemes: () => api.get('/screening/themes', { timeout: NORMAL_API_TIMEOUT }),
+
+  // 추천 프리셋 (일반 조회)
+  getRecommendations: (limit = 5) =>
+    api.get('/screening/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
+
+  // 데이터 수집 트리거 (긴 작업)
+  collectData: () => api.post('/screening/collect-data', null, { timeout: LONG_API_TIMEOUT }),
+
+  // 데이터 수집 진행률 조회 (빠른 조회)
+  getCollectProgress: () => api.get('/screening/collect-progress', { timeout: FAST_API_TIMEOUT }),
+}
+
 // 단순화된 API 인터페이스
 export const apiService = {
   getETFs: async () => {

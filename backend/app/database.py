@@ -396,6 +396,53 @@ def init_db():
         ON stock_catalog(is_active)
     """)
 
+    # stock_catalog 스크리닝용 컬럼 마이그레이션
+    screening_columns = [
+        ("close_price", real_type),
+        ("daily_change_pct", real_type),
+        ("volume", integer_type),
+        ("weekly_return", real_type),
+        ("foreign_net", integer_type),
+        ("institutional_net", integer_type),
+        ("catalog_updated_at", "TIMESTAMP"),
+    ]
+    if USE_POSTGRES:
+        for col_name, col_type in screening_columns:
+            try:
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='stock_catalog' AND column_name=%s
+                """, (col_name,))
+                if not cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                    logger.info(f"Added {col_name} column to stock_catalog table")
+            except Exception as e:
+                logger.warning(f"Could not check/add {col_name} column to stock_catalog: {e}")
+                conn.rollback()
+    else:
+        for col_name, col_type in screening_columns:
+            try:
+                cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                logger.info(f"Added {col_name} column to stock_catalog table")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                    logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
+
+    # stock_catalog 스크리닝용 인덱스
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_screening
+        ON stock_catalog(type, is_active, weekly_return)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_sector
+        ON stock_catalog(sector, is_active)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_catalog_updated
+        ON stock_catalog(catalog_updated_at)
+    """)
+
     # Create indexes for collection_status
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_collection_status_last_dates

@@ -4,7 +4,7 @@ import { settingsApi } from '../../services/api'
 import { MIN_SEARCH_LENGTH } from '../../constants'
 import { formatPrice, formatNumber } from '../../utils/format'
 
-export default function TickerForm({ mode, initialData, onSubmit, onClose, isSubmitting }) {
+export default function TickerForm({ mode, initialData, prefillData, onSubmit, onClose, isSubmitting }) {
   const [formData, setFormData] = useState({
     ticker: '',
     name: '',
@@ -25,6 +25,19 @@ export default function TickerForm({ mode, initialData, onSubmit, onClose, isSub
   const tickerInputRef = useRef(null)
   const nameInputRef = useRef(null)
   const suggestionsRef = useRef(null)
+
+  // 스크리닝에서 전달된 프리필 데이터 (생성 모드)
+  useEffect(() => {
+    if (mode === 'create' && prefillData) {
+      setFormData((prev) => ({
+        ...prev,
+        ticker: prefillData.ticker || '',
+        name: prefillData.name || '',
+        type: prefillData.type || 'ETF',
+        theme: prefillData.theme || '',
+      }))
+    }
+  }, [mode, prefillData])
 
   // 초기 데이터 설정 (수정 모드)
   useEffect(() => {

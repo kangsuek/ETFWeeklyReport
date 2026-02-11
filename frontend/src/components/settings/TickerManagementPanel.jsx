@@ -1,17 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { etfApi, settingsApi } from '../../services/api'
 import { formatPrice, formatNumber } from '../../utils/format'
 import TickerForm from './TickerForm'
 import TickerDeleteConfirm from './TickerDeleteConfirm'
 
-export default function TickerManagementPanel() {
+export default function TickerManagementPanel({ prefillStock }) {
   const queryClient = useQueryClient()
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [selectedTicker, setSelectedTicker] = useState(null)
   const [formMode, setFormMode] = useState('create') // 'create' or 'edit'
+  const [prefillData, setPrefillData] = useState(null) // 스크리닝에서 전달된 프리필 데이터
   const [highlightedTicker, setHighlightedTicker] = useState(null) // 순서 변경 시 하이라이트
+
+  // 스크리닝에서 종목 추가 요청이 들어온 경우 자동으로 폼 오픈
+  useEffect(() => {
+    if (prefillStock) {
+      setFormMode('create')
+      setSelectedTicker(null)
+      setPrefillData(prefillStock)
+      setIsFormOpen(true)
+    }
+  }, [prefillStock])
 
   // 현재 종목 목록 조회 (stocks.json 기반)
   const { data: stocks, isLoading, error } = useQuery({
@@ -431,10 +442,12 @@ export default function TickerManagementPanel() {
         <TickerForm
           mode={formMode}
           initialData={selectedTicker}
+          prefillData={formMode === 'create' ? prefillData : null}
           onSubmit={handleFormSubmit}
           onClose={() => {
             setIsFormOpen(false)
             setSelectedTicker(null)
+            setPrefillData(null)
           }}
           isSubmitting={createMutation.isPending || updateMutation.isPending}
         />

@@ -50,13 +50,7 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
             >
               타입
               {sortBy === 'type' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {sortDirection === 'asc' ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  )}
-                </svg>
+                <span className="ml-0.5">{sortDirection === 'asc' ? '▲' : '▼'}</span>
               )}
             </button>
 
@@ -72,13 +66,7 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
             >
               이름
               {sortBy === 'name' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {sortDirection === 'asc' ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  )}
-                </svg>
+                <span className="ml-0.5">{sortDirection === 'asc' ? '▲' : '▼'}</span>
               )}
             </button>
 
@@ -94,13 +82,7 @@ export default function DashboardFilters({ sortBy, sortDirection, onSortChange }
             >
               테마
               {sortBy === 'theme' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {sortDirection === 'asc' ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  )}
-                </svg>
+                <span className="ml-0.5">{sortDirection === 'asc' ? '▲' : '▼'}</span>
               )}
             </button>
 

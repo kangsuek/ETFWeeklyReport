@@ -15,6 +15,7 @@ from app.config import Config
 from app.services.data_collector import ETFDataCollector
 from app.services.news_scraper import NewsScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
+from app.services.catalog_data_collector import CatalogDataCollector
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -35,10 +36,12 @@ class DataCollectionScheduler:
         self.collector = ETFDataCollector()
         self.news_scraper = NewsScraper()
         self.ticker_catalog_collector = TickerCatalogCollector()
+        self.catalog_data_collector = CatalogDataCollector()
         self._jobs = {}
         self.last_collection_time = None
         self.is_collecting = False
         self.last_catalog_collection_time = None
+        self.last_catalog_data_collection_time = None
         logger.info("DataCollectionScheduler 초기화 완료")
     
     def collect_periodic_data(self):
@@ -210,6 +213,35 @@ class DataCollectionScheduler:
             logger.error(f"[스케줄러-카탈로그수집] 전체 실패: {e}", exc_info=True)
             raise
     
+    def collect_catalog_data(self):
+        """
+        카탈로그 가격/수급 데이터 수집 작업
+
+        ETF 종목의 가격, 거래량, 외국인/기관 순매수 데이터를 수집하여
+        stock_catalog 테이블에 업데이트합니다.
+        """
+        start_time = datetime.now(KST)
+        logger.info(f"[스케줄러-카탈로그데이터수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        try:
+            result = self.catalog_data_collector.collect_all()
+
+            end_time = datetime.now(KST)
+            self.last_catalog_data_collection_time = end_time
+
+            logger.info(
+                f"[스케줄러-카탈로그데이터수집] 완료: "
+                f"가격 {result['price_count']}개, 수급 {result['supply_count']}개, "
+                f"저장 {result['saved_count']}개, "
+                f"소요 시간 {result['duration_seconds']}초"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[스케줄러-카탈로그데이터수집] 실패: {e}", exc_info=True)
+            raise
+
     def start(self):
         """
         스케줄러 시작
@@ -283,6 +315,22 @@ class DataCollectionScheduler:
         self._jobs['ticker_catalog_collection'] = catalog_job
         logger.info("종목 목록 카탈로그 수집 스케줄 등록: 매일 03:00 KST")
 
+        # ETF 카탈로그 가격/수급 데이터 수집 스케줄 (평일 16:00 KST, 장 마감 30분 후)
+        catalog_data_job = self.scheduler.add_job(
+            self.collect_catalog_data,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=16,
+                minute=0,
+                timezone=KST
+            ),
+            id='catalog_data_collection',
+            name='ETF 카탈로그 가격/수급 수집',
+            replace_existing=True
+        )
+        self._jobs['catalog_data_collection'] = catalog_data_job
+        logger.info("ETF 카탈로그 가격/수급 수집 스케줄 등록: 평일 16:00 KST")
+
         # 스케줄러 시작
         self.scheduler.start()
         logger.info("스케줄러 시작 완료")
@@ -344,18 +392,23 @@ class DataCollectionScheduler:
 
         # 카탈로그 수집 다음 실행 시간 찾기
         catalog_next_job = None
+        catalog_data_next_job = None
         for job in self.scheduler.get_jobs():
             if job.id == 'ticker_catalog_collection' and job.next_run_time:
                 catalog_next_job = job.next_run_time
+            if job.id == 'catalog_data_collection' and job.next_run_time:
+                catalog_data_next_job = job.next_run_time
 
         return {
             "is_running": self.scheduler.running,
             "is_collecting": self.is_collecting,
             "last_collection_time": self.last_collection_time.isoformat() if self.last_collection_time else None,
             "last_catalog_collection_time": self.last_catalog_collection_time.isoformat() if self.last_catalog_collection_time else None,
+            "last_catalog_data_collection_time": self.last_catalog_data_collection_time.isoformat() if self.last_catalog_data_collection_time else None,
             "interval_minutes": Config.SCRAPING_INTERVAL_MINUTES,
             "next_run_time": next_job.isoformat() if next_job else None,
-            "next_catalog_collection_time": catalog_next_job.isoformat() if catalog_next_job else None
+            "next_catalog_collection_time": catalog_next_job.isoformat() if catalog_next_job else None,
+            "next_catalog_data_collection_time": catalog_data_next_job.isoformat() if catalog_data_next_job else None,
         }
 
 

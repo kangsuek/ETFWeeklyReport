@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom'
 import PageHeader from '../components/common/PageHeader'
 import TickerManagementPanel from '../components/settings/TickerManagementPanel'
 import GeneralSettingsPanel from '../components/settings/GeneralSettingsPanel'
@@ -5,6 +6,9 @@ import ApiKeysPanel from '../components/settings/ApiKeysPanel'
 import DataManagementPanel from '../components/settings/DataManagementPanel'
 
 export default function Settings() {
+  const location = useLocation()
+  const addStock = location.state?.addStock || null
+
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-0">
       <PageHeader
@@ -19,7 +23,7 @@ export default function Settings() {
 
       {/* 종목 관리 섹션 */}
       <div className="mt-6 sm:mt-8">
-        <TickerManagementPanel />
+        <TickerManagementPanel prefillStock={addStock} />
       </div>
 
       {/* API 키 설정 섹션 */}
