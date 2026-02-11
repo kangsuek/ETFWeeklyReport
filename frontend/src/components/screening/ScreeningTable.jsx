@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { formatNumber, formatSignedNumber, formatPercent, getChangeColor } from '../../utils/formatters'
 
 const COLUMNS = [
   { key: 'name', label: '종목명', sortable: true },
@@ -10,42 +11,17 @@ const COLUMNS = [
   { key: 'institutional_net', label: '기관', sortable: true, align: 'right' },
 ]
 
-function formatNumber(num) {
-  if (num == null) return '-'
-  return num.toLocaleString('ko-KR')
-}
-
-function formatSignedNumber(num) {
-  if (num == null) return '-'
-  const sign = num > 0 ? '+' : ''
-  return `${sign}${num.toLocaleString('ko-KR')}`
-}
-
-function formatPercent(val) {
-  if (val == null) return '-'
-  const arrow = val > 0 ? '▲' : val < 0 ? '▼' : ''
-  const sign = val > 0 ? '+' : ''
-  return `${arrow} ${sign}${val.toFixed(2)}%`
-}
-
-function getChangeColor(val) {
-  if (val == null) return 'text-gray-500 dark:text-gray-400'
-  if (val > 0) return 'text-red-600 dark:text-red-400'
-  if (val < 0) return 'text-blue-600 dark:text-blue-400'
-  return 'text-gray-500 dark:text-gray-400'
+function SortIcon({ column, sortBy, sortDir }) {
+  if (sortBy !== column) {
+    return <span className="text-gray-300 dark:text-gray-600 ml-0.5">↕</span>
+  }
+  return <span className="text-primary-500 ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>
 }
 
 export default function ScreeningTable({ items, total, page, pageSize, sortBy, sortDir, onSort, onPageChange }) {
   const navigate = useNavigate()
 
   const totalPages = Math.ceil(total / pageSize)
-
-  const SortIcon = ({ column }) => {
-    if (sortBy !== column) {
-      return <span className="text-gray-300 dark:text-gray-600 ml-0.5">↕</span>
-    }
-    return <span className="text-primary-500 ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>
-  }
 
   if (!items || items.length === 0) {
     return (
@@ -67,10 +43,14 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
                   key={col.key}
                   className={`px-3 py-2.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${col.align === 'right' ? 'text-right' : 'text-left'} ${col.sortable ? 'cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none' : ''}`}
                   onClick={() => col.sortable && onSort(col.key)}
+                  onKeyDown={(e) => col.sortable && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort(col.key))}
+                  tabIndex={col.sortable ? 0 : undefined}
+                  role={col.sortable ? 'button' : undefined}
+                  aria-sort={col.sortable && sortBy === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <span className="inline-flex items-center gap-0.5">
                     {col.label}
-                    {col.sortable && <SortIcon column={col.key} />}
+                    {col.sortable && <SortIcon column={col.key} sortBy={sortBy} sortDir={sortDir} />}
                   </span>
                 </th>
               ))}

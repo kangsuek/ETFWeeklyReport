@@ -2,20 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { screeningApi } from '../../services/api'
 import LoadingIndicator from '../common/LoadingIndicator'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
-
-function formatPercent(val) {
-  if (val == null) return '-'
-  const arrow = val > 0 ? '▲' : val < 0 ? '▼' : ''
-  const sign = val > 0 ? '+' : ''
-  return `${arrow} ${sign}${val.toFixed(2)}%`
-}
-
-function getChangeColor(val) {
-  if (val == null) return 'text-gray-500 dark:text-gray-400'
-  if (val > 0) return 'text-red-600 dark:text-red-400'
-  if (val < 0) return 'text-blue-600 dark:text-blue-400'
-  return 'text-gray-500 dark:text-gray-400'
-}
+import { formatPercent, getChangeColor } from '../../utils/formatters'
 
 export default function ThemeExplorer({ onSectorClick, onCollectData, isCollecting }) {
   const { data: themes, isLoading, error } = useQuery({
@@ -71,7 +58,10 @@ export default function ThemeExplorer({ onSectorClick, onCollectData, isCollecti
         <div
           key={theme.sector}
           onClick={() => onSectorClick(theme.sector)}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 cursor-pointer hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all"
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSectorClick(theme.sector))}
+          role="button"
+          tabIndex={0}
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 cursor-pointer hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           {/* 섹터명 + 통계 */}
           <div className="flex items-center justify-between mb-3">

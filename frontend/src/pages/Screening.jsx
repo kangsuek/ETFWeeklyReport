@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { screeningApi } from '../services/api'
 import PageHeader from '../components/common/PageHeader'
 import ScreeningFilters from '../components/screening/ScreeningFilters'
@@ -66,7 +66,7 @@ export default function Screening() {
     },
     enabled: activeTab === 'search',
     staleTime: CACHE_STALE_TIME_FAST,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   })
 
   // 진행률 폴링
@@ -206,8 +206,11 @@ export default function Screening() {
     }
   }
 
-  // 마지막 데이터 갱신 시각
-  const lastUpdated = data?.items?.[0]?.catalog_updated_at
+  // 마지막 데이터 갱신 시각 (아이템 중 가장 최신 값)
+  const lastUpdated = data?.items?.reduce((latest, item) => {
+    if (!item.catalog_updated_at) return latest
+    return !latest || item.catalog_updated_at > latest ? item.catalog_updated_at : latest
+  }, null)
 
   return (
     <div className="animate-fadeIn">

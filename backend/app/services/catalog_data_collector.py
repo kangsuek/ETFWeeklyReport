@@ -5,7 +5,10 @@ stock_catalog 테이블의 ETF 종목에 대해 가격, 거래량, 수급 데이
 """
 import logging
 import json
+import time
+import threading
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -128,7 +131,7 @@ class CatalogDataCollector:
     @retry_with_backoff(
         max_retries=3,
         base_delay=1.0,
-        exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
+        exceptions=(requests.exceptions.RequestException, json.JSONDecodeError, ValueError)
     )
     def _collect_etf_prices(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -149,8 +152,7 @@ class CatalogDataCollector:
         data = json.loads(response.text)
 
         if data.get('resultCode') != 'success' or 'result' not in data:
-            logger.warning(f"ETF API 응답 실패: {data.get('resultCode')}")
-            return result
+            raise ValueError(f"ETF API 응답 실패: {data.get('resultCode')}")
 
         etf_list = data['result'].get('etfItemList', [])
 
@@ -175,7 +177,10 @@ class CatalogDataCollector:
 
     def _collect_supply_demand(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
         """
-        개별 종목의 수급(외국인/기관 순매수) 데이터 수집
+        개별 종목의 수급(외국인/기관 순매수) 데이터를 병렬 수집
+
+        ThreadPoolExecutor로 최대 MAX_WORKERS개 동시 요청하여 수집 속도를 높입니다.
+        서버 부하 방지를 위해 각 요청 후 REQUEST_DELAY만큼 대기합니다.
 
         Args:
             tickers: 수집 대상 티커 목록
@@ -185,47 +190,69 @@ class CatalogDataCollector:
         """
         from app.services.progress import update_progress, is_cancelled
 
+        MAX_WORKERS = 5
+        REQUEST_DELAY = 0.2  # 각 워커 요청 후 대기 (초)
+
         result = {}
         total = len(tickers)
+        completed_count = 0
+        lock = threading.Lock()
 
-        for idx, ticker in enumerate(tickers):
+        def fetch_one(ticker: str):
+            """단일 종목 수급 데이터 수집 (워커 스레드)"""
             if is_cancelled("catalog-data"):
-                logger.info(f"수급 데이터 수집 중지됨 ({idx}/{total})")
-                break
+                return ticker, None
 
             try:
-                data = self._fetch_supply_data(ticker)
-                if data:
-                    result[ticker] = data
-
-                if (idx + 1) % 10 == 0 or idx == 0:
-                    pct = round((idx + 1) / total * 100)
-                    update_progress("catalog-data", {
-                        "status": "in_progress",
-                        "step": "supply_demand",
-                        "step_index": 1,
-                        "total_steps": 3,
-                        "items_collected": idx + 1,
-                        "items_total": total,
-                        "percent": pct,
-                        "message": f"수급 데이터 수집 중... ({idx + 1:,}/{total:,})"
-                    })
-
-                if (idx + 1) % 50 == 0:
-                    logger.info(f"수급 데이터 수집 진행: {idx + 1}/{total}")
-
+                data = self._fetch_supply_data(ticker, use_rate_limiter=False)
+                time.sleep(REQUEST_DELAY)
+                return ticker, data
             except Exception as e:
                 logger.warning(f"[{ticker}] 수급 데이터 수집 실패: {e}")
-                continue
+                return ticker, None
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(fetch_one, t): t for t in tickers}
+
+            for future in as_completed(futures):
+                ticker, data = future.result()
+
+                with lock:
+                    completed_count += 1
+                    if data:
+                        result[ticker] = data
+
+                    if completed_count % 10 == 0 or completed_count == 1:
+                        pct = round(completed_count / total * 100)
+                        update_progress("catalog-data", {
+                            "status": "in_progress",
+                            "step": "supply_demand",
+                            "step_index": 1,
+                            "total_steps": 3,
+                            "items_collected": completed_count,
+                            "items_total": total,
+                            "percent": pct,
+                            "message": f"수급 데이터 수집 중... ({completed_count:,}/{total:,})"
+                        })
+
+                    if completed_count % 50 == 0:
+                        logger.info(f"수급 데이터 수집 진행: {completed_count}/{total}")
+
+                if is_cancelled("catalog-data"):
+                    logger.info(f"수급 데이터 수집 중지됨 ({completed_count}/{total})")
+                    for f in futures:
+                        f.cancel()
+                    break
 
         return result
 
-    def _fetch_supply_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+    def _fetch_supply_data(self, ticker: str, use_rate_limiter: bool = True) -> Optional[Dict[str, Any]]:
         """
         개별 종목 수급 데이터 수집 (외국인/기관 순매수, 주간수익률)
 
         Args:
             ticker: 종목 코드
+            use_rate_limiter: True면 공유 rate limiter 사용, False면 건너뜀 (병렬 수집 시)
 
         Returns:
             {foreign_net, institutional_net, weekly_return} or None
@@ -233,7 +260,11 @@ class CatalogDataCollector:
         url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
 
         try:
-            with self.rate_limiter:
+            if use_rate_limiter:
+                with self.rate_limiter:
+                    response = requests.get(url, headers=self.headers, timeout=10)
+                    response.raise_for_status()
+            else:
                 response = requests.get(url, headers=self.headers, timeout=10)
                 response.raise_for_status()
 
@@ -323,14 +354,15 @@ class CatalogDataCollector:
                     price = price_data.get(ticker, {})
                     supply = supply_data.get(ticker, {})
 
+                    # COALESCE로 새 값이 NULL이면 기존 값 유지 (부분 수집/취소 시 데이터 보존)
                     cursor.execute(f"""
                         UPDATE stock_catalog
-                        SET close_price = {p},
-                            daily_change_pct = {p},
-                            volume = {p},
-                            weekly_return = {p},
-                            foreign_net = {p},
-                            institutional_net = {p},
+                        SET close_price = COALESCE({p}, close_price),
+                            daily_change_pct = COALESCE({p}, daily_change_pct),
+                            volume = COALESCE({p}, volume),
+                            weekly_return = COALESCE({p}, weekly_return),
+                            foreign_net = COALESCE({p}, foreign_net),
+                            institutional_net = COALESCE({p}, institutional_net),
                             catalog_updated_at = {p}
                         WHERE ticker = {p}
                     """, (
@@ -354,8 +386,7 @@ class CatalogDataCollector:
 
             except Exception as e:
                 logger.error(f"DB 저장 실패: {e}", exc_info=True)
-                if USE_POSTGRES:
-                    conn.rollback()
+                conn.rollback()
                 raise
 
         logger.info(f"stock_catalog 업데이트: {saved}/{len(all_tickers)}건")
@@ -402,8 +433,8 @@ class CatalogDataCollector:
             (['배당', '고배당', '커버드콜', '인컴'], '배당'),
             # 채권
             (['채권', '국채', '회사채', '금리', '국고채', '통안채'], '채권'),
-            # 금/원자재
-            (['금', '골드', '은', '원자재', '구리', '곡물', '원유', 'WTI', '천연가스'], '원자재'),
+            # 금/원자재 ('금'은 단독 사용 시 오분류 가능하므로 구체적 키워드 사용)
+            (['골드', 'GOLD', '금현물', '순금', '은현물', '실버', '원자재', '구리', '곡물', '원유', 'WTI', '천연가스', '금선물'], '원자재'),
             # 미국/해외
             (['미국', 'S&P', '나스닥', 'NASDAQ', 'S&P500', '다우', '선진국', '글로벌'], '해외'),
             # 중국/신흥국

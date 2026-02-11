@@ -26,7 +26,7 @@ const getTextColor = (pct) => {
 }
 
 const formatPrice = (price) => {
-  if (!price) return ''
+  if (price == null) return ''
   return price.toLocaleString('ko-KR')
 }
 
@@ -171,7 +171,7 @@ export default function ScreeningHeatmap({ items }) {
         name: item.name,
         ticker: item.ticker,
         size,
-        changePct: item.weekly_return ?? 0,
+        changePct: item.weekly_return,
         closePrice: item.close_price,
         dailyChangePct: item.daily_change_pct,
         foreignNet: item.foreign_net,
@@ -182,8 +182,20 @@ export default function ScreeningHeatmap({ items }) {
   }, [items])
 
   const handleClick = useCallback((node) => {
-    if (node?.ticker) {
+    if (!node?.ticker) return
+    if (node.isRegistered) {
       navigate(`/etf/${node.ticker}`)
+    } else {
+      navigate('/settings', {
+        state: {
+          addStock: {
+            ticker: node.ticker,
+            name: node.name,
+            type: 'ETF',
+            theme: '',
+          },
+        },
+      })
     }
   }, [navigate])
 

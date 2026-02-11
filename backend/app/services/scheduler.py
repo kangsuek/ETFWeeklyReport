@@ -220,6 +220,14 @@ class DataCollectionScheduler:
         ETF 종목의 가격, 거래량, 외국인/기관 순매수 데이터를 수집하여
         stock_catalog 테이블에 업데이트합니다.
         """
+        from app.services.progress import get_progress
+
+        # 이미 수집 중이면 건너뜀 (수동 트리거와 충돌 방지)
+        current = get_progress("catalog-data")
+        if current and current.get("status") == "in_progress":
+            logger.warning("[스케줄러-카탈로그데이터수집] 이미 수집 작업이 진행 중입니다. 건너뜁니다.")
+            return
+
         start_time = datetime.now(KST)
         logger.info(f"[스케줄러-카탈로그데이터수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 

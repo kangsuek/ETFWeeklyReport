@@ -1,7 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function ScreeningFilters({ filters, onFilterChange, onReset, lastUpdated }) {
   const [localQ, setLocalQ] = useState(filters.q || '')
+  const [localMinWR, setLocalMinWR] = useState(filters.min_weekly_return ?? '')
+  const [localMaxWR, setLocalMaxWR] = useState(filters.max_weekly_return ?? '')
+
+  // 외부에서 filters가 리셋될 때 로컬 상태도 동기화
+  useEffect(() => {
+    setLocalQ(filters.q || '')
+    setLocalMinWR(filters.min_weekly_return ?? '')
+    setLocalMaxWR(filters.max_weekly_return ?? '')
+  }, [filters.q, filters.min_weekly_return, filters.max_weekly_return])
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -10,7 +19,15 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
 
   const handleReset = () => {
     setLocalQ('')
+    setLocalMinWR('')
+    setLocalMaxWR('')
     onReset()
+  }
+
+  const applyNumberFilter = (key, value) => {
+    const parsed = value !== '' ? parseFloat(value) : undefined
+    if (value !== '' && isNaN(parsed)) return // NaN 무시
+    onFilterChange({ [key]: parsed })
   }
 
   return (
@@ -43,8 +60,10 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
             <input
               type="number"
               step="0.1"
-              value={filters.min_weekly_return ?? ''}
-              onChange={(e) => onFilterChange({ min_weekly_return: e.target.value ? parseFloat(e.target.value) : undefined })}
+              value={localMinWR}
+              onChange={(e) => setLocalMinWR(e.target.value)}
+              onBlur={() => applyNumberFilter('min_weekly_return', localMinWR)}
+              onKeyDown={(e) => e.key === 'Enter' && applyNumberFilter('min_weekly_return', localMinWR)}
               placeholder="예: -5"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
@@ -54,8 +73,10 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
             <input
               type="number"
               step="0.1"
-              value={filters.max_weekly_return ?? ''}
-              onChange={(e) => onFilterChange({ max_weekly_return: e.target.value ? parseFloat(e.target.value) : undefined })}
+              value={localMaxWR}
+              onChange={(e) => setLocalMaxWR(e.target.value)}
+              onBlur={() => applyNumberFilter('max_weekly_return', localMaxWR)}
+              onKeyDown={(e) => e.key === 'Enter' && applyNumberFilter('max_weekly_return', localMaxWR)}
               placeholder="예: 10"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
@@ -67,7 +88,7 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
               <input
                 type="checkbox"
                 checked={!!filters.foreign_net_positive}
-                onChange={(e) => onFilterChange({ foreign_net_positive: e.target.checked || undefined })}
+                onChange={(e) => onFilterChange({ foreign_net_positive: e.target.checked ? true : undefined })}
                 className="w-4 h-4 text-primary-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">외국인 순매수</span>
@@ -78,7 +99,7 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
               <input
                 type="checkbox"
                 checked={!!filters.institutional_net_positive}
-                onChange={(e) => onFilterChange({ institutional_net_positive: e.target.checked || undefined })}
+                onChange={(e) => onFilterChange({ institutional_net_positive: e.target.checked ? true : undefined })}
                 className="w-4 h-4 text-primary-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">기관 순매수</span>

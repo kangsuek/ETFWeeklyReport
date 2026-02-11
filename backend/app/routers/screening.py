@@ -36,8 +36,11 @@ def _row_to_screening_item(row, registered_tickers: set) -> ScreeningItem:
     )
 
 
-def _get_registered_tickers() -> set:
+def _get_registered_tickers(existing_cursor=None) -> set:
     """etfs 테이블에 등록된 종목 티커 set 반환"""
+    if existing_cursor:
+        existing_cursor.execute("SELECT ticker FROM etfs")
+        return {row['ticker'] if USE_POSTGRES else row[0] for row in existing_cursor.fetchall()}
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
         cursor.execute("SELECT ticker FROM etfs")
@@ -122,10 +125,9 @@ async def search_screening(
         nulls_last = ""
         # SQLite: NULL은 기본적으로 마지막에 옴 (DESC 시에는 CASE로 처리)
 
-    registered_tickers = _get_registered_tickers()
-
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
+        registered_tickers = _get_registered_tickers(cursor)
 
         # 전체 건수
         cursor.execute(f"SELECT COUNT(*) as cnt FROM stock_catalog sc WHERE {where_sql}", params)
@@ -177,10 +179,10 @@ async def get_themes():
         return cached
 
     p = "%s" if USE_POSTGRES else "?"
-    registered_tickers = _get_registered_tickers()
 
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
+        registered_tickers = _get_registered_tickers(cursor)
 
         # 섹터별 집계
         cursor.execute("""
@@ -197,34 +199,49 @@ async def get_themes():
 
         sectors = [dict(row) for row in cursor.fetchall()]
 
+        # 전체 섹터의 top 3 종목을 한 번의 쿼리로 조회 (윈도우 함수)
+        cursor.execute("""
+            SELECT * FROM (
+                SELECT ticker, name, type, market, sector,
+                       close_price, daily_change_pct, volume,
+                       weekly_return, foreign_net, institutional_net,
+                       catalog_updated_at,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY sector
+                           ORDER BY CASE WHEN weekly_return IS NULL THEN 1 ELSE 0 END,
+                                    weekly_return DESC
+                       ) as rn
+                FROM stock_catalog
+                WHERE is_active = 1
+                  AND sector IS NOT NULL
+                  AND sector != ''
+                  AND catalog_updated_at IS NOT NULL
+            ) ranked
+            WHERE rn <= 3
+        """)
+
+        top_rows = cursor.fetchall()
+        # 섹터별로 그룹핑
+        top_by_sector = {}
+        for r in top_rows:
+            row = dict(r)
+            sector_name = row['sector']
+            if sector_name not in top_by_sector:
+                top_by_sector[sector_name] = []
+            top_by_sector[sector_name].append(
+                _row_to_screening_item(row, registered_tickers)
+            )
+
         themes = []
         for s in sectors:
             sector_name = s['sector']
             avg_wr = s.get('avg_wr')
 
-            # 섹터 내 top 3 종목
-            cursor.execute(f"""
-                SELECT ticker, name, type, market, sector,
-                       close_price, daily_change_pct, volume,
-                       weekly_return, foreign_net, institutional_net,
-                       catalog_updated_at
-                FROM stock_catalog
-                WHERE is_active = 1
-                  AND sector = {p}
-                  AND catalog_updated_at IS NOT NULL
-                ORDER BY CASE WHEN weekly_return IS NULL THEN 1 ELSE 0 END,
-                         weekly_return DESC
-                LIMIT 3
-            """, (sector_name,))
-
-            top_rows = cursor.fetchall()
-            top_items = [_row_to_screening_item(dict(r), registered_tickers) for r in top_rows]
-
             themes.append(ThemeGroup(
                 sector=sector_name,
                 count=s['cnt'],
                 avg_weekly_return=round(avg_wr, 2) if avg_wr is not None else None,
-                top_performers=top_items
+                top_performers=top_by_sector.get(sector_name, [])
             ))
 
     cache.set(cache_key, themes, ttl_seconds=SCREENING_CACHE_TTL)
@@ -243,7 +260,6 @@ async def get_recommendations(
         return cached
 
     p = "%s" if USE_POSTGRES else "?"
-    registered_tickers = _get_registered_tickers()
 
     presets_config = [
         {
@@ -287,6 +303,7 @@ async def get_recommendations(
 
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
+        registered_tickers = _get_registered_tickers(cursor)
 
         for preset in presets_config:
             # NULLS LAST 처리
@@ -339,7 +356,12 @@ async def get_collect_progress():
 async def trigger_collect_data(background_tasks: BackgroundTasks):
     """카탈로그 데이터 수동 수집 트리거"""
     from app.services.catalog_data_collector import CatalogDataCollector
-    from app.services.progress import clear_progress
+    from app.services.progress import clear_progress, get_progress
+
+    # 이미 수집 중인지 확인
+    current = get_progress("catalog-data")
+    if current and current.get("status") == "in_progress":
+        return {"message": "이미 데이터 수집이 진행 중입니다", "status": "already_running"}
 
     # 이전 취소 플래그 초기화
     clear_progress("catalog-data")

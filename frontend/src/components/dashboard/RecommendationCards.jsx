@@ -1,26 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { screeningApi } from '../../services/api'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
-
-function formatNumber(num) {
-  if (num == null) return '-'
-  return num.toLocaleString('ko-KR')
-}
-
-function formatPercent(val) {
-  if (val == null) return '-'
-  const arrow = val > 0 ? '▲' : val < 0 ? '▼' : ''
-  const sign = val > 0 ? '+' : ''
-  return `${arrow} ${sign}${val.toFixed(2)}%`
-}
-
-function getChangeColor(val) {
-  if (val == null) return 'text-gray-500 dark:text-gray-400'
-  if (val > 0) return 'text-red-600 dark:text-red-400'
-  if (val < 0) return 'text-blue-600 dark:text-blue-400'
-  return 'text-gray-500 dark:text-gray-400'
-}
+import { formatNumber, formatPercent, getChangeColor } from '../../utils/formatters'
 
 const PRESET_ICONS = {
   weekly_top_return: (
@@ -41,6 +23,7 @@ const PRESET_ICONS = {
 }
 
 export default function RecommendationCards() {
+  const navigate = useNavigate()
   const { data: presets, isLoading } = useQuery({
     queryKey: ['screening-recommendations'],
     queryFn: async () => {
@@ -93,10 +76,16 @@ export default function RecommendationCards() {
             {/* Top 3 종목 */}
             <div className="space-y-1.5">
               {preset.items.map((item, idx) => (
-                <Link
+                <div
                   key={item.ticker}
-                  to={`/etf/${item.ticker}`}
-                  className="flex items-center justify-between py-1 hover:bg-gray-50 dark:hover:bg-gray-750 rounded px-1 -mx-1 transition-colors"
+                  onClick={() => {
+                    if (item.is_registered) {
+                      navigate(`/etf/${item.ticker}`)
+                    } else {
+                      navigate('/settings', { state: { addStock: { ticker: item.ticker, name: item.name, type: item.type, theme: '' } } })
+                    }
+                  }}
+                  className="flex items-center justify-between py-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded px-1 -mx-1 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] text-gray-400 w-3">{idx + 1}</span>
@@ -112,7 +101,7 @@ export default function RecommendationCards() {
                       {formatPercent(item.weekly_return)}
                     </span>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </div>

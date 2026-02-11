@@ -368,7 +368,7 @@ export const screeningApi = {
     api.get('/screening/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
 
   // 데이터 수집 트리거 (긴 작업)
-  collectData: () => api.post('/screening/collect-data', null, { timeout: LONG_API_TIMEOUT }),
+  collectData: () => api.post('/screening/collect-data', null, { timeout: FAST_API_TIMEOUT }),
 
   // 데이터 수집 진행률 조회 (빠른 조회)
   getCollectProgress: () => api.get('/screening/collect-progress', { timeout: FAST_API_TIMEOUT }),
