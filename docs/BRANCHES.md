@@ -15,13 +15,11 @@ Source control is divided into the following three branches.
 
 ---
 
-## App ports (Mac vs Windows)
+## App ports
 
-Use **different ports per platform** so that (1) Mac and Windows apps can run at the same time (e.g. VM or WSL), and (2) logs and support are easier to tell apart.
+All app builds (Mac, Windows) use the same port **18000** for the backend.
 
-| Platform | Port | Notes |
-|----------|------|--------|
-| **Mac app** (feature/macos-app) | **18000** | Electron backend; build with `VITE_API_BASE_URL=http://localhost:18000/api` |
-| **Windows app** (feature/windows-app) | **18001** | Electron or single exe; build with `VITE_API_BASE_URL=http://localhost:18001/api` |
-
-Web development (main) keeps backend **8000** and frontend **5173**.
+| Mode | Port | Notes |
+|------|------|--------|
+| **App** (Mac / Windows) | **18000** | Build with `VITE_API_BASE_URL=http://localhost:18000/api` |
+| **Web dev** (main) | **8000** / **5173** | Backend 8000, Frontend 5173 |

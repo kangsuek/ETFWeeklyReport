@@ -58,7 +58,7 @@ exe 파일 1개만 실행하면 프론트엔드와 백엔드가 함께 동작하
 | 2.1 | 의존성 추가 | `pywebview` 를 `requirements-windows.txt` 또는 `requirements.txt` 에 추가. |
 | 2.2 | 서버 기동 후 창 열기 | `run_windows.py` 에서 Uvicorn을 **스레드**로 기동 → 헬스체크 대기 → `pywebview.create_window(...)` 로 `http://127.0.0.1:포트` 로드. |
 | 2.3 | 종료 시 서버 정리 | pywebview 창이 닫히면 Uvicorn 서버 종료 (이벤트 훅 또는 메인 루프 종료 시 스레드 정리). |
-| 2.4 | 포트 고정 | Windows 앱 전용 포트 **18001** 사용 (Mac 18000과 구분, [BRANCHES.md](BRANCHES.md)#app-ports-mac-vs-windows). 충돌 시 재시도 또는 사용자 메시지는 선택. |
+| 2.4 | 포트 고정 | 앱 공통 포트 **18000** 사용 ([BRANCHES.md](BRANCHES.md)#app-ports). 충돌 시 재시도 또는 사용자 메시지는 선택. |
 
 **산출물**: `python run_windows.py` 실행 시 콘솔 없이(또는 최소 로그로) 네이티브 창만 뜨고, 창 닫으면 프로세스 종료.
 
