@@ -1,26 +1,40 @@
-# ETF Weekly Report - 프로젝트 문서 인덱스
+# ETF Weekly Report
 
-한국 고성장 섹터 **ETF·주식**에 대한 종합 분석 및 리포팅 웹 애플리케이션. 종목은 설정에서 추가·수정·삭제 가능.
+Comprehensive analysis web application for Korean high-growth sector **ETFs and stocks**.
 
-## 핵심 문서 (필수)
+This project is an ETF reporting/analysis application with both web and desktop (Electron/DMG) components. The codebase uses JavaScript (frontend) and Python (backend). When looking for features, check both naming conventions - e.g., 'simulation' files may contain backtesting logic.
 
-1. **[README.md](./README.md)** - 프로젝트 개요, 종목 설정, 빠른 시작
-2. **[FEATURES.md](./docs/FEATURES.md)** - 제공 기능 상세 (백엔드 API, 프론트엔드)
-3. **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - 개발 가이드, 테스트 전략 (AGENTS.md 참고)
+## User Preferences section
+The user's name is 강석 (kangsuek). Communicate in Korean when the user writes in Korean. Default to English for code comments and commit messages unless asked otherwise.
 
-## 참조 문서
+## Git Workflow section
+When committing code, always separate changes by branch context: main branch is for web features, feature branches are for desktop app work. Ask which branch before committing if unclear. Use `git status` and `git branch` before any git operations.
 
-### 기술 문서
-- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - 시스템 아키텍처
-- **[PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** - 프로젝트 파일 구조 (표준 정합성)
-- **[API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)** - REST API 명세
-- **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - DB 스키마
-- **[TECH_STACK.md](./docs/TECH_STACK.md)** - 기술 스택
-- **[INTRADAY.md](./docs/INTRADAY.md)** - 분봉 차트 조회·수집
+## Testing & Verification section
+After making multi-file changes, always run the build/test suite to verify nothing is broken before committing. For the frontend: run the build command. For the backend Python code: run existing tests.
 
-### 개발·설정·배포
-- **[SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - 환경 설정, 실행, Pre-commit
-- **[RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md)** - Render.com 배포 (환경 변수 포함)
-- **[SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md)** - 보안 체크리스트
+## Working Style section
+When working on implementation tasks, be concise and act quickly. Do not over-explain or spend excessive time on codebase exploration before starting work. If the user has provided a plan document, follow it directly.
+
+## Core Documentation (Essential)
+
+1. **[README.md](./README.md)** - Project overview, asset configuration, quick start guide
+2. **[FEATURES.md](./docs/FEATURES.md)** - Detailed features provided (backend API, frontend)
+3. **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)** - Development guide, testing strategy (refer to AGENTS.md)
+
+## Reference Documents
+
+### Technical Documentation
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - System architecture
+- **[API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)** - REST API specification
+- **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - Database Schema
+- **[TECH_STACK.md](./docs/TECH_STACK.md)** - Technology Stack
+
+### Detail Features
+- **[INTRADAY.md](./docs/detail_features/INTRADAY.md)** - Intraday chart retrieval and collection
+
+### Development, Configuration, and Deployment
+- **[RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md)** - Render.com deployment (including environment variables)
+
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.

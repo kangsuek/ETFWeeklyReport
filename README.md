@@ -13,6 +13,9 @@
 | **종목 상세** | 투자 전략·핵심 포인트, 가격/통계, 가격·매매동향·RSI·MACD 차트, 분봉, 지지/저항선, 뉴스 타임라인 |
 | **종목 비교** | 2~6종목 선택, 정규화 가격 차트(시작일=100), 수익률·변동성·MDD·샤프 비율 비교 테이블 |
 | **포트폴리오** | 총 투자금·평가금·손익·수익률, 비중 파이차트, 일별 추이 차트, 종목별 기여도 테이블, 포트폴리오 분석 리포트 |
+| **종목 발굴** | ETF 조건 검색(주간수익률·수급 필터), 히트맵/테이블 뷰, 테마 탐색, 데이터 수집·진행률 표시 |
+| **시뮬레이션** | 일시 투자(그때 샀다면?), 적립식(DCA) 투자, 포트폴리오 시뮬레이션 — 과거 데이터 기반 수익률 차트·테이블 |
+| **알림** | 종목별 목표가 알림 규칙 설정 (상한/하한), 알림 이력 조회 |
 | **설정** | 다크 모드, 자동 갱신 간격, 기본 날짜 범위, **종목 추가/수정/삭제**, 데이터 수집·DB 초기화·캐시 관리 |
 
 ---
@@ -100,6 +103,9 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 | 뉴스 | `GET /api/news/{ticker}` |
 | 데이터 | `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats`, `DELETE /api/data/reset` |
 | 설정 | `GET/POST /api/settings/stocks`, `PUT/DELETE /api/settings/stocks/{ticker}`, `GET /api/settings/stocks/search`, `POST /api/settings/stocks/reorder`, `POST /api/settings/ticker-catalog/collect` |
+| 알림 | `GET /api/alerts/{ticker}`, `POST /api/alerts/`, `PUT /api/alerts/{rule_id}`, `DELETE /api/alerts/{rule_id}` |
+| 종목 발굴 | `GET /api/screening`, `GET /api/screening/themes`, `POST /api/screening/collect`, `GET /api/screening/collect/progress`, `POST /api/screening/collect/cancel` |
+| 시뮬레이션 | `POST /api/simulation/lump-sum`, `POST /api/simulation/dca`, `POST /api/simulation/portfolio` |
 
 상세 스펙은 [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) 및 [docs/FEATURES.md](./docs/FEATURES.md)를 참고하세요.
 
@@ -108,7 +114,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 ## 기술 스택
 
 상세: [docs/TECH_STACK.md](./docs/TECH_STACK.md)  
-Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React 18, Vite 5, Tailwind, TanStack Query, Recharts
+Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React 18, Vite 5, Tailwind CSS, TanStack Query, Recharts
 
 ---
 

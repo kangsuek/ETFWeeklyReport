@@ -78,6 +78,42 @@
 
 ---
 
+## 6. 알림 (`/api/alerts`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/alerts/{ticker}` | 종목별 알림 규칙 목록. Query: `active_only` (bool, 기본 true) |
+| POST | `/api/alerts/` | 알림 규칙 생성. Body: `ticker`, `alert_type` (buy/sell/price_change/trading_signal), `direction` (above/below/both), `target_price`, `memo` |
+| PUT | `/api/alerts/{rule_id}` | 알림 규칙 수정. Body: `alert_type`, `direction`, `target_price`, `memo`, `is_active` (모두 선택) |
+| DELETE | `/api/alerts/{rule_id}` | 알림 규칙 삭제 (관련 히스토리도 함께 삭제) |
+| POST | `/api/alerts/trigger` | 알림 트리거 기록. Body: `rule_id`, `ticker`, `alert_type`, `message` |
+| GET | `/api/alerts/history/{ticker}` | 종목별 알림 이력. Query: `limit` (1~100, 기본 20) |
+
+---
+
+## 7. 종목 발굴 · 스크리닝 (`/api/screening`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/screening` | 조건 기반 종목 검색. Query: `q`(검색어), `type`(ETF/STOCK/ALL), `sector`, `min_weekly_return`, `max_weekly_return`, `foreign_net_positive`, `institutional_net_positive`, `sort_by`, `sort_dir`, `page`, `page_size` |
+| GET | `/api/screening/themes` | 섹터/테마별 그룹 조회 (섹터별 평균 수익률, top 3 종목) |
+| GET | `/api/screening/recommendations` | 추천 프리셋 (주간 상위, 외국인 매수 등). Query: `limit` (1~10, 기본 5) |
+| POST | `/api/screening/collect-data` | 카탈로그 데이터 수집 시작 (백그라운드) |
+| GET | `/api/screening/collect-progress` | 수집 진행률 조회 (status: idle/in_progress/completed/cancelled/error) |
+| POST | `/api/screening/cancel-collect` | 진행 중인 수집 중지 요청 |
+
+---
+
+## 8. 시뮬레이션 (`/api/simulation`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/api/simulation/lump-sum` | 일시 투자 시뮬레이션. Body: `ticker`, `buy_date`, `amount`. 응답: 매수 주수, 현재 평가액, 수익률, 최대 수익/손실, 가격 시리즈 |
+| POST | `/api/simulation/dca` | 적립식(DCA) 투자 시뮬레이션. Body: `ticker`, `monthly_amount`, `start_date`, `end_date`, `buy_day`(1~28). 응답: 총 투자금, 평가액, 평균 매수가, 월별 상세 |
+| POST | `/api/simulation/portfolio` | 포트폴리오 시뮬레이션. Body: `holdings`(ticker+weight 배열, 비중 합계 1.0), `amount`, `start_date`, `end_date`. 응답: 종목별 결과, 일별 포트폴리오 가치 시리즈 |
+
+---
+
 ## 에러 코드
 | 코드 | 설명 |
 |-----|------|
@@ -89,6 +125,7 @@
 | 422 | 입력 값 검증 실패 |
 | 429 | Rate Limit 초과 |
 | 500 | 서버 내부 오류 |
+| 503 | 서비스 일시 불가 (외부 데이터 수집 실패 등) |
 
 ---
 
