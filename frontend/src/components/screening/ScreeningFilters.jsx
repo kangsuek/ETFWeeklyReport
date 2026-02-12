@@ -25,8 +25,11 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
   }
 
   const applyNumberFilter = (key, value) => {
-    const parsed = value !== '' ? parseFloat(value) : undefined
-    if (value !== '' && isNaN(parsed)) return // NaN 무시
+    const str = value !== undefined && value !== null ? String(value).trim() : ''
+    const parsed = str !== '' ? parseFloat(str) : undefined
+    if (str !== '' && isNaN(parsed)) return // NaN 무시
+    if (key === 'min_weekly_return') setLocalMinWR(str === '' ? '' : parsed)
+    if (key === 'max_weekly_return') setLocalMaxWR(str === '' ? '' : parsed)
     onFilterChange({ [key]: parsed })
   }
 
@@ -62,8 +65,13 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
               step="0.1"
               value={localMinWR}
               onChange={(e) => setLocalMinWR(e.target.value)}
-              onBlur={() => applyNumberFilter('min_weekly_return', localMinWR)}
-              onKeyDown={(e) => e.key === 'Enter' && applyNumberFilter('min_weekly_return', localMinWR)}
+              onBlur={(e) => applyNumberFilter('min_weekly_return', e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  applyNumberFilter('min_weekly_return', e.target.value)
+                }
+              }}
               placeholder="예: -5"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
@@ -75,8 +83,13 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
               step="0.1"
               value={localMaxWR}
               onChange={(e) => setLocalMaxWR(e.target.value)}
-              onBlur={() => applyNumberFilter('max_weekly_return', localMaxWR)}
-              onKeyDown={(e) => e.key === 'Enter' && applyNumberFilter('max_weekly_return', localMaxWR)}
+              onBlur={(e) => applyNumberFilter('max_weekly_return', e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  applyNumberFilter('max_weekly_return', e.target.value)
+                }
+              }}
               placeholder="예: 10"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
