@@ -1,8 +1,8 @@
 #!/bin/bash
 # ETF Weekly Report - macOS DMG 빌드 스크립트
 #
-# feature/macos-app 브랜치의 desktop 소스를 사용하여 DMG 파일을 생성합니다.
-# 출력: desktop/release/*.dmg
+# feature/macos-app 브랜치의 Mac 앱(Electron) 소스를 사용하여 DMG 파일을 생성합니다.
+# 출력: MACOS_APP_SOURCE_DIR/release/*.dmg
 #
 # 사용법:
 #   ./scripts/build-dmg.sh              # 현재 아키텍처용 빌드
@@ -13,8 +13,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-DESKTOP_DIR="$PROJECT_ROOT/desktop"
-DESKTOP_BRANCH="feature/macos-app"
+MACOS_APP_BRANCH="feature/macos-app"
+# feature/macos-app 브랜치 내 Electron 앱 소스 디렉터리
+MACOS_APP_SOURCE_DIR="${MACOS_APP_SOURCE_DIR:-$PROJECT_ROOT/macos}"
 
 # 아키텍처 옵션 파싱
 ARCH_FLAG=""
@@ -33,7 +34,7 @@ echo "============================================"
 echo "  ETF Weekly Report - DMG 빌드"
 echo "============================================"
 echo "프로젝트 루트: $PROJECT_ROOT"
-echo "데스크톱 소스: $DESKTOP_BRANCH 브랜치"
+echo "Mac 앱 소스: $MACOS_APP_BRANCH 브랜치"
 [ -n "$ARCH_FLAG" ] && echo "아키텍처: $ARCH_FLAG" || echo "아키텍처: electron-builder.yml 설정 사용"
 echo ""
 
@@ -66,46 +67,46 @@ if ! command -v git &> /dev/null; then
 fi
 
 # feature/macos-app 브랜치 존재 확인
-if ! git -C "$PROJECT_ROOT" rev-parse --verify "$DESKTOP_BRANCH" &> /dev/null; then
-  echo "ERROR: '$DESKTOP_BRANCH' 브랜치가 존재하지 않습니다."
-  echo "  git fetch origin $DESKTOP_BRANCH 를 실행해주세요."
+if ! git -C "$PROJECT_ROOT" rev-parse --verify "$MACOS_APP_BRANCH" &> /dev/null; then
+  echo "ERROR: '$MACOS_APP_BRANCH' 브랜치가 존재하지 않습니다."
+  echo "  git fetch origin $MACOS_APP_BRANCH 를 실행해주세요."
   exit 1
 fi
 
 echo ""
 
-# ─── desktop 소스 체크아웃 ─────────────────────────────────────────
+# ─── Mac 앱(Electron) 소스 체크아웃 ───────────────────────────────────
 
-echo ">>> [2/7] desktop 소스 체크아웃 ($DESKTOP_BRANCH)..."
+echo ">>> [2/7] Mac 앱 소스 체크아웃 ($MACOS_APP_BRANCH)..."
 
-# feature/macos-app 브랜치에서 desktop 관련 파일을 가져옴
+# feature/macos-app 브랜치에서 Electron 앱 관련 파일을 가져옴
 cd "$PROJECT_ROOT"
-git checkout "$DESKTOP_BRANCH" -- \
-  desktop/main.js \
-  desktop/preload.js \
-  desktop/loading.html \
-  desktop/loading.css \
-  desktop/package.json \
-  desktop/electron-builder.yml \
-  desktop/scripts/ \
-  desktop/icons/ \
+git checkout "$MACOS_APP_BRANCH" -- \
+  macos/main.js \
+  macos/preload.js \
+  macos/loading.html \
+  macos/loading.css \
+  macos/package.json \
+  macos/electron-builder.yml \
+  macos/scripts/ \
+  macos/icons/ \
   2>/dev/null || true
 
 # 체크아웃된 파일 확인
-if [ ! -f "$DESKTOP_DIR/package.json" ]; then
-  echo "ERROR: desktop/package.json을 체크아웃할 수 없습니다."
+if [ ! -f "$MACOS_APP_SOURCE_DIR/package.json" ]; then
+  echo "ERROR: Mac 앱 package.json을 체크아웃할 수 없습니다."
   exit 1
 fi
 
-echo "  desktop 소스 준비 완료."
+echo "  Mac 앱 소스 준비 완료."
 echo ""
 
 # ─── 앱 아이콘 생성 ────────────────────────────────────────────────
 
 echo ">>> [3/7] 앱 아이콘 생성..."
-cd "$DESKTOP_DIR"
+cd "$MACOS_APP_SOURCE_DIR"
 npm install --ignore-scripts 2>/dev/null
-if [ -f "$DESKTOP_DIR/scripts/generate-icons.js" ]; then
+if [ -f "$MACOS_APP_SOURCE_DIR/scripts/generate-icons.js" ]; then
   npm run generate-icons 2>/dev/null || echo "  아이콘 생성 스킵 (기존 아이콘 사용)"
 else
   echo "  아이콘 생성 스크립트 없음 (기존 아이콘 사용)"
@@ -132,14 +133,14 @@ echo ""
 # ─── Electron 의존성 설치 ──────────────────────────────────────────
 
 echo ">>> [6/7] Electron 의존성 설치..."
-cd "$DESKTOP_DIR"
+cd "$MACOS_APP_SOURCE_DIR"
 npm install
 echo ""
 
 # ─── DMG 빌드 ──────────────────────────────────────────────────────
 
 echo ">>> [7/7] DMG 빌드 중..."
-cd "$DESKTOP_DIR"
+cd "$MACOS_APP_SOURCE_DIR"
 
 if [ -n "$ARCH_FLAG" ]; then
   npx electron-builder --mac dmg $ARCH_FLAG
@@ -152,6 +153,6 @@ echo "============================================"
 echo "  빌드 완료!"
 echo "============================================"
 echo ""
-echo "출력 위치: $DESKTOP_DIR/release/"
+echo "출력 위치: $MACOS_APP_SOURCE_DIR/release/"
 echo ""
-ls -lh "$DESKTOP_DIR/release/"*.dmg 2>/dev/null || echo "(DMG 파일을 찾을 수 없습니다)"
+ls -lh "$MACOS_APP_SOURCE_DIR/release/"*.dmg 2>/dev/null || echo "(DMG 파일을 찾을 수 없습니다)"

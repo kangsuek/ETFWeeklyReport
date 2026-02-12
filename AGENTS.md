@@ -2,8 +2,11 @@
 
 ## 용어 (Terminology)
 
-- **app** — desktop 앱 관련 (Electron, `desktop/` 폴더 등)
-- **web** — 웹서버/웹 앱 관련 (백엔드, 프론트엔드, API 등)
+- **web** — 웹서버/웹 앱 관련 (main 브랜치: 백엔드, 프론트엔드, API 등)
+- **mac app** — Mac 앱 (feature/macos-app 브랜치, `macos/` 폴더, Electron/DMG)
+- **windows app** — Windows 앱 (feature/windows-app 브랜치, `windows/` 폴더)
+
+브랜치 정책: [docs/BRANCHES.md](docs/BRANCHES.md)
 
 ## Commands
 

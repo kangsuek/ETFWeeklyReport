@@ -64,5 +64,6 @@ htmlcov/
 *.temp
 .cache/
 
-# Desktop app build output
-desktop/
+# App build output (platform-specific)
+macos/
+windows/

@@ -2,13 +2,13 @@
 
 Comprehensive analysis web application for Korean high-growth sector **ETFs and stocks**.
 
-This project is an ETF reporting/analysis application with both web and desktop (Electron/DMG) components. The codebase uses JavaScript (frontend) and Python (backend). When looking for features, check both naming conventions - e.g., 'simulation' files may contain backtesting logic.
+This project is an ETF reporting/analysis application: web (main), Mac app (feature/macos-app, Electron/DMG), and Windows app (feature/windows-app). The codebase uses JavaScript (frontend) and Python (backend). When looking for features, check both naming conventions.
 
 ## User Preferences section
 The user's name is 강석 (kangsuek). Communicate in Korean when the user writes in Korean. Default to English for code comments and commit messages unless asked otherwise.
 
 ## Git Workflow section
-When committing code, always separate changes by branch context: main branch is for web features, feature branches are for desktop app work. Ask which branch before committing if unclear. Use `git status` and `git branch` before any git operations.
+When committing code, use the branch that matches the work: **main** = web only; **feature/macos-app** = mac app (`macos/` folder); **feature/windows-app** = windows app (`windows/` folder). See [docs/BRANCHES.md](docs/BRANCHES.md). Use `git status` and `git branch` before any git operations.
 
 ## Testing & Verification section
 After making multi-file changes, always run the build/test suite to verify nothing is broken before committing. For the frontend: run the build command. For the backend Python code: run existing tests.
