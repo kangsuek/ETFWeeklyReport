@@ -1,10 +1,10 @@
 #!/bin/bash
-# ETF Weekly Report - macOS 데스크톱 앱 빌드 스크립트
+# ETF Weekly Report - macOS 앱 빌드 스크립트
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DESKTOP_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$(dirname "$DESKTOP_DIR")"
+MACOS_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$MACOS_DIR")"
 
 echo "=== ETF Weekly Report macOS App Build ==="
 echo "Project root: $PROJECT_ROOT"
@@ -25,7 +25,7 @@ fi
 
 # 3. 앱 아이콘 생성
 echo ">>> 앱 아이콘 생성 중..."
-cd "$DESKTOP_DIR"
+cd "$MACOS_DIR"
 npm run generate-icons
 echo "앱 아이콘 생성 완료."
 echo ""
@@ -47,11 +47,11 @@ echo ""
 
 # 6. Electron 앱 빌드
 echo ">>> Electron 앱 빌드 중..."
-cd "$DESKTOP_DIR"
+cd "$MACOS_DIR"
 npm install
 npm run build
 echo ""
 
 echo "=== 빌드 완료 ==="
-echo "출력 위치: $DESKTOP_DIR/release/"
-ls -la "$DESKTOP_DIR/release/" 2>/dev/null || echo "(release 디렉토리를 확인하세요)"
+echo "출력 위치: $MACOS_DIR/release/"
+ls -la "$MACOS_DIR/release/" 2>/dev/null || echo "(release 디렉토리를 확인하세요)"

@@ -59,15 +59,15 @@ htmlcov/
 .pytest_cache/
 .tox/
 
-# Desktop (Electron)
-desktop/node_modules/
-desktop/release/
-desktop/dist/
+# Mac app (Electron)
+macos/node_modules/
+macos/release/
+macos/dist/
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
 
-# Desktop app build output
-desktop/
+# Windows app build output
+windows/
