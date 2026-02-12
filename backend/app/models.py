@@ -201,3 +201,78 @@ class RecommendationPreset(BaseModel):
     title: str
     description: str
     items: List[ScreeningItem]
+
+
+# --- Simulation Models ---
+
+class LumpSumRequest(BaseModel):
+    """일시 투자 시뮬레이션 요청"""
+    ticker: str
+    buy_date: date
+    amount: float  # 투자금 (원)
+
+class LumpSumResponse(BaseModel):
+    """일시 투자 시뮬레이션 응답"""
+    ticker: str
+    name: str
+    buy_date: date
+    buy_price: float
+    current_date: date
+    current_price: float
+    shares: int               # 매수 가능 주수
+    remainder: float           # 잔여금
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    max_gain: dict             # { date, price, return_pct }
+    max_loss: dict             # { date, price, return_pct }
+    price_series: list         # [{ date, close_price, valuation, return_pct }]
+
+class DCARequest(BaseModel):
+    """적립식 투자 시뮬레이션 요청"""
+    ticker: str
+    monthly_amount: float
+    start_date: date
+    end_date: date
+    buy_day: int = 1           # 매월 매수일 (1~28)
+
+class DCAMonthlyData(BaseModel):
+    """적립식 매월 데이터"""
+    date: date
+    buy_price: float
+    shares_bought: int
+    cumulative_shares: int
+    cumulative_invested: float
+    cumulative_valuation: float
+    return_pct: float
+
+class DCAResponse(BaseModel):
+    """적립식 투자 시뮬레이션 응답"""
+    ticker: str
+    name: str
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    avg_buy_price: float
+    total_shares: int
+    monthly_data: List[DCAMonthlyData]
+
+class PortfolioHolding(BaseModel):
+    """포트폴리오 종목 비중"""
+    ticker: str
+    weight: float              # 비중 (0~1, 합계 1.0)
+
+class PortfolioSimulationRequest(BaseModel):
+    """포트폴리오 시뮬레이션 요청"""
+    holdings: List[PortfolioHolding]
+    amount: float
+    start_date: date
+    end_date: date
+
+class PortfolioSimulationResponse(BaseModel):
+    """포트폴리오 시뮬레이션 응답"""
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    holdings_result: list      # 종목별 결과
+    daily_series: list         # [{ date, valuation, return_pct }]

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import PropTypes from 'prop-types'
 
 const INVESTMENT_AMOUNT = 1000000 // 기준 투자금 100만원
@@ -174,10 +175,21 @@ export default function InvestmentSimulation({ statistics = null, tickerInfo = {
         })}
       </div>
 
-      {/* 안내 텍스트 */}
-      <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
-        * 시뮬레이션은 과거 기간 수익률 기반이며, 미래 수익을 보장하지 않습니다
-      </p>
+      {/* 안내 텍스트 + 상세 시뮬레이션 링크 */}
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          * 시뮬레이션은 과거 기간 수익률 기반이며, 미래 수익을 보장하지 않습니다
+        </p>
+        <Link
+          to="/simulation"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+        >
+          상세 시뮬레이션
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </div>
     </div>
   )
 }

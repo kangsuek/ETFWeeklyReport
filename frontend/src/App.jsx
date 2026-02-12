@@ -17,6 +17,8 @@ const ETFDetail = lazy(() => import('./pages/ETFDetail.jsx'))
 const Comparison = lazy(() => import('./pages/Comparison.jsx'))
 const Portfolio = lazy(() => import('./pages/Portfolio.jsx'))
 const Screening = lazy(() => import('./pages/Screening.jsx'))
+const Alerts = lazy(() => import('./pages/Alerts.jsx'))
+const Simulation = lazy(() => import('./pages/Simulation.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 
 // TanStack Query 클라이언트 설정
@@ -56,6 +58,8 @@ function App() {
                           <Route path="/portfolio" element={<Portfolio />} />
                           <Route path="/compare" element={<Comparison />} />
                           <Route path="/screening" element={<Screening />} />
+                          <Route path="/simulation" element={<Simulation />} />
+                          <Route path="/alerts" element={<Alerts />} />
                           <Route path="/settings" element={<Settings />} />
                         </Routes>
                       </Suspense>

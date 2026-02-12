@@ -355,6 +355,18 @@ export const alertApi = {
     api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
 }
 
+// Simulation API 서비스
+export const simulationApi = {
+  // 일시 투자 시뮬레이션 (긴 작업 - 자동 수집 가능)
+  lumpSum: (data) => api.post('/simulation/lump-sum', data, { timeout: LONG_API_TIMEOUT }),
+
+  // 적립식 투자 시뮬레이션 (긴 작업)
+  dca: (data) => api.post('/simulation/dca', data, { timeout: LONG_API_TIMEOUT }),
+
+  // 포트폴리오 시뮬레이션 (긴 작업)
+  portfolio: (data) => api.post('/simulation/portfolio', data, { timeout: LONG_API_TIMEOUT }),
+}
+
 // Screening API 서비스
 export const screeningApi = {
   // 조건 검색 (일반 조회)
