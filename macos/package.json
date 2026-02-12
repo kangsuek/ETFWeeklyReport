@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "generate-icons": "node scripts/generate-icons.js",
-    "build": "electron-builder",
+    "build": "electron-builder --mac --arm64 --x64",
+    "build:arm64": "electron-builder --mac --arm64",
+    "build:x64": "electron-builder --mac --x64",
     "build:dir": "electron-builder --dir"
   },
   "author": "",

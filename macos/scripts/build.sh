@@ -49,9 +49,30 @@ echo ""
 echo ">>> Electron 앱 빌드 중..."
 cd "$MACOS_DIR"
 npm install
-npm run build
+
+# 아키텍처 선택: arm64, x64, 또는 universal (기본: universal)
+ARCH="${1:-universal}"
+case "$ARCH" in
+  arm64)
+    echo ">>> arm64 (Apple Silicon) DMG 빌드..."
+    npx electron-builder --mac --arm64
+    ;;
+  x64)
+    echo ">>> x64 (Intel) DMG 빌드..."
+    npx electron-builder --mac --x64
+    ;;
+  universal|all)
+    echo ">>> arm64 + x64 DMG 빌드..."
+    npx electron-builder --mac --arm64 --x64
+    ;;
+  *)
+    echo "ERROR: 지원하지 않는 아키텍처: $ARCH"
+    echo "사용법: $0 [arm64|x64|universal]"
+    exit 1
+    ;;
+esac
 echo ""
 
 echo "=== 빌드 완료 ==="
 echo "출력 위치: $MACOS_DIR/release/"
-ls -la "$MACOS_DIR/release/" 2>/dev/null || echo "(release 디렉토리를 확인하세요)"
+ls -lh "$MACOS_DIR/release/"*.dmg 2>/dev/null || echo "(DMG 파일을 확인하세요)"
