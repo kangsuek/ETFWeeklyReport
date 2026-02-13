@@ -214,6 +214,37 @@ function findUvPath() {
   return null;
 }
 
+// ─── uv 자동 설치 (Windows) ──────────────────────────────────────────────
+async function installUv() {
+  sendLoadingStatus('uv 설치 중...');
+  log('INFO', 'Installing uv via PowerShell...');
+
+  try {
+    execSync(
+      'powershell -NonInteractive -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"',
+      {
+        encoding: 'utf-8',
+        timeout: 120000,
+        env: { ...process.env },
+      }
+    );
+    log('INFO', 'uv installation command completed');
+  } catch (err) {
+    log('ERROR', `uv installation failed: ${err.message}`);
+    if (err.stderr) log('ERROR', `stderr: ${err.stderr.slice(0, 1000)}`);
+    return null;
+  }
+
+  // 설치 후 재탐색
+  const uvPath = findUvPath();
+  if (uvPath) {
+    log('INFO', `uv installed successfully at: ${uvPath}`);
+  } else {
+    log('ERROR', 'uv installation seemed to succeed but binary not found');
+  }
+  return uvPath;
+}
+
 // ─── .env 파일 파서 ─────────────────────────────────────────────────────
 function parseEnvFile(envPath) {
   const vars = {};
@@ -396,16 +427,20 @@ async function startBackend() {
     return false;
   }
 
-  const uvPath = findUvPath();
+  let uvPath = findUvPath();
   if (!uvPath) {
-    dialog.showErrorBox(
-      'uv를 찾을 수 없습니다',
-      'Python 패키지 매니저 uv가 설치되어 있지 않습니다.\n\n' +
-      '다음 명령으로 설치해주세요:\n' +
-      'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"\n\n' +
-      '설치 후 앱을 다시 시작해주세요.'
-    );
-    return false;
+    log('INFO', 'uv not found, attempting automatic installation...');
+    uvPath = await installUv();
+    if (!uvPath) {
+      dialog.showErrorBox(
+        'uv 설치 실패',
+        'Python 패키지 매니저 uv를 자동으로 설치할 수 없었습니다.\n\n' +
+        '수동으로 설치해주세요:\n' +
+        'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"\n\n' +
+        '설치 후 앱을 다시 시작해주세요.'
+      );
+      return false;
+    }
   }
 
   if (isPackaged()) {
