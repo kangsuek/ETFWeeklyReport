@@ -61,6 +61,9 @@ async def simulation_dca(req: DCARequest):
         raise HTTPException(status_code=400, detail="시작일은 종료일보다 이전이어야 합니다")
     if req.buy_day < 1 or req.buy_day > 28:
         raise HTTPException(status_code=400, detail="매수일은 1~28 사이여야 합니다")
+    date_range_days = (req.end_date - req.start_date).days
+    if date_range_days > 365 * 5:
+        raise HTTPException(status_code=400, detail="시뮬레이션 기간은 최대 5년까지 가능합니다")
 
     cache = get_cache()
     cache_key = make_cache_key(
@@ -95,6 +98,11 @@ async def simulation_portfolio(req: PortfolioSimulationRequest):
         raise HTTPException(status_code=400, detail="시작일은 종료일보다 이전이어야 합니다")
     if not req.holdings:
         raise HTTPException(status_code=400, detail="최소 1개 이상의 종목이 필요합니다")
+    if len(req.holdings) > 20:
+        raise HTTPException(status_code=400, detail="포트폴리오 종목은 최대 20개까지 가능합니다")
+    date_range_days = (req.end_date - req.start_date).days
+    if date_range_days > 365 * 5:
+        raise HTTPException(status_code=400, detail="시뮬레이션 기간은 최대 5년까지 가능합니다")
     tickers = [h.ticker for h in req.holdings]
     if len(tickers) != len(set(tickers)):
         raise HTTPException(status_code=400, detail="동일 종목이 중복 입력되었습니다")

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   // 환경 변수는 프로젝트 루트의 .env 파일 사용
   envDir: '..',
@@ -44,8 +44,12 @@ export default defineConfig({
     // 압축 최적화 (esbuild가 terser보다 빠름)
     minify: 'esbuild',
   },
+  // 프로덕션 빌드에서 console.log/warn 및 debugger 제거
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   // 레거시 브라우저 지원
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
   },
-})
+}))

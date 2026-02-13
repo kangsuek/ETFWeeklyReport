@@ -126,7 +126,20 @@ app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulatio
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "message": "ETF Report API is running"}
+    health = {"status": "healthy", "message": "ETF Report API is running"}
+    # DB 연결 확인
+    try:
+        from app.database import get_db_connection, get_cursor
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        health["database"] = "connected"
+    except Exception as e:
+        health["status"] = "degraded"
+        health["database"] = f"error: {str(e)}"
+        logger.error(f"Health check - DB connection failed: {e}")
+    return health
 
 @app.get("/")
 async def root():

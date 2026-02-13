@@ -109,21 +109,18 @@ async def search_screening(
 
     where_sql = " AND ".join(where_clauses)
 
-    # 정렬 컬럼 화이트리스트
-    allowed_sort = {
-        "weekly_return", "daily_change_pct", "volume",
-        "close_price", "foreign_net", "institutional_net", "name"
+    # 정렬 컬럼 화이트리스트 (키: 파라미터명, 값: 실제 컬럼명)
+    ALLOWED_SORT_COLUMNS = {
+        "weekly_return": "sc.weekly_return",
+        "daily_change_pct": "sc.daily_change_pct",
+        "volume": "sc.volume",
+        "close_price": "sc.close_price",
+        "foreign_net": "sc.foreign_net",
+        "institutional_net": "sc.institutional_net",
+        "name": "sc.name",
     }
-    if sort_by not in allowed_sort:
-        sort_by = "weekly_return"
+    sort_column = ALLOWED_SORT_COLUMNS.get(sort_by, "sc.weekly_return")
     sort_dir_sql = "ASC" if sort_dir == "asc" else "DESC"
-
-    # NULLS LAST 처리
-    if USE_POSTGRES:
-        nulls_last = "NULLS LAST"
-    else:
-        nulls_last = ""
-        # SQLite: NULL은 기본적으로 마지막에 옴 (DESC 시에는 CASE로 처리)
 
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
@@ -139,10 +136,10 @@ async def search_screening(
         query_params = params + [page_size, offset]
 
         if USE_POSTGRES:
-            order_clause = f"sc.{sort_by} {sort_dir_sql} {nulls_last}"
+            order_clause = f"{sort_column} {sort_dir_sql} NULLS LAST"
         else:
             # SQLite NULL 처리
-            order_clause = f"CASE WHEN sc.{sort_by} IS NULL THEN 1 ELSE 0 END, sc.{sort_by} {sort_dir_sql}"
+            order_clause = f"CASE WHEN {sort_column} IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_dir_sql}"
 
         cursor.execute(f"""
             SELECT sc.ticker, sc.name, sc.type, sc.market, sc.sector,

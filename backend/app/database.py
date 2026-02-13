@@ -97,11 +97,15 @@ class ConnectionPool:
                         logger.debug(f"Created new connection ({self.current_connections}/{self.max_connections})")
                         return conn
                     else:
-                        # Wait for a connection to become available
+                        # Wait for a connection to become available (with timeout)
                         logger.debug("Pool full, waiting for connection...")
-                        conn = self.pool.get(block=True)
-                        logger.debug("Got connection after waiting")
-                        return conn
+                        try:
+                            conn = self.pool.get(block=True, timeout=30)
+                            logger.debug("Got connection after waiting")
+                            return conn
+                        except Empty:
+                            logger.error("Connection pool timeout: no connection available after 30s")
+                            raise TimeoutError("Database connection pool exhausted. Please try again later.")
 
     def return_connection(self, conn):
         """Return a connection to the pool"""
@@ -111,7 +115,7 @@ class ConnectionPool:
             try:
                 self.pool.put_nowait(conn)
                 logger.debug("Returned connection to pool")
-            except:
+            except Exception:
                 # Pool is full, close the connection
                 conn.close()
                 with self.lock:
