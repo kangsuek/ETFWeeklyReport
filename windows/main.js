@@ -4,11 +4,32 @@ const path = require('path');
 // ─── Very Early Debug Log (before Electron APIs) ─────────────────────────
 // Writes to %TEMP%\etf-app-debug.log to diagnose startup failures
 const EARLY_DEBUG_LOG = path.join(process.env.TEMP || process.env.TMP || '.', 'etf-app-debug.log');
+const UTF8_BOM = '\uFEFF';
+
+function ensureUtf8Bom(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, UTF8_BOM, 'utf-8');
+    } else {
+      const buf = Buffer.alloc(3);
+      const fd = fs.openSync(filePath, 'r');
+      fs.readSync(fd, buf, 0, 3, 0);
+      fs.closeSync(fd);
+      if (buf[0] !== 0xEF || buf[1] !== 0xBB || buf[2] !== 0xBF) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        fs.writeFileSync(filePath, UTF8_BOM + content, 'utf-8');
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
 function debugLog(message) {
   try {
+    ensureUtf8Bom(EARLY_DEBUG_LOG);
     const line = `[${new Date().toISOString()}] ${message}\n`;
-    fs.appendFileSync(EARLY_DEBUG_LOG, line);
+    fs.appendFileSync(EARLY_DEBUG_LOG, line, 'utf-8');
   } catch {
     // nothing we can do
   }
@@ -41,8 +62,9 @@ function earlyLog(message) {
     const logDir = path.join(app.getPath('userData'), 'logs');
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
     const logFile = path.join(logDir, 'app.log');
+    ensureUtf8Bom(logFile);
     const line = `[${new Date().toISOString()}] [EARLY] ${message}\n`;
-    fs.appendFileSync(logFile, line);
+    fs.appendFileSync(logFile, line, 'utf-8');
   } catch (e) {
     debugLog(`earlyLog write failed: ${e.message}`);
   }
@@ -157,7 +179,8 @@ let logStream = null;
 
 function initLogger() {
   const logFile = path.join(getLogPath(), 'app.log');
-  logStream = fs.createWriteStream(logFile, { flags: 'a' });
+  ensureUtf8Bom(logFile);
+  logStream = fs.createWriteStream(logFile, { flags: 'a', encoding: 'utf-8' });
 }
 
 function log(level, message) {
