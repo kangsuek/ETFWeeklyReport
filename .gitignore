@@ -64,6 +64,12 @@ htmlcov/
 *.temp
 .cache/
 
-# App build output (platform-specific)
-macos/
-windows/
+# Mac app (Electron)
+macos/node_modules/
+macos/release/
+macos/dist/
+
+# Windows app (Electron)
+windows/node_modules/
+windows/release/
+windows/dist/
