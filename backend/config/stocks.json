@@ -51,21 +51,6 @@
     "purchase_price": 17870.0,
     "quantity": 281
   },
-  "445290": {
-    "name": "KODEX 로봇액티브",
-    "type": "ETF",
-    "theme": "로봇",
-    "purchase_date": "2026-01-21",
-    "search_keyword": "KODEX 로봇액티브",
-    "relevance_keywords": [
-      "KODEX 로봇액티브",
-      "로봇",
-      "로봇산업",
-      "액티브 ETF"
-    ],
-    "purchase_price": 34280.0,
-    "quantity": 305
-  },
   "466940": {
     "name": "TIGER 은행고배당플러스TOP10",
     "type": "ETF",
@@ -96,23 +81,34 @@
       "고배당"
     ]
   },
-  "487240": {
-    "name": "삼성 KODEX AI전력핵심설비 ETF",
+  "091220": {
+    "name": "TIGER 은행",
     "type": "ETF",
-    "theme": "AI/전력 인프라",
-    "purchase_date": "2024-03-15",
-    "search_keyword": "AI 전력",
+    "theme": "은행",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "TIGER 은행",
     "relevance_keywords": [
-      "AI",
-      "전력",
-      "전력인프라",
-      "데이터센터",
-      "디지털전환",
-      "HD현대일렉트릭",
-      "변압기",
-      "배전",
-      "반도체"
+      "TIGER 은행",
+      "TIGER",
+      "은행"
     ]
+  },
+  "445290": {
+    "name": "KODEX 로봇액티브",
+    "type": "ETF",
+    "theme": "로봇",
+    "purchase_date": "2026-01-21",
+    "search_keyword": "KODEX 로봇액티브",
+    "relevance_keywords": [
+      "KODEX 로봇액티브",
+      "로봇",
+      "로봇산업",
+      "액티브 ETF"
+    ],
+    "purchase_price": 34280.0,
+    "quantity": 305
   },
   "449450": {
     "name": "PLUS K방산",
@@ -147,6 +143,24 @@
     ],
     "purchase_price": null,
     "quantity": null
+  },
+  "487240": {
+    "name": "삼성 KODEX AI전력핵심설비 ETF",
+    "type": "ETF",
+    "theme": "AI/전력 인프라",
+    "purchase_date": "2024-03-15",
+    "search_keyword": "AI 전력",
+    "relevance_keywords": [
+      "AI",
+      "전력",
+      "전력인프라",
+      "데이터센터",
+      "디지털전환",
+      "HD현대일렉트릭",
+      "변압기",
+      "배전",
+      "반도체"
+    ]
   },
   "0020H0": {
     "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",

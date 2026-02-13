@@ -191,20 +191,19 @@ NEWS_DEFAULT_DISPLAY_COUNT = 10
 # Rate Limiter 관련 상수
 # =============================================================================
 
-DEFAULT_RATE_LIMITER_INTERVAL = 0.5
+DEFAULT_RATE_LIMITER_INTERVAL = 0.3
 """
-기본 Rate Limiter 간격 (0.5초)
+기본 Rate Limiter 간격 (0.3초)
 
 용도:
 - 스크래핑 요청 간 최소 대기 시간
 - 네이버 금융 서버 부하 방지
 - RateLimiter 초기화 시 기본값
 
-왜 0.5초인가?
-- 네이버 금융 서버 부하를 방지하기 위한 적절한 간격
-- 너무 짧으면 IP 차단 위험
-- 너무 길면 수집 시간이 과도하게 증가
-- 일반적인 웹 스크래핑 모범 사례 (0.5-1초)
+왜 0.3초인가?
+- 네이버 금융 서버 부하를 방지하면서 수집 속도 확보
+- RateLimiter가 Lock 밖에서 sleep하므로 스레드별 동시 대기 가능
+- 요청 간 최소 간격 0.3초 = 초당 ~3.3 요청 (IP 차단 임계치 이하)
 
 사용 예:
 - ETFDataCollector: min_interval=DEFAULT_RATE_LIMITER_INTERVAL

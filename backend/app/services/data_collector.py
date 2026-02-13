@@ -823,7 +823,7 @@ class ETFDataCollector:
                 'error': str(e)
             }
 
-    def collect_all_tickers(self, days: int = 1, max_workers: int = 3) -> dict:
+    def collect_all_tickers(self, days: int = 1, max_workers: int = 5) -> dict:
         """
         모든 종목의 가격, 매매동향, 뉴스 데이터를 병렬 일괄 수집
 
@@ -832,7 +832,7 @@ class ETFDataCollector:
 
         Args:
             days: 수집할 일수 (기본: 1일 - 당일 데이터)
-            max_workers: 병렬 처리 워커 수 (기본: 3)
+            max_workers: 병렬 처리 워커 수 (기본: 5)
 
         Returns:
             수집 결과 딕셔너리

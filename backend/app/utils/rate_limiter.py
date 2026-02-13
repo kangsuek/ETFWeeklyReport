@@ -67,31 +67,42 @@ class RateLimiter:
     def wait_if_needed(self):
         """
         필요한 경우 대기
-        
+
         마지막 요청으로부터 min_interval이 경과하지 않았으면 대기합니다.
+        Lock 밖에서 sleep하여 다른 스레드가 동시에 대기할 수 있도록 합니다.
         """
+        wait_time = 0
+
+        # 동시 요청 수 제한 확인 (Lock 밖에서 polling)
+        if self.max_concurrent is not None:
+            while True:
+                with self._lock:
+                    if self._concurrent_count < self.max_concurrent:
+                        self._concurrent_count += 1
+                        break
+                time.sleep(0.05)
+
+        # 시간 슬롯 예약 (Lock 내에서 계산만, sleep은 밖에서)
         with self._lock:
-            # 동시 요청 수 제한 확인
-            if self.max_concurrent is not None:
-                while self._concurrent_count >= self.max_concurrent:
-                    time.sleep(0.1)
-                self._concurrent_count += 1
-            
-            # 최소 간격 확인
             current_time = time.time()
-            
+
             if self._last_request_time is not None:
-                elapsed = current_time - self._last_request_time
-                wait_time = self.min_interval - elapsed
-                
-                if wait_time > 0:
-                    logger.debug(f"Rate limit: {wait_time:.2f}초 대기")
-                    time.sleep(wait_time)
-                    current_time = time.time()
-                    self._total_wait_time += wait_time
-            
-            self._last_request_time = current_time
+                # 예약된 마지막 시점 기준으로 대기 시간 계산
+                wait_time = self._last_request_time + self.min_interval - current_time
+                if wait_time < 0:
+                    wait_time = 0
+
+            # 이 스레드의 요청 시점을 예약
+            scheduled_time = current_time + wait_time
+            self._last_request_time = scheduled_time
             self._total_requests += 1
+            if wait_time > 0:
+                self._total_wait_time += wait_time
+
+        # Lock 밖에서 대기 → 다른 스레드도 동시에 슬롯 예약 가능
+        if wait_time > 0:
+            logger.debug(f"Rate limit: {wait_time:.2f}초 대기")
+            time.sleep(wait_time)
     
     def get_stats(self) -> dict:
         """
