@@ -183,10 +183,10 @@ const IntradayChart = memo(function IntradayChart({
     })
   }, [pivotLevels, chartData])
 
-  // 활성 목표가 라인 필터
+  // 활성 목표가 라인 필터 (절대 가격 타입만: buy/sell)
   const activePriceTargets = useMemo(() => {
     if (!priceTargets || priceTargets.length === 0) return []
-    return priceTargets.filter(t => t.is_active)
+    return priceTargets.filter(t => t.is_active && (t.alert_type === 'buy' || t.alert_type === 'sell'))
   }, [priceTargets])
 
   // Y축 도메인 계산 (가격 + 피봇 레벨 + 목표가 포함)
