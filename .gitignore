@@ -73,3 +73,6 @@ macos/dist/
 windows/node_modules/
 windows/release/
 windows/dist/
+
+# Legacy (renamed to macos/, windows/)
+desktop/
