@@ -1,10 +1,95 @@
+const fs = require('fs');
+const path = require('path');
+
+// ─── Very Early Debug Log (before Electron APIs) ─────────────────────────
+// Writes to %TEMP%\etf-app-debug.log to diagnose startup failures
+const EARLY_DEBUG_LOG = path.join(process.env.TEMP || process.env.TMP || '.', 'etf-app-debug.log');
+
+function debugLog(message) {
+  try {
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    fs.appendFileSync(EARLY_DEBUG_LOG, line);
+  } catch {
+    // nothing we can do
+  }
+}
+
+debugLog('=== App starting ===');
+debugLog(`Process: pid=${process.pid}, exe=${process.execPath}`);
+debugLog(`Args: ${process.argv.join(' ')}`);
+debugLog(`Platform: ${process.platform} ${process.arch}`);
+debugLog(`Node: ${process.versions.node}`);
+debugLog(`Electron: ${process.versions.electron}`);
+debugLog(`cwd: ${process.cwd()}`);
+debugLog(`TEMP: ${process.env.TEMP}`);
+debugLog(`USERPROFILE: ${process.env.USERPROFILE}`);
+debugLog(`APPDATA: ${process.env.APPDATA}`);
+
 const { app, BrowserWindow, protocol, net, ipcMain, dialog } = require('electron');
 const { spawn, execSync } = require('child_process');
-const path = require('path');
 const http = require('http');
-const fs = require('fs');
 const crypto = require('crypto');
 const nodenet = require('net');
+
+debugLog(`app.getPath('userData'): ${app.getPath('userData')}`);
+debugLog(`app.isPackaged: ${app.isPackaged}`);
+
+// ─── Global Error Handlers (catch crashes before any window) ─────────────
+function earlyLog(message) {
+  debugLog(message);
+  try {
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, 'app.log');
+    const line = `[${new Date().toISOString()}] [EARLY] ${message}\n`;
+    fs.appendFileSync(logFile, line);
+  } catch (e) {
+    debugLog(`earlyLog write failed: ${e.message}`);
+  }
+}
+
+process.on('uncaughtException', (err) => {
+  const msg = `Uncaught Exception: ${err.stack || err.message}`;
+  debugLog(msg);
+  earlyLog(msg);
+  try {
+    dialog.showErrorBox(
+      '앱 오류 (Uncaught Exception)',
+      `예기치 않은 오류가 발생했습니다.\n\n${err.stack || err.message}\n\n` +
+      `디버그 로그: ${EARLY_DEBUG_LOG}`
+    );
+  } catch { /* dialog may not be ready */ }
+  app.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  debugLog(`Unhandled Rejection: ${msg}`);
+  earlyLog(`Unhandled Rejection: ${msg}`);
+  try {
+    dialog.showErrorBox(
+      '앱 오류 (Unhandled Rejection)',
+      `비동기 오류가 발생했습니다.\n\n${msg}\n\n` +
+      `디버그 로그: ${EARLY_DEBUG_LOG}`
+    );
+  } catch { /* dialog may not be ready */ }
+  app.exit(1);
+});
+
+// ─── Single Instance Lock ────────────────────────────────────────────────
+const gotLock = app.requestSingleInstanceLock();
+debugLog(`Single instance lock: ${gotLock}`);
+if (!gotLock) {
+  debugLog('Another instance is running, quitting.');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 // ─── Scheme Registration (must be before app.ready) ──────────────────────
 protocol.registerSchemesAsPrivileged([
@@ -183,15 +268,22 @@ function registerAppProtocol() {
 // ─── uv 경로 탐색 (Windows) ─────────────────────────────────────────────
 function findUvPath() {
   const home = process.env.USERPROFILE || process.env.HOME || '';
+  const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+  const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
 
   const commonPaths = [
+    // Default uv install location on Windows (astral installer)
     path.join(home, '.local', 'bin', 'uv.exe'),
+    path.join(localAppData, 'uv', 'bin', 'uv.exe'),
     path.join(home, '.cargo', 'bin', 'uv.exe'),
-    'C:\\Program Files\\uv\\uv.exe',
-    'C:\\Program Files (x86)\\uv\\uv.exe',
+    path.join(appData, 'uv', 'bin', 'uv.exe'),
     path.join(home, 'AppData', 'Local', 'uv', 'uv.exe'),
     path.join(home, '.uv', 'bin', 'uv.exe'),
+    'C:\\Program Files\\uv\\uv.exe',
+    'C:\\Program Files (x86)\\uv\\uv.exe',
   ];
+
+  log('INFO', `Searching for uv (home=${home}, LOCALAPPDATA=${localAppData})`);
 
   for (const p of commonPaths) {
     if (fs.existsSync(p)) {
@@ -444,6 +536,22 @@ async function startBackend() {
   }
 
   if (isPackaged()) {
+    // Verify bundled resources exist
+    const bundledBackend = getBundledBackendPath();
+    const bundledFrontend = getFrontendDistPath();
+    if (!fs.existsSync(bundledBackend)) {
+      log('ERROR', `Bundled backend not found: ${bundledBackend}`);
+      dialog.showErrorBox('리소스 누락', `백엔드 파일을 찾을 수 없습니다:\n${bundledBackend}\n\n앱을 다시 설치해주세요.`);
+      return false;
+    }
+    if (!fs.existsSync(bundledFrontend)) {
+      log('ERROR', `Bundled frontend not found: ${bundledFrontend}`);
+      dialog.showErrorBox('리소스 누락', `프론트엔드 파일을 찾을 수 없습니다:\n${bundledFrontend}\n\n앱을 다시 설치해주세요.`);
+      return false;
+    }
+    log('INFO', `Bundled backend: ${bundledBackend}`);
+    log('INFO', `Bundled frontend: ${bundledFrontend}`);
+
     const setupOk = await setupBackendWorkspace(uvPath);
     if (!setupOk) return false;
   }
@@ -468,6 +576,16 @@ async function startBackend() {
 
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(venvPython)) {
+      log('ERROR', `Python not found in venv: ${venvPython}`);
+      dialog.showErrorBox(
+        'Python 환경 오류',
+        `가상환경의 Python을 찾을 수 없습니다:\n${venvPython}\n\n` +
+        `앱 데이터를 삭제하고 다시 시작해주세요:\n${workspace}`
+      );
+      return false;
     }
 
     pythonCmd = venvPython;
@@ -612,30 +730,61 @@ function setupIpcHandlers() {
 
 // ─── App Lifecycle ───────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  initLogger();
-  log('INFO', `App starting (packaged=${isPackaged()})`);
-  log('INFO', `Platform: ${process.platform} ${process.arch}`);
-  log('INFO', `Electron: ${process.versions.electron}`);
-  log('INFO', `userData: ${getWorkspacePath()}`);
+  debugLog('app.whenReady() resolved');
+  try {
+    initLogger();
+    log('INFO', `App starting (packaged=${isPackaged()})`);
+    log('INFO', `Platform: ${process.platform} ${process.arch}`);
+    log('INFO', `Electron: ${process.versions.electron}`);
+    log('INFO', `Node: ${process.versions.node}`);
+    log('INFO', `userData: ${getWorkspacePath()}`);
+    log('INFO', `exe: ${process.execPath}`);
+    log('INFO', `resourcesPath: ${process.resourcesPath}`);
+    log('INFO', `cwd: ${process.cwd()}`);
+    debugLog('Logger initialized, creating windows...');
 
-  registerAppProtocol();
-  setupIpcHandlers();
-  createLoadingWindow();
+    registerAppProtocol();
+    setupIpcHandlers();
+    createLoadingWindow();
+    debugLog('Loading window created');
 
-  const started = await startBackend();
-  if (!started) {
+    const started = await startBackend();
+    if (!started) {
+      app.quit();
+      return;
+    }
+
+    const ready = await waitForBackend();
+    if (!ready) {
+      stopBackend();
+      app.quit();
+      return;
+    }
+
+    createMainWindow();
+  } catch (err) {
+    const errMsg = err.stack || err.message;
+    debugLog(`Fatal error during startup: ${errMsg}`);
+    log('ERROR', `Fatal error during startup: ${errMsg}`);
+    dialog.showErrorBox(
+      '앱 시작 실패',
+      `시작 중 오류가 발생했습니다.\n\n${errMsg}\n\n` +
+      `디버그 로그: ${EARLY_DEBUG_LOG}`
+    );
     app.quit();
-    return;
   }
-
-  const ready = await waitForBackend();
-  if (!ready) {
-    stopBackend();
-    app.quit();
-    return;
-  }
-
-  createMainWindow();
+}).catch((err) => {
+  const errMsg = err.stack || err.message;
+  debugLog(`app.whenReady failed: ${errMsg}`);
+  earlyLog(`app.whenReady failed: ${errMsg}`);
+  try {
+    dialog.showErrorBox(
+      '앱 초기화 실패',
+      `앱을 초기화할 수 없습니다.\n\n${errMsg}\n\n` +
+      `디버그 로그: ${EARLY_DEBUG_LOG}`
+    );
+  } catch { /* */ }
+  app.exit(1);
 });
 
 app.on('window-all-closed', () => {
