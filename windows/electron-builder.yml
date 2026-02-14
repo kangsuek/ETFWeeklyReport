@@ -1,0 +1,48 @@
+appId: com.etfweeklyreport.app
+productName: ETF Weekly Report
+directories:
+  output: release
+files:
+  - main.js
+  - preload.js
+  - loading.html
+  - loading.css
+  - package.json
+  - icons/icon.png
+extraResources:
+  - from: ../backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!__pycache__/**"
+      - "!**/__pycache__/**"
+      - "!*.pyc"
+      - "!**/*.pyc"
+      - "!venv/**"
+      - "!.venv/**"
+      - "!tests/**"
+      - "!*.db"
+      - "!data/*.db"
+      - "!.coverage"
+      - "!.pytest_cache/**"
+  - from: ../frontend/dist
+    to: frontend-dist
+    filter:
+      - "**/*"
+  - from: ../.env.example
+    to: .env.example
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: icons/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: icons/icon.ico
+  uninstallerIcon: icons/icon.ico
+  installerHeaderIcon: icons/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ETF Weekly Report

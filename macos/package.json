@@ -1,0 +1,21 @@
+{
+  "name": "etf-weekly-report",
+  "version": "1.0.0",
+  "description": "ETF Weekly Report - 한국 고성장 섹터 ETF/주식 분석 Mac 앱",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "generate-icons": "node scripts/generate-icons.js",
+    "build": "electron-builder --mac --arm64 --x64",
+    "build:arm64": "electron-builder --mac --arm64",
+    "build:x64": "electron-builder --mac --x64",
+    "build:dir": "electron-builder --dir"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "sharp": "^0.33.0"
+  }
+}

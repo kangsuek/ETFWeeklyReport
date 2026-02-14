@@ -9,6 +9,7 @@ import AllocationPieChart from '../components/portfolio/AllocationPieChart'
 import PortfolioTrendChart from '../components/portfolio/PortfolioTrendChart'
 import ContributionTable from '../components/portfolio/ContributionTable'
 import PortfolioAnalysisReport from '../components/portfolio/PortfolioAnalysisReport'
+import AIInvestmentReport from '../components/portfolio/AIInvestmentReport'
 import {
   classifyETFs,
   calculatePortfolioSummary,
@@ -68,6 +69,7 @@ export default function Portfolio() {
 
   // 분석 리포트 토글
   const [showAnalysisReport, setShowAnalysisReport] = useState(false)
+  const [showAIReport, setShowAIReport] = useState(false)
 
   const isLoading = etfsLoading || summaryLoading
 
@@ -166,6 +168,39 @@ export default function Portfolio() {
           allocation={allocation}
           contributions={contributions}
           summary={summary}
+        />
+      )}
+
+      {/* AI 종합 투자보고서 토글 */}
+      <div className="mt-6 mb-4">
+        <button
+          onClick={() => setShowAIReport(v => !v)}
+          className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 transition-all duration-200 ${
+            showAIReport
+              ? 'border-purple-400 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+          }`}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          <span className="font-medium">
+            {showAIReport ? 'AI 투자보고서 접기' : 'AI 종합 투자보고서'}
+          </span>
+          <svg
+            className={`w-4 h-4 transition-transform duration-200 ${showAIReport ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {showAIReport && (
+        <AIInvestmentReport
+          investedETFs={invested}
+          trackingETFs={trackingOnly}
+          batchSummary={batchSummary}
         />
       )}
     </div>
