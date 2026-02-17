@@ -70,6 +70,7 @@ def load_api_keys_to_env():
             Config.NAVER_CLIENT_ID = keys["NAVER_CLIENT_ID"]
         if "NAVER_CLIENT_SECRET" in keys:
             Config.NAVER_CLIENT_SECRET = keys["NAVER_CLIENT_SECRET"]
+        # PERPLEXITY_API_KEY는 os.environ으로만 관리 (Config 속성 불필요)
 
 # Initialize ticker scraper
 ticker_scraper = TickerScraper()
@@ -623,32 +624,34 @@ class ApiKeysUpdate(BaseModel):
     """API 키 업데이트 요청 모델"""
     NAVER_CLIENT_ID: Optional[str] = None
     NAVER_CLIENT_SECRET: Optional[str] = None
+    PERPLEXITY_API_KEY: Optional[str] = None
 
 
 @router.get("/api-keys")
-async def get_api_keys() -> Dict[str, Any]:
+async def get_api_keys(raw: bool = False) -> Dict[str, Any]:
     """
-    저장된 API 키 조회 (마스킹 처리)
+    저장된 API 키 조회
+
+    **Query Parameters:**
+    - raw: true면 원본 값 반환, false면 마스킹 처리 (기본: false)
 
     **Status Codes:**
     - 200: Success
     """
     keys = _load_api_keys()
 
-    # 마스킹 처리: 앞 4자만 표시
-    masked = {}
+    result = {}
     for key in ["NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]:
         value = keys.get(key, "") or os.getenv(key, "")
         if value and not value.startswith("your_"):
-            masked[key] = value[:4] + "*" * max(0, len(value) - 4)
+            result[key] = value if raw else value[:4] + "*" * max(0, len(value) - 4)
         else:
-            masked[key] = ""
+            result[key] = ""
 
-    # 설정 여부
-    has_naver = bool(masked["NAVER_CLIENT_ID"] and masked["NAVER_CLIENT_SECRET"])
+    has_naver = bool(result["NAVER_CLIENT_ID"] and result["NAVER_CLIENT_SECRET"])
 
     return {
-        "keys": masked,
+        "keys": result,
         "configured": {
             "naver": has_naver,
         }
@@ -666,6 +669,7 @@ async def update_api_keys(
     **Request Body:**
     - NAVER_CLIENT_ID: 네이버 API Client ID
     - NAVER_CLIENT_SECRET: 네이버 API Client Secret
+    - PERPLEXITY_API_KEY: Perplexity AI API Key
 
     **Status Codes:**
     - 200: Successfully saved

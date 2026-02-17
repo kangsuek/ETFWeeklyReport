@@ -19,6 +19,10 @@
 | `intraday_prices` | 분봉 데이터 (당일 또는 지정일) |
 | `alert_rules` | 알림 규칙 (목표가, 급등/급락, 매매 시그널) |
 | `alert_history` | 알림 트리거 이력 |
+| `etf_fundamentals` | ETF 펀더멘털 (NAV, AUM, 추적오차, 총보수) |
+| `etf_rebalancing` | ETF 리밸런싱 이력 (편입/편출/조정) |
+| `etf_distributions` | ETF 분배금 이력 (기준일, 지급일, 주당 금액, 배당수익률) |
+| `etf_holdings` | ETF 구성종목 (비중, 주식수, 시가총액, 섹터) |
 
 ---
 
@@ -66,6 +70,18 @@
                      │ institutional_net      │                                                                │
                      │ catalog_updated_at     │                                                                │
                      └───────────────────────┘                                                                │
+                                                                                                              │
+         │ 1:N (ETF 펀더멘털·운용)                                                                             │
+         ├────────────────┬────────────────┬────────────────┬────────────────┐                               │
+         ▼                ▼                ▼                ▼                │                               │
+┌──────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐                           │
+│ etf_fundamentals │ │ etf_rebalancing  │ │etf_distributions│ │ etf_holdings     │                           │
+│ ticker, date(PK) │ │ id, ticker, date │ │ id, ticker,     │ │ ticker, date,    │                           │
+│ nav, aum,        │ │ action, stock_   │ │ record_date,   │ │ stock_code (PK),  │                           │
+│ tracking_error,  │ │ weight_before/   │ │ amount_per_    │ │ weight, shares,  │                           │
+│ expense_ratio    │ │ after, shares_   │ │ share, yield_  │ │ market_value,    │                           │
+└──────────────────┘ └──────────────────┘ │   pct           │ │ sector           │                           │
+                                         └─────────────────┘ └──────────────────┘                           │
 ```
 
 ---
@@ -230,6 +246,81 @@ CREATE TABLE alert_history (
 );
 ```
 
+### 10. `etf_fundamentals` (ETF 펀더멘털: NAV, AUM)
+ETF별 일자 단위 NAV, AUM, 추적오차, 총보수 등. AI 보고서·분석용.
+
+```sql
+CREATE TABLE etf_fundamentals (
+    ticker TEXT NOT NULL,
+    date DATE NOT NULL,
+    nav REAL,
+    nav_change_pct REAL,
+    aum REAL,
+    tracking_error REAL,
+    expense_ratio REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ticker, date),
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+);
+```
+
+### 11. `etf_rebalancing` (ETF 리밸런싱 이력)
+편입/편출/조정 일자, 종목코드·종목명, 비중·주식수 변화.
+
+```sql
+CREATE TABLE etf_rebalancing (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    rebalance_date DATE NOT NULL,
+    action TEXT NOT NULL,
+    stock_code TEXT,
+    stock_name TEXT,
+    weight_before REAL,
+    weight_after REAL,
+    shares_change INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+);
+```
+
+### 12. `etf_distributions` (ETF 분배금 이력)
+분배금 기준일·지급일·주당 금액·유형·배당수익률.
+
+```sql
+CREATE TABLE etf_distributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    record_date DATE NOT NULL,
+    payment_date DATE,
+    ex_date DATE,
+    amount_per_share REAL NOT NULL,
+    distribution_type TEXT,
+    yield_pct REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+    UNIQUE(ticker, record_date)
+);
+```
+
+### 13. `etf_holdings` (ETF 구성종목)
+ETF별 일자별 보유 종목·비중·주식수·시가총액·섹터. 상위 종목 스냅샷용.
+
+```sql
+CREATE TABLE etf_holdings (
+    ticker TEXT NOT NULL,
+    date DATE NOT NULL,
+    stock_code TEXT NOT NULL,
+    stock_name TEXT,
+    weight REAL,
+    shares INTEGER,
+    market_value REAL,
+    sector TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ticker, date, stock_code),
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+);
+```
+
 ---
 
 ## 인덱스
@@ -238,16 +329,22 @@ CREATE TABLE alert_history (
 CREATE INDEX idx_prices_ticker_date ON prices(ticker, date DESC);
 CREATE INDEX idx_trading_flow_ticker_date ON trading_flow(ticker, date DESC);
 CREATE INDEX idx_news_ticker_date ON news(ticker, date DESC);
+CREATE UNIQUE INDEX idx_news_ticker_url ON news(ticker, url);
 CREATE INDEX idx_stock_catalog_name ON stock_catalog(name);
 CREATE INDEX idx_stock_catalog_type ON stock_catalog(type);
 CREATE INDEX idx_stock_catalog_active ON stock_catalog(is_active);
 CREATE INDEX idx_stock_catalog_screening ON stock_catalog(type, is_active, weekly_return);
 CREATE INDEX idx_stock_catalog_sector ON stock_catalog(sector, is_active);
-CREATE INDEX idx_stock_catalog_updated ON stock_catalog(catalog_updated_at);
+CREATE INDEX idx_stock_catalog_catalog_updated ON stock_catalog(catalog_updated_at);
 CREATE INDEX idx_collection_status_last_dates ON collection_status(last_price_date, last_trading_flow_date);
 CREATE INDEX idx_intraday_prices_ticker_datetime ON intraday_prices(ticker, datetime DESC);
 CREATE INDEX idx_alert_rules_ticker ON alert_rules(ticker, is_active);
 CREATE INDEX idx_alert_history_ticker ON alert_history(ticker, triggered_at DESC);
+CREATE INDEX idx_etf_fundamentals_ticker_date ON etf_fundamentals(ticker, date DESC);
+CREATE INDEX idx_etf_rebalancing_ticker_date ON etf_rebalancing(ticker, rebalance_date DESC);
+CREATE INDEX idx_etf_distributions_ticker_date ON etf_distributions(ticker, record_date DESC);
+CREATE INDEX idx_etf_holdings_ticker_date ON etf_holdings(ticker, date DESC);
+CREATE INDEX idx_etf_holdings_weight ON etf_holdings(ticker, date, weight DESC);
 ```
 
 ---
@@ -282,7 +379,7 @@ FROM collection_status;
 ```
 
 ### DB 초기화 시 삭제 대상
-`DELETE /api/data/reset` 호출 시 다음 테이블만 비움: `prices`, `news`, `trading_flow`, `collection_status`, `intraday_prices`. `etfs`, `stock_catalog`, `alert_rules`, `alert_history`는 유지.
+`DELETE /api/data/reset` 호출 시 다음 테이블만 비움: `prices`, `news`, `trading_flow`, `collection_status`, `intraday_prices`. `etfs`, `stock_catalog`, `alert_rules`, `alert_history`, `etf_fundamentals`, `etf_rebalancing`, `etf_distributions`, `etf_holdings`는 유지.
 
 ---
 

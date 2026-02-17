@@ -206,6 +206,26 @@ export const etfApi = {
       timeout: LONG_API_TIMEOUT,
       params: { pages }
     }),
+
+  // AI 종합 투자분석 보고서 (Perplexity API, 긴 작업)
+  getAIAnalysis: (ticker) =>
+    api.post(`/etfs/${ticker}/ai-analysis`, null, {
+      timeout: LONG_API_TIMEOUT,
+    }),
+
+  // AI 복수 종목 통합 비교 투자분석 보고서
+  getAIAnalysisMulti: (stocks) =>
+    api.post('/etfs/ai-analysis-multi', { stocks }, {
+      timeout: LONG_API_TIMEOUT * 2,
+    }),
+
+  // AI 분석 프롬프트 생성 (API 호출 없이 프롬프트만 반환)
+  getAIPrompt: (ticker) =>
+    api.get(`/etfs/${ticker}/ai-prompt`, { timeout: FAST_API_TIMEOUT }),
+
+  // 복수 종목 통합 비교 분석 프롬프트 생성
+  getAIPromptMulti: (stocks) =>
+    api.post('/etfs/ai-prompt-multi', { stocks }, { timeout: FAST_API_TIMEOUT }),
 }
 
 // News API 서비스
@@ -326,7 +346,7 @@ export const settingsApi = {
   reorderStocks: (tickers) => api.post('/settings/stocks/reorder', tickers, { timeout: NORMAL_API_TIMEOUT }),
 
   // API 키 조회 (마스킹된 값)
-  getApiKeys: () => api.get('/settings/api-keys', { timeout: FAST_API_TIMEOUT }),
+  getApiKeys: (raw = false) => api.get('/settings/api-keys', { params: { raw }, timeout: FAST_API_TIMEOUT }),
 
   // API 키 저장
   updateApiKeys: (data) => api.put('/settings/api-keys', data, { timeout: NORMAL_API_TIMEOUT }),

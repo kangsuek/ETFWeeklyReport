@@ -514,6 +514,98 @@ def init_db():
         ON alert_history(ticker, triggered_at DESC)
     """)
 
+    # Create etf_fundamentals table for NAV, AUM tracking
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_fundamentals (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            nav {real_type},
+            nav_change_pct {real_type},
+            aum {real_type},
+            tracking_error {real_type},
+            expense_ratio {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_fundamentals_ticker_date
+        ON etf_fundamentals(ticker, date DESC)
+    """)
+
+    # Create etf_rebalancing table for rebalancing history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_rebalancing (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            rebalance_date DATE NOT NULL,
+            action {text_type} NOT NULL,
+            stock_code {text_type},
+            stock_name {text_type},
+            weight_before {real_type},
+            weight_after {real_type},
+            shares_change {integer_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_rebalancing_ticker_date
+        ON etf_rebalancing(ticker, rebalance_date DESC)
+    """)
+
+    # Create etf_distributions table for dividend/distribution history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_distributions (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            record_date DATE NOT NULL,
+            payment_date DATE,
+            ex_date DATE,
+            amount_per_share {real_type} NOT NULL,
+            distribution_type {text_type},
+            yield_pct {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            UNIQUE(ticker, record_date)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_distributions_ticker_date
+        ON etf_distributions(ticker, record_date DESC)
+    """)
+
+    # Create etf_holdings table for portfolio composition
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_holdings (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            stock_code {text_type} NOT NULL,
+            stock_name {text_type},
+            weight {real_type},
+            shares {integer_type},
+            market_value {real_type},
+            sector {text_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date, stock_code),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_holdings_ticker_date
+        ON etf_holdings(ticker, date DESC)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_holdings_weight
+        ON etf_holdings(ticker, date, weight DESC)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []

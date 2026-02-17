@@ -13,8 +13,8 @@
       "HBM",
       "AI반도체"
     ],
-    "purchase_price": 25585.0,
-    "quantity": 6807
+    "purchase_price": 25558.0,
+    "quantity": 6524
   },
   "446770": {
     "name": "ACE 글로벌반도체TOP4 Plus",
@@ -39,7 +39,7 @@
     "name": "KODEX 200미국채혼합",
     "type": "ETF",
     "theme": "주식채권 혼합",
-    "purchase_date": "2026-01-12",
+    "purchase_date": null,
     "search_keyword": "KODEX 200미국채혼합",
     "relevance_keywords": [
       "KODEX 200미국채혼합",
@@ -48,8 +48,8 @@
       "자산배분",
       "변동성 제어"
     ],
-    "purchase_price": 17870.0,
-    "quantity": 281
+    "purchase_price": null,
+    "quantity": null
   },
   "466940": {
     "name": "TIGER 은행고배당플러스TOP10",
@@ -99,7 +99,7 @@
     "name": "KODEX 로봇액티브",
     "type": "ETF",
     "theme": "로봇",
-    "purchase_date": "2026-01-21",
+    "purchase_date": null,
     "search_keyword": "KODEX 로봇액티브",
     "relevance_keywords": [
       "KODEX 로봇액티브",
@@ -107,8 +107,8 @@
       "로봇산업",
       "액티브 ETF"
     ],
-    "purchase_price": 34280.0,
-    "quantity": 305
+    "purchase_price": null,
+    "quantity": null
   },
   "449450": {
     "name": "PLUS K방산",

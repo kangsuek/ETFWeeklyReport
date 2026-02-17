@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date, datetime, timedelta, time as dtime
 from app.models import (
@@ -13,6 +14,7 @@ from app.utils.date_utils import apply_default_dates
 from app.utils.data_collection import auto_collect_if_needed
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
+from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.constants import (
     ERROR_DATABASE,
     ERROR_DATABASE_COLLECTION,
@@ -1170,3 +1172,199 @@ async def collect_intraday_prices(
     except Exception as e:
         logger.error(f"Error collecting intraday data for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"분봉 데이터 수집 실패: {str(e)}")
+
+
+class StockItem(BaseModel):
+    ticker: str
+    name: str
+
+class MultiAnalysisRequest(BaseModel):
+    stocks: List[StockItem]
+
+
+@router.get("/{ticker}/ai-prompt")
+async def get_ai_prompt(
+    etf: ETF = Depends(get_etf_or_404),
+    use_db_data: bool = Query(
+        default=True,
+        description="DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+    ),
+):
+    """
+    단일 종목 AI 분석 프롬프트 생성 (RAG 지원)
+
+    API 호출 없이 프롬프트만 반환합니다.
+    기본적으로 DB에 저장된 실제 데이터(가격, 거래량, 매매동향, 뉴스)를
+    프롬프트에 포함하여 더 정확한 분석을 위한 프롬프트를 생성합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드
+
+    **Query Parameters:**
+    - use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)
+    """
+    from app.services.perplexity_service import PerplexityService
+    try:
+        service = PerplexityService()
+        prompt = service.get_prompt(etf.ticker, etf.name, use_db_data=use_db_data)
+        return {
+            "ticker": etf.ticker,
+            "name": etf.name,
+            "prompt": prompt,
+            "use_db_data": use_db_data,
+        }
+    except Exception as e:
+        logger.error(f"Prompt generation error for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-prompt-multi")
+async def get_ai_prompt_multi(
+    body: MultiAnalysisRequest,
+    use_db_data: bool = Query(
+        default=True,
+        description="DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+    ),
+):
+    """
+    복수 종목 통합 비교 분석 프롬프트 생성 (RAG 지원)
+
+    API 호출 없이 프롬프트만 반환합니다.
+    기본적으로 각 종목의 DB 데이터를 프롬프트에 포함하여
+    더 정확한 비교 분석을 위한 프롬프트를 생성합니다.
+
+    **Request Body:**
+    - stocks: 종목 목록 (2개 이상)
+
+    **Query Parameters:**
+    - use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)
+    """
+    from app.services.perplexity_service import PerplexityService
+    stocks = [s.model_dump() for s in body.stocks]
+    if len(stocks) < 2:
+        raise HTTPException(status_code=400, detail="통합 분석은 2개 이상의 종목이 필요합니다.")
+    try:
+        service = PerplexityService()
+        prompt = service.get_multi_prompt(stocks, use_db_data=use_db_data)
+        return {
+            "stocks": stocks,
+            "prompt": prompt,
+            "use_db_data": use_db_data,
+        }
+    except Exception as e:
+        logger.error(f"Multi-prompt generation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-analysis-multi")
+@limiter.limit(RateLimitConfig.DANGEROUS)
+async def get_ai_analysis_multi(
+    request: Request,
+    body: MultiAnalysisRequest,
+):
+    """
+    Perplexity AI 복수 종목 통합 비교 투자분석 보고서 생성
+
+    여러 종목을 한 번에 분석하여 통합 비교 리포트를 생성합니다.
+
+    **Request Body:**
+    ```json
+    {
+      "stocks": [
+        {"ticker": "487240", "name": "KODEX AI전력핵심설비"},
+        {"ticker": "466920", "name": "KODEX 미국AI전력핵심인프라"}
+      ]
+    }
+    ```
+    """
+    from app.services.perplexity_service import PerplexityService
+
+    stocks = [s.model_dump() for s in body.stocks]
+    if not stocks or len(stocks) < 2:
+        raise HTTPException(status_code=400, detail="통합 분석은 2개 이상의 종목이 필요합니다.")
+    if len(stocks) > 5:
+        raise HTTPException(status_code=400, detail="통합 분석은 최대 5개 종목까지 가능합니다.")
+
+    try:
+        service = PerplexityService()
+        result = await asyncio.to_thread(service.analyze_multi, stocks)
+        return {
+            "stocks": stocks,
+            "report": result["content"],
+            "citations": result["citations"],
+            "prompt": result["prompt"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error(f"AI multi-analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI 통합 분석 중 오류가 발생했습니다.")
+
+
+@router.post("/{ticker}/ai-analysis")
+@limiter.limit(RateLimitConfig.DANGEROUS)
+async def get_ai_analysis(
+    request: Request,
+    etf: ETF = Depends(get_etf_or_404),
+    use_db_data: bool = Query(
+        default=True,
+        description="DB 데이터를 RAG context로 사용할지 여부 (기본: True)"
+    ),
+):
+    """
+    Perplexity AI 종합 투자분석 보고서 생성 (RAG 지원)
+
+    Perplexity sonar 모델을 사용하여 해당 종목의 종합 투자분석 리포트를 생성합니다.
+    기본적으로 DB에 저장된 실제 데이터(가격, 거래량, 매매동향, 뉴스)를 RAG context로
+    제공하여 더 정확한 데이터 기반 분석을 생성합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드 (예: 487240)
+
+    **Query Parameters:**
+    - use_db_data: DB 데이터를 context로 사용 (기본: true, RAG 활성화)
+
+    **Example Response:**
+    ```json
+    {
+      "ticker": "487240",
+      "name": "KODEX AI전력핵심설비",
+      "report": "### 개요\\n...",
+      "citations": ["https://..."],
+      "prompt": "..."
+    }
+    ```
+
+    **Status Codes:**
+    - 200: 성공
+    - 400: API 키 미설정
+    - 404: 종목을 찾을 수 없음
+    - 429: 요청 한도 초과
+    - 500: 서버 오류
+    """
+    from app.services.perplexity_service import PerplexityService
+
+    try:
+        service = PerplexityService()
+        result = await asyncio.to_thread(
+            service.analyze,
+            etf.ticker,
+            etf.name,
+            use_db_data=use_db_data
+        )
+        return {
+            "ticker": etf.ticker,
+            "name": etf.name,
+            "report": result["content"],
+            "citations": result["citations"],
+            "prompt": result["prompt"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error(f"AI analysis error for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI 분석 중 오류가 발생했습니다.")
