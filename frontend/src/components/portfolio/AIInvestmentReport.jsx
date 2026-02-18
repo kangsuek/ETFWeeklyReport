@@ -12,10 +12,7 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
   const [prompt, setPrompt] = useState(null)
   const [promptTitle, setPromptTitle] = useState('')
   const [copied, setCopied] = useState(false)
-  const [report, setReport] = useState(null)
-  const [reportLoading, setReportLoading] = useState(false)
   const cacheRef = useRef({})
-  const reportCacheRef = useRef({})
 
   const allETFs = useMemo(() => [
     ...(investedETFs || []).map(e => ({ ...e, _group: 'invested' })),
@@ -37,7 +34,6 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
       )
     }
     setPrompt(null)
-    setReport(null)
     setError(null)
     setCopied(false)
   }
@@ -121,66 +117,6 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
     URL.revokeObjectURL(url)
   }
 
-  const handleGenerateReport = async () => {
-    if (selectedTickers.length === 0) return
-
-    const isMulti = selectedTickers.length >= 2
-    const cacheKey = isMulti
-      ? `multi:${[...selectedTickers].sort().join(',')}`
-      : selectedTickers[0]
-
-    // Check cache
-    if (reportCacheRef.current[cacheKey]) {
-      setReport(reportCacheRef.current[cacheKey])
-      setPromptTitle(isMulti
-        ? selectedTickers.map(t => findETF(t)?.name).filter(Boolean).join(' vs ')
-        : findETF(selectedTickers[0])?.name || ''
-      )
-      return
-    }
-
-    setReport(null)
-    setError(null)
-    setReportLoading(true)
-
-    try {
-      let data
-      if (isMulti) {
-        const stocks = selectedTickers.map(t => {
-          const etf = findETF(t)
-          return { ticker: t, name: etf?.name || t }
-        })
-        const response = await etfApi.getAIAnalysisMulti(stocks)
-        data = response.data
-        setPromptTitle(stocks.map(s => s.name).join(' vs '))
-      } else {
-        const ticker = selectedTickers[0]
-        const response = await etfApi.getAIAnalysis(ticker)
-        data = response.data
-        setPromptTitle(findETF(ticker)?.name || '')
-      }
-      reportCacheRef.current[cacheKey] = data
-      setReport(data)
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message
-      setError(detail)
-    } finally {
-      setReportLoading(false)
-    }
-  }
-
-  const handleDownloadReport = () => {
-    if (!report?.report) return
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const blob = new Blob([report.report], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `AI투자분석보고서_${promptTitle.replace(/\s+/g, '_')}_${dateStr}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   if (allETFs.length === 0) return null
 
   const getChangePct = (ticker) => {
@@ -258,7 +194,7 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
         )}
 
         {/* Action bar */}
-        {selectedTickers.length > 0 && !loading && !reportLoading && (
+        {selectedTickers.length > 0 && !loading && (
           <div className="flex flex-col gap-3 mb-4">
             <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
               <span className="text-sm text-purple-700 dark:text-purple-300">
@@ -271,30 +207,11 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
                 {isMultiMode ? '통합 비교 프롬프트 생성' : '프롬프트 생성'}
               </button>
               <button
-                onClick={() => { setSelectedTickers([]); setPrompt(null); setReport(null); setError(null) }}
+                onClick={() => { setSelectedTickers([]); setPrompt(null); setError(null) }}
                 className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 선택 해제
               </button>
-            </div>
-
-            {/* AI 보고서 자동 생성 버튼 */}
-            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
-              <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-sm text-indigo-700 dark:text-indigo-300 font-medium">
-                AI 보고서 자동 생성 (RAG 기반)
-              </span>
-              <button
-                onClick={handleGenerateReport}
-                className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all shadow-sm"
-              >
-                {isMultiMode ? '통합 보고서 생성' : '보고서 생성'}
-              </button>
-              <span className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40 px-2 py-1 rounded">
-                DB 데이터 기반
-              </span>
             </div>
           </div>
         )}
@@ -314,19 +231,6 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
           <div className="flex flex-col items-center justify-center py-10">
             <Spinner />
             <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">프롬프트 생성 중...</p>
-          </div>
-        )}
-
-        {/* Report Loading */}
-        {reportLoading && (
-          <div className="flex flex-col items-center justify-center py-16 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-lg border border-indigo-200 dark:border-indigo-800">
-            <Spinner />
-            <p className="mt-4 text-sm font-medium text-indigo-700 dark:text-indigo-300">
-              AI 투자분석 보고서 생성 중...
-            </p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              DB 데이터를 분석하여 정확한 보고서를 작성하고 있습니다. 약 30~60초 소요됩니다.
-            </p>
           </div>
         )}
 
@@ -416,85 +320,6 @@ export default function AIInvestmentReport({ investedETFs, trackingETFs, batchSu
                 ">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {prompt}
-                  </ReactMarkdown>
-                </article>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* AI Report Display */}
-        {report && !reportLoading && (
-          <div className="mt-6">
-            {/* Title bar with action buttons */}
-            <div className="flex items-center justify-between mb-3 pb-3 border-b border-indigo-200 dark:border-indigo-700">
-              <div>
-                <h4 className="text-base font-bold text-indigo-800 dark:text-indigo-100 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  {promptTitle} AI 투자분석 보고서
-                  <span className="ml-2 px-2 py-0.5 text-xs bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full">
-                    RAG
-                  </span>
-                </h4>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} 기준 · DB 데이터 기반 분석
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleDownloadReport}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg transition-all shadow-sm"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  다운로드
-                </button>
-              </div>
-            </div>
-
-            {/* Citations */}
-            {report.citations && report.citations.length > 0 && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">참고 자료 ({report.citations.length}개)</p>
-                <div className="flex flex-wrap gap-2">
-                  {report.citations.slice(0, 5).map((url, idx) => (
-                    <a
-                      key={idx}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      title={url}
-                    >
-                      [{idx + 1}] {new URL(url).hostname}
-                    </a>
-                  ))}
-                  {report.citations.length > 5 && (
-                    <span className="text-xs text-blue-500 dark:text-blue-400">
-                      외 {report.citations.length - 5}개
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Report content as rendered markdown */}
-            <div className="border-2 border-indigo-200 dark:border-indigo-700 rounded-lg overflow-hidden shadow-sm">
-              <div className="max-h-[800px] overflow-y-auto p-6 bg-white dark:bg-gray-800">
-                <article className="prose dark:prose-invert max-w-none
-                  prose-headings:text-indigo-800 dark:prose-headings:text-indigo-200
-                  prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed
-                  prose-li:text-gray-700 dark:prose-li:text-gray-300
-                  prose-strong:text-gray-900 dark:prose-strong:text-gray-100
-                  prose-hr:border-gray-300 dark:prose-hr:border-gray-600
-                  prose-table:text-sm
-                  prose-a:text-indigo-600 dark:prose-a:text-indigo-400
-                ">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {report.report}
                   </ReactMarkdown>
                 </article>
               </div>

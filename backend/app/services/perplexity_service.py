@@ -65,6 +65,14 @@ class PerplexityService:
                     conn = conn_or_cursor
                     cursor = conn.cursor()
 
+                # 종목 타입 확인 (ETF vs STOCK)
+                cursor.execute(f"""
+                    SELECT type FROM etfs WHERE ticker = {param_placeholder}
+                """, (ticker,))
+                type_row = cursor.fetchone()
+                ticker_type = ((type_row['type'] if USE_POSTGRES else type_row[0]) or 'ETF').upper() if type_row else 'ETF'
+                is_etf = (ticker_type == 'ETF')
+
                 # 1. 최근 N거래일 가격 데이터
                 cursor.execute(f"""
                     SELECT date, open_price, high_price, low_price, close_price,
@@ -394,184 +402,281 @@ class PerplexityService:
 
                             context_parts.append("")
 
-                # 7. 펀더멘털 데이터 (NAV, AUM, 분배금, 리밸런싱, 구성종목)
-                context_parts.append("### 7. ETF 펀더멘털 데이터")
-                context_parts.append("")
-
-                # 7-1. NAV 및 AUM 추이 (최근 30일)
-                cursor.execute(f"""
-                    SELECT date, nav, nav_change_pct, aum, tracking_error, expense_ratio
-                    FROM etf_fundamentals
-                    WHERE ticker = {param_placeholder}
-                    ORDER BY date DESC
-                    LIMIT 30
-                """, (ticker,))
-
-                fundamentals = cursor.fetchall()
-                if fundamentals:
-                    context_parts.append("**NAV 및 AUM 추이 (최근 30일)**:")
+                # 7. ETF 펀더멘털 데이터 (ETF 종목만)
+                if is_etf:
+                    context_parts.append("### 7. ETF 펀더멘털 데이터")
                     context_parts.append("")
-                    context_parts.append("| 날짜 | NAV | NAV 변동(%) | 순자산(억원) | 추적오차(%) | 총보수(%) |")
-                    context_parts.append("|------|-----|-----------|-----------|----------|----------|")
 
-                    for row in fundamentals[:10]:  # 최대 10일치만 표시
-                        fund_date = row['date'] if USE_POSTGRES else row[0]
-                        nav = row['nav'] if USE_POSTGRES else row[1]
-                        nav_change = row['nav_change_pct'] if USE_POSTGRES else row[2]
-                        aum = row['aum'] if USE_POSTGRES else row[3]
-                        tracking_error = row['tracking_error'] if USE_POSTGRES else row[4]
-                        expense_ratio = row['expense_ratio'] if USE_POSTGRES else row[5]
+                    # 7-1. NAV 추이 및 총보수 (최근 30일)
+                    cursor.execute(f"""
+                        SELECT date, nav, nav_change_pct, aum, tracking_error, expense_ratio
+                        FROM etf_fundamentals
+                        WHERE ticker = {param_placeholder}
+                        ORDER BY date DESC
+                        LIMIT 30
+                    """, (ticker,))
 
-                        nav_str = f"{nav:,.0f}원" if nav else "-"
-                        nav_change_str = f"{nav_change:+.2f}%" if nav_change else "-"
-                        aum_str = f"{aum:,.0f}" if aum else "-"
-                        tracking_error_str = f"{tracking_error:.2f}%" if tracking_error else "-"
-                        expense_ratio_str = f"{expense_ratio:.2f}%" if expense_ratio else "-"
-
-                        context_parts.append(
-                            f"| {fund_date} | "
-                            f"{nav_str} | "
-                            f"{nav_change_str} | "
-                            f"{aum_str} | "
-                            f"{tracking_error_str} | "
-                            f"{expense_ratio_str} |"
-                        )
-
-                    # 요약 통계
-                    if len(fundamentals) >= 2:
-                        first_nav = fundamentals[-1]['nav'] if USE_POSTGRES else fundamentals[-1][1]
-                        latest_nav = fundamentals[0]['nav'] if USE_POSTGRES else fundamentals[0][1]
-                        if first_nav and latest_nav:
-                            nav_30d_change = ((latest_nav - first_nav) / first_nav) * 100
+                    fundamentals = cursor.fetchall()
+                    if fundamentals:
+                        # 총보수(expense_ratio)는 최신 행에서 추출
+                        latest_expense = None
+                        for _row in fundamentals:
+                            _er = _row['expense_ratio'] if USE_POSTGRES else _row[5]
+                            if _er is not None:
+                                latest_expense = _er
+                                break
+                        if latest_expense is not None:
+                            context_parts.append(f"- **총보수(연)**: {latest_expense:.2f}%")
                             context_parts.append("")
-                            context_parts.append(f"- **30일 NAV 변동률**: {nav_30d_change:+.2f}%")
 
+                        context_parts.append("**NAV 추이 (최근 10거래일)**:")
+                        context_parts.append("")
+                        context_parts.append("| 날짜 | NAV | NAV 변동(%) | 순자산(억원) | 추적오차(%) |")
+                        context_parts.append("|------|-----|-----------|-----------|----------|")
+
+                        for row in fundamentals[:10]:
+                            fund_date = row['date'] if USE_POSTGRES else row[0]
+                            nav = row['nav'] if USE_POSTGRES else row[1]
+                            nav_change = row['nav_change_pct'] if USE_POSTGRES else row[2]
+                            aum = row['aum'] if USE_POSTGRES else row[3]
+                            tracking_error = row['tracking_error'] if USE_POSTGRES else row[4]
+
+                            nav_str = f"{nav:,.0f}원" if nav else "-"
+                            nav_change_str = f"{nav_change:+.2f}%" if nav_change else "-"
+                            aum_str = f"{aum:,.0f}" if aum else "-"
+                            tracking_error_str = f"{tracking_error:.2f}%" if tracking_error else "-"
+
+                            context_parts.append(
+                                f"| {fund_date} | "
+                                f"{nav_str} | "
+                                f"{nav_change_str} | "
+                                f"{aum_str} | "
+                                f"{tracking_error_str} |"
+                            )
+
+                        # 기간 NAV 변동률 요약
+                        if len(fundamentals) >= 2:
+                            first_nav = fundamentals[-1]['nav'] if USE_POSTGRES else fundamentals[-1][1]
+                            latest_nav = fundamentals[0]['nav'] if USE_POSTGRES else fundamentals[0][1]
+                            if first_nav and latest_nav:
+                                nav_period_change = ((latest_nav - first_nav) / first_nav) * 100
+                                context_parts.append("")
+                                context_parts.append(f"- **기간 NAV 변동률** ({len(fundamentals)}거래일): {nav_period_change:+.2f}%")
+
+                        context_parts.append("")
+
+                    # 7-2. 최근 분배금 지급 내역
+                    cursor.execute(f"""
+                        SELECT record_date, payment_date, amount_per_share, distribution_type, yield_pct
+                        FROM etf_distributions
+                        WHERE ticker = {param_placeholder}
+                        ORDER BY record_date DESC
+                        LIMIT 5
+                    """, (ticker,))
+
+                    distributions = cursor.fetchall()
+                    if distributions:
+                        context_parts.append("**최근 분배금 지급 내역**:")
+                        context_parts.append("")
+                        context_parts.append("| 기준일 | 지급일 | 주당 분배금(원) | 유형 | 배당수익률(%) |")
+                        context_parts.append("|--------|--------|---------------|------|-------------|")
+
+                        for row in distributions:
+                            rec_date = row['record_date'] if USE_POSTGRES else row[0]
+                            pay_date = row['payment_date'] if USE_POSTGRES else row[1]
+                            amount = row['amount_per_share'] if USE_POSTGRES else row[2]
+                            dist_type = row['distribution_type'] if USE_POSTGRES else row[3]
+                            yield_pct = row['yield_pct'] if USE_POSTGRES else row[4]
+
+                            pay_date_str = pay_date if pay_date else "-"
+                            amount_str = f"{amount:,.0f}" if amount else "-"
+                            dist_type_str = dist_type if dist_type else "-"
+                            yield_str = f"{yield_pct:.2f}%" if yield_pct else "-"
+
+                            context_parts.append(
+                                f"| {rec_date} | "
+                                f"{pay_date_str} | "
+                                f"{amount_str} | "
+                                f"{dist_type_str} | "
+                                f"{yield_str} |"
+                            )
+
+                        context_parts.append("")
+
+                    # 7-3. 최근 리밸런싱 내역
+                    cursor.execute(f"""
+                        SELECT rebalance_date, action, stock_code, stock_name,
+                               weight_before, weight_after, shares_change
+                        FROM etf_rebalancing
+                        WHERE ticker = {param_placeholder}
+                        ORDER BY rebalance_date DESC
+                        LIMIT 10
+                    """, (ticker,))
+
+                    rebalancing = cursor.fetchall()
+                    if rebalancing:
+                        context_parts.append("**최근 리밸런싱 내역**:")
+                        context_parts.append("")
+                        context_parts.append("| 일자 | 변경 | 종목코드 | 종목명 | 비중 변화 | 주식수 변화 |")
+                        context_parts.append("|------|------|---------|--------|----------|-----------|")
+
+                        for row in rebalancing:
+                            rebal_date = row['rebalance_date'] if USE_POSTGRES else row[0]
+                            action = row['action'] if USE_POSTGRES else row[1]
+                            stock_code = row['stock_code'] if USE_POSTGRES else row[2]
+                            stock_name = row['stock_name'] if USE_POSTGRES else row[3]
+                            weight_before = row['weight_before'] if USE_POSTGRES else row[4]
+                            weight_after = row['weight_after'] if USE_POSTGRES else row[5]
+                            shares_change = row['shares_change'] if USE_POSTGRES else row[6]
+
+                            action_kr = {'add': '편입', 'remove': '편출', 'adjust': '조정'}.get(action, action)
+
+                            context_parts.append(
+                                f"| {rebal_date} | "
+                                f"{action_kr} | "
+                                f"{stock_code} | "
+                                f"{stock_name} | "
+                                f"{weight_before:.1f}% → {weight_after:.1f}% | "
+                                f"{shares_change:+,}주 |"
+                            )
+
+                        context_parts.append("")
+
+                    # 7-4. 구성종목 상위 10개
+                    cursor.execute(f"""
+                        SELECT stock_code, stock_name, weight, shares, market_value, sector
+                        FROM etf_holdings
+                        WHERE ticker = {param_placeholder}
+                          AND date = (
+                              SELECT MAX(date) FROM etf_holdings WHERE ticker = {param_placeholder}
+                          )
+                        ORDER BY weight DESC
+                        LIMIT 10
+                    """, (ticker, ticker))
+
+                    holdings = cursor.fetchall()
+                    if holdings:
+                        context_parts.append("**구성종목 상위 10개**:")
+                        context_parts.append("")
+                        context_parts.append("| 종목코드 | 종목명 | 편입비중(%) | 보유주식수 | 시가총액(억원) | 섹터 |")
+                        context_parts.append("|---------|--------|-----------|----------|-------------|------|")
+
+                        total_weight = 0
+                        for row in holdings:
+                            stock_code = row['stock_code'] if USE_POSTGRES else row[0]
+                            stock_name = row['stock_name'] if USE_POSTGRES else row[1]
+                            weight = row['weight'] if USE_POSTGRES else row[2]
+                            shares = row['shares'] if USE_POSTGRES else row[3]
+                            market_value = row['market_value'] if USE_POSTGRES else row[4]
+                            sector = row['sector'] if USE_POSTGRES else row[5]
+
+                            total_weight += weight or 0
+
+                            weight_str = f"{weight:.2f}" if weight else "-"
+                            shares_str = f"{shares:,}" if shares else "-"
+                            market_value_str = f"{market_value:,.0f}" if market_value else "-"
+                            sector_str = sector if sector else "-"
+
+                            context_parts.append(
+                                f"| {stock_code} | "
+                                f"{stock_name} | "
+                                f"{weight_str} | "
+                                f"{shares_str} | "
+                                f"{market_value_str} | "
+                                f"{sector_str} |"
+                            )
+
+                        context_parts.append("")
+                        context_parts.append(f"- **상위 10개 종목 비중 합계**: {total_weight:.2f}%")
+                        context_parts.append("")
+
+                # 8. 주식 펀더멘털 데이터 (STOCK 종목만)
+                if not is_etf:
+                    cursor.execute(f"""
+                        SELECT * FROM stock_fundamentals
+                        WHERE ticker = {param_placeholder}
+                        ORDER BY date DESC
+                        LIMIT 1
+                    """, (ticker,))
+                    stock_fund_row = cursor.fetchone()
+                else:
+                    stock_fund_row = None
+
+                if stock_fund_row:
+                    if USE_POSTGRES:
+                        sf = dict(stock_fund_row)
+                    else:
+                        sf_cols = [d[0] for d in cursor.description]
+                        sf = dict(zip(sf_cols, stock_fund_row))
+
+                    context_parts.append("### 8. 주식 펀더멘털 데이터")
+                    context_parts.append("")
+                    context_parts.append(f"**기준일**: {sf.get('date', '-')}")
+                    context_parts.append("")
+                    context_parts.append("**밸류에이션 지표**:")
+                    context_parts.append("")
+                    context_parts.append("| 지표 | 값 |")
+                    context_parts.append("|------|----|")
+
+                    def _fmt(v, suffix=''):
+                        return f"{v:,.2f}{suffix}" if v is not None else "-"
+
+                    context_parts.append(f"| PER | {_fmt(sf.get('per'), '배')} |")
+                    context_parts.append(f"| PBR | {_fmt(sf.get('pbr'), '배')} |")
+                    context_parts.append(f"| ROE | {_fmt(sf.get('roe'), '%')} |")
+                    context_parts.append(f"| EPS | {_fmt(sf.get('eps'), '원')} |")
+                    context_parts.append(f"| BPS | {_fmt(sf.get('bps'), '원')} |")
+                    context_parts.append(f"| 시가배당률 | {_fmt(sf.get('dividend_yield'), '%')} |")
+                    context_parts.append(f"| 배당성향 | {_fmt(sf.get('payout_ratio'), '%')} |")
                     context_parts.append("")
 
-                # 7-2. 최근 분배금 지급 내역
-                cursor.execute(f"""
-                    SELECT record_date, payment_date, amount_per_share, distribution_type, yield_pct
-                    FROM etf_distributions
-                    WHERE ticker = {param_placeholder}
-                    ORDER BY record_date DESC
-                    LIMIT 5
-                """, (ticker,))
-
-                distributions = cursor.fetchall()
-                if distributions:
-                    context_parts.append("**최근 분배금 지급 내역**:")
+                    context_parts.append("**실적 (억원 기준, 최근 연간)**:")
                     context_parts.append("")
-                    context_parts.append("| 기준일 | 지급일 | 주당 분배금(원) | 유형 | 배당수익률(%) |")
-                    context_parts.append("|--------|--------|---------------|------|-------------|")
-
-                    for row in distributions:
-                        rec_date = row['record_date'] if USE_POSTGRES else row[0]
-                        pay_date = row['payment_date'] if USE_POSTGRES else row[1]
-                        amount = row['amount_per_share'] if USE_POSTGRES else row[2]
-                        dist_type = row['distribution_type'] if USE_POSTGRES else row[3]
-                        yield_pct = row['yield_pct'] if USE_POSTGRES else row[4]
-
-                        pay_date_str = pay_date if pay_date else "-"
-                        amount_str = f"{amount:,.0f}" if amount else "-"
-                        dist_type_str = dist_type if dist_type else "-"
-                        yield_str = f"{yield_pct:.2f}%" if yield_pct else "-"
-
-                        context_parts.append(
-                            f"| {rec_date} | "
-                            f"{pay_date_str} | "
-                            f"{amount_str} | "
-                            f"{dist_type_str} | "
-                            f"{yield_str} |"
-                        )
-
+                    context_parts.append("| 항목 | 값 |")
+                    context_parts.append("|------|----|")
+                    context_parts.append(f"| 매출액 | {_fmt(sf.get('revenue'), '억원')} |")
+                    context_parts.append(f"| 영업이익 | {_fmt(sf.get('operating_profit'), '억원')} |")
+                    context_parts.append(f"| 당기순이익 | {_fmt(sf.get('net_profit'), '억원')} |")
+                    context_parts.append(f"| 영업이익률 | {_fmt(sf.get('operating_margin'), '%')} |")
+                    context_parts.append(f"| 순이익률 | {_fmt(sf.get('net_margin'), '%')} |")
+                    context_parts.append(f"| 부채비율 | {_fmt(sf.get('debt_ratio'), '%')} |")
+                    context_parts.append(f"| 당좌비율 | {_fmt(sf.get('current_ratio'), '%')} |")
                     context_parts.append("")
 
-                # 7-3. 최근 리밸런싱 내역
-                cursor.execute(f"""
-                    SELECT rebalance_date, action, stock_code, stock_name,
-                           weight_before, weight_after, shares_change
-                    FROM etf_rebalancing
-                    WHERE ticker = {param_placeholder}
-                    ORDER BY rebalance_date DESC
-                    LIMIT 10
-                """, (ticker,))
-
-                rebalancing = cursor.fetchall()
-                if rebalancing:
-                    context_parts.append("**최근 리밸런싱 내역**:")
-                    context_parts.append("")
-                    context_parts.append("| 일자 | 변경 | 종목코드 | 종목명 | 비중 변화 | 주식수 변화 |")
-                    context_parts.append("|------|------|---------|--------|----------|-----------|")
-
-                    for row in rebalancing:
-                        rebal_date = row['rebalance_date'] if USE_POSTGRES else row[0]
-                        action = row['action'] if USE_POSTGRES else row[1]
-                        stock_code = row['stock_code'] if USE_POSTGRES else row[2]
-                        stock_name = row['stock_name'] if USE_POSTGRES else row[3]
-                        weight_before = row['weight_before'] if USE_POSTGRES else row[4]
-                        weight_after = row['weight_after'] if USE_POSTGRES else row[5]
-                        shares_change = row['shares_change'] if USE_POSTGRES else row[6]
-
-                        action_kr = {'add': '편입', 'remove': '편출', 'adjust': '조정'}.get(action, action)
-
-                        context_parts.append(
-                            f"| {rebal_date} | "
-                            f"{action_kr} | "
-                            f"{stock_code} | "
-                            f"{stock_name} | "
-                            f"{weight_before:.1f}% → {weight_after:.1f}% | "
-                            f"{shares_change:+,}주 |"
-                        )
-
-                    context_parts.append("")
-
-                # 7-4. 구성종목 상위 10개
-                cursor.execute(f"""
-                    SELECT stock_code, stock_name, weight, shares, market_value, sector
-                    FROM etf_holdings
-                    WHERE ticker = {param_placeholder}
-                      AND date = (
-                          SELECT MAX(date) FROM etf_holdings WHERE ticker = {param_placeholder}
-                      )
-                    ORDER BY weight DESC
-                    LIMIT 10
-                """, (ticker, ticker))
-
-                holdings = cursor.fetchall()
-                if holdings:
-                    context_parts.append("**구성종목 상위 10개**:")
-                    context_parts.append("")
-                    context_parts.append("| 종목코드 | 종목명 | 편입비중(%) | 보유주식수 | 시가총액(억원) | 섹터 |")
-                    context_parts.append("|---------|--------|-----------|----------|-------------|------|")
-
-                    total_weight = 0
-                    for row in holdings:
-                        stock_code = row['stock_code'] if USE_POSTGRES else row[0]
-                        stock_name = row['stock_name'] if USE_POSTGRES else row[1]
-                        weight = row['weight'] if USE_POSTGRES else row[2]
-                        shares = row['shares'] if USE_POSTGRES else row[3]
-                        market_value = row['market_value'] if USE_POSTGRES else row[4]
-                        sector = row['sector'] if USE_POSTGRES else row[5]
-
-                        total_weight += weight or 0
-
-                        weight_str = f"{weight:.2f}" if weight else "-"
-                        shares_str = f"{shares:,}" if shares else "-"
-                        market_value_str = f"{market_value:,.0f}" if market_value else "-"
-                        sector_str = sector if sector else "-"
-
-                        context_parts.append(
-                            f"| {stock_code} | "
-                            f"{stock_name} | "
-                            f"{weight_str} | "
-                            f"{shares_str} | "
-                            f"{market_value_str} | "
-                            f"{sector_str} |"
-                        )
-
-                    context_parts.append("")
-                    context_parts.append(f"- **상위 10개 종목 비중 합계**: {total_weight:.2f}%")
-                    context_parts.append("")
+                    # 8-2. 배당 이력
+                    cursor.execute(f"""
+                        SELECT record_date, amount_per_share, distribution_type, yield_pct
+                        FROM stock_distributions
+                        WHERE ticker = {param_placeholder}
+                        ORDER BY record_date DESC
+                        LIMIT 5
+                    """, (ticker,))
+                    dist_rows = cursor.fetchall()
+                    if dist_rows:
+                        context_parts.append("**최근 배당 이력**:")
+                        context_parts.append("")
+                        context_parts.append("| 기준일 | 주당배당금 | 유형 | 배당수익률 |")
+                        context_parts.append("|--------|-----------|------|-----------|")
+                        for dr in dist_rows:
+                            if USE_POSTGRES:
+                                d = dict(dr)
+                                rec_date = d.get('record_date', '-')
+                                amt = d.get('amount_per_share')
+                                dist_type = d.get('distribution_type', '-')
+                                yld = d.get('yield_pct')
+                            else:
+                                d_cols = [c[0] for c in cursor.description]
+                                d = dict(zip(d_cols, dr))
+                                rec_date = d.get('record_date', '-')
+                                amt = d.get('amount_per_share')
+                                dist_type = d.get('distribution_type', '-')
+                                yld = d.get('yield_pct')
+                            amt_str = f"{amt:,.0f}원" if amt else "-"
+                            yld_str = f"{yld:.2f}%" if yld else "-"
+                            context_parts.append(
+                                f"| {rec_date} | {amt_str} | {dist_type} | {yld_str} |"
+                            )
+                        context_parts.append("")
 
         except Exception as e:
             logger.error(f"Error fetching DB context for {ticker}: {e}")
@@ -859,7 +964,17 @@ class PerplexityService:
             dict with 'content' (Markdown report) and 'citations' (list of source URLs)
         """
         api_key = self._get_api_key()
-        prompt = self._build_multi_prompt(stocks)
+
+        # 각 종목의 DB 컨텍스트 수집 (RAG)
+        logger.info(f"Fetching DB data for multi-stock analysis: {len(stocks)} stocks")
+        db_contexts = []
+        for stock in stocks:
+            ctx = self._fetch_db_context(stock['ticker'], stock['name'])
+            db_contexts.append(ctx)
+        combined_context = "\n\n".join(db_contexts)
+
+        base_prompt = self._build_multi_prompt(stocks)
+        prompt = f"{combined_context}\n\n---\n\n{base_prompt}"
 
         headers = {
             "Authorization": f"Bearer {api_key}",

@@ -23,6 +23,8 @@
 | `etf_rebalancing` | ETF 리밸런싱 이력 (편입/편출/조정) |
 | `etf_distributions` | ETF 분배금 이력 (기준일, 지급일, 주당 금액, 배당수익률) |
 | `etf_holdings` | ETF 구성종목 (비중, 주식수, 시가총액, 섹터) |
+| `stock_fundamentals` | 주식 펀더멘털 (PER, PBR, ROE, EPS, 매출/이익, 부채비율 등) |
+| `stock_distributions` | 주식 배당 이력 (기준일, 지급일, 주당 배당금, 배당수익률) |
 
 ---
 
@@ -82,6 +84,24 @@
 │ expense_ratio    │ │ after, shares_   │ │ share, yield_  │ │ market_value,    │                           │
 └──────────────────┘ └──────────────────┘ │   pct           │ │ sector           │                           │
                                          └─────────────────┘ └──────────────────┘                           │
+         │ 1:N (주식 펀더멘털·배당)                                                                           │
+         ├────────────────────────────────────────┐                                                          │
+         ▼                                        ▼                                                          │
+┌──────────────────────┐              ┌──────────────────────┐                                               │
+│  stock_fundamentals  │              │  stock_distributions │                                               │
+│  ticker, date (PK)   │              │  id (PK)             │                                               │
+│  per, pbr, roe, roa  │              │  ticker, record_date │                                               │
+│  eps, bps            │              │  UNIQUE(ticker,      │                                               │
+│  revenue,            │              │    record_date)       │                                               │
+│  operating_profit,   │              │  payment_date,       │                                               │
+│  net_profit          │              │  ex_date             │                                               │
+│  operating_margin,   │              │  amount_per_share,   │                                               │
+│  net_margin          │              │  distribution_type,  │                                               │
+│  debt_ratio,         │              │  yield_pct           │                                               │
+│  current_ratio,      │              └──────────────────────┘                                               │
+│  dividend_yield,     │                                                                                     │
+│  payout_ratio        │                                                                                     │
+└──────────────────────┘                                                                                     │
 ```
 
 ---
@@ -321,6 +341,54 @@ CREATE TABLE etf_holdings (
 );
 ```
 
+### 14. `stock_fundamentals` (주식 펀더멘털)
+주식 종목의 재무지표. 네이버 금융 기업실적분석 테이블 기준, 수집일 단위 스냅샷.
+단위: 매출/영업이익/순이익 → 억원, 비율(%) → 소수점 2자리.
+
+```sql
+CREATE TABLE stock_fundamentals (
+    ticker TEXT NOT NULL,
+    date DATE NOT NULL,
+    per REAL,               -- 주가수익비율
+    pbr REAL,               -- 주가순자산비율
+    roe REAL,               -- 자기자본이익률 (%)
+    roa REAL,               -- 총자산이익률 (%)
+    eps REAL,               -- 주당순이익 (원)
+    bps REAL,               -- 주당순자산 (원)
+    revenue REAL,           -- 매출액 (억원)
+    operating_profit REAL,  -- 영업이익 (억원)
+    net_profit REAL,        -- 당기순이익 (억원)
+    operating_margin REAL,  -- 영업이익률 (%)
+    net_margin REAL,        -- 순이익률 (%)
+    debt_ratio REAL,        -- 부채비율 (%)
+    current_ratio REAL,     -- 당좌비율 (%)
+    dividend_yield REAL,    -- 시가배당률 (%)
+    payout_ratio REAL,      -- 배당성향 (%)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ticker, date),
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+);
+```
+
+### 15. `stock_distributions` (주식 배당 이력)
+주식 배당금 기준일·지급일·주당 배당금·유형·배당수익률.
+
+```sql
+CREATE TABLE stock_distributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    record_date DATE NOT NULL,
+    payment_date DATE,
+    ex_date DATE,
+    amount_per_share REAL,
+    distribution_type TEXT,  -- 현금배당, 주식배당 등
+    yield_pct REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+    UNIQUE(ticker, record_date)
+);
+```
+
 ---
 
 ## 인덱스
@@ -345,6 +413,8 @@ CREATE INDEX idx_etf_rebalancing_ticker_date ON etf_rebalancing(ticker, rebalanc
 CREATE INDEX idx_etf_distributions_ticker_date ON etf_distributions(ticker, record_date DESC);
 CREATE INDEX idx_etf_holdings_ticker_date ON etf_holdings(ticker, date DESC);
 CREATE INDEX idx_etf_holdings_weight ON etf_holdings(ticker, date, weight DESC);
+CREATE INDEX idx_stock_fundamentals_ticker_date ON stock_fundamentals(ticker, date DESC);
+CREATE INDEX idx_stock_distributions_ticker_date ON stock_distributions(ticker, record_date DESC);
 ```
 
 ---
@@ -379,7 +449,7 @@ FROM collection_status;
 ```
 
 ### DB 초기화 시 삭제 대상
-`DELETE /api/data/reset` 호출 시 다음 테이블만 비움: `prices`, `news`, `trading_flow`, `collection_status`, `intraday_prices`. `etfs`, `stock_catalog`, `alert_rules`, `alert_history`, `etf_fundamentals`, `etf_rebalancing`, `etf_distributions`, `etf_holdings`는 유지.
+`DELETE /api/data/reset` 호출 시 다음 테이블만 비움: `prices`, `news`, `trading_flow`, `collection_status`, `intraday_prices`. `etfs`, `stock_catalog`, `alert_rules`, `alert_history`, `etf_fundamentals`, `etf_rebalancing`, `etf_distributions`, `etf_holdings`, `stock_fundamentals`, `stock_distributions`는 유지.
 
 ---
 

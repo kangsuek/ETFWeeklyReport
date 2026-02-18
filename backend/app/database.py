@@ -606,6 +606,59 @@ def init_db():
         ON etf_holdings(ticker, date, weight DESC)
     """)
 
+    # Create stock_fundamentals table for stock financial metrics
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS stock_fundamentals (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            per {real_type},
+            pbr {real_type},
+            roe {real_type},
+            roa {real_type},
+            eps {real_type},
+            bps {real_type},
+            revenue {real_type},
+            operating_profit {real_type},
+            net_profit {real_type},
+            operating_margin {real_type},
+            net_margin {real_type},
+            debt_ratio {real_type},
+            current_ratio {real_type},
+            dividend_yield {real_type},
+            payout_ratio {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_fundamentals_ticker_date
+        ON stock_fundamentals(ticker, date DESC)
+    """)
+
+    # Create stock_distributions table for dividend history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS stock_distributions (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            record_date DATE NOT NULL,
+            payment_date DATE,
+            ex_date DATE,
+            amount_per_share {real_type},
+            distribution_type {text_type},
+            yield_pct {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            UNIQUE(ticker, record_date)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_distributions_ticker_date
+        ON stock_distributions(ticker, record_date DESC)
+    """)
+
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
     stock_config = Config.get_stock_config()
     etfs_data = []

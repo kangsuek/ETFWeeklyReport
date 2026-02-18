@@ -117,6 +117,8 @@ async def collect_all_data(
         import pytz
         import asyncio
         from app.services.progress import clear_progress
+        from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+        from app.services.stock_fundamentals_collector import collect_stock_fundamentals
 
         collector = ETFDataCollector()
         result = await asyncio.to_thread(collector.collect_all_tickers, days=days)
@@ -129,6 +131,55 @@ async def collect_all_data(
             logger.debug(f"스케줄러 마지막 수집 시간 업데이트: {scheduler.last_collection_time}")
         except Exception as e:
             logger.warning(f"스케줄러 마지막 수집 시간 업데이트 실패 (무시): {e}")
+
+        # 펀더멘털 데이터 수집 (etfs 테이블의 모든 종목)
+        fundamentals_success = 0
+        fundamentals_failed = 0
+        try:
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    _cursor = conn_or_cursor
+                else:
+                    _cursor = conn_or_cursor.cursor()
+                _cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
+                ticker_rows = _cursor.fetchall()
+
+            all_tickers = [
+                (r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1])
+                for r in ticker_rows
+            ]
+            etf_collector = ETFFundamentalsCollector()
+
+            for ticker, etf_type in all_tickers:
+                try:
+                    if etf_type == 'STOCK':
+                        res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
+                        ok = res.get('success', False)
+                    else:
+                        res = await asyncio.to_thread(etf_collector.collect_all, ticker)
+                        ok = res.get('nav', False) or res.get('holdings', False)
+
+                    if ok:
+                        fundamentals_success += 1
+                    else:
+                        fundamentals_failed += 1
+                        logger.warning(f"collect-all: fundamentals failed for {ticker}: {res}")
+                except Exception as e:
+                    fundamentals_failed += 1
+                    logger.error(f"collect-all: fundamentals error for {ticker}: {e}")
+
+            # 스케줄러 마지막 펀더멘털 수집 시간 업데이트
+            try:
+                scheduler.last_fundamentals_collection_time = datetime.now(KST)
+            except Exception:
+                pass
+
+            logger.info(f"collect-all: fundamentals 완료 성공 {fundamentals_success}, 실패 {fundamentals_failed}")
+        except Exception as e:
+            logger.error(f"collect-all: fundamentals 전체 실패: {e}", exc_info=True)
+
+        result['fundamentals_success'] = fundamentals_success
+        result['fundamentals_failed'] = fundamentals_failed
 
         # 수집 후 모든 캐시 무효화 (전체 데이터 갱신)
         cache.clear()
@@ -448,6 +499,57 @@ async def get_cache_stats(request: Request):
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+
+
+@router.post("/collect-fundamentals")
+@limiter.limit(RateLimitConfig.DATA_COLLECTION)
+async def collect_all_fundamentals(request: Request, api_key: str = Depends(verify_api_key_dependency)):
+    """
+    전체 종목 펀더멘털 수집 (배치)
+
+    etfs 테이블의 모든 종목에 대해 type별로 펀더멘털 데이터를 수집합니다.
+    - STOCK: 네이버 기업실적분석 테이블 → stock_fundamentals
+    - ETF: 네이버 NAV 추이 + 구성종목 → etf_fundamentals, etf_holdings
+    """
+    import asyncio
+    from app.database import get_db_connection, USE_POSTGRES
+
+    try:
+        with get_db_connection() as conn_or_cursor:
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+            cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
+            rows = cursor.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    tickers = [(r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1]) for r in rows]
+    results = []
+
+    for ticker, etf_type in tickers:
+        try:
+            if etf_type == 'STOCK':
+                from app.services.stock_fundamentals_collector import collect_stock_fundamentals
+                res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
+            else:
+                from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+                collector = ETFFundamentalsCollector()
+                res = await asyncio.to_thread(collector.collect_all, ticker)
+                res = {'ticker': ticker, 'type': etf_type, 'success': True, 'result': res}
+            results.append(res)
+        except Exception as e:
+            logger.error(f"collect_fundamentals error for {ticker}: {e}")
+            results.append({'ticker': ticker, 'type': etf_type, 'success': False, 'error': str(e)})
+
+    success_count = sum(1 for r in results if r.get('success', False))
+    return {
+        'total': len(results),
+        'success': success_count,
+        'failed': len(results) - success_count,
+        'results': results,
+    }
 
 
 @router.delete("/cache/clear")

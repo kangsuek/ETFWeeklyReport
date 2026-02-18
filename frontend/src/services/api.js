@@ -207,18 +207,6 @@ export const etfApi = {
       params: { pages }
     }),
 
-  // AI 종합 투자분석 보고서 (Perplexity API, 긴 작업)
-  getAIAnalysis: (ticker) =>
-    api.post(`/etfs/${ticker}/ai-analysis`, null, {
-      timeout: LONG_API_TIMEOUT,
-    }),
-
-  // AI 복수 종목 통합 비교 투자분석 보고서
-  getAIAnalysisMulti: (stocks) =>
-    api.post('/etfs/ai-analysis-multi', { stocks }, {
-      timeout: LONG_API_TIMEOUT * 2,
-    }),
-
   // AI 분석 프롬프트 생성 (API 호출 없이 프롬프트만 반환)
   getAIPrompt: (ticker) =>
     api.get(`/etfs/${ticker}/ai-prompt`, { timeout: FAST_API_TIMEOUT }),

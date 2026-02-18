@@ -185,8 +185,11 @@ export default function DataManagementPanel() {
     onSuccess: (data) => {
       setCollectAllProgress({ status: 'completed', current: data.result.total_tickers, total: data.result.total_tickers, message: '수집 완료' })
       // 성공 메시지 표시
+      const fundamentalsPart = data.result.fundamentals_success != null
+        ? `, 펀더멘털: ${data.result.fundamentals_success}개 성공${data.result.fundamentals_failed > 0 ? `/${data.result.fundamentals_failed}개 실패` : ''}`
+        : ''
       toast.success(
-        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건`,
+        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건${fundamentalsPart}`,
         5000
       )
 
@@ -783,6 +786,12 @@ export default function DataManagementPanel() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span>모든 종목의 가격, 매매 동향, 뉴스 데이터를 수집합니다.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>펀더멘털 데이터(ETF: NAV·구성종목, 주식: PER·PBR·ROE 등)도 함께 수집됩니다.</span>
                   </div>
                 </div>
                 <p className="text-sm text-primary-600 dark:text-primary-400 mt-3 font-medium">

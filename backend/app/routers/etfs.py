@@ -1256,115 +1256,108 @@ async def get_ai_prompt_multi(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/ai-analysis-multi")
-@limiter.limit(RateLimitConfig.DANGEROUS)
-async def get_ai_analysis_multi(
-    request: Request,
-    body: MultiAnalysisRequest,
-):
+@router.post("/{ticker}/collect-fundamentals")
+async def collect_fundamentals(etf: ETF = Depends(get_etf_or_404)):
     """
-    Perplexity AI 복수 종목 통합 비교 투자분석 보고서 생성
-
-    여러 종목을 한 번에 분석하여 통합 비교 리포트를 생성합니다.
-
-    **Request Body:**
-    ```json
-    {
-      "stocks": [
-        {"ticker": "487240", "name": "KODEX AI전력핵심설비"},
-        {"ticker": "466920", "name": "KODEX 미국AI전력핵심인프라"}
-      ]
-    }
-    ```
+    종목 펀더멘털 데이터를 수집하여 DB에 저장합니다.
+    - type=STOCK: 네이버 기업실적분석 테이블에서 PER/PBR/ROE/EPS 등 수집
+    - type=ETF:   네이버 NAV 추이, 펀드보수, 구성종목 수집
     """
-    from app.services.perplexity_service import PerplexityService
-
-    stocks = [s.model_dump() for s in body.stocks]
-    if not stocks or len(stocks) < 2:
-        raise HTTPException(status_code=400, detail="통합 분석은 2개 이상의 종목이 필요합니다.")
-    if len(stocks) > 5:
-        raise HTTPException(status_code=400, detail="통합 분석은 최대 5개 종목까지 가능합니다.")
+    ticker = etf.ticker
+    etf_type = etf.type
 
     try:
-        service = PerplexityService()
-        result = await asyncio.to_thread(service.analyze_multi, stocks)
-        return {
-            "stocks": stocks,
-            "report": result["content"],
-            "citations": result["citations"],
-            "prompt": result["prompt"],
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        if etf_type == 'STOCK':
+            result = await asyncio.to_thread(
+                _collect_stock_fundamentals_sync, ticker
+            )
+        else:
+            result = await asyncio.to_thread(
+                _collect_etf_fundamentals_sync, ticker
+            )
+        return result
     except Exception as e:
-        logger.error(f"AI multi-analysis error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="AI 통합 분석 중 오류가 발생했습니다.")
+        logger.error(f"collect_fundamentals error for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"펀더멘털 수집 중 오류가 발생했습니다: {str(e)}")
 
 
-@router.post("/{ticker}/ai-analysis")
-@limiter.limit(RateLimitConfig.DANGEROUS)
-async def get_ai_analysis(
-    request: Request,
-    etf: ETF = Depends(get_etf_or_404),
-    use_db_data: bool = Query(
-        default=True,
-        description="DB 데이터를 RAG context로 사용할지 여부 (기본: True)"
-    ),
-):
+def _collect_stock_fundamentals_sync(ticker: str) -> dict:
+    from app.services.stock_fundamentals_collector import collect_stock_fundamentals
+    return collect_stock_fundamentals(ticker)
+
+
+def _collect_etf_fundamentals_sync(ticker: str) -> dict:
+    from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+    collector = ETFFundamentalsCollector()
+    result = collector.collect_all(ticker)
+    return {'ticker': ticker, 'type': 'ETF', 'result': result}
+
+
+@router.get("/{ticker}/fundamentals")
+async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
     """
-    Perplexity AI 종합 투자분석 보고서 생성 (RAG 지원)
-
-    Perplexity sonar 모델을 사용하여 해당 종목의 종합 투자분석 리포트를 생성합니다.
-    기본적으로 DB에 저장된 실제 데이터(가격, 거래량, 매매동향, 뉴스)를 RAG context로
-    제공하여 더 정확한 데이터 기반 분석을 생성합니다.
-
-    **Path Parameters:**
-    - ticker: 종목 코드 (예: 487240)
-
-    **Query Parameters:**
-    - use_db_data: DB 데이터를 context로 사용 (기본: true, RAG 활성화)
-
-    **Example Response:**
-    ```json
-    {
-      "ticker": "487240",
-      "name": "KODEX AI전력핵심설비",
-      "report": "### 개요\\n...",
-      "citations": ["https://..."],
-      "prompt": "..."
-    }
-    ```
-
-    **Status Codes:**
-    - 200: 성공
-    - 400: API 키 미설정
-    - 404: 종목을 찾을 수 없음
-    - 429: 요청 한도 초과
-    - 500: 서버 오류
+    DB에 저장된 가장 최근 펀더멘털 데이터를 반환합니다.
+    - type=STOCK: stock_fundamentals (최근 1건)
+    - type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)
     """
-    from app.services.perplexity_service import PerplexityService
+    from app.database import get_db_connection, USE_POSTGRES
+    ticker = etf.ticker
+    etf_type = etf.type
+    param = '%s' if USE_POSTGRES else '?'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
     try:
-        service = PerplexityService()
-        result = await asyncio.to_thread(
-            service.analyze,
-            etf.ticker,
-            etf.name,
-            use_db_data=use_db_data
-        )
-        return {
-            "ticker": etf.ticker,
-            "name": etf.name,
-            "report": result["content"],
-            "citations": result["citations"],
-            "prompt": result["prompt"],
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        logger.error(f"AI analysis error for {etf.ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="AI 분석 중 오류가 발생했습니다.")
+        if etf_type == 'STOCK':
+            cursor.execute(f"""
+                SELECT * FROM stock_fundamentals
+                WHERE ticker = {param}
+                ORDER BY date DESC LIMIT 1
+            """, (ticker,))
+            row = cursor.fetchone()
+            if not row:
+                return {'ticker': ticker, 'type': 'STOCK', 'data': None}
+            if USE_POSTGRES:
+                data = dict(row)
+            else:
+                cols = [d[0] for d in cursor.description]
+                data = dict(zip(cols, row))
+            return {'ticker': ticker, 'type': 'STOCK', 'data': data}
+        else:
+            cursor.execute(f"""
+                SELECT * FROM etf_fundamentals
+                WHERE ticker = {param}
+                ORDER BY date DESC LIMIT 10
+            """, (ticker,))
+            rows = cursor.fetchall()
+            if USE_POSTGRES:
+                fundamentals = [dict(r) for r in rows]
+            else:
+                cols = [d[0] for d in cursor.description]
+                fundamentals = [dict(zip(cols, r)) for r in rows]
+
+            latest_date = fundamentals[0]['date'] if fundamentals else None
+            holdings = []
+            if latest_date:
+                cursor.execute(f"""
+                    SELECT * FROM etf_holdings
+                    WHERE ticker = {param} AND date = {param}
+                    ORDER BY weight DESC
+                """, (ticker, latest_date))
+                h_rows = cursor.fetchall()
+                if USE_POSTGRES:
+                    holdings = [dict(r) for r in h_rows]
+                else:
+                    h_cols = [d[0] for d in cursor.description]
+                    holdings = [dict(zip(h_cols, r)) for r in h_rows]
+
+            return {
+                'ticker': ticker,
+                'type': 'ETF',
+                'fundamentals': fundamentals,
+                'holdings': holdings,
+            }
+    finally:
+        cursor.close()
+        conn.close()
