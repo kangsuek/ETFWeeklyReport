@@ -22,6 +22,10 @@ const api = axios.create({
   },
 })
 
+// 백엔드 연결 확인 (배포 시 VITE_API_BASE_URL 기준으로 요청, 상대 경로로 /api/health 도달)
+export const getHealthCheck = () =>
+  api.get('health', { timeout: FAST_API_TIMEOUT })
+
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../contexts/ToastContext'
-import { dataApi, settingsApi } from '../../services/api'
+import { dataApi, settingsApi, getHealthCheck } from '../../services/api'
 
 /**
  * 진행률 바 컴포넌트
@@ -300,17 +300,11 @@ export default function DataManagementPanel() {
   const handleConfirmCollectAll = async () => {
     setIsCollectAllModalOpen(false)
 
-    // 백엔드 연결 확인
+    // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
       console.log('[전체데이터수집] 백엔드 연결 확인 중...')
-      const healthCheck = await fetch('/api/health')
-      if (healthCheck.ok) {
-        console.log('[전체데이터수집] 백엔드 연결 확인됨')
-      } else {
-        console.error('[전체데이터수집] 백엔드 연결 실패:', healthCheck.status)
-        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
-        return
-      }
+      await getHealthCheck()
+      console.log('[전체데이터수집] 백엔드 연결 확인됨')
     } catch (error) {
       console.error('[전체데이터수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
@@ -339,17 +333,11 @@ export default function DataManagementPanel() {
   const handleConfirmCollectTickerCatalog = async () => {
     setIsCollectTickerCatalogModalOpen(false)
 
-    // 백엔드 연결 확인
+    // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
       console.log('[종목목록수집] 백엔드 연결 확인 중...')
-      const healthCheck = await fetch('/api/health')
-      if (healthCheck.ok) {
-        console.log('[종목목록수집] 백엔드 연결 확인됨')
-      } else {
-        console.error('[종목목록수집] 백엔드 연결 실패:', healthCheck.status)
-        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
-        return
-      }
+      await getHealthCheck()
+      console.log('[종목목록수집] 백엔드 연결 확인됨')
     } catch (error) {
       console.error('[종목목록수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
