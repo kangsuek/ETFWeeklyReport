@@ -39,7 +39,9 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false  # 백엔드 URL로 Render 대시보드에서 설정 (예: https://etf-report-backend.onrender.com/api)
+        sync: false  # 필수: 백엔드 URL (예: https://etf-report-backend.onrender.com/api)
+      - key: VITE_API_KEY
+        sync: false  # 필수: Backend API_KEY와 동일한 값 (데이터 수집·설정 기능)
 
 databases:
   # PostgreSQL Database
