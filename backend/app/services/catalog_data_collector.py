@@ -447,9 +447,10 @@ class CatalogDataCollector:
             (['코스닥150', 'KOSDAQ'], '코스닥지수'),
         ]
 
-        cursor.execute("""
+        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+        cursor.execute(f"""
             SELECT ticker, name FROM stock_catalog
-            WHERE (sector IS NULL OR sector = '') AND is_active = 1
+            WHERE (sector IS NULL OR sector = '') AND {is_active_cmp}
         """)
         rows = cursor.fetchall()
 

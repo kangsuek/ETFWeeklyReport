@@ -154,8 +154,9 @@ async def get_alert_rules(
             cursor = get_cursor(conn_or_cursor)
 
             if active_only:
+                is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
                 cursor.execute(
-                    f"SELECT * FROM alert_rules WHERE ticker = {PP} AND is_active = 1 ORDER BY created_at DESC",
+                    f"SELECT * FROM alert_rules WHERE ticker = {PP} AND {is_active_cmp} ORDER BY created_at DESC",
                     (ticker,),
                 )
             else:

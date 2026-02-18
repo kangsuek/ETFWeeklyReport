@@ -74,8 +74,8 @@ async def search_scanner(
         return cached
 
     p = "%s" if USE_POSTGRES else "?"
-
-    where_clauses = ["sc.is_active = 1"]
+    is_active_where = "sc.is_active = true" if USE_POSTGRES else "sc.is_active = 1"
+    where_clauses = [is_active_where]
     params = []
 
     if type != "ALL":
@@ -181,12 +181,13 @@ async def get_themes():
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)
 
-        # 섹터별 집계
-        cursor.execute("""
+        # 섹터별 집계 (PostgreSQL: is_active boolean, SQLite: integer 1/0)
+        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+        cursor.execute(f"""
             SELECT sector, COUNT(*) as cnt,
                    AVG(weekly_return) as avg_wr
             FROM stock_catalog
-            WHERE is_active = 1
+            WHERE {is_active_cmp}
               AND sector IS NOT NULL
               AND sector != ''
               AND catalog_updated_at IS NOT NULL
@@ -197,7 +198,7 @@ async def get_themes():
         sectors = [dict(row) for row in cursor.fetchall()]
 
         # 전체 섹터의 top 3 종목을 한 번의 쿼리로 조회 (윈도우 함수)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT * FROM (
                 SELECT ticker, name, type, market, sector,
                        close_price, daily_change_pct, volume,
@@ -209,7 +210,7 @@ async def get_themes():
                                     weekly_return DESC
                        ) as rn
                 FROM stock_catalog
-                WHERE is_active = 1
+                WHERE {is_active_cmp}
                   AND sector IS NOT NULL
                   AND sector != ''
                   AND catalog_updated_at IS NOT NULL
@@ -302,6 +303,7 @@ async def get_recommendations(
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)
 
+        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
         for preset in presets_config:
             # NULLS LAST 처리
             if USE_POSTGRES:
@@ -315,7 +317,7 @@ async def get_recommendations(
                        weekly_return, foreign_net, institutional_net,
                        catalog_updated_at
                 FROM stock_catalog
-                WHERE is_active = 1
+                WHERE {is_active_cmp}
                   AND type = 'ETF'
                   AND catalog_updated_at IS NOT NULL
                   AND {preset['extra_where']}
