@@ -8,7 +8,12 @@
 │   (User)        │         │  (Vite, Port 5173)│
 └─────────────────┘         └───────────────────┘
                                       │
-                                      │ HTTP/REST (Base: /api)
+┌───────────────────────────────────┐ │ HTTP/REST (Base: /api)
+│  External Clients (SDK / MCP)     │ │
+│  · OpenAPI Python SDK (sdk/)      │─┤
+│  · MCP Server (mcp-server/)       │ │
+│    └─ Claude Code / Desktop 등    │ │
+└───────────────────────────────────┘ │
                                       │
                             ┌─────────▼──────────┐
                             │  FastAPI Backend   │
@@ -81,6 +86,28 @@ backend/app/
 **레이어**: Router(HTTP) → Service(비즈니스 로직) → DB / 외부 API
 
 **설정**: 환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용. 종목 목록은 `backend/config/stocks.json` + DB 동기화.
+
+---
+
+## SDK / MCP 서버 구조
+
+```
+ETFWeeklyReport/
+├── sdk/
+│   ├── openapi.json        # FastAPI에서 추출한 OpenAPI 스펙 (52개 경로)
+│   ├── config.yaml         # openapi-python-client 생성 설정
+│   ├── generate.sh         # 스펙 추출 + 클라이언트 재생성 스크립트
+│   └── python/             # 자동 생성된 Python 클라이언트 (sdk/generate.sh로 생성)
+└── mcp-server/
+    ├── src/etf_report_mcp/
+    │   ├── __init__.py
+    │   └── server.py       # MCP 서버 구현 (16개 tool)
+    ├── pyproject.toml
+    └── README.md
+```
+
+- **OpenAPI Python SDK**: `openapi-python-client`로 FastAPI `/openapi.json` 에서 타입 안전 클라이언트 자동 생성. `bash sdk/generate.sh`로 재생성.
+- **MCP 서버**: FastAPI에 HTTP 요청을 MCP 도구로 래핑. `ETF_REPORT_BASE_URL`로 연결 대상 설정.
 
 ---
 

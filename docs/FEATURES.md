@@ -3,8 +3,9 @@
 ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서입니다.
 
 ## 목차
-- [백엔드 API](#백엔드-api) — ETF, 뉴스, 데이터, 설정, 알림, 스크리닝, 시뮬레이션
+- [백엔드 API](#백엔드-api) — ETF, 뉴스, 데이터, 설정, 알림, 스캐너, 시뮬레이션
 - [프론트엔드 기능](#프론트엔드-기능) — 대시보드, 상세, 비교, 포트폴리오, 종목 발굴, 시뮬레이션, 알림, 설정
+- [SDK / MCP 서버](#sdk--mcp-서버)
 - [데이터 수집](#데이터-수집)
 - [캐시 및 성능 최적화](#캐시-및-성능-최적화)
 
@@ -383,10 +384,46 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 ---
 
+## SDK / MCP 서버
+
+백엔드 API를 외부 프로그램·AI 에이전트에서 사용하기 위한 인터페이스입니다.
+
+### OpenAPI Python SDK (`sdk/`)
+- FastAPI `/openapi.json` 스펙에서 `openapi-python-client`로 자동 생성된 타입 안전 Python 클라이언트
+- `bash sdk/generate.sh`로 스펙 추출 및 클라이언트 재생성
+- 설치: `pip install -e sdk/python`
+
+### MCP 서버 (`mcp-server/`)
+Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(tool)로 직접 호출합니다.
+
+| 도구 | API 경로 |
+|------|---------|
+| `list_stocks` | GET /api/etfs |
+| `get_etf_info` | GET /api/etfs/{ticker} |
+| `get_etf_prices` | GET /api/etfs/{ticker}/prices |
+| `get_etf_metrics` | GET /api/etfs/{ticker}/metrics |
+| `get_etf_fundamentals` | GET /api/etfs/{ticker}/fundamentals |
+| `get_etf_news` | GET /api/news/{ticker} |
+| `get_trading_flow` | GET /api/etfs/{ticker}/trading-flow |
+| `get_etf_insights` | GET /api/etfs/{ticker}/insights |
+| `compare_etfs` | GET /api/etfs/compare |
+| `scan_stocks` | GET /api/scanner |
+| `get_recommendations` | GET /api/scanner/recommendations |
+| `get_themes` | GET /api/scanner/themes |
+| `simulate_lump_sum` | POST /api/simulation/lump-sum |
+| `simulate_dca` | POST /api/simulation/dca |
+| `simulate_portfolio` | POST /api/simulation/portfolio |
+| `get_db_stats` | GET /api/data/stats |
+
+환경 변수: `ETF_REPORT_BASE_URL` (기본: `http://localhost:8000`), `ETF_REPORT_API_KEY`
+설정 가이드: [SDK_MCP_SETUP_GUIDE.md](./SDK_MCP_SETUP_GUIDE.md)
+
+---
+
 ## 데이터 수집
 
 ### 자동 수집(스케줄러)
-- **실행**: 평일 15:50 (KST) 장 마감 후
+- **실행**: 평일 15:30 (KST) 장 마감 후
 - **대상**: 등록된 모든 종목
 - **내용**: 당일 가격, 매매동향
 - **재시도**: 실패 시 5분 후 재시도(최대 3회)
@@ -451,11 +488,11 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - [CLAUDE.md](../CLAUDE.md) - 문서 인덱스
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처
 - [API_SPECIFICATION.md](./API_SPECIFICATION.md) - API 명세
+- [API_MANUAL.md](./API_MANUAL.md) - API 상세 매뉴얼
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) - DB 스키마
 - [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) - 개발 가이드
-- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - 파일 구조
-- [SETUP_GUIDE.md](./SETUP_GUIDE.md) - 환경 설정·실행
-- [INTRADAY.md](./INTRADAY.md) - 분봉 조회·수집
+- [SDK_MCP_SETUP_GUIDE.md](./SDK_MCP_SETUP_GUIDE.md) - SDK/MCP 서버 설정
 - [TECH_STACK.md](./TECH_STACK.md) - 기술 스택
-- [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) - Render.com 배포
-- [SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md) - 보안 체크리스트
+- [BRANCHES.md](./BRANCHES.md) - Git 브랜치 전략
+- [../frontend/DEPLOYMENT.md](../frontend/DEPLOYMENT.md) - Render.com 배포
+- [detail_features/3-7.IntradayChart.md](./detail_features/3-7.IntradayChart.md) - 분봉 조회·수집

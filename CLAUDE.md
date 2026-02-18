@@ -27,14 +27,18 @@ When working on implementation tasks, be concise and act quickly. Do not over-ex
 ### Technical Documentation
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - System architecture
 - **[API_SPECIFICATION.md](./docs/API_SPECIFICATION.md)** - REST API specification
+- **[API_MANUAL.md](./docs/API_MANUAL.md)** - REST API detailed manual
 - **[DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md)** - Database Schema
 - **[TECH_STACK.md](./docs/TECH_STACK.md)** - Technology Stack
 
+### SDK & MCP
+- **[SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md)** - OpenAPI Python SDK and MCP server setup guide
+
 ### Detail Features
-- **[INTRADAY.md](./docs/detail_features/INTRADAY.md)** - Intraday chart retrieval and collection
+- **[detail_features/3-7.IntradayChart.md](./docs/detail_features/3-7.IntradayChart.md)** - Intraday chart retrieval and collection
 
 ### Development, Configuration, and Deployment
-- **[RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md)** - Render.com deployment (including environment variables)
+- **[frontend/DEPLOYMENT.md](./frontend/DEPLOYMENT.md)** - Render.com deployment (including environment variables)
 
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.

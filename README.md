@@ -49,7 +49,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 
 ### 한 번에 설정·실행
 
-상세 절차는 **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**를 따르세요. 요약:
+요약:
 
 1. `backend`에서 `uv venv` → `uv pip install -r requirements-dev.txt`  
 2. 프로젝트 루트에서 `cp .env.example .env` (필요 시 편집)  
@@ -94,6 +94,19 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 
 ---
 
+## SDK / MCP 서버
+
+백엔드 API를 외부 프로그램·AI 에이전트에서 사용하기 위한 두 가지 인터페이스를 제공합니다.
+
+| 인터페이스 | 위치 | 설명 |
+|-----------|------|------|
+| **OpenAPI Python SDK** | `sdk/` | `openapi-python-client`로 FastAPI 스펙에서 자동 생성된 타입 안전 Python 클라이언트. `bash sdk/generate.sh`로 재생성. |
+| **MCP 서버** | `mcp-server/` | Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 도구(tool)로 직접 호출. 16개 도구 제공. |
+
+자세한 설정 절차: **[docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md)**
+
+---
+
 ## 주요 API (요약)
 
 | 구분 | 엔드포인트 예시 |
@@ -124,16 +137,16 @@ Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React
 |------|------|
 | [CLAUDE.md](./CLAUDE.md) | 문서 인덱스 |
 | [docs/FEATURES.md](./docs/FEATURES.md) | 제공 기능 상세 |
-| [docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md) | 환경 설정·실행·Pre-commit |
 | [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | 개발 가이드 |
 | [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) | REST API 명세 |
+| [docs/API_MANUAL.md](./docs/API_MANUAL.md) | REST API 상세 매뉴얼 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 시스템 아키텍처 |
-| [docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) | 파일 구조 (표준 정합성) |
 | [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | DB 스키마 |
-| [docs/INTRADAY.md](./docs/INTRADAY.md) | 분봉 차트 조회·수집 |
 | [docs/TECH_STACK.md](./docs/TECH_STACK.md) | 기술 스택 |
-| [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md) | Render.com 배포 |
-| [docs/SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md) | 보안 체크리스트 |
+| [docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md) | SDK/MCP 서버 설정 가이드 |
+| [docs/BRANCHES.md](./docs/BRANCHES.md) | Git 브랜치 전략 |
+| [frontend/DEPLOYMENT.md](./frontend/DEPLOYMENT.md) | Render.com 배포 |
+| [docs/detail_features/](./docs/detail_features/) | 화면별 상세 기능 명세 |
 
 ---
 

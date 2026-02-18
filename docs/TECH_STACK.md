@@ -71,3 +71,15 @@
 | **Database** | SQLite (local·default) or PostgreSQL (production on Render etc.) |
 
 Version locking: Backend refer to `requirements.txt` / `requirements-dev.txt`, Frontend refer to `package.json` (^ scope).
+
+## SDK & MCP Server
+
+| Technology | Version | Purpose |
+|------|------|------|
+| **mcp** | 1.0.0+ | MCP 서버 구현 (`mcp-server/`) |
+| **httpx** | 0.27.0+ | MCP 서버의 비동기 HTTP 클라이언트 |
+| **openapi-python-client** | 최신 | OpenAPI 스펙에서 Python SDK 자동 생성 (`sdk/generate.sh`) |
+| **uv** | 최신 | MCP 서버 패키지 관리 (`uv sync --project mcp-server`) |
+
+- MCP 서버 의존성: `mcp-server/pyproject.toml`
+- `.mcp.json`에서 `etf-report` 항목으로 Claude Code에 등록

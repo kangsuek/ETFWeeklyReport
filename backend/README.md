@@ -84,7 +84,10 @@ backend/
 │   │   ├── etfs.py          # 종목, 가격, 매매동향, 지표, 인사이트, 비교, 배치요약, 분봉
 │   │   ├── news.py          # 뉴스 조회·수집
 │   │   ├── data.py          # 일괄 수집, 백필, 상태, 캐시, DB 초기화
-│   │   └── settings.py     # 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   │   ├── settings.py      # 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   │   ├── alerts.py        # 알림 규칙 CRUD, 트리거 기록, 이력 조회
+│   │   ├── scanner.py       # 조건 검색, 테마 탐색, 추천, 데이터 수집
+│   │   └── simulation.py    # 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
 │   ├── services/            # 비즈니스 로직
 │   │   ├── data_collector.py
 │   │   ├── intraday_collector.py
@@ -92,6 +95,9 @@ backend/
 │   │   ├── news_analyzer.py
 │   │   ├── insights_service.py
 │   │   ├── comparison_service.py
+│   │   ├── simulation_service.py
+│   │   ├── catalog_data_collector.py
+│   │   ├── progress.py
 │   │   ├── scheduler.py
 │   │   ├── ticker_scraper.py
 │   │   └── ticker_catalog_collector.py
