@@ -14,8 +14,22 @@ from app.utils.structured_logging import (
 )
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
 import os
 import time
+
+# uvicorn access 로그에서 폴링 경로(collect-progress 등) 제외
+class SuppressPollingAccessLog(logging.Filter):
+    """OPTIONS/GET to collect-progress 등 반복 폴링 요청 로그를 출력하지 않음."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # uvicorn access: record.args = (client_addr, method, full_path, http_version, status_code)
+        if getattr(record, "args", None) and len(record.args) >= 3:
+            full_path = record.args[2]
+            if "collect-progress" in str(full_path):
+                return False
+        return True
+
 
 # 프로젝트 루트의 .env 로드
 _root_dir = Path(__file__).resolve().parent.parent.parent
@@ -31,6 +45,9 @@ setup_structured_logging(
     json_output=json_logging,
     include_timestamp=True,
 )
+
+# uvicorn 접근 로그에서 collect-progress 폴링 요청 숨김 (앱 로드 시점에 필터 등록)
+logging.getLogger("uvicorn.access").addFilter(SuppressPollingAccessLog())
 
 logger = get_logger(__name__)
 

@@ -3,7 +3,9 @@
 
 한국 주식/ETF 전체 목록을 수집하여 stock_catalog 테이블에 저장합니다.
 """
+import contextlib
 import logging
+import os
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
@@ -33,6 +35,28 @@ try:
 except ImportError:
     SELENIUM_AVAILABLE = False
     logger.warning("Selenium not available. ETF collection will use fallback method.")
+
+# 서버(예: Render)처럼 Chrome이 없는 환경에서는 Selenium 비활성화 가능
+if SELENIUM_AVAILABLE and os.environ.get("DISABLE_SELENIUM", "").lower() in ("1", "true", "yes"):
+    SELENIUM_AVAILABLE = False
+    logger.info("Selenium disabled by DISABLE_SELENIUM env; using requests fallback for ETF collection.")
+
+
+@contextlib.contextmanager
+def _suppress_stderr():
+    """ChromeDriverManager가 google-chrome 등을 찾을 때 나오는 'not found' 메시지 억제."""
+    import sys
+    stderr_fd = sys.stderr.fileno()
+    with open(os.devnull, "w") as devnull:
+        save_fd = os.dup(stderr_fd)
+        try:
+            sys.stderr.flush()
+            os.dup2(devnull.fileno(), stderr_fd)
+            yield
+        finally:
+            sys.stderr.flush()
+            os.dup2(save_fd, stderr_fd)
+            os.close(save_fd)
 
 # 검색 결과 캐시 (최대 128개 쿼리 캐싱, 5분 TTL)
 _search_cache: Dict[str, tuple[List[Dict[str, Any]], datetime]] = {}
@@ -352,10 +376,10 @@ class TickerCatalogCollector:
             
             # WebDriver 초기화
             try:
-                import os
                 import stat
-                
-                driver_path = ChromeDriverManager().install()
+                # ChromeDriverManager가 시스템에서 google-chrome 등을 찾을 때 stderr 노이즈 억제
+                with _suppress_stderr():
+                    driver_path = ChromeDriverManager().install()
                 
                 # chromedriver 실행 파일 찾기
                 if os.path.isdir(driver_path):
