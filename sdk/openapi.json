@@ -1,0 +1,4167 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ETF Weekly Report API",
+    "description": "API for Korean ETF analysis and reporting",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/etfs/": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Etfs",
+        "description": "전체 종목 목록 조회\n\n등록된 모든 ETF 및 주식 종목의 기본 정보를 반환합니다.\n\n**Returns:**\n종목 목록 (ETF 4개 + 주식 2개 = 총 6개)\n\n**Example Request:**\n```\nGET /api/etfs/\n```\n\n**Example Response:**\n```json\n[\n  {\n    \"ticker\": \"487240\",\n    \"name\": \"삼성 KODEX AI전력핵심설비 ETF\",\n    \"type\": \"ETF\",\n    \"theme\": \"AI/전력\",\n    \"launch_date\": \"2024-03-15\",\n    \"expense_ratio\": 0.0045\n  },\n  {\n    \"ticker\": \"042660\",\n    \"name\": \"한화오션\",\n    \"type\": \"STOCK\",\n    \"theme\": \"조선/방산\",\n    \"launch_date\": null,\n    \"expense_ratio\": null\n  }\n]\n```\n\n**Status Codes:**\n- 200: 성공\n- 500: 서버 오류",
+        "operationId": "get_etfs_api_etfs__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ETF"
+                  },
+                  "type": "array",
+                  "title": "Response Get Etfs Api Etfs  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/compare": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Compare Etfs",
+        "description": "종목 비교 분석\n\n여러 종목의 가격 변화를 비교하고 통계 지표를 제공합니다.\n\n**Query Parameters:**\n- tickers: 쉼표로 구분된 종목 코드 (2-20개, 예: \"487240,466920,042660\")\n- start_date: 조회 시작 날짜 (선택, 기본값: 30일 전)\n- end_date: 조회 종료 날짜 (선택, 기본값: 오늘)\n\n**Example Request:**\n```\nGET /api/etfs/compare?tickers=487240,466920,042660&start_date=2025-10-01&end_date=2025-11-13\n```\n\n**Example Response:**\n```json\n{\n  \"normalized_prices\": {\n    \"dates\": [\"2025-10-01\", \"2025-10-02\", ...],\n    \"data\": {\n      \"487240\": [100, 102.5, 98.3, ...],\n      \"466920\": [100, 101.2, 99.8, ...],\n      \"042660\": [100, 103.1, 105.2, ...]\n    }\n  },\n  \"statistics\": {\n    \"487240\": {\n      \"period_return\": 12.5,\n      \"annualized_return\": 45.2,\n      \"volatility\": 25.3,\n      \"max_drawdown\": -8.2,\n      \"sharpe_ratio\": 1.67,\n      \"data_points\": 30\n    },\n    ...\n  },\n  \"correlation_matrix\": {\n    \"tickers\": [\"487240\", \"466920\", \"042660\"],\n    \"matrix\": [\n      [1.0, 0.85, 0.72],\n      [0.85, 1.0, 0.68],\n      [0.72, 0.68, 1.0]\n    ]\n  }\n}\n```\n\n**Response Fields:**\n- normalized_prices: 정규화된 가격 (시작일 = 100)\n  - dates: 날짜 배열\n  - data: 종목별 정규화 가격 배열\n- statistics: 종목별 통계\n  - period_return: 기간 수익률 (%)\n  - annualized_return: 연환산 수익률 (%)\n  - volatility: 연환산 변동성 (%)\n  - max_drawdown: 최대 낙폭 (%)\n  - sharpe_ratio: 샤프 비율\n  - data_points: 데이터 개수\n- correlation_matrix: 상관관계 행렬\n  - tickers: 종목 코드 배열\n  - matrix: 상관계수 행렬 (2차원 배열)\n\n**Status Codes:**\n- 200: 성공\n- 400: 잘못된 요청 (티커 개수, 날짜 범위 등)\n- 500: 서버 오류\n\n**Notes:**\n- 최소 2개, 최대 20개 종목 비교 가능\n- 최대 조회 기간: 1년 (365일)\n- 데이터가 없는 종목은 결과에서 제외\n- 상관관계는 일일 수익률 기준으로 계산",
+        "operationId": "compare_etfs_api_etfs_compare_get",
+        "parameters": [
+          {
+            "name": "tickers",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated ticker codes (2-20 tickers)",
+              "title": "Tickers"
+            },
+            "description": "Comma-separated ticker codes (2-20 tickers)"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date (default: 30 days ago)",
+              "title": "Start Date"
+            },
+            "description": "Start date (default: 30 days ago)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date (default: today)",
+              "title": "End Date"
+            },
+            "description": "End date (default: today)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Etf",
+        "description": "특정 종목 상세 정보 조회\n\n종목 코드(ticker)로 특정 ETF 또는 주식의 상세 정보를 조회합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240, 042660)\n\n**Example Request:**\n```\nGET /api/etfs/487240\n```\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"487240\",\n  \"name\": \"삼성 KODEX AI전력핵심설비 ETF\",\n  \"type\": \"ETF\",\n  \"theme\": \"AI/전력\",\n  \"launch_date\": \"2024-03-15\",\n  \"expense_ratio\": 0.0045\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 500: 서버 오류",
+        "operationId": "get_etf_api_etfs__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ETF"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/prices": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Prices",
+        "description": "종목 가격 데이터 조회 (자동 수집 지원)\n\n지정한 기간 동안의 가격 데이터(시가, 고가, 저가, 종가, 거래량, 등락률)를 조회합니다.\n요청한 기간의 데이터가 DB에 없으면 자동으로 수집합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240)\n\n**Query Parameters:**\n- start_date: 조회 시작 날짜 (선택, 기본값: 7일 전)\n- end_date: 조회 종료 날짜 (선택, 기본값: 오늘)\n- days: 조회 일수 (선택, date range 대신 사용 가능)\n\n**Example Requests:**\n```\n# 기본 (최근 7일)\nGET /api/etfs/487240/prices\n\n# 날짜 범위 지정\nGET /api/etfs/487240/prices?start_date=2025-11-01&end_date=2025-11-09\n\n# 최근 N일\nGET /api/etfs/487240/prices?days=30\n```\n\n**Example Response:**\n```json\n[\n  {\n    \"date\": \"2025-11-09\",\n    \"open_price\": 12400.0,\n    \"high_price\": 12600.0,\n    \"low_price\": 12300.0,\n    \"close_price\": 12500.0,\n    \"volume\": 1000000,\n    \"daily_change_pct\": 2.5\n  },\n  {\n    \"date\": \"2025-11-08\",\n    \"open_price\": 12200.0,\n    \"high_price\": 12450.0,\n    \"low_price\": 12150.0,\n    \"close_price\": 12400.0,\n    \"volume\": 850000,\n    \"daily_change_pct\": 1.2\n  }\n]\n```\n\n**Response Fields:**\n- date: 거래 날짜\n- open_price: 시가\n- high_price: 고가\n- low_price: 저가\n- close_price: 종가\n- volume: 거래량\n- daily_change_pct: 전일 대비 등락률 (%)\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 400: 잘못된 날짜 범위\n- 500: 서버 오류\n\n**Notes:**\n- 데이터는 최신순(날짜 내림차순)으로 정렬됨\n- 주말/공휴일 데이터는 포함되지 않음\n- 최대 조회 가능 기간: 1년 (365일)\n- 데이터 부족 시 자동 수집 (최대 30초 소요)",
+        "operationId": "get_prices_api_etfs__ticker__prices_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Number of days to fetch (alternative to date range)",
+              "title": "Days"
+            },
+            "description": "Number of days to fetch (alternative to date range)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PriceData"
+                  },
+                  "title": "Response Get Prices Api Etfs  Ticker  Prices Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/collect": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Collect Prices",
+        "description": "Trigger data collection from Naver Finance for a specific stock/ETF\n\nArgs:\n    etf: ETF/Stock model (injected, validated)\n    days: Number of days to collect (default: 10)\n    collector: Data collector instance (injected)\n\nReturns:\n    Collection result with count\n\nRaises:\n    404: ETF/Stock not found\n    500: Collection failed",
+        "operationId": "collect_prices_api_etfs__ticker__collect_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Number of days to collect",
+              "default": 10,
+              "title": "Days"
+            },
+            "description": "Number of days to collect"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/trading-flow": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Trading Flow",
+        "description": "투자자별 매매동향 데이터 조회 (자동 수집 지원)\n\n- **etf**: 종목 정보 (자동 주입, 검증됨)\n- **start_date**: 시작 날짜 (선택, 기본: 7일 전)\n- **end_date**: 종료 날짜 (선택, 기본: 오늘)\n\nReturns:\n    매매동향 데이터 리스트 (개인, 기관, 외국인 순매수)\n\nNotes:\n    - 데이터 부족 시 자동 수집 (최대 30초 소요)",
+        "operationId": "get_trading_flow_api_etfs__ticker__trading_flow_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "조회 시작 날짜 (기본: 7일 전)",
+              "title": "Start Date"
+            },
+            "description": "조회 시작 날짜 (기본: 7일 전)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "조회 종료 날짜 (기본: 오늘)",
+              "title": "End Date"
+            },
+            "description": "조회 종료 날짜 (기본: 오늘)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/collect-trading-flow": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Collect Trading Flow",
+        "description": "투자자별 매매동향 데이터 수집\n\n- **etf**: 종목 정보 (자동 주입, 검증됨)\n- **days**: 수집할 일수 (1-90일, 기본: 10일)\n\nReturns:\n    수집 결과 및 저장된 레코드 수",
+        "operationId": "collect_trading_flow_api_etfs__ticker__collect_trading_flow_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "description": "수집할 일수 (1-90일)",
+              "default": 10,
+              "title": "Days"
+            },
+            "description": "수집할 일수 (1-90일)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/metrics": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Metrics",
+        "description": "종목 주요 지표 조회\n\n종목의 수익률, 변동성 등 주요 투자 지표를 계산하여 반환합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240)\n\n**Example Request:**\n```\nGET /api/etfs/487240/metrics\n```\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"487240\",\n  \"aum\": null,\n  \"returns\": {\n    \"1w\": 5.2,\n    \"1m\": 12.5,\n    \"ytd\": 18.3\n  },\n  \"volatility\": 25.4\n}\n```\n\n**Response Fields:**\n- ticker: 종목 코드\n- aum: 순자산총액 (AUM, 현재 미제공)\n- returns: 수익률 (%)\n  - 1w: 1주일 수익률\n  - 1m: 1개월 수익률\n  - ytd: 연초 대비 수익률 (Year-to-Date)\n- volatility: 연환산 변동성 (%)\n\n**Calculation Methods:**\n- 수익률: (현재가 - 과거가) / 과거가 × 100\n- 변동성: 일간 변동성 표준편차 × √252 (연환산)\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 500: 서버 오류\n\n**Notes:**\n- 데이터가 부족한 경우 null 반환\n- 최소 7일 데이터 필요 (1주 수익률)\n- 최소 30일 데이터 필요 (1개월 수익률)\n- 변동성 계산에는 최소 10일 데이터 필요",
+        "operationId": "get_metrics_api_etfs__ticker__metrics_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ETFMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/insights": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Insights",
+        "description": "종목 인사이트 조회\n\n종목의 투자 전략, 핵심 포인트, 리스크를 분석하여 제공합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240)\n\n**Query Parameters:**\n- period: 분석 기간 (기본값: \"1m\")\n  - \"1w\": 1주\n  - \"1m\": 1개월\n  - \"3m\": 3개월\n  - \"6m\": 6개월\n  - \"1y\": 1년\n\n**Example Request:**\n```\nGET /api/etfs/487240/insights?period=1m\n```\n\n**Example Response:**\n```json\n{\n  \"strategy\": {\n    \"short_term\": \"비중확대\",\n    \"medium_term\": \"보유\",\n    \"long_term\": \"보유\",\n    \"recommendation\": \"보유\",\n    \"comment\": \"단기 급등 구간, 변동성 확대 예상\"\n  },\n  \"key_points\": [\n    \"1개월 수익률 12.5%로 강세 지속\",\n    \"변동성 확대 구간, 리스크 관리 필요\",\n    \"외국인 대규모 순매수 지속\"\n  ],\n  \"risks\": [\n    \"높은 변동성으로 인한 가격 급등락 리스크\",\n    \"규제 리스크: 정부 규제 강화 가능성\"\n  ]\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 500: 서버 오류",
+        "operationId": "get_insights_api_etfs__ticker__insights_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "분석 기간: 1w, 1m, 3m, 6m, 1y",
+              "default": "1m",
+              "title": "Period"
+            },
+            "description": "분석 기간: 1w, 1m, 3m, 6m, 1y"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ETFInsights"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/batch-summary": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Batch Summary",
+        "description": "여러 종목의 요약 데이터 일괄 조회 (N+1 쿼리 최적화)\n\n대시보드에서 여러 종목의 카드 데이터를 한 번에 조회합니다.\n각 종목별로 최신 가격, 차트용 가격 데이터, 매매동향, 뉴스를 반환합니다.\n\n**Request Body:**\n- tickers: 종목 코드 리스트 (예: [\"487240\", \"466920\", \"042660\"])\n- price_days: 가격 데이터 조회 일수 (기본: 5일)\n- news_limit: 뉴스 개수 제한 (기본: 5개)\n\n**Example Request:**\n```json\n{\n  \"tickers\": [\"487240\", \"466920\", \"042660\"],\n  \"price_days\": 5,\n  \"news_limit\": 5\n}\n```\n\n**Example Response:**\n```json\n{\n  \"data\": {\n    \"487240\": {\n      \"ticker\": \"487240\",\n      \"latest_price\": {\n        \"date\": \"2025-11-18\",\n        \"open_price\": 12400.0,\n        \"high_price\": 12600.0,\n        \"low_price\": 12300.0,\n        \"close_price\": 12500.0,\n        \"volume\": 1000000,\n        \"daily_change_pct\": 2.5\n      },\n      \"prices\": [...],\n      \"weekly_return\": 5.2,\n      \"latest_trading_flow\": {...},\n      \"latest_news\": [...]\n    },\n    ...\n  }\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 400: 잘못된 요청\n- 500: 서버 오류\n\n**Notes:**\n- 여러 종목을 한 번의 API 호출로 조회하여 성능 최적화\n- 데이터가 없는 종목도 빈 객체로 반환 (에러 없음)\n- 캐시 적용으로 반복 요청 시 빠른 응답",
+        "operationId": "get_batch_summary_api_etfs_batch_summary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/intraday": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Intraday Prices",
+        "description": "분봉(시간별 체결) 데이터 조회\n\n해당 종목의 당일 시간별 체결 데이터를 조회합니다.\n장중에는 실시간으로 업데이트되며, 장 마감 후에는 당일 전체 데이터를 반환합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240)\n\n**Query Parameters:**\n- target_date: 조회할 날짜 (선택, 기본값: 오늘)\n- auto_collect: 데이터가 없을 때 자동 수집 여부 (기본: true)\n- force_refresh: 캐시를 무시하고 재수집을 트리거 (기본: false)\n\n**Example Request:**\n```\nGET /api/etfs/487240/intraday\nGET /api/etfs/487240/intraday?target_date=2025-01-24\nGET /api/etfs/487240/intraday?force_refresh=true\n```\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"487240\",\n  \"date\": \"2025-01-24\",\n  \"data\": [\n    {\n      \"datetime\": \"2025-01-24T09:00:00\",\n      \"price\": 12500.0,\n      \"change_amount\": 100.0,\n      \"volume\": 1500,\n      \"bid_volume\": 800,\n      \"ask_volume\": 700\n    },\n    ...\n  ],\n  \"count\": 390,\n  \"first_time\": \"09:00\",\n  \"last_time\": \"15:30\"\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 500: 서버 오류\n\n**Notes:**\n- 데이터는 시간순(오래된 시간 → 최신 시간)으로 정렬됨\n- 장중에는 약 1분 간격으로 데이터 제공\n- 주말/공휴일은 데이터 없음",
+        "operationId": "get_intraday_prices_api_etfs__ticker__intraday_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "target_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "조회할 날짜 (기본: 오늘)",
+              "title": "Target Date"
+            },
+            "description": "조회할 날짜 (기본: 오늘)"
+          },
+          {
+            "name": "auto_collect",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "데이터 없을 시 자동 수집 여부",
+              "default": true,
+              "title": "Auto Collect"
+            },
+            "description": "데이터 없을 시 자동 수집 여부"
+          },
+          {
+            "name": "force_refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "캐시 무시 및 재수집 트리거",
+              "default": false,
+              "title": "Force Refresh"
+            },
+            "description": "캐시 무시 및 재수집 트리거"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/collect-intraday": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Collect Intraday Prices",
+        "description": "분봉(시간별 체결) 데이터 수집\n\n네이버 금융에서 해당 종목의 시간별 체결 데이터를 수집합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드 (예: 487240)\n\n**Query Parameters:**\n- pages: 수집할 페이지 수 (1-50, 기본: 20, 페이지당 약 10건)\n\n**Example Request:**\n```\nPOST /api/etfs/487240/collect-intraday?pages=30\n```\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"487240\",\n  \"collected\": 285,\n  \"first_time\": \"09:01\",\n  \"last_time\": \"15:29\",\n  \"message\": \"285건 수집 완료\"\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 404: 종목을 찾을 수 없음\n- 500: 서버 오류\n\n**Notes:**\n- 장중에 호출 시 실시간 데이터 수집\n- 장 마감 후에는 당일 전체 데이터 수집\n- 오래된 데이터는 7일 후 자동 삭제",
+        "operationId": "collect_intraday_prices_api_etfs__ticker__collect_intraday_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "수집할 페이지 수 (1-50, 장 시작부터 수집하려면 40 이상 권장)",
+              "default": 40,
+              "title": "Pages"
+            },
+            "description": "수집할 페이지 수 (1-50, 장 시작부터 수집하려면 40 이상 권장)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/ai-prompt": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Ai Prompt",
+        "description": "단일 종목 AI 분석 프롬프트 생성 (RAG 지원)\n\nAPI 호출 없이 프롬프트만 반환합니다.\n기본적으로 DB에 저장된 실제 데이터(가격, 거래량, 매매동향, 뉴스)를\n프롬프트에 포함하여 더 정확한 분석을 위한 프롬프트를 생성합니다.\n\n**Path Parameters:**\n- ticker: 종목 코드\n\n**Query Parameters:**\n- use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)",
+        "operationId": "get_ai_prompt_api_etfs__ticker__ai_prompt_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "use_db_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "DB 데이터를 RAG context로 포함할지 여부 (기본: True)",
+              "default": true,
+              "title": "Use Db Data"
+            },
+            "description": "DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/ai-prompt-multi": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Ai Prompt Multi",
+        "description": "복수 종목 통합 비교 분석 프롬프트 생성 (RAG 지원)\n\nAPI 호출 없이 프롬프트만 반환합니다.\n기본적으로 각 종목의 DB 데이터를 프롬프트에 포함하여\n더 정확한 비교 분석을 위한 프롬프트를 생성합니다.\n\n**Request Body:**\n- stocks: 종목 목록 (2개 이상)\n\n**Query Parameters:**\n- use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)",
+        "operationId": "get_ai_prompt_multi_api_etfs_ai_prompt_multi_post",
+        "parameters": [
+          {
+            "name": "use_db_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "DB 데이터를 RAG context로 포함할지 여부 (기본: True)",
+              "default": true,
+              "title": "Use Db Data"
+            },
+            "description": "DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultiAnalysisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/collect-fundamentals": {
+      "post": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Collect Fundamentals",
+        "description": "종목 펀더멘털 데이터를 수집하여 DB에 저장합니다.\n- type=STOCK: 네이버 기업실적분석 테이블에서 PER/PBR/ROE/EPS 등 수집\n- type=ETF:   네이버 NAV 추이, 펀드보수, 구성종목 수집",
+        "operationId": "collect_fundamentals_api_etfs__ticker__collect_fundamentals_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/etfs/{ticker}/fundamentals": {
+      "get": {
+        "tags": [
+          "ETFs"
+        ],
+        "summary": "Get Fundamentals",
+        "description": "DB에 저장된 가장 최근 펀더멘털 데이터를 반환합니다.\n- type=STOCK: stock_fundamentals (최근 1건)\n- type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)",
+        "operationId": "get_fundamentals_api_etfs__ticker__fundamentals_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/collect-progress": {
+      "get": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Get Collect Progress",
+        "description": "전체 데이터 수집 진행률 조회\n\nReturns:\n    현재 수집 진행 상태 (idle, in_progress, completed)",
+        "operationId": "get_collect_progress_api_data_collect_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/collect-all": {
+      "post": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Collect All Data",
+        "description": "전체 종목 데이터 일괄 수집\n\n등록된 모든 종목(6개)의 가격 데이터와 매매동향을 일괄 수집합니다.\n\n**Query Parameters:**\n- days: 수집할 일수 (기본: 1일, 최대: 365일)\n\n**Example Request:**\n```\n# 당일 데이터만 수집 (기본)\nPOST /api/data/collect-all\n\n# 최근 10일 데이터 수집\nPOST /api/data/collect-all?days=10\n```\n\n**Example Response:**\n```json\n{\n  \"message\": \"Data collection completed for 6 tickers\",\n  \"result\": {\n    \"total_tickers\": 6,\n    \"success_count\": 6,\n    \"fail_count\": 0,\n    \"total_price_records\": 6,\n    \"total_trading_flow_records\": 6,\n    \"total_news_records\": 0,\n    \"details\": {\n      \"487240\": {\n        \"name\": \"삼성 KODEX AI전력핵심설비 ETF\",\n        \"success\": true,\n        \"price_records\": 1,\n        \"trading_flow_records\": 1,\n        \"news_records\": 0\n      }\n    }\n  }\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 400: 잘못된 파라미터\n- 503: 데이터 소스 일시적 오류\n- 500: 서버 오류\n\n**Notes:**\n- 일반적으로 스케줄러가 자동으로 실행하므로 수동 호출은 불필요\n- 데이터 갱신이 필요한 경우에만 사용\n- 대량 수집 시 시간이 오래 걸릴 수 있음 (약 6초/종목)",
+        "operationId": "collect_all_data_api_data_collect_all_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "description": "수집할 일수 (기본: 1일)",
+              "default": 1,
+              "title": "Days"
+            },
+            "description": "수집할 일수 (기본: 1일)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/backfill": {
+      "post": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Backfill Data",
+        "description": "모든 종목의 히스토리 데이터를 백필\n\n- **days**: 백필할 일수 (1-{MAX_COLLECTION_DAYS}일, 기본: {DEFAULT_BACKFILL_DAYS}일)\n\nReturns:\n    백필 결과 및 종목별 상세 정보",
+        "operationId": "backfill_data_api_data_backfill_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "description": "백필할 일수 (기본: 90일)",
+              "default": 90,
+              "title": "Days"
+            },
+            "description": "백필할 일수 (기본: 90일)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/status": {
+      "get": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Get Collection Status",
+        "description": "데이터 수집 상태 조회\n\nReturns:\n    각 종목별 데이터 수집 현황",
+        "operationId": "get_collection_status_api_data_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/scheduler-status": {
+      "get": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Get Scheduler Status",
+        "description": "스케줄러 상태 조회\n\nReturns:\n    스케줄러 실행 상태 및 마지막 수집 시간",
+        "operationId": "get_scheduler_status_api_data_scheduler_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/stats": {
+      "get": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Get Data Stats",
+        "description": "데이터베이스 통계 조회\n\n각 테이블의 레코드 수와 마지막 수집 시간을 반환합니다.\n\n**Example Response:**\n```json\n{\n  \"etfs\": 6,\n  \"prices\": 1500,\n  \"news\": 250,\n  \"trading_flow\": 180,\n  \"stock_catalog\": 2500,\n  \"last_collection\": \"2025-11-12T10:30:00\",\n  \"database_size_mb\": 2.5\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 500: 서버 오류",
+        "operationId": "get_data_stats_api_data_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/cache/stats": {
+      "get": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Get Cache Stats",
+        "description": "캐시 통계 조회\n\n캐시 히트율, 미스율, 크기 등의 통계 정보를 반환합니다.\n\n**Example Response:**\n```json\n{\n  \"hits\": 150,\n  \"misses\": 50,\n  \"hit_rate_pct\": 75.0,\n  \"total_requests\": 200,\n  \"evictions\": 5,\n  \"sets\": 55,\n  \"current_size\": 50,\n  \"max_size\": 1000,\n  \"default_ttl_seconds\": 30\n}\n```\n\n**Status Codes:**\n- 200: 성공",
+        "operationId": "get_cache_stats_api_data_cache_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/collect-fundamentals": {
+      "post": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Collect All Fundamentals",
+        "description": "전체 종목 펀더멘털 수집 (배치)\n\netfs 테이블의 모든 종목에 대해 type별로 펀더멘털 데이터를 수집합니다.\n- STOCK: 네이버 기업실적분석 테이블 → stock_fundamentals\n- ETF: 네이버 NAV 추이 + 구성종목 → etf_fundamentals, etf_holdings",
+        "operationId": "collect_all_fundamentals_api_data_collect_fundamentals_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/data/cache/clear": {
+      "delete": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Clear Cache",
+        "description": "캐시 전체 삭제\n\n모든 캐시 데이터를 삭제합니다.\n\n**Status Codes:**\n- 200: 성공",
+        "operationId": "clear_cache_api_data_cache_clear_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/data/reset": {
+      "delete": {
+        "tags": [
+          "Data Collection"
+        ],
+        "summary": "Reset Database",
+        "description": "데이터베이스 초기화 (위험!)\n\nprices, news, trading_flow, collection_status, intraday_prices 테이블의 모든 데이터를 삭제합니다.\netfs 테이블은 유지됩니다.\nSQLite의 경우 sqlite_sequence 테이블도 초기화하여 AUTOINCREMENT ID를 1부터 다시 시작하도록 합니다.\n\n**⚠️ 경고: 이 작업은 되돌릴 수 없습니다!**\n\n**Example Response:**\n```json\n{\n  \"message\": \"Database reset successfully\",\n  \"deleted\": {\n    \"prices\": 1500,\n    \"news\": 250,\n    \"trading_flow\": 180,\n    \"collection_status\": 6,\n    \"intraday_prices\": 5000\n  }\n}\n```\n\n**Status Codes:**\n- 200: 성공\n- 500: 서버 오류",
+        "operationId": "reset_database_api_data_reset_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/news/{ticker}": {
+      "get": {
+        "tags": [
+          "News"
+        ],
+        "summary": "Get News",
+        "description": "종목별 뉴스 조회 (분석 결과 포함)\n\n- **etf**: 종목 정보 (자동 주입, 검증됨)\n- **start_date**: 시작 날짜 (선택, 기본: 7일 전)\n- **end_date**: 종료 날짜 (선택, 기본: 오늘)\n- **analyze**: 뉴스 분석 포함 여부 (기본: True)\n\nReturns:\n    뉴스 리스트 + 분석 결과 (센티먼트, 태그, 요약)",
+        "operationId": "get_news_api_news__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "조회 시작 날짜 (기본: 7일 전)",
+              "title": "Start Date"
+            },
+            "description": "조회 시작 날짜 (기본: 7일 전)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "조회 종료 날짜 (기본: 오늘)",
+              "title": "End Date"
+            },
+            "description": "조회 종료 날짜 (기본: 오늘)"
+          },
+          {
+            "name": "analyze",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "뉴스 분석 포함 여부 (센티먼트, 태그, 요약)",
+              "default": true,
+              "title": "Analyze"
+            },
+            "description": "뉴스 분석 포함 여부 (센티먼트, 태그, 요약)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/news/{ticker}/collect": {
+      "post": {
+        "tags": [
+          "News"
+        ],
+        "summary": "Collect News",
+        "description": "종목별 뉴스 수집\n\n- **etf**: 종목 정보 (자동 주입, 검증됨)\n- **days**: 수집할 일수 (1-30일, 기본: 7일)\n\nReturns:\n    수집 결과 및 저장된 레코드 수",
+        "operationId": "collect_news_api_news__ticker__collect_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "description": "수집할 일수 (1-30일)",
+              "default": 7,
+              "title": "Days"
+            },
+            "description": "수집할 일수 (1-30일)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Collect News Api News  Ticker  Collect Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/stocks": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get Stocks",
+        "description": "Get all stocks/ETFs from configuration\n\nReturns all stocks currently configured in stocks.json as an array\n\n**Example Response:**\n```json\n[\n  {\n    \"ticker\": \"005930\",\n    \"name\": \"삼성전자\",\n    \"type\": \"STOCK\",\n    \"theme\": \"반도체/전자\",\n    \"purchase_date\": \"2024-01-15\",\n    \"search_keyword\": \"삼성전자\",\n    \"relevance_keywords\": [\"삼성전자\", \"반도체\", \"전자\"]\n  },\n  ...\n]\n```\n\n**Status Codes:**\n- 200: Success\n- 500: Server error",
+        "operationId": "get_stocks_api_settings_stocks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Stocks Api Settings Stocks Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create Stock",
+        "description": "Create a new stock/ETF entry\n\n**Request Body:**\n- ticker: Stock ticker code (e.g., \"005930\")\n- name: Stock name (required)\n- type: \"ETF\" or \"STOCK\" (required)\n- theme: Theme/sector (required)\n- purchase_date: Purchase date in YYYY-MM-DD format (optional)\n- search_keyword: Keyword for news search (optional)\n- relevance_keywords: List of relevant keywords (optional)\n\n**Example Request:**\n```json\n{\n  \"ticker\": \"005930\",\n  \"name\": \"삼성전자\",\n  \"type\": \"STOCK\",\n  \"theme\": \"반도체/전자\",\n  \"purchase_date\": \"2024-01-15\",\n  \"search_keyword\": \"삼성전자\",\n  \"relevance_keywords\": [\"삼성전자\", \"반도체\", \"전자\"]\n}\n```\n\n**Status Codes:**\n- 201: Successfully created\n- 400: Invalid data or duplicate ticker\n- 500: Server error\n\n**Notes:**\n- Automatically syncs to database\n- Reloads configuration cache",
+        "operationId": "create_stock_api_settings_stocks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Create Stock Api Settings Stocks Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/settings/stocks/{ticker}": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update Stock",
+        "description": "Update an existing stock/ETF entry\n\nSupports partial updates - only provided fields will be updated.\n\n**Path Parameters:**\n- ticker: Stock ticker code (e.g., \"487240\")\n\n**Request Body:**\n- name: Stock name (optional)\n- type: \"ETF\" or \"STOCK\" (optional)\n- theme: Theme/sector (optional)\n- purchase_date: Purchase date in YYYY-MM-DD format (optional)\n- purchase_price: Purchase average price (optional)\n- quantity: Holding quantity (optional)\n- search_keyword: Keyword for news search (optional)\n- relevance_keywords: List of relevant keywords (optional)\n\n**Example Request:**\n```json\n{\n  \"theme\": \"AI/전력/인프라\",\n  \"relevance_keywords\": [\"AI\", \"전력\", \"데이터센터\", \"인프라\"]\n}\n```\n\n**Status Codes:**\n- 200: Successfully updated\n- 400: Invalid data\n- 404: Stock not found\n- 500: Server error\n\n**Notes:**\n- Only updates provided fields (partial update)\n- Automatically syncs to database",
+        "operationId": "update_stock_api_settings_stocks__ticker__put",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Stock ticker code",
+              "title": "Ticker"
+            },
+            "description": "Stock ticker code"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StockUpdate"
+                  }
+                ],
+                "title": "Stock Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Update Stock Api Settings Stocks  Ticker  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Delete Stock",
+        "description": "Delete a stock/ETF entry and all related data\n\n**Path Parameters:**\n- ticker: Stock ticker code (e.g., \"487240\")\n\n**Cascade Deletion:**\nThis endpoint will delete:\n- Stock entry from stocks.json\n- Stock entry from database (etfs table)\n- All related price data\n- All related news data\n- All related trading flow data\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"487240\",\n  \"deleted\": {\n    \"prices\": 150,\n    \"news\": 20,\n    \"trading_flow\": 30\n  }\n}\n```\n\n**Status Codes:**\n- 200: Successfully deleted\n- 404: Stock not found\n- 500: Server error\n\n**Notes:**\n- CASCADE deletes all related data (prices, news, trading_flow)\n- Cannot be undone\n- Reloads configuration cache",
+        "operationId": "delete_stock_api_settings_stocks__ticker__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Stock ticker code",
+              "title": "Ticker"
+            },
+            "description": "Stock ticker code"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/stocks/{ticker}/validate": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Validate Ticker",
+        "description": "Validate a ticker code and fetch basic information from Naver Finance\n\n**Path Parameters:**\n- ticker: Stock ticker code (e.g., \"005930\")\n\n**Example Response:**\n```json\n{\n  \"ticker\": \"005930\",\n  \"name\": \"삼성전자\",\n  \"type\": \"STOCK\",\n  \"theme\": \"반도체/전자\",\n  \"purchase_date\": null,\n  \"search_keyword\": \"삼성전자\",\n  \"relevance_keywords\": [\"삼성전자\", \"반도체\", \"전자\"]\n}\n```\n\n**Status Codes:**\n- 200: Ticker is valid\n- 404: Ticker not found on Naver Finance\n- 500: Scraping error\n\n**Notes:**\n- Scrapes data from Naver Finance\n- Returns data in stocks.json format ready for use",
+        "operationId": "validate_ticker_api_settings_stocks__ticker__validate_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Stock ticker code to validate",
+              "title": "Ticker"
+            },
+            "description": "Stock ticker code to validate"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Validate Ticker Api Settings Stocks  Ticker  Validate Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ticker-catalog/collect-progress": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get Ticker Catalog Progress",
+        "description": "종목 목록 수집 진행률 조회\n\nReturns:\n    현재 수집 진행 상태 (idle, in_progress, completed)",
+        "operationId": "get_ticker_catalog_progress_api_settings_ticker_catalog_collect_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ticker-catalog/collect": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Collect Ticker Catalog",
+        "description": "종목 목록 수집 트리거 (관리자용)\n\n네이버 금융에서 전체 종목 목록(코스피, 코스닥, ETF)을 수집하여\nstock_catalog 테이블에 저장합니다.\n\n**Example Response:**\n```json\n{\n  \"total_collected\": 2500,\n  \"kospi_count\": 800,\n  \"kosdaq_count\": 1400,\n  \"etf_count\": 300,\n  \"saved_count\": 2500,\n  \"timestamp\": \"2025-01-15T10:30:00\"\n}\n```\n\n**Status Codes:**\n- 200: Successfully collected\n- 500: Collection error\n\n**Notes:**\n- 수집에는 시간이 걸릴 수 있습니다 (약 5-10분)\n- 기존 데이터는 업데이트됩니다",
+        "operationId": "collect_ticker_catalog_api_settings_ticker_catalog_collect_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Collect Ticker Catalog Api Settings Ticker Catalog Collect Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/settings/stocks/search": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Search Stocks",
+        "description": "종목 목록 검색 (자동완성용)\n\nstock_catalog 테이블에서 티커 코드 또는 종목명으로 검색합니다.\n\n**Query Parameters:**\n- q: 검색어 (최소 2자 이상)\n- type: 종목 타입 필터 (선택사항, STOCK 또는 ETF)\n\n**Example Request:**\n```\nGET /api/settings/stocks/search?q=삼성&type=STOCK\n```\n\n**Example Response:**\n```json\n[\n  {\n    \"ticker\": \"005930\",\n    \"name\": \"삼성전자\",\n    \"type\": \"STOCK\",\n    \"market\": \"KOSPI\",\n    \"sector\": null\n  },\n  {\n    \"ticker\": \"005935\",\n    \"name\": \"삼성전자우\",\n    \"type\": \"STOCK\",\n    \"market\": \"KOSPI\",\n    \"sector\": null\n  }\n]\n```\n\n**Status Codes:**\n- 200: Success\n- 400: Invalid query (too short)\n- 500: Server error\n\n**Notes:**\n- 최대 20개 결과 반환\n- 정확한 티커 코드 매칭이 우선순위가 높습니다",
+        "operationId": "search_stocks_api_settings_stocks_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "검색어 (티커 코드 또는 종목명)",
+              "title": "Q"
+            },
+            "description": "검색어 (티커 코드 또는 종목명)"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "종목 타입 필터 (STOCK, ETF, ALL 또는 null=전체)",
+              "title": "Type"
+            },
+            "description": "종목 타입 필터 (STOCK, ETF, ALL 또는 null=전체)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response Search Stocks Api Settings Stocks Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/stocks/reorder": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Reorder Stocks",
+        "description": "종목 순서 변경\n\nstocks.json에 저장된 종목들의 순서를 변경합니다.\n\n**Request Body:**\n- tickers: 새로운 순서대로 정렬된 티커 코드 배열\n\n**Example Request:**\n```json\n[\"487240\", \"466920\", \"0020H0\", \"442320\", \"395270\"]\n```\n\n**Status Codes:**\n- 200: Successfully reordered\n- 400: Invalid ticker list\n- 500: Server error\n\n**Notes:**\n- 모든 기존 종목이 포함되어야 합니다\n- 순서만 변경되며 데이터는 변경되지 않습니다",
+        "operationId": "reorder_stocks_api_settings_stocks_reorder_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Tickers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Reorder Stocks Api Settings Stocks Reorder Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/settings/api-keys": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get Api Keys",
+        "description": "저장된 API 키 조회\n\n**Query Parameters:**\n- raw: true면 원본 값 반환, false면 마스킹 처리 (기본: false)\n\n**Status Codes:**\n- 200: Success",
+        "operationId": "get_api_keys_api_settings_api_keys_get",
+        "parameters": [
+          {
+            "name": "raw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Raw"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Api Keys Api Settings Api Keys Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update Api Keys",
+        "description": "API 키 저장 및 즉시 적용\n\n**Request Body:**\n- NAVER_CLIENT_ID: 네이버 API Client ID\n- NAVER_CLIENT_SECRET: 네이버 API Client Secret\n- PERPLEXITY_API_KEY: Perplexity AI API Key\n\n**Status Codes:**\n- 200: Successfully saved\n- 500: Server error",
+        "operationId": "update_api_keys_api_settings_api_keys_put",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeysUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Update Api Keys Api Settings Api Keys Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/trigger": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Record Alert Trigger",
+        "description": "프론트엔드에서 감지한 알림 트리거를 히스토리에 기록",
+        "operationId": "record_alert_trigger_api_alerts_trigger_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertTriggerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/history/{ticker}": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Get Alert History",
+        "description": "종목별 알림 이력 조회",
+        "operationId": "get_alert_history_api_alerts_history__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Create Alert Rule",
+        "description": "알림 규칙 생성",
+        "operationId": "create_alert_rule_api_alerts__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{ticker}": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Get Alert Rules",
+        "description": "종목별 알림 규칙 목록 조회",
+        "operationId": "get_alert_rules_api_alerts__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "활성 규칙만 조회",
+              "default": true,
+              "title": "Active Only"
+            },
+            "description": "활성 규칙만 조회"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRuleResponse"
+                  },
+                  "title": "Response Get Alert Rules Api Alerts  Ticker  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{rule_id}": {
+      "put": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Update Alert Rule",
+        "description": "알림 규칙 수정",
+        "operationId": "update_alert_rule_api_alerts__rule_id__put",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Delete Alert Rule",
+        "description": "알림 규칙 삭제",
+        "operationId": "delete_alert_rule_api_alerts__rule_id__delete",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner": {
+      "get": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Search Scanner",
+        "description": "조건 기반 종목 검색",
+        "operationId": "search_scanner_api_scanner_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "종목명/코드 검색",
+              "title": "Q"
+            },
+            "description": "종목명/코드 검색"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "ETF / STOCK / ALL",
+              "default": "ETF",
+              "title": "Type"
+            },
+            "description": "ETF / STOCK / ALL"
+          },
+          {
+            "name": "sector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "섹터 필터",
+              "title": "Sector"
+            },
+            "description": "섹터 필터"
+          },
+          {
+            "name": "min_weekly_return",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "최소 주간수익률",
+              "title": "Min Weekly Return"
+            },
+            "description": "최소 주간수익률"
+          },
+          {
+            "name": "max_weekly_return",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "최대 주간수익률",
+              "title": "Max Weekly Return"
+            },
+            "description": "최대 주간수익률"
+          },
+          {
+            "name": "foreign_net_positive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "외국인 순매수만",
+              "title": "Foreign Net Positive"
+            },
+            "description": "외국인 순매수만"
+          },
+          {
+            "name": "institutional_net_positive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "기관 순매수만",
+              "title": "Institutional Net Positive"
+            },
+            "description": "기관 순매수만"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "정렬 기준",
+              "default": "weekly_return",
+              "title": "Sort By"
+            },
+            "description": "정렬 기준"
+          },
+          {
+            "name": "sort_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "정렬 방향",
+              "default": "desc",
+              "title": "Sort Dir"
+            },
+            "description": "정렬 방향"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "페이지",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "페이지"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "페이지 크기",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "페이지 크기"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/themes": {
+      "get": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Get Themes",
+        "description": "섹터/테마별 그룹 조회",
+        "operationId": "get_themes_api_scanner_themes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ThemeGroup"
+                  },
+                  "type": "array",
+                  "title": "Response Get Themes Api Scanner Themes Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/recommendations": {
+      "get": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Get Recommendations",
+        "description": "추천 프리셋 (주간 상위, 외국인 매수 등)",
+        "operationId": "get_recommendations_api_scanner_recommendations_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "description": "각 프리셋별 종목 수",
+              "default": 5,
+              "title": "Limit"
+            },
+            "description": "각 프리셋별 종목 수"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecommendationPreset"
+                  },
+                  "title": "Response Get Recommendations Api Scanner Recommendations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/collect-progress": {
+      "get": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Get Collect Progress",
+        "description": "카탈로그 데이터 수집 진행률 조회",
+        "operationId": "get_collect_progress_api_scanner_collect_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/collect-data": {
+      "post": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Trigger Collect Data",
+        "description": "카탈로그 데이터 수동 수집 트리거",
+        "operationId": "trigger_collect_data_api_scanner_collect_data_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scanner/cancel-collect": {
+      "post": {
+        "tags": [
+          "Scanner"
+        ],
+        "summary": "Cancel Collect Data",
+        "description": "진행 중인 카탈로그 데이터 수집 중지",
+        "operationId": "cancel_collect_data_api_scanner_cancel_collect_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulation/lump-sum": {
+      "post": {
+        "tags": [
+          "Simulation"
+        ],
+        "summary": "Simulation Lump Sum",
+        "description": "일시 투자 시뮬레이션",
+        "operationId": "simulation_lump_sum_api_simulation_lump_sum_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LumpSumRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LumpSumResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulation/dca": {
+      "post": {
+        "tags": [
+          "Simulation"
+        ],
+        "summary": "Simulation Dca",
+        "description": "적립식 투자 시뮬레이션",
+        "operationId": "simulation_dca_api_simulation_dca_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DCARequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DCAResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulation/portfolio": {
+      "post": {
+        "tags": [
+          "Simulation"
+        ],
+        "summary": "Simulation Portfolio",
+        "description": "포트폴리오 시뮬레이션",
+        "operationId": "simulation_portfolio_api_simulation_portfolio_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioSimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSimulationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertRuleCreate": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "alert_type": {
+            "type": "string",
+            "title": "Alert Type"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "target_price": {
+            "type": "number",
+            "title": "Target Price"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "alert_type",
+          "direction",
+          "target_price"
+        ],
+        "title": "AlertRuleCreate",
+        "description": "알림 규칙 생성 요청"
+      },
+      "AlertRuleResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "alert_type": {
+            "type": "string",
+            "title": "Alert Type"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "target_price": {
+            "type": "number",
+            "title": "Target Price"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
+          },
+          "is_active": {
+            "type": "integer",
+            "title": "Is Active",
+            "default": 1
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "last_triggered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Triggered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ticker",
+          "alert_type",
+          "direction",
+          "target_price"
+        ],
+        "title": "AlertRuleResponse",
+        "description": "알림 규칙 응답"
+      },
+      "AlertRuleUpdate": {
+        "properties": {
+          "alert_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Type"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "target_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Price"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "AlertRuleUpdate",
+        "description": "알림 규칙 수정 요청"
+      },
+      "AlertTriggerRequest": {
+        "properties": {
+          "rule_id": {
+            "type": "integer",
+            "title": "Rule Id"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "alert_type": {
+            "type": "string",
+            "title": "Alert Type"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id",
+          "ticker",
+          "alert_type",
+          "message"
+        ],
+        "title": "AlertTriggerRequest",
+        "description": "알림 트리거 기록 요청"
+      },
+      "ApiKeysUpdate": {
+        "properties": {
+          "NAVER_CLIENT_ID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Naver Client Id"
+          },
+          "NAVER_CLIENT_SECRET": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Naver Client Secret"
+          },
+          "PERPLEXITY_API_KEY": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Perplexity Api Key"
+          }
+        },
+        "type": "object",
+        "title": "ApiKeysUpdate",
+        "description": "API 키 업데이트 요청 모델"
+      },
+      "BatchSummaryRequest": {
+        "properties": {
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Tickers"
+          },
+          "price_days": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Price Days",
+            "default": 5
+          },
+          "news_limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "News Limit",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "tickers"
+        ],
+        "title": "BatchSummaryRequest",
+        "description": "배치 요약 요청"
+      },
+      "BatchSummaryResponse": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BatchSummaryResponse",
+        "description": "배치 요약 응답"
+      },
+      "DCAMonthlyData": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "buy_price": {
+            "type": "number",
+            "title": "Buy Price"
+          },
+          "shares_bought": {
+            "type": "integer",
+            "title": "Shares Bought"
+          },
+          "cumulative_shares": {
+            "type": "integer",
+            "title": "Cumulative Shares"
+          },
+          "cumulative_invested": {
+            "type": "number",
+            "title": "Cumulative Invested"
+          },
+          "cumulative_valuation": {
+            "type": "number",
+            "title": "Cumulative Valuation"
+          },
+          "return_pct": {
+            "type": "number",
+            "title": "Return Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "buy_price",
+          "shares_bought",
+          "cumulative_shares",
+          "cumulative_invested",
+          "cumulative_valuation",
+          "return_pct"
+        ],
+        "title": "DCAMonthlyData",
+        "description": "적립식 매월 데이터"
+      },
+      "DCARequest": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "monthly_amount": {
+            "type": "number",
+            "title": "Monthly Amount"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "buy_day": {
+            "type": "integer",
+            "title": "Buy Day",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "monthly_amount",
+          "start_date",
+          "end_date"
+        ],
+        "title": "DCARequest",
+        "description": "적립식 투자 시뮬레이션 요청"
+      },
+      "DCAResponse": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "total_invested": {
+            "type": "number",
+            "title": "Total Invested"
+          },
+          "total_valuation": {
+            "type": "number",
+            "title": "Total Valuation"
+          },
+          "total_return_pct": {
+            "type": "number",
+            "title": "Total Return Pct"
+          },
+          "avg_buy_price": {
+            "type": "number",
+            "title": "Avg Buy Price"
+          },
+          "total_shares": {
+            "type": "integer",
+            "title": "Total Shares"
+          },
+          "monthly_data": {
+            "items": {
+              "$ref": "#/components/schemas/DCAMonthlyData"
+            },
+            "type": "array",
+            "title": "Monthly Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "total_invested",
+          "total_valuation",
+          "total_return_pct",
+          "avg_buy_price",
+          "total_shares",
+          "monthly_data"
+        ],
+        "title": "DCAResponse",
+        "description": "적립식 투자 시뮬레이션 응답"
+      },
+      "ETF": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "purchase_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Date"
+          },
+          "purchase_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "search_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Keyword"
+          },
+          "relevance_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Keywords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "type"
+        ],
+        "title": "ETF"
+      },
+      "ETFInsights": {
+        "properties": {
+          "strategy": {
+            "$ref": "#/components/schemas/StrategyInsights"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Points"
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy",
+          "key_points",
+          "risks"
+        ],
+        "title": "ETFInsights",
+        "description": "종목 인사이트"
+      },
+      "ETFMetrics": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "aum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aum"
+          },
+          "returns": {
+            "type": "object",
+            "title": "Returns"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "returns"
+        ],
+        "title": "ETFMetrics"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LumpSumRequest": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "buy_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Buy Date"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "buy_date",
+          "amount"
+        ],
+        "title": "LumpSumRequest",
+        "description": "일시 투자 시뮬레이션 요청"
+      },
+      "LumpSumResponse": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "buy_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Buy Date"
+          },
+          "buy_price": {
+            "type": "number",
+            "title": "Buy Price"
+          },
+          "current_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Current Date"
+          },
+          "current_price": {
+            "type": "number",
+            "title": "Current Price"
+          },
+          "shares": {
+            "type": "integer",
+            "title": "Shares"
+          },
+          "remainder": {
+            "type": "number",
+            "title": "Remainder"
+          },
+          "total_invested": {
+            "type": "number",
+            "title": "Total Invested"
+          },
+          "total_valuation": {
+            "type": "number",
+            "title": "Total Valuation"
+          },
+          "total_return_pct": {
+            "type": "number",
+            "title": "Total Return Pct"
+          },
+          "max_gain": {
+            "type": "object",
+            "title": "Max Gain"
+          },
+          "max_loss": {
+            "type": "object",
+            "title": "Max Loss"
+          },
+          "price_series": {
+            "items": {},
+            "type": "array",
+            "title": "Price Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "buy_date",
+          "buy_price",
+          "current_date",
+          "current_price",
+          "shares",
+          "remainder",
+          "total_invested",
+          "total_valuation",
+          "total_return_pct",
+          "max_gain",
+          "max_loss",
+          "price_series"
+        ],
+        "title": "LumpSumResponse",
+        "description": "일시 투자 시뮬레이션 응답"
+      },
+      "MultiAnalysisRequest": {
+        "properties": {
+          "stocks": {
+            "items": {
+              "$ref": "#/components/schemas/StockItem"
+            },
+            "type": "array",
+            "title": "Stocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stocks"
+        ],
+        "title": "MultiAnalysisRequest"
+      },
+      "NewsListResponse": {
+        "properties": {
+          "news": {
+            "items": {
+              "$ref": "#/components/schemas/NewsWithAnalysis"
+            },
+            "type": "array",
+            "title": "News"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "news"
+        ],
+        "title": "NewsListResponse",
+        "description": "뉴스 목록 응답 (분석 결과 포함)"
+      },
+      "NewsWithAnalysis": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "relevance_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Score"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "url",
+          "source"
+        ],
+        "title": "NewsWithAnalysis",
+        "description": "뉴스 + 분석 결과 (센티먼트, 태그)"
+      },
+      "PortfolioHolding": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "weight"
+        ],
+        "title": "PortfolioHolding",
+        "description": "포트폴리오 종목 비중"
+      },
+      "PortfolioSimulationRequest": {
+        "properties": {
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHolding"
+            },
+            "type": "array",
+            "title": "Holdings"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holdings",
+          "amount",
+          "start_date",
+          "end_date"
+        ],
+        "title": "PortfolioSimulationRequest",
+        "description": "포트폴리오 시뮬레이션 요청"
+      },
+      "PortfolioSimulationResponse": {
+        "properties": {
+          "total_invested": {
+            "type": "number",
+            "title": "Total Invested"
+          },
+          "total_valuation": {
+            "type": "number",
+            "title": "Total Valuation"
+          },
+          "total_return_pct": {
+            "type": "number",
+            "title": "Total Return Pct"
+          },
+          "holdings_result": {
+            "items": {},
+            "type": "array",
+            "title": "Holdings Result"
+          },
+          "daily_series": {
+            "items": {},
+            "type": "array",
+            "title": "Daily Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_invested",
+          "total_valuation",
+          "total_return_pct",
+          "holdings_result",
+          "daily_series"
+        ],
+        "title": "PortfolioSimulationResponse",
+        "description": "포트폴리오 시뮬레이션 응답"
+      },
+      "PriceData": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "open_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Price"
+          },
+          "high_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Price"
+          },
+          "low_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Price"
+          },
+          "close_price": {
+            "type": "number",
+            "title": "Close Price"
+          },
+          "volume": {
+            "type": "integer",
+            "title": "Volume"
+          },
+          "daily_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Change Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "close_price",
+          "volume"
+        ],
+        "title": "PriceData"
+      },
+      "RecommendationPreset": {
+        "properties": {
+          "preset_id": {
+            "type": "string",
+            "title": "Preset Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScreeningItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preset_id",
+          "title",
+          "description",
+          "items"
+        ],
+        "title": "RecommendationPreset",
+        "description": "추천 프리셋"
+      },
+      "ScreeningItem": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector"
+          },
+          "close_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Price"
+          },
+          "daily_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Change Pct"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "weekly_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekly Return"
+          },
+          "foreign_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foreign Net"
+          },
+          "institutional_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institutional Net"
+          },
+          "catalog_updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Updated At"
+          },
+          "is_registered": {
+            "type": "boolean",
+            "title": "Is Registered",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "type"
+        ],
+        "title": "ScreeningItem",
+        "description": "스크리닝 결과 항목"
+      },
+      "ScreeningResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScreeningItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "ScreeningResponse",
+        "description": "스크리닝 검색 응답"
+      },
+      "StockCreate": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "purchase_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Date"
+          },
+          "purchase_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "search_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Keyword"
+          },
+          "relevance_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Keywords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name",
+          "type"
+        ],
+        "title": "StockCreate",
+        "description": "종목 추가 요청"
+      },
+      "StockDeleteResponse": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "deleted": {
+            "type": "object",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "deleted"
+        ],
+        "title": "StockDeleteResponse",
+        "description": "종목 삭제 응답"
+      },
+      "StockItem": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "name"
+        ],
+        "title": "StockItem"
+      },
+      "StockUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "purchase_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Date"
+          },
+          "purchase_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "search_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Keyword"
+          },
+          "relevance_keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Keywords"
+          }
+        },
+        "type": "object",
+        "title": "StockUpdate",
+        "description": "종목 수정 요청 (부분 업데이트 지원)"
+      },
+      "StrategyInsights": {
+        "properties": {
+          "short_term": {
+            "type": "string",
+            "title": "Short Term"
+          },
+          "medium_term": {
+            "type": "string",
+            "title": "Medium Term"
+          },
+          "long_term": {
+            "type": "string",
+            "title": "Long Term"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "short_term",
+          "medium_term",
+          "long_term",
+          "recommendation",
+          "comment"
+        ],
+        "title": "StrategyInsights",
+        "description": "투자 전략 인사이트"
+      },
+      "ThemeGroup": {
+        "properties": {
+          "sector": {
+            "type": "string",
+            "title": "Sector"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "avg_weekly_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Weekly Return"
+          },
+          "top_performers": {
+            "items": {
+              "$ref": "#/components/schemas/ScreeningItem"
+            },
+            "type": "array",
+            "title": "Top Performers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sector",
+          "count",
+          "top_performers"
+        ],
+        "title": "ThemeGroup",
+        "description": "테마/섹터 그룹"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}
