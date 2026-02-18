@@ -57,7 +57,7 @@ function App() {
                           <Route path="/etf/:ticker" element={<ETFDetail />} />
                           <Route path="/portfolio" element={<Portfolio />} />
                           <Route path="/compare" element={<Comparison />} />
-                          <Route path="/screening" element={<Screening />} />
+                          <Route path="/scanner" element={<Screening />} />
                           <Route path="/simulation" element={<Simulation />} />
                           <Route path="/alerts" element={<Alerts />} />
                           <Route path="/settings" element={<Settings />} />

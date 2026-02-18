@@ -375,26 +375,26 @@ export const simulationApi = {
   portfolio: (data) => api.post('/simulation/portfolio', data, { timeout: LONG_API_TIMEOUT }),
 }
 
-// Screening API 서비스
-export const screeningApi = {
+// Scanner API 서비스 (조건 검색, 테마 탐색, 추천)
+export const scannerApi = {
   // 조건 검색 (일반 조회)
-  search: (params = {}) => api.get('/screening', { params, timeout: NORMAL_API_TIMEOUT }),
+  search: (params = {}) => api.get('/scanner', { params, timeout: NORMAL_API_TIMEOUT }),
 
   // 테마 탐색 (일반 조회)
-  getThemes: () => api.get('/screening/themes', { timeout: NORMAL_API_TIMEOUT }),
+  getThemes: () => api.get('/scanner/themes', { timeout: NORMAL_API_TIMEOUT }),
 
   // 추천 프리셋 (일반 조회)
   getRecommendations: (limit = 5) =>
-    api.get('/screening/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
+    api.get('/scanner/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
 
   // 데이터 수집 트리거 (긴 작업)
-  collectData: () => api.post('/screening/collect-data', null, { timeout: FAST_API_TIMEOUT }),
+  collectData: () => api.post('/scanner/collect-data', null, { timeout: FAST_API_TIMEOUT }),
 
   // 데이터 수집 진행률 조회 (빠른 조회)
-  getCollectProgress: () => api.get('/screening/collect-progress', { timeout: FAST_API_TIMEOUT }),
+  getCollectProgress: () => api.get('/scanner/collect-progress', { timeout: FAST_API_TIMEOUT }),
 
   // 데이터 수집 중지
-  cancelCollect: () => api.post('/screening/cancel-collect', null, { timeout: FAST_API_TIMEOUT }),
+  cancelCollect: () => api.post('/scanner/cancel-collect', null, { timeout: FAST_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

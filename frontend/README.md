@@ -41,7 +41,7 @@ frontend/
 │   │   ├── Simulation.jsx   # 시뮬레이션 (일시투자, 적립식, 포트폴리오)
 │   │   ├── Alerts.jsx       # 알림 (목표가 규칙 관리)
 │   │   └── Settings.jsx     # 설정 (종목 관리, 일반 설정, 데이터 관리)
-│   ├── services/            # api.js (etfApi, newsApi, dataApi, settingsApi, screeningApi, simulationApi, alertApi)
+│   ├── services/            # api.js (etfApi, newsApi, dataApi, settingsApi, scannerApi, simulationApi, alertApi)
 │   ├── contexts/            # SettingsContext, ToastContext, AlertContext
 │   ├── hooks/               # useContainerWidth, useWindowSize 등
 │   ├── utils/               # format, dateRange, portfolio, technicalIndicators 등
@@ -104,7 +104,7 @@ frontend/
 
 ### Alerts / Screening / Simulation
 - `GET /api/alerts/{ticker}`, `POST /api/alerts/`, `PUT/DELETE /api/alerts/{rule_id}` - 알림 규칙
-- `GET /api/screening`, `GET /api/screening/themes`, `POST /api/screening/collect` - 종목 발굴
+- `GET /api/scanner`, `GET /api/scanner/themes`, `POST /api/scanner/collect-data` - 종목 발굴
 - `POST /api/simulation/lump-sum`, `POST /api/simulation/dca`, `POST /api/simulation/portfolio` - 시뮬레이션
 
 상세: [docs/API_SPECIFICATION.md](../docs/API_SPECIFICATION.md)

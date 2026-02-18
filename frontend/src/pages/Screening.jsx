@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { screeningApi } from '../services/api'
+import { scannerApi } from '../services/api'
 import PageHeader from '../components/common/PageHeader'
 import ScreeningFilters from '../components/screening/ScreeningFilters'
 import ScreeningTable from '../components/screening/ScreeningTable'
@@ -54,14 +54,14 @@ export default function Screening() {
 
   // 조건 검색 쿼리
   const { data, isLoading, error } = useQuery({
-    queryKey: ['screening', { ...filters, page_size: effectivePageSize }],
+    queryKey: ['scanner', { ...filters, page_size: effectivePageSize }],
     queryFn: async () => {
       const params = {}
       for (const [key, val] of Object.entries(filters)) {
         if (val !== undefined) params[key] = val
       }
       params.page_size = effectivePageSize
-      const res = await screeningApi.search(params)
+      const res = await scannerApi.search(params)
       return res.data
     },
     enabled: activeTab === 'search',
@@ -81,7 +81,7 @@ export default function Screening() {
 
     const poll = async () => {
       try {
-        const res = await screeningApi.getCollectProgress()
+        const res = await scannerApi.getCollectProgress()
         const p = res.data
 
         if (p.status === 'completed') {
@@ -93,9 +93,9 @@ export default function Screening() {
           setIsCollecting(false)
           setProgress(null)
           toast.success(p.message || '데이터 수집 완료!', 3000)
-          queryClient.invalidateQueries({ queryKey: ['screening'] })
-          queryClient.invalidateQueries({ queryKey: ['screening-themes'] })
-          queryClient.invalidateQueries({ queryKey: ['screening-recommendations'] })
+          queryClient.invalidateQueries({ queryKey: ['scanner'] })
+          queryClient.invalidateQueries({ queryKey: ['scanner-themes'] })
+          queryClient.invalidateQueries({ queryKey: ['scanner-recommendations'] })
         } else if (p.status === 'cancelled') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
@@ -104,8 +104,8 @@ export default function Screening() {
           setIsCollecting(false)
           setProgress(null)
           toast.info(p.message || '수집이 중지되었습니다.', 3000)
-          queryClient.invalidateQueries({ queryKey: ['screening'] })
-          queryClient.invalidateQueries({ queryKey: ['screening-themes'] })
+          queryClient.invalidateQueries({ queryKey: ['scanner'] })
+          queryClient.invalidateQueries({ queryKey: ['scanner-themes'] })
         } else if (p.status === 'error') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
@@ -146,7 +146,7 @@ export default function Screening() {
   useEffect(() => {
     const checkRunning = async () => {
       try {
-        const res = await screeningApi.getCollectProgress()
+        const res = await scannerApi.getCollectProgress()
         if (res.data?.status === 'in_progress') {
           setIsCollecting(true)
           setProgress(res.data)
@@ -189,7 +189,7 @@ export default function Screening() {
     setIsCollecting(true)
     setProgress({ status: 'in_progress', message: '수집 시작 중...' })
     try {
-      await screeningApi.collectData()
+      await scannerApi.collectData()
     } catch (err) {
       toast.error(`수집 실패: ${err.message}`, 3000)
       setIsCollecting(false)
@@ -199,7 +199,7 @@ export default function Screening() {
 
   const handleCancelCollect = async () => {
     try {
-      await screeningApi.cancelCollect()
+      await scannerApi.cancelCollect()
       setProgress((prev) => prev ? { ...prev, message: '중지 요청 중...' } : prev)
     } catch {
       // 무시

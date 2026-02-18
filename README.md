@@ -104,7 +104,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 | 데이터 | `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats`, `DELETE /api/data/reset` |
 | 설정 | `GET/POST /api/settings/stocks`, `PUT/DELETE /api/settings/stocks/{ticker}`, `GET /api/settings/stocks/search`, `POST /api/settings/stocks/reorder`, `POST /api/settings/ticker-catalog/collect` |
 | 알림 | `GET /api/alerts/{ticker}`, `POST /api/alerts/`, `PUT /api/alerts/{rule_id}`, `DELETE /api/alerts/{rule_id}` |
-| 종목 발굴 | `GET /api/screening`, `GET /api/screening/themes`, `POST /api/screening/collect`, `GET /api/screening/collect/progress`, `POST /api/screening/collect/cancel` |
+| 종목 발굴 | `GET /api/scanner`, `GET /api/scanner/themes`, `POST /api/scanner/collect-data`, `GET /api/scanner/collect-progress`, `POST /api/scanner/cancel-collect` |
 | 시뮬레이션 | `POST /api/simulation/lump-sum`, `POST /api/simulation/dca`, `POST /api/simulation/portfolio` |
 
 상세 스펙은 [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) 및 [docs/FEATURES.md](./docs/FEATURES.md)를 참고하세요.

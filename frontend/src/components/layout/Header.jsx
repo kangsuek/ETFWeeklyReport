@@ -60,7 +60,7 @@ export default function Header() {
             <Link to="/" className={navLinkClass('/')}>
               대시보드
             </Link>
-            <Link to="/screening" className={navLinkClass('/screening')}>
+            <Link to="/scanner" className={navLinkClass('/scanner')}>
               종목 발굴
             </Link>
             <Link to="/compare" className={navLinkClass('/compare')}>
@@ -194,7 +194,7 @@ export default function Header() {
             <Link to="/" className={mobileNavLinkClass('/')} onClick={() => setMobileMenuOpen(false)}>
               대시보드
             </Link>
-            <Link to="/screening" className={mobileNavLinkClass('/screening')} onClick={() => setMobileMenuOpen(false)}>
+            <Link to="/scanner" className={mobileNavLinkClass('/scanner')} onClick={() => setMobileMenuOpen(false)}>
               종목 발굴
             </Link>
             <Link to="/compare" className={mobileNavLinkClass('/compare')} onClick={() => setMobileMenuOpen(false)}>

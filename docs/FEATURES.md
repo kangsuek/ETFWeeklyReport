@@ -183,34 +183,34 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
   - 쿼리: `limit` (1~100, 기본 20)
   - 최신순 정렬
 
-### 6. 종목 발굴 · 스크리닝 (`/api/screening`)
+### 6. 종목 발굴 · 스캐너 (`/api/scanner`)
 
 #### 6.1 조건 검색
-- **GET `/api/screening`** - 조건 기반 종목 검색
+- **GET `/api/scanner`** - 조건 기반 종목 검색
   - 쿼리: `q`(검색어), `type`(ETF/STOCK/ALL), `sector`, `min_weekly_return`, `max_weekly_return`, `foreign_net_positive`, `institutional_net_positive`, `sort_by`, `sort_dir`, `page`, `page_size`
   - `stock_catalog` 테이블 기반, 캐시: 60초
   - 응답: `items`, `total`, `page`, `page_size`
 
 #### 6.2 테마·추천
-- **GET `/api/screening/themes`** - 섹터/테마별 그룹
+- **GET `/api/scanner/themes`** - 섹터/테마별 그룹
   - 섹터별 종목 수, 평균 주간수익률, top 3 종목
   - 캐시: 60초
 
-- **GET `/api/screening/recommendations`** - 추천 프리셋
+- **GET `/api/scanner/recommendations`** - 추천 프리셋
   - 쿼리: `limit` (1~10, 기본 5)
   - 주간 상위, 외국인 매수, 기관 매수, 거래량 상위, 주간 하락 상위
   - 캐시: 60초
 
 #### 6.3 데이터 수집
-- **POST `/api/screening/collect-data`** - 카탈로그 데이터 수집 시작
+- **POST `/api/scanner/collect-data`** - 카탈로그 데이터 수집 시작
   - 백그라운드 실행, 중복 실행 방지
   - `stock_catalog`에 가격·수급·주간수익률 업데이트
 
-- **GET `/api/screening/collect-progress`** - 수집 진행률
+- **GET `/api/scanner/collect-progress`** - 수집 진행률
   - status: idle / in_progress / completed / cancelled / error
   - percent, message 포함
 
-- **POST `/api/screening/cancel-collect`** - 수집 중지 요청
+- **POST `/api/scanner/cancel-collect`** - 수집 중지 요청
 
 ### 7. 시뮬레이션 (`/api/simulation`)
 
@@ -307,7 +307,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - **ContributionTable**: 종목별 기여도 테이블
 - **PortfolioAnalysisReport**: 분석 리포트 토글
 
-### 5. 종목 발굴 (`/screening`)
+### 5. 종목 발굴 (`/scanner`)
 
 #### 조건 검색 탭
 - **ScreeningFilters**: 검색어, 타입(ETF/STOCK/ALL), 섹터, 주간수익률 범위, 외국인/기관 순매수 필터

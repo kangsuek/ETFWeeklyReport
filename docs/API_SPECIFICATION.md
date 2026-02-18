@@ -31,10 +31,14 @@
 | GET | `/api/etfs/{ticker}/metrics` | 지표(수익률, 변동성, MDD, 샤프 비율 등) |
 | GET | `/api/etfs/{ticker}/insights` | 인사이트. Query: `period` (1w, 1m, 3m, 6m, 1y) |
 | GET | `/api/etfs/{ticker}/intraday` | 분봉 데이터. Query: `target_date`, `auto_collect`, `force_refresh` |
-| GET | `/api/etfs/compare` | 종목 비교. Query: `tickers`(쉼표 구분, 2~6개), `start_date`, `end_date` |
+| GET | `/api/etfs/compare` | 종목 비교. Query: `tickers`(쉼표 구분, 2~20개), `start_date`, `end_date` |
+| GET | `/api/etfs/{ticker}/ai-prompt` | 단일 종목 AI 분석 프롬프트 생성. Query: `use_db_data` |
+| POST | `/api/etfs/ai-prompt-multi` | 복수 종목 통합 비교 AI 프롬프트. Body: `stocks`. Query: `use_db_data` |
+| GET | `/api/etfs/{ticker}/fundamentals` | DB 저장 펀더멘털 조회 (STOCK/ETF 구분) |
 | POST | `/api/etfs/{ticker}/collect` | 가격·매매동향 수집. Query: `days`. API Key 권장 |
 | POST | `/api/etfs/{ticker}/collect-trading-flow` | 매매동향 수집. Query: `days`. API Key 권장 |
 | POST | `/api/etfs/{ticker}/collect-intraday` | 분봉 수집. Query: `pages`. API Key 권장 |
+| POST | `/api/etfs/{ticker}/collect-fundamentals` | 펀더멘털 수집 (STOCK: 실적, ETF: NAV/구성종목) |
 | POST | `/api/etfs/batch-summary` | 배치 요약(대시보드용). Body: `tickers`, `price_days`, `news_limit` |
 
 ---
@@ -52,8 +56,10 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/data/collect-all` | 전체 종목 일괄 수집. Query: `days` (1~365). API Key 필요 |
+| GET | `/api/data/collect-progress` | 전체 수집 진행률 (idle/in_progress/completed) |
+| POST | `/api/data/collect-all` | 전체 종목 일괄 수집(가격·매매동향·뉴스·**펀더멘털** 포함). Query: `days` (1~365). API Key 필요 |
 | POST | `/api/data/backfill` | 히스토리 백필. Query: `days`. API Key 필요 |
+| POST | `/api/data/collect-fundamentals` | 전체 종목 펀더멘털 단독 일괄 수집. API Key 필요 |
 | GET | `/api/data/status` | 종목별 수집 상태 |
 | GET | `/api/data/scheduler-status` | 스케줄러 상태(마지막 수집 시각 등) |
 | GET | `/api/data/stats` | DB 통계(테이블별 건수, DB 크기 등) |
@@ -74,7 +80,10 @@
 | GET | `/api/settings/stocks/{ticker}/validate` | 티커 검증(네이버 금융 스크래핑) |
 | GET | `/api/settings/stocks/search` | 종목 검색(자동완성). Query: `q`, `type` (STOCK/ETF/ALL) |
 | POST | `/api/settings/stocks/reorder` | 종목 순서 변경. Body: `tickers` 배열. API Key 필요 |
+| GET | `/api/settings/ticker-catalog/collect-progress` | 티커 카탈로그 수집 진행률 |
 | POST | `/api/settings/ticker-catalog/collect` | 종목 목록(코스피/코스닥/ETF) 수집. API Key 필요 |
+| GET | `/api/settings/api-keys` | API 키 목록 조회(값 마스킹) |
+| PUT | `/api/settings/api-keys` | API 키 저장/수정 (api-keys.json) |
 
 ---
 
@@ -91,16 +100,16 @@
 
 ---
 
-## 7. 종목 발굴 · 스크리닝 (`/api/screening`)
+## 7. 종목 발굴 · 스캐너 (`/api/scanner`)
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | `/api/screening` | 조건 기반 종목 검색. Query: `q`(검색어), `type`(ETF/STOCK/ALL), `sector`, `min_weekly_return`, `max_weekly_return`, `foreign_net_positive`, `institutional_net_positive`, `sort_by`, `sort_dir`, `page`, `page_size` |
-| GET | `/api/screening/themes` | 섹터/테마별 그룹 조회 (섹터별 평균 수익률, top 3 종목) |
-| GET | `/api/screening/recommendations` | 추천 프리셋 (주간 상위, 외국인 매수 등). Query: `limit` (1~10, 기본 5) |
-| POST | `/api/screening/collect-data` | 카탈로그 데이터 수집 시작 (백그라운드) |
-| GET | `/api/screening/collect-progress` | 수집 진행률 조회 (status: idle/in_progress/completed/cancelled/error) |
-| POST | `/api/screening/cancel-collect` | 진행 중인 수집 중지 요청 |
+| GET | `/api/scanner` | 조건 기반 종목 검색. Query: `q`(검색어), `type`(ETF/STOCK/ALL), `sector`, `min_weekly_return`, `max_weekly_return`, `foreign_net_positive`, `institutional_net_positive`, `sort_by`, `sort_dir`, `page`, `page_size` |
+| GET | `/api/scanner/themes` | 섹터/테마별 그룹 조회 (섹터별 평균 수익률, top 3 종목) |
+| GET | `/api/scanner/recommendations` | 추천 프리셋 (주간 상위, 외국인 매수 등). Query: `limit` (1~10, 기본 5) |
+| POST | `/api/scanner/collect-data` | 카탈로그 데이터 수집 시작 (백그라운드) |
+| GET | `/api/scanner/collect-progress` | 수집 진행률 조회 (status: idle/in_progress/completed/cancelled/error) |
+| POST | `/api/scanner/cancel-collect` | 진행 중인 수집 중지 요청 |
 
 ---
 
@@ -130,6 +139,7 @@
 ---
 
 ## 참고
+- **API 매뉴얼(상세)**: [API_MANUAL.md](./API_MANUAL.md) — 엔드포인트별 요청/응답·Query·Body·상태 코드 정리
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - 상세 요청/응답 스키마는 Swagger에서 확인.

@@ -1,5 +1,5 @@
 """
-스크리닝 API 라우터
+Scanner API 라우터
 
 ETF 조건 검색, 테마 탐색, 추천 프리셋 제공
 """
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SCREENING_CACHE_TTL = 60  # 60초
+SCANNER_CACHE_TTL = 60  # 60초
 
 
 def _row_to_screening_item(row, registered_tickers: set) -> ScreeningItem:
@@ -48,7 +48,7 @@ def _get_registered_tickers(existing_cursor=None) -> set:
 
 
 @router.get("", response_model=ScreeningResponse)
-async def search_screening(
+async def search_scanner(
     q: Optional[str] = Query(None, description="종목명/코드 검색"),
     type: str = Query("ETF", description="ETF / STOCK / ALL"),
     sector: Optional[str] = Query(None, description="섹터 필터"),
@@ -64,7 +64,7 @@ async def search_screening(
     """조건 기반 종목 검색"""
     cache = get_cache()
     cache_key = make_cache_key(
-        "screening", q=q, type=type, sector=sector,
+        "scanner", q=q, type=type, sector=sector,
         min_wr=min_weekly_return, max_wr=max_weekly_return,
         fnp=foreign_net_positive, inp=institutional_net_positive,
         sort_by=sort_by, sort_dir=sort_dir, page=page, page_size=page_size
@@ -162,7 +162,7 @@ async def search_screening(
         page=page,
         page_size=page_size
     )
-    cache.set(cache_key, result, ttl_seconds=SCREENING_CACHE_TTL)
+    cache.set(cache_key, result, ttl_seconds=SCANNER_CACHE_TTL)
     return result
 
 
@@ -170,7 +170,7 @@ async def search_screening(
 async def get_themes():
     """섹터/테마별 그룹 조회"""
     cache = get_cache()
-    cache_key = "screening:themes"
+    cache_key = "scanner:themes"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -241,7 +241,7 @@ async def get_themes():
                 top_performers=top_by_sector.get(sector_name, [])
             ))
 
-    cache.set(cache_key, themes, ttl_seconds=SCREENING_CACHE_TTL)
+    cache.set(cache_key, themes, ttl_seconds=SCANNER_CACHE_TTL)
     return themes
 
 
@@ -251,7 +251,7 @@ async def get_recommendations(
 ):
     """추천 프리셋 (주간 상위, 외국인 매수 등)"""
     cache = get_cache()
-    cache_key = f"screening:recommendations:{limit}"
+    cache_key = f"scanner:recommendations:{limit}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -337,7 +337,7 @@ async def get_recommendations(
                 items=items
             ))
 
-    cache.set(cache_key, results, ttl_seconds=SCREENING_CACHE_TTL)
+    cache.set(cache_key, results, ttl_seconds=SCANNER_CACHE_TTL)
     return results
 
 

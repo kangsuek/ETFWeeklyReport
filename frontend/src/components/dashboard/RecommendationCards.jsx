@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { screeningApi } from '../../services/api'
+import { scannerApi } from '../../services/api'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
 import { formatNumber, formatPercent, getChangeColor } from '../../utils/formatters'
 
@@ -25,9 +25,9 @@ const PRESET_ICONS = {
 export default function RecommendationCards() {
   const navigate = useNavigate()
   const { data: presets, isLoading } = useQuery({
-    queryKey: ['screening-recommendations'],
+    queryKey: ['scanner-recommendations'],
     queryFn: async () => {
-      const res = await screeningApi.getRecommendations(3)
+      const res = await scannerApi.getRecommendations(3)
       return res.data
     },
     staleTime: CACHE_STALE_TIME_STATIC,
@@ -50,7 +50,7 @@ export default function RecommendationCards() {
           ETF 추천
         </h2>
         <Link
-          to="/screening"
+          to="/scanner"
           className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
         >
           더보기 &rarr;

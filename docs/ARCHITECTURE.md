@@ -52,7 +52,7 @@ backend/app/
 │   ├── data.py          # /api/data — 일괄 수집, 백필, 상태, 스케줄러 상태, 캐시, DB 초기화
 │   ├── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
 │   ├── alerts.py        # /api/alerts — 알림 규칙 CRUD, 트리거 기록, 이력 조회
-│   ├── screening.py     # /api/screening — 조건 검색, 테마 탐색, 추천, 데이터 수집
+│   ├── scanner.py      # /api/scanner — 조건 검색, 테마 탐색, 추천, 데이터 수집
 │   └── simulation.py    # /api/simulation — 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
 ├── services/
 │   ├── data_collector.py         # 가격·매매동향 수집 (Naver Finance)
@@ -89,7 +89,7 @@ backend/app/
 ```
 frontend/src/
 ├── main.jsx             # React 진입점
-├── App.jsx               # 라우팅 (/, /etf/:ticker, /compare, /portfolio, /screening, /simulation, /alerts, /settings)
+├── App.jsx               # 라우팅 (/, /etf/:ticker, /compare, /portfolio, /scanner, /simulation, /alerts, /settings)
 ├── constants.js          # 캐시 TTL, API 타임아웃 등
 ├── pages/
 │   ├── Dashboard.jsx    # 대시보드 (히트맵 + 카드 그리드)
@@ -114,7 +114,7 @@ frontend/src/
 │   └── common/          # PageHeader, Spinner, LoadingIndicator, ErrorBoundary, Toast, ETFCardSkeleton
 ├── contexts/             # SettingsContext, ToastContext, AlertContext
 ├── hooks/                # useContainerWidth, useWindowSize
-├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, screeningApi, simulationApi)
+├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, scannerApi, simulationApi)
 ├── utils/                # format, chartUtils, dateRange, portfolio, portfolioAnalysis, returns, technicalIndicators, validation, insights, newsAnalyzer
 ├── styles/               # index.css (Tailwind)
 └── test/                 # Vitest setup, mocks (MSW), polyfills, utils

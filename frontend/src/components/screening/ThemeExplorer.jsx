@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { screeningApi } from '../../services/api'
+import { scannerApi } from '../../services/api'
 import LoadingIndicator from '../common/LoadingIndicator'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
 import { formatPercent, getChangeColor } from '../../utils/formatters'
 
 export default function ThemeExplorer({ onSectorClick, onCollectData, isCollecting }) {
   const { data: themes, isLoading, error } = useQuery({
-    queryKey: ['screening-themes'],
+    queryKey: ['scanner-themes'],
     queryFn: async () => {
-      const res = await screeningApi.getThemes()
+      const res = await scannerApi.getThemes()
       return res.data
     },
     staleTime: CACHE_STALE_TIME_STATIC,
