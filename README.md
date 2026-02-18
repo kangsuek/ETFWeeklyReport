@@ -145,7 +145,8 @@ Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React
 | [docs/TECH_STACK.md](./docs/TECH_STACK.md) | 기술 스택 |
 | [docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md) | SDK/MCP 서버 설정 가이드 |
 | [docs/BRANCHES.md](./docs/BRANCHES.md) | Git 브랜치 전략 |
-| [frontend/DEPLOYMENT.md](./frontend/DEPLOYMENT.md) | Render.com 배포 |
+| [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md) | Render.com 배포 전체 가이드 |
+| [frontend/DEPLOYMENT.md](./frontend/DEPLOYMENT.md) | Render.com 배포 간략 가이드 |
 | [docs/detail_features/](./docs/detail_features/) | 화면별 상세 기능 명세 |
 
 ---

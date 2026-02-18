@@ -1,7 +1,7 @@
 # Render.com 배포 가이드
 
 ETF Weekly Report를 **Render.com**에서 프론트엔드(Static Site)와 백엔드(Web Service)로 배포하는 방법입니다.  
-상세 단계·트러블슈팅은 **[docs/RENDER_DEPLOYMENT.md](../docs/RENDER_DEPLOYMENT.md)**를 참고하세요.
+상세 단계·트러블슈팅은 **[docs/RENDER_DEPLOYMENT.md](../docs/RENDER_DEPLOYMENT.md)**를 참고하세요. (전체 배포 가이드)
 
 ---
 
