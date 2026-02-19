@@ -6,6 +6,7 @@
 import contextlib
 import logging
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
@@ -666,7 +667,9 @@ class TickerCatalogCollector:
                             is_active_bool = bool(stock["is_active"]) if stock["is_active"] is not None else True
                             
                             # SAVEPOINT를 사용하여 개별 종목 저장 실패 시에도 전체 트랜잭션 유지
-                            savepoint_name = f"savepoint_{stock['ticker']}"
+                            # ticker를 식별자 안전 문자로 정규화 (특수문자/공백 → '_')
+                            safe_ticker = re.sub(r'[^a-zA-Z0-9_]', '_', stock['ticker'])
+                            savepoint_name = f"savepoint_{safe_ticker}"
                             cursor.execute(f"SAVEPOINT {savepoint_name}")
                             
                             try:

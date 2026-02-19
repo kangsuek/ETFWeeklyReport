@@ -692,7 +692,7 @@ async def update_api_keys(
         for key, value in current_keys.items():
             if value and not value.startswith("your_"):
                 os.environ[key] = value
-                logger.info(f"Updated env: {key}={value[:4]}****")
+                logger.info(f"Updated env key: {key}")
 
         # Config 클래스 속성 업데이트
         if "NAVER_CLIENT_ID" in current_keys:

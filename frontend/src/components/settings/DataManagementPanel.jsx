@@ -205,19 +205,11 @@ export default function DataManagementPanel() {
   // 종목 목록 수집 Mutation
   const collectTickerCatalogMutation = useMutation({
     mutationFn: async () => {
-      console.log('[종목목록수집] API 호출 시작...')
-      try {
-        const response = await settingsApi.collectTickerCatalog()
-        console.log('[종목목록수집] API 호출 성공:', response)
-        return response.data
-      } catch (error) {
-        console.error('[종목목록수집] API 호출 실패:', error)
-        throw error
-      }
+      const response = await settingsApi.collectTickerCatalog()
+      return response.data
     },
     onSuccess: (data) => {
       setTickerCatalogProgress({ status: 'completed', step_index: 4, total_steps: 4, items_collected: data.total_collected, message: '수집 완료' })
-      console.log('[종목목록수집] 수집 성공:', data)
       // 성공 메시지 표시 (실제 저장된 건수 사용)
       const savedCount = data.saved_count || data.total_collected
       const totalCollected = data.total_collected
@@ -236,7 +228,6 @@ export default function DataManagementPanel() {
     },
     onError: (error) => {
       setTickerCatalogProgress(null)
-      console.error('[종목목록수집] 수집 실패:', error)
       toast.error(`종목 목록 수집 실패: ${error.message}`)
     },
   })
@@ -244,21 +235,8 @@ export default function DataManagementPanel() {
   // 데이터베이스 초기화 Mutation
   const resetMutation = useMutation({
     mutationFn: async () => {
-      console.log('[데이터베이스초기화] API 호출 시작...')
-      try {
-        const response = await dataApi.reset()
-        console.log('[데이터베이스초기화] API 호출 성공:', response)
-        return response.data
-      } catch (error) {
-        console.error('[데이터베이스초기화] API 호출 실패:', error)
-        console.error('[데이터베이스초기화] 에러 상세:', {
-          message: error.message,
-          response: error.response,
-          status: error.response?.status,
-          data: error.response?.data
-        })
-        throw error
-      }
+      const response = await dataApi.reset()
+      return response.data
     },
     onSuccess: (data) => {
       setIsResetModalOpen(false)
@@ -302,16 +280,12 @@ export default function DataManagementPanel() {
 
     // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
-      console.log('[전체데이터수집] 백엔드 연결 확인 중...')
       await getHealthCheck()
-      console.log('[전체데이터수집] 백엔드 연결 확인됨')
     } catch (error) {
-      console.error('[전체데이터수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
       return
     }
 
-    console.log('[전체데이터수집] 확인됨, 수집 시작...')
     // 진행률 polling 시작
     setCollectAllProgress({ status: 'in_progress', current: 0, total: 0, message: '수집 시작 중...' })
     collectMutation.mutate(collectionDays)
@@ -319,13 +293,7 @@ export default function DataManagementPanel() {
 
   // 종목 목록 수집 핸들러
   const handleCollectTickerCatalog = () => {
-    console.log('[종목목록수집] 버튼 클릭됨')
-
-    if (collectTickerCatalogMutation.isPending) {
-      console.log('[종목목록수집] 이미 진행 중입니다.')
-      return
-    }
-
+    if (collectTickerCatalogMutation.isPending) return
     setIsCollectTickerCatalogModalOpen(true)
   }
 
@@ -335,16 +303,12 @@ export default function DataManagementPanel() {
 
     // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
-      console.log('[종목목록수집] 백엔드 연결 확인 중...')
       await getHealthCheck()
-      console.log('[종목목록수집] 백엔드 연결 확인됨')
     } catch (error) {
-      console.error('[종목목록수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
       return
     }
 
-    console.log('[종목목록수집] 확인됨, 수집 시작...')
     // 진행률 polling 시작
     setTickerCatalogProgress({ status: 'in_progress', step_index: 0, total_steps: 4, items_collected: 0, message: '수집 시작 중...' })
     collectTickerCatalogMutation.mutate()
