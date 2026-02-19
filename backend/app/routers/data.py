@@ -136,6 +136,7 @@ async def collect_all_data(
         fundamentals_success = 0
         fundamentals_failed = 0
         try:
+            from app.database import get_db_connection, USE_POSTGRES
             with get_db_connection() as conn_or_cursor:
                 if USE_POSTGRES:
                     _cursor = conn_or_cursor
