@@ -122,6 +122,21 @@ class NewsScraper:
         dt = datetime.strptime(pubdate_str, "%a, %d %b %Y %H:%M:%S %z")
         return dt.date()
 
+    def _parse_pubdatetime(self, pubdate_str: str) -> Optional[datetime]:
+        """
+        pubDate를 datetime 객체로 변환 (발행 시각 표시용)
+
+        Args:
+            pubdate_str: "Mon, 08 Nov 2025 14:50:00 +0900" 형식
+
+        Returns:
+            timezone-aware datetime, 파싱 실패 시 None
+        """
+        try:
+            return datetime.strptime(pubdate_str, "%a, %d %b %Y %H:%M:%S %z")
+        except (ValueError, TypeError):
+            return None
+
     def _filter_by_date_range(self, news_items: List[Dict], days: int = 7) -> List[Dict]:
         """
         날짜 범위로 뉴스 필터링 (최근 N일 이내)
@@ -256,8 +271,10 @@ class NewsScraper:
             # 데이터 변환 (News 모델 형식에 맞게)
             news_data = []
             for item in filtered_news:
+                pub_dt = self._parse_pubdatetime(item['pubDate'])
                 news_data.append({
                     'date': self._parse_pubdate(item['pubDate']),
+                    'published_at': pub_dt,
                     'title': self._clean_html_tags(item['title']),
                     'url': item['link'],
                     'source': self._extract_source_from_url(item['link']),
@@ -340,6 +357,7 @@ class NewsScraper:
                     (
                         ticker,
                         news['date'],
+                        news.get('published_at'),
                         news['title'],
                         news['url'],
                         news['source'],
@@ -350,14 +368,14 @@ class NewsScraper:
 
                 if USE_POSTGRES:
                     cursor.executemany("""
-                        INSERT INTO news (ticker, date, title, url, source, relevance_score)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO news (ticker, date, published_at, title, url, source, relevance_score)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (ticker, url) DO NOTHING
                     """, insert_data)
                 else:
                     cursor.executemany("""
-                        INSERT OR IGNORE INTO news (ticker, date, title, url, source, relevance_score)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT OR IGNORE INTO news (ticker, date, published_at, title, url, source, relevance_score)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, insert_data)
 
                 conn.commit()
@@ -435,7 +453,7 @@ class NewsScraper:
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
             cursor.execute(f"""
-                SELECT date, title, url, source, relevance_score
+                SELECT date, published_at, title, url, source, relevance_score
                 FROM news
                 WHERE ticker = {param_placeholder} AND date BETWEEN {param_placeholder} AND {param_placeholder}
                 ORDER BY date DESC, relevance_score DESC
@@ -445,8 +463,10 @@ class NewsScraper:
 
             news_list = []
             for row in rows:
+                published_at = row['published_at'] if 'published_at' in row.keys() else None
                 news_list.append(News(
                     date=row['date'],
+                    published_at=published_at,
                     title=row['title'],
                     url=row['url'],
                     source=row['source'],

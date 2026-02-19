@@ -239,14 +239,14 @@ const NewsTimeline = ({ ticker, newsData, isLoading, error }) => {
                         {news.title}
                       </a>
 
-                      {/* 메타 정보 */}
+                      {/* 메타 정보: 출처, 발행 시각(또는 수집일 기준 시간) */}
                       <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
                         <span>{news.source}</span>
                         <span>•</span>
                         <span>
-                          {news.date ? (() => {
+                          {(news.published_at || news.date) ? (() => {
                             try {
-                              const d = new Date(news.date)
+                              const d = new Date(news.published_at || news.date)
                               return isNaN(d.getTime()) ? '-' : format(d, 'HH:mm')
                             } catch {
                               return '-'

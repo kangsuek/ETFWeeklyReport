@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict
-from datetime import date
+from datetime import date, datetime
 
 class ETF(BaseModel):
     ticker: str
@@ -30,6 +30,7 @@ class TradingFlow(BaseModel):
 
 class News(BaseModel):
     date: date
+    published_at: Optional[datetime] = None  # 뉴스 발행 시각 (표시용)
     title: str
     url: str
     source: str

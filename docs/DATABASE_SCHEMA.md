@@ -162,6 +162,7 @@ CREATE TABLE news (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticker TEXT NOT NULL,
     date DATE NOT NULL,
+    published_at TIMESTAMP,
     title TEXT,
     url TEXT,
     source TEXT,
@@ -169,6 +170,8 @@ CREATE TABLE news (
     FOREIGN KEY (ticker) REFERENCES etfs(ticker)
 );
 ```
+- `date`: 뉴스 발행일 (날짜별 그룹/필터용)
+- `published_at`: 뉴스 발행 시각 (표시용, 선택)
 
 ### 5. `stock_catalog` (종목 목록 카탈로그)
 검색·스크리닝용. 코스피/코스닥/ETF 전체 수집 결과 + 가격·수급 데이터 저장.

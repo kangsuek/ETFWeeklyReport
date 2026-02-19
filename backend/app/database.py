@@ -314,6 +314,7 @@ def init_db():
             id {id_type},
             ticker {text_type} NOT NULL,
             date DATE NOT NULL,
+            published_at TIMESTAMP,
             title {text_type},
             url {text_type},
             source {text_type},
@@ -321,6 +322,31 @@ def init_db():
             FOREIGN KEY (ticker) REFERENCES etfs(ticker)
         )
     """)
+
+    # news 테이블에 published_at 컬럼 추가 (기존 DB 마이그레이션)
+    news_columns_to_add = [("published_at", "TIMESTAMP")]
+    if USE_POSTGRES:
+        for col_name, col_type in news_columns_to_add:
+            try:
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='news' AND column_name=%s
+                """, (col_name,))
+                if not cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                    logger.info(f"Added {col_name} column to news table")
+            except Exception as e:
+                logger.warning(f"Could not check/add {col_name} column: {e}")
+                conn.rollback()
+    else:
+        for col_name, col_type in news_columns_to_add:
+            try:
+                cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                logger.info(f"Added {col_name} column to news table")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                    logger.warning(f"Could not add {col_name} column to news: {e}")
     
     # Create stock_catalog table for ticker catalog
     if USE_POSTGRES:

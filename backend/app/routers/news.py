@@ -103,6 +103,7 @@ async def get_news(
             news_dicts = [
                 {
                     'date': n.date,
+                    'published_at': getattr(n, 'published_at', None),
                     'title': n.title,
                     'url': n.url,
                     'source': n.source,
@@ -117,6 +118,7 @@ async def get_news(
             for analyzed_item in analysis_result['analyzed_news']:
                 analyzed_news.append(NewsWithAnalysis(
                     date=analyzed_item['date'],
+                    published_at=analyzed_item.get('published_at'),
                     title=analyzed_item['title'],
                     url=analyzed_item['url'],
                     source=analyzed_item['source'],
@@ -138,6 +140,7 @@ async def get_news(
             basic_news = [
                 NewsWithAnalysis(
                     date=n.date,
+                    published_at=getattr(n, 'published_at', None),
                     title=n.title,
                     url=n.url,
                     source=n.source,
