@@ -81,7 +81,7 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!etfs || etfs.length === 0) return null
       const tickers = etfs.map(e => e.ticker)
-      const response = await etfApi.getBatchSummary(tickers, 5, 5)
+      const response = await etfApi.getBatchSummary(tickers, 7, 5)  // 7 캘린더일 = 주말 포함 5 거래일 보장
       return response.data.data  // response.data.data = {ticker: summary}
     },
     enabled: !!etfs && etfs.length > 0,  // etfs가 로드된 후에만 실행
