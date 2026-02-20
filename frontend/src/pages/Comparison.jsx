@@ -4,10 +4,13 @@ import { subMonths, format } from 'date-fns'
 import PageHeader from '../components/common/PageHeader'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
 import TickerSelector from '../components/comparison/TickerSelector'
+import InvestmentSimulation from '../components/comparison/InvestmentSimulation'
+import RiskReturnScatter from '../components/comparison/RiskReturnScatter'
+import CorrelationHeatmap from '../components/comparison/CorrelationHeatmap'
 import NormalizedPriceChart from '../components/comparison/NormalizedPriceChart'
 import ComparisonTable from '../components/comparison/ComparisonTable'
 import { apiService } from '../services/api'
-import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_SLOW } from '../constants'
+import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_SLOW, COMPARE_MAX_TICKERS } from '../constants'
 
 export default function Comparison() {
   const [selectedTickers, setSelectedTickers] = useState([])
@@ -90,14 +93,14 @@ export default function Comparison() {
     })
   }
 
-  const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= 6
+  const canCompare = selectedTickers.length >= 2 && selectedTickers.length <= COMPARE_MAX_TICKERS
   const showResults = canCompare && comparisonData
 
   return (
     <div className="animate-fadeIn">
       <PageHeader
         title="ETF Comparison"
-        subtitle="종목간 비교 분석 - 정규화 가격 및 성과 비교"
+        subtitle="종목간 비교 분석 - 투자 시뮬레이션, 위험·수익, 상관관계, 가격 추이"
       />
 
       {/* 종목 선택 */}
@@ -113,6 +116,7 @@ export default function Comparison() {
           tickers={tickers}
           selectedTickers={selectedTickers}
           onSelectionChange={handleSelectionChange}
+          maxSelection={COMPARE_MAX_TICKERS}
         />
       )}
 
@@ -180,19 +184,36 @@ export default function Comparison() {
 
           {showResults && comparisonData && (
             <>
-              {/* 정규화 가격 차트 */}
+              {/* 1. 투자 시뮬레이션 + 한줄 요약 */}
+              <InvestmentSimulation
+                statistics={comparisonData.statistics}
+                tickerInfo={tickerInfoMap}
+              />
+
+              {/* 2. 위험-수익 산점도 */}
+              <RiskReturnScatter
+                statistics={comparisonData.statistics}
+                tickerInfo={tickerInfoMap}
+              />
+
+              {/* 3. 상관관계 히트맵 */}
+              <CorrelationHeatmap
+                correlationMatrix={comparisonData.correlation_matrix}
+                tickerInfo={tickerInfoMap}
+              />
+
+              {/* 4. 정규화 가격 차트 (기존) */}
               <NormalizedPriceChart
                 data={comparisonData.normalized_prices}
                 tickerInfo={tickerInfoMap}
                 statistics={comparisonData.statistics}
               />
 
-              {/* 성과 비교 테이블 */}
+              {/* 5. 성과 비교 테이블 (기존) */}
               <ComparisonTable
                 statistics={comparisonData.statistics}
                 tickerInfo={tickerInfoMap}
               />
-
             </>
           )}
         </div>
@@ -207,12 +228,12 @@ export default function Comparison() {
             </svg>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                {selectedTickers.length < 2 ? '종목을 더 선택해주세요' : '최대 6개까지 선택 가능합니다'}
+                {selectedTickers.length < 2 ? '종목을 더 선택해주세요' : `최대 ${COMPARE_MAX_TICKERS}개까지 선택 가능합니다`}
               </h3>
               <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
                 {selectedTickers.length < 2
                   ? `현재 ${selectedTickers.length}개 선택됨. 최소 2개 이상의 종목을 선택해야 비교할 수 있습니다.`
-                  : `현재 ${selectedTickers.length}개 선택됨. 최대 6개까지 선택 가능합니다.`
+                  : `현재 ${selectedTickers.length}개 선택됨. 최대 ${COMPARE_MAX_TICKERS}개까지 선택 가능합니다.`
                 }
               </p>
             </div>

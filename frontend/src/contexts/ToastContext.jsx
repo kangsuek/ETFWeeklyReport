@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 
 const ToastContext = createContext(null)
@@ -49,7 +49,7 @@ export const ToastProvider = ({ children }) => {
     return addToast(message, 'info', duration)
   }, [addToast])
 
-  const value = {
+  const value = useMemo(() => ({
     toasts,
     addToast,
     removeToast,
@@ -57,7 +57,7 @@ export const ToastProvider = ({ children }) => {
     error,
     warning,
     info
-  }
+  }), [toasts, addToast, removeToast, success, error, warning, info])
 
   return (
     <ToastContext.Provider value={value}>

@@ -4,13 +4,15 @@ import PropTypes from 'prop-types'
 /**
  * TickerSelector Component
  *
- * 종목 선택 컴포넌트 (다중 선택, 2-6개 제한)
+ * 종목 선택 컴포넌트 (다중 선택, 2~maxSelection개 제한)
+ * maxSelection은 부모(Comparison)에서 constants.COMPARE_MAX_TICKERS로 전달 권장
  *
  * @param {Array} tickers - 전체 종목 목록
  * @param {Array} selectedTickers - 선택된 종목 코드 배열
  * @param {Function} onSelectionChange - 선택 변경 콜백
+ * @param {number} maxSelection - 최대 선택 개수 (기본 20)
  */
-export default function TickerSelector({ tickers, selectedTickers = [], onSelectionChange }) {
+export default function TickerSelector({ tickers, selectedTickers = [], onSelectionChange, maxSelection = 20 }) {
   const [selected, setSelected] = useState(selectedTickers)
 
   useEffect(() => {
@@ -24,9 +26,9 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
       // 선택 해제
       newSelected = selected.filter(t => t !== ticker)
     } else {
-      // 선택 추가 (최대 6개까지)
-      if (selected.length >= 6) {
-        return // 최대 6개 제한
+      // 선택 추가 (최대 maxSelection개)
+      if (selected.length >= maxSelection) {
+        return
       }
       newSelected = [...selected, ticker]
     }
@@ -43,7 +45,7 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
     onSelectionChange([])
   }
 
-  const canCompare = selected.length >= 2 && selected.length <= 6
+  const canCompare = selected.length >= 2 && selected.length <= maxSelection
   const selectionCount = selected.length
 
   return (
@@ -54,7 +56,7 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
             종목 선택
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            비교할 종목을 선택하세요 (최소 2개, 최대 6개)
+            {`비교할 종목을 선택하세요 (최소 2개, 최대 ${maxSelection}개)`}
           </p>
         </div>
         {selectionCount > 0 && (
@@ -79,7 +81,7 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
         {!canCompare && selectionCount > 0 && (
           <span className="text-sm text-orange-600 dark:text-orange-400">
             {selectionCount < 2 ? '최소 2개 이상 선택하세요' : ''}
-            {selectionCount > 6 ? '최대 6개까지 선택 가능합니다' : ''}
+            {selectionCount > maxSelection ? `최대 ${maxSelection}개까지 선택 가능합니다` : ''}
           </span>
         )}
       </div>
@@ -112,7 +114,7 @@ export default function TickerSelector({ tickers, selectedTickers = [], onSelect
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {tickers.map(ticker => {
           const isSelected = selected.includes(ticker.ticker)
-          const canSelect = !isSelected && selectionCount < 6
+          const canSelect = !isSelected && selectionCount < maxSelection
 
           return (
             <label
@@ -165,4 +167,5 @@ TickerSelector.propTypes = {
   })).isRequired,
   selectedTickers: PropTypes.arrayOf(PropTypes.string),
   onSelectionChange: PropTypes.func.isRequired,
+  maxSelection: PropTypes.number,
 }

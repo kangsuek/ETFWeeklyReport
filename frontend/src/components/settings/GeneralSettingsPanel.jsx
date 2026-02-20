@@ -53,9 +53,9 @@ export default function GeneralSettingsPanel() {
     updateSettings('theme', theme)
   }
 
-  // 기본값으로 초기화 핸들러
+  // 기본값으로 초기화 핸들러 (일반 설정 + 대시보드 카드 순서만 초기화, 종목/API/데이터는 유지)
   const handleReset = () => {
-    if (window.confirm('모든 설정을 기본값으로 초기화하시겠습니까?')) {
+    if (window.confirm('일반 설정(테마, 자동 갱신, 기본 날짜 범위, 표시 옵션, 대시보드 카드 순서)을 기본값으로 초기화합니다. 종목·API 키·데이터는 변경되지 않습니다. 계속하시겠습니까?')) {
       resetSettings()
     }
   }
@@ -92,7 +92,7 @@ export default function GeneralSettingsPanel() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            기본값으로 초기화
+            일반 설정 초기화
           </button>
         </div>
       </div>
@@ -216,7 +216,7 @@ export default function GeneralSettingsPanel() {
                   매매 동향 표시
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  매매 동향 차트를 표시합니다
+                  종목 상세에서 고급 분석을 펼쳤을 때 투자자별 매매동향 차트를 표시합니다
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">

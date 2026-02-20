@@ -27,6 +27,8 @@ frontend/
 │   │   ├── charts/          # PriceChart, TradingFlowChart, IntradayChart, RSIChart, MACDChart, DateRangeSelector
 │   │   ├── comparison/      # TickerSelector, NormalizedPriceChart, ComparisonTable
 │   │   ├── portfolio/       # PortfolioSummaryCards, AllocationPieChart, PortfolioTrendChart, ContributionTable 등
+│   │   ├── screening/       # ScreeningFilters, ScreeningTable, ScreeningHeatmap, ThemeExplorer
+│   │   ├── simulation/      # LumpSumSimulation, DCASimulation, PortfolioSimulation
 │   │   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel
 │   │   ├── news/            # NewsTimeline
 │   │   └── layout/          # Header, Footer
@@ -35,9 +37,12 @@ frontend/
 │   │   ├── ETFDetail.jsx    # 종목 상세 (인사이트, 차트, 분봉, 뉴스)
 │   │   ├── Comparison.jsx   # 종목 비교
 │   │   ├── Portfolio.jsx    # 포트폴리오 (요약, 비중, 추이, 기여도)
+│   │   ├── Screening.jsx    # 종목 발굴 (조건 검색, 테마 탐색)
+│   │   ├── Simulation.jsx   # 시뮬레이션 (일시투자, 적립식, 포트폴리오)
+│   │   ├── Alerts.jsx       # 알림 (목표가 규칙 관리)
 │   │   └── Settings.jsx     # 설정 (종목 관리, 일반 설정, 데이터 관리)
-│   ├── services/            # api.js (etfApi, newsApi, dataApi, settingsApi)
-│   ├── contexts/            # SettingsContext, ToastContext
+│   ├── services/            # api.js (etfApi, newsApi, dataApi, settingsApi, scannerApi, simulationApi, alertApi)
+│   ├── contexts/            # SettingsContext, ToastContext, AlertContext
 │   ├── hooks/               # useContainerWidth, useWindowSize 등
 │   ├── utils/               # format, dateRange, portfolio, technicalIndicators 등
 │   ├── styles/              # index.css (Tailwind)
@@ -65,7 +70,21 @@ frontend/
 - **종목 비교**: 2~6종목, 정규화 가격 차트, 수익률·변동성·MDD·샤프 비교
 - **포트폴리오**: 총 투자금·평가금·수익률, 비중 차트, 일별 추이, 종목별 기여도
 
-### 3. API 통합·레이아웃
+### 3. 종목 발굴 (Screening)
+- **조건 검색**: ETF 필터링 (주간수익률, 수급, 섹터), 테이블/히트맵 뷰 전환, 정렬·페이지네이션
+- **테마 탐색**: 섹터별 추천 종목, 테마 클릭 시 조건 검색 연동
+- 데이터 수집 (진행률 표시, 중지 기능)
+
+### 4. 시뮬레이션 (Simulation)
+- **일시 투자**: 특정일 매수 시 현재까지 수익률, 최대 수익/손실, 평가액 추이 차트
+- **적립식(DCA)**: 월별 적립 투자 시뮬레이션, 누적 투자금 vs 평가액 차트, 월별 상세 테이블
+- **포트폴리오**: 다종목 비중 배분, 포트폴리오 가치 추이, 종목별 성과 비교
+
+### 5. 알림 (Alerts)
+- 종목별 목표가 알림 규칙 설정 (상한/하한)
+- 알림 이력 조회
+
+### 6. API 통합·레이아웃
 - TanStack Query로 캐싱·갱신 (staleTime 등), 배치 API(batch-summary)로 N+1 최소화
 - 에러 바운더리, 로딩/에러 UI
 - Header/Footer, 다크 모드
@@ -82,6 +101,11 @@ frontend/
 - `GET /api/news/{ticker}` - 종목별 뉴스
 - `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats` 등
 - `GET/POST /api/settings/stocks`, `GET /api/settings/stocks/search` 등
+
+### Alerts / Screening / Simulation
+- `GET /api/alerts/{ticker}`, `POST /api/alerts/`, `PUT/DELETE /api/alerts/{rule_id}` - 알림 규칙
+- `GET /api/scanner`, `GET /api/scanner/themes`, `POST /api/scanner/collect-data` - 종목 발굴
+- `POST /api/simulation/lump-sum`, `POST /api/simulation/dca`, `POST /api/simulation/portfolio` - 시뮬레이션
 
 상세: [docs/API_SPECIFICATION.md](../docs/API_SPECIFICATION.md)
 

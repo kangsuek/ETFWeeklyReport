@@ -3,7 +3,10 @@
 
 한국 주식/ETF 전체 목록을 수집하여 stock_catalog 테이블에 저장합니다.
 """
+import contextlib
 import logging
+import os
+import re
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
@@ -34,6 +37,28 @@ except ImportError:
     SELENIUM_AVAILABLE = False
     logger.warning("Selenium not available. ETF collection will use fallback method.")
 
+# 서버(예: Render)처럼 Chrome이 없는 환경에서는 Selenium 비활성화 가능
+if SELENIUM_AVAILABLE and os.environ.get("DISABLE_SELENIUM", "").lower() in ("1", "true", "yes"):
+    SELENIUM_AVAILABLE = False
+    logger.info("Selenium disabled by DISABLE_SELENIUM env; using requests fallback for ETF collection.")
+
+
+@contextlib.contextmanager
+def _suppress_stderr():
+    """ChromeDriverManager가 google-chrome 등을 찾을 때 나오는 'not found' 메시지 억제."""
+    import sys
+    stderr_fd = sys.stderr.fileno()
+    with open(os.devnull, "w") as devnull:
+        save_fd = os.dup(stderr_fd)
+        try:
+            sys.stderr.flush()
+            os.dup2(devnull.fileno(), stderr_fd)
+            yield
+        finally:
+            sys.stderr.flush()
+            os.dup2(save_fd, stderr_fd)
+            os.close(save_fd)
+
 # 검색 결과 캐시 (최대 128개 쿼리 캐싱, 5분 TTL)
 _search_cache: Dict[str, tuple[List[Dict[str, Any]], datetime]] = {}
 _CACHE_TTL = timedelta(minutes=5)
@@ -52,40 +77,74 @@ class TickerCatalogCollector:
     def collect_all_stocks(self) -> Dict[str, Any]:
         """
         전체 종목 목록 수집 (코스피, 코스닥, ETF)
-        
+
         Returns:
             Dict with collection statistics
         """
+        from app.services.progress import update_progress
+
         logger.info("Starting ticker catalog collection from Naver Finance")
-        
+
         all_stocks = []
-        
+
         try:
             # 1. 코스피 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "kospi",
+                "step_index": 0,
+                "total_steps": 4,
+                "items_collected": 0,
+                "message": "코스피 종목 수집 중..."
+            })
             logger.info("Collecting KOSPI stocks...")
             kospi_stocks = self._collect_kospi_stocks()
             all_stocks.extend(kospi_stocks)
             logger.info(f"Collected {len(kospi_stocks)} KOSPI stocks")
-            
+
             # 2. 코스닥 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "kosdaq",
+                "step_index": 1,
+                "total_steps": 4,
+                "items_collected": len(kospi_stocks),
+                "message": f"코스닥 종목 수집 중... (코스피 {len(kospi_stocks)}개 완료)"
+            })
             logger.info("Collecting KOSDAQ stocks...")
             kosdaq_stocks = self._collect_kosdaq_stocks()
             all_stocks.extend(kosdaq_stocks)
             logger.info(f"Collected {len(kosdaq_stocks)} KOSDAQ stocks")
-            
+
             # 3. ETF 종목 수집
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "etf",
+                "step_index": 2,
+                "total_steps": 4,
+                "items_collected": len(kospi_stocks) + len(kosdaq_stocks),
+                "message": f"ETF 종목 수집 중... (코스피 {len(kospi_stocks)}개, 코스닥 {len(kosdaq_stocks)}개 완료)"
+            })
             logger.info("Collecting ETF stocks...")
             etf_stocks = self._collect_etf_stocks()
             all_stocks.extend(etf_stocks)
             logger.info(f"Collected {len(etf_stocks)} ETF stocks")
-            
+
             # 4. 데이터베이스에 저장
+            update_progress("ticker-catalog", {
+                "status": "in_progress",
+                "step": "saving",
+                "step_index": 3,
+                "total_steps": 4,
+                "items_collected": len(all_stocks),
+                "message": f"데이터베이스에 저장 중... (총 {len(all_stocks)}개)"
+            })
             logger.info(f"Saving {len(all_stocks)} stocks to database...")
             saved_count = self._save_to_database(all_stocks)
-            
+
             # 5. 검색 캐시 무효화 (새로운 데이터가 추가되었으므로)
             self.clear_search_cache()
-            
+
             result = {
                 "total_collected": len(all_stocks),
                 "kospi_count": len(kospi_stocks),
@@ -94,13 +153,127 @@ class TickerCatalogCollector:
                 "saved_count": saved_count,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
+            update_progress("ticker-catalog", {
+                "status": "completed",
+                "step": "done",
+                "step_index": 4,
+                "total_steps": 4,
+                "items_collected": len(all_stocks),
+                "message": f"수집 완료! 총 {saved_count}개 저장"
+            })
+
             logger.info(f"Ticker catalog collection completed: {result}")
             return result
-            
+
         except Exception as e:
+            update_progress("ticker-catalog", {
+                "status": "error",
+                "message": f"수집 실패: {str(e)}"
+            })
             logger.error(f"Error collecting ticker catalog: {e}", exc_info=True)
             raise ScraperException(f"종목 목록 수집 실패: {e}")
+
+    @staticmethod
+    def _parse_sise_price_row(cols) -> Dict[str, Any]:
+        """
+        네이버 sise_market_sum 테이블 행에서 가격 데이터 파싱
+        컬럼 구조: [0]순위 [1]종목명 [2]현재가 [3]전일비 [4]등락률 [5]액면가
+                   [6]시가총액 [7]거래량 ...
+        """
+        result = {"close_price": None, "daily_change_pct": None, "volume": None}
+        try:
+            price_text = cols[2].get_text(strip=True).replace(',', '')
+            if price_text:
+                result["close_price"] = float(price_text)
+        except (IndexError, ValueError):
+            pass
+        try:
+            pct_text = cols[4].get_text(strip=True).replace('%', '').replace(',', '').replace('+', '')
+            if pct_text:
+                result["daily_change_pct"] = float(pct_text)
+        except (IndexError, ValueError):
+            pass
+        try:
+            vol_text = cols[7].get_text(strip=True).replace(',', '')
+            if vol_text:
+                result["volume"] = int(vol_text)
+        except (IndexError, ValueError):
+            pass
+        return result
+
+    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
+        """네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)"""
+        stocks = []
+        page = 1
+
+        while page <= max_pages:
+            url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
+
+            try:
+                with self.rate_limiter:
+                    response = requests.get(url, headers=self.headers, timeout=10)
+                    response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                table = soup.find('table', {'class': 'type_2'})
+                if not table:
+                    table = soup.find('table', {'class': 'type2'})
+                if not table:
+                    tables = soup.find_all('table')
+                    for t in tables:
+                        if len(t.find_all('a', href=True)) > 5:
+                            table = t
+                            break
+
+                if not table:
+                    logger.warning(f"{market} table not found on page {page}")
+                    break
+
+                rows = table.find_all('tr')
+                if not rows:
+                    break
+
+                page_stocks = []
+                for row in rows:
+                    cols = row.find_all('td')
+                    if len(cols) < 10:
+                        continue
+
+                    links = row.find_all('a', href=True)
+                    for link in links:
+                        href = link.get('href', '')
+                        if '/item/main.naver?code=' in href:
+                            ticker = href.split('code=')[-1].split('&')[0]
+                            name = link.get_text(strip=True)
+
+                            if ticker and name and len(ticker) >= 5:
+                                price_data = self._parse_sise_price_row(cols)
+                                page_stocks.append({
+                                    "ticker": ticker,
+                                    "name": name,
+                                    "type": "STOCK",
+                                    "market": market,
+                                    "sector": None,
+                                    "listed_date": None,
+                                    "is_active": 1,
+                                    **price_data,
+                                })
+                                break
+
+                if not page_stocks:
+                    break
+
+                stocks.extend(page_stocks)
+                logger.debug(f"{market} page {page}: collected {len(page_stocks)} stocks")
+                page += 1
+
+            except Exception as e:
+                logger.error(f"Error collecting {market} page {page}: {e}")
+                break
+
+        return stocks
 
     @retry_with_backoff(
         max_retries=3,
@@ -108,84 +281,8 @@ class TickerCatalogCollector:
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
     def _collect_kospi_stocks(self) -> List[Dict[str, Any]]:
-        """코스피 종목 목록 수집"""
-        stocks = []
-        page = 1
-        max_pages = 50  # 코스피는 약 800개 종목, 페이지당 20개
-        
-        while page <= max_pages:
-            url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok=0&page={page}"
-            
-            try:
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # 여러 가능한 테이블 클래스 시도
-                table = soup.find('table', {'class': 'type_2'})
-                if not table:
-                    table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    # 모든 테이블 찾기
-                    tables = soup.find_all('table')
-                    if tables:
-                        # 종목 목록이 있는 테이블 찾기 (a 태그가 많은 테이블)
-                        for t in tables:
-                            links = t.find_all('a', href=True)
-                            if len(links) > 5:  # 종목 링크가 여러 개 있는 테이블
-                                table = t
-                                break
-                
-                if not table:
-                    logger.warning(f"KOSPI table not found on page {page}, URL: {url}")
-                    break
-                
-                rows = table.find_all('tr')
-                
-                if not rows:
-                    break
-                
-                page_stocks = []
-                for row in rows:
-                    cols = row.find_all('td')
-                    # 데이터 행은 td가 여러 개 있어야 함 (보통 10개 이상)
-                    if len(cols) < 10:
-                        continue
-                    
-                    # 모든 링크 찾기 (종목 링크는 /item/main.naver?code= 형태)
-                    links = row.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        if '/item/main.naver?code=' in href:
-                            ticker = href.split('code=')[-1].split('&')[0]  # code= 뒤의 값, & 이전까지
-                            name = link.get_text(strip=True)
-                            
-                            if ticker and name and len(ticker) >= 5:  # 티커는 최소 5자리
-                                page_stocks.append({
-                                    "ticker": ticker,
-                                    "name": name,
-                                    "type": "STOCK",
-                                    "market": "KOSPI",
-                                    "sector": None,
-                                    "listed_date": None,
-                                    "is_active": 1
-                                })
-                                break  # 한 행에서 하나의 종목만 수집
-                
-                if not page_stocks:
-                    break
-                
-                stocks.extend(page_stocks)
-                logger.debug(f"KOSPI page {page}: collected {len(page_stocks)} stocks")
-                page += 1
-                
-            except Exception as e:
-                logger.error(f"Error collecting KOSPI page {page}: {e}")
-                break
-        
-        return stocks
+        """코스피 종목 목록 + 가격 데이터 수집"""
+        return self._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
 
     @retry_with_backoff(
         max_retries=3,
@@ -193,84 +290,8 @@ class TickerCatalogCollector:
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
     def _collect_kosdaq_stocks(self) -> List[Dict[str, Any]]:
-        """코스닥 종목 목록 수집"""
-        stocks = []
-        page = 1
-        max_pages = 100  # 코스닥은 약 1500개 종목, 페이지당 20개
-        
-        while page <= max_pages:
-            url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok=1&page={page}"
-            
-            try:
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # 여러 가능한 테이블 클래스 시도
-                table = soup.find('table', {'class': 'type_2'})
-                if not table:
-                    table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    # 모든 테이블 찾기
-                    tables = soup.find_all('table')
-                    if tables:
-                        # 종목 목록이 있는 테이블 찾기 (a 태그가 많은 테이블)
-                        for t in tables:
-                            links = t.find_all('a', href=True)
-                            if len(links) > 5:  # 종목 링크가 여러 개 있는 테이블
-                                table = t
-                                break
-                
-                if not table:
-                    logger.warning(f"KOSDAQ table not found on page {page}, URL: {url}")
-                    break
-                
-                rows = table.find_all('tr')
-                
-                if not rows:
-                    break
-                
-                page_stocks = []
-                for row in rows:
-                    cols = row.find_all('td')
-                    # 데이터 행은 td가 여러 개 있어야 함 (보통 10개 이상)
-                    if len(cols) < 10:
-                        continue
-                    
-                    # 모든 링크 찾기 (종목 링크는 /item/main.naver?code= 형태)
-                    links = row.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        if '/item/main.naver?code=' in href:
-                            ticker = href.split('code=')[-1].split('&')[0]  # code= 뒤의 값, & 이전까지
-                            name = link.get_text(strip=True)
-                            
-                            if ticker and name and len(ticker) >= 5:  # 티커는 최소 5자리
-                                page_stocks.append({
-                                    "ticker": ticker,
-                                    "name": name,
-                                    "type": "STOCK",
-                                    "market": "KOSDAQ",
-                                    "sector": None,
-                                    "listed_date": None,
-                                    "is_active": 1
-                                })
-                                break  # 한 행에서 하나의 종목만 수집
-                
-                if not page_stocks:
-                    break
-                
-                stocks.extend(page_stocks)
-                logger.debug(f"KOSDAQ page {page}: collected {len(page_stocks)} stocks")
-                page += 1
-                
-            except Exception as e:
-                logger.error(f"Error collecting KOSDAQ page {page}: {e}")
-                break
-        
-        return stocks
+        """코스닥 종목 목록 + 가격 데이터 수집"""
+        return self._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
 
     def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
         """
@@ -305,10 +326,10 @@ class TickerCatalogCollector:
             
             # WebDriver 초기화
             try:
-                import os
                 import stat
-                
-                driver_path = ChromeDriverManager().install()
+                # ChromeDriverManager가 시스템에서 google-chrome 등을 찾을 때 stderr 노이즈 억제
+                with _suppress_stderr():
+                    driver_path = ChromeDriverManager().install()
                 
                 # chromedriver 실행 파일 찾기
                 if os.path.isdir(driver_path):
@@ -590,19 +611,29 @@ class TickerCatalogCollector:
                             # 신규 종목 추가
                             logger.debug(f"Adding new stock: {stock['ticker']} - {stock['name']}")
 
+                        close_price = stock.get("close_price")
+                        daily_change_pct = stock.get("daily_change_pct")
+                        volume = stock.get("volume")
+                        # 가격 데이터가 있으면 catalog_updated_at 설정
+                        has_price = close_price is not None
+
                         if USE_POSTGRES:
                             # PostgreSQL에서는 boolean 타입이므로 정수를 boolean으로 변환
                             is_active_bool = bool(stock["is_active"]) if stock["is_active"] is not None else True
-                            
+
                             # SAVEPOINT를 사용하여 개별 종목 저장 실패 시에도 전체 트랜잭션 유지
-                            savepoint_name = f"savepoint_{stock['ticker']}"
+                            # ticker를 식별자 안전 문자로 정규화 (특수문자/공백 → '_')
+                            safe_ticker = re.sub(r'[^a-zA-Z0-9_]', '_', stock['ticker'])
+                            savepoint_name = f"savepoint_{safe_ticker}"
                             cursor.execute(f"SAVEPOINT {savepoint_name}")
-                            
+
                             try:
                                 cursor.execute("""
                                     INSERT INTO stock_catalog
-                                    (ticker, name, type, market, sector, listed_date, last_updated, is_active)
-                                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                                    (ticker, name, type, market, sector, listed_date, last_updated, is_active,
+                                     close_price, daily_change_pct, volume, catalog_updated_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s,
+                                            %s, %s, %s, CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END)
                                     ON CONFLICT (ticker) DO UPDATE SET
                                         name = EXCLUDED.name,
                                         type = EXCLUDED.type,
@@ -610,7 +641,13 @@ class TickerCatalogCollector:
                                         sector = EXCLUDED.sector,
                                         listed_date = EXCLUDED.listed_date,
                                         last_updated = CURRENT_TIMESTAMP,
-                                        is_active = EXCLUDED.is_active
+                                        is_active = EXCLUDED.is_active,
+                                        close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
+                                        daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
+                                        volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
+                                        catalog_updated_at = CASE WHEN EXCLUDED.catalog_updated_at IS NOT NULL
+                                                             THEN EXCLUDED.catalog_updated_at
+                                                             ELSE stock_catalog.catalog_updated_at END
                                 """, (
                                     stock["ticker"],
                                     stock["name"],
@@ -618,7 +655,11 @@ class TickerCatalogCollector:
                                     stock["market"],
                                     stock["sector"],
                                     stock["listed_date"],
-                                    is_active_bool
+                                    is_active_bool,
+                                    close_price,
+                                    daily_change_pct,
+                                    volume,
+                                    has_price,
                                 ))
                                 cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
                                 saved_count += 1
@@ -629,9 +670,25 @@ class TickerCatalogCollector:
                                 failed_stocks.append(stock.get("ticker"))
                         else:
                             cursor.execute("""
-                                INSERT OR REPLACE INTO stock_catalog
-                                (ticker, name, type, market, sector, listed_date, last_updated, is_active)
-                                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                                INSERT INTO stock_catalog
+                                (ticker, name, type, market, sector, listed_date, last_updated, is_active,
+                                 close_price, daily_change_pct, volume, catalog_updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?,
+                                        ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END)
+                                ON CONFLICT(ticker) DO UPDATE SET
+                                    name = EXCLUDED.name,
+                                    type = EXCLUDED.type,
+                                    market = EXCLUDED.market,
+                                    sector = EXCLUDED.sector,
+                                    listed_date = EXCLUDED.listed_date,
+                                    last_updated = CURRENT_TIMESTAMP,
+                                    is_active = EXCLUDED.is_active,
+                                    close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
+                                    daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
+                                    volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
+                                    catalog_updated_at = CASE WHEN EXCLUDED.catalog_updated_at IS NOT NULL
+                                                         THEN EXCLUDED.catalog_updated_at
+                                                         ELSE stock_catalog.catalog_updated_at END
                             """, (
                                 stock["ticker"],
                                 stock["name"],
@@ -639,7 +696,11 @@ class TickerCatalogCollector:
                                 stock["market"],
                                 stock["sector"],
                                 stock["listed_date"],
-                                stock["is_active"]
+                                stock["is_active"],
+                                close_price,
+                                daily_change_pct,
+                                volume,
+                                1 if has_price else 0,
                             ))
                             saved_count += 1
                     except Exception as e:

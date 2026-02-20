@@ -66,7 +66,7 @@ export const NORMAL_API_TIMEOUT = 60000 // 60초
  * - /api/etfs/{ticker}/collect
  * - /api/settings/ticker-catalog/collect (5-10분 소요)
  */
-export const LONG_API_TIMEOUT = 600000 // 600초 (10분) - 종목 목록 수집을 위해 충분한 시간 확보
+export const LONG_API_TIMEOUT = 1800000 // 1800초 (30분) - 대량 데이터 수집을 위해 충분한 시간 확보
 
 // =============================================================================
 // 색상 코드 상수
@@ -102,9 +102,9 @@ export const COLORS = {
   MA_10: '#10b981',  // 초록 (10일 이동평균)
   MA_20: '#ef4444',  // 빨강 (20일 이동평균)
 
-  // 차트 그리드/축
-  CHART_GRID: '#e5e7eb',    // 회색 (그리드)
-  CHART_AXIS: '#6b7280',    // 회색 (축)
+  // 차트 그리드/축 (CSS 변수로 다크모드 자동 대응)
+  CHART_GRID: 'var(--chart-grid, #e5e7eb)',    // 라이트: gray-200, 다크: gray-700
+  CHART_AXIS: 'var(--chart-axis, #6b7280)',    // 라이트: gray-500, 다크: gray-400
   CHART_CURSOR: '#6b7280',  // 회색 (커서)
 
   // 거래량 색상
@@ -198,6 +198,12 @@ export const MIN_SEARCH_LENGTH = 2
  * 기본 조회 기간 (일)
  */
 export const DEFAULT_DATE_RANGE_DAYS = 7
+
+/**
+ * 비교 페이지 최대 종목 선택 수
+ * - Comparison.jsx, TickerSelector.jsx에서 공통 사용 (한 곳만 수정하면 반영)
+ */
+export const COMPARE_MAX_TICKERS = 20
 
 // =============================================================================
 // 차트 관련 상수

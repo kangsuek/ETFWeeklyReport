@@ -8,7 +8,12 @@
 │   (User)        │         │  (Vite, Port 5173)│
 └─────────────────┘         └───────────────────┘
                                       │
-                                      │ HTTP/REST (Base: /api)
+┌───────────────────────────────────┐ │ HTTP/REST (Base: /api)
+│  External Clients (SDK / MCP)     │ │
+│  · OpenAPI Python SDK (sdk/)      │─┤
+│  · MCP Server (mcp-server/)       │ │
+│    └─ Claude Code / Desktop 등    │ │
+└───────────────────────────────────┘ │
                                       │
                             ┌─────────▼──────────┐
                             │  FastAPI Backend   │
@@ -50,7 +55,10 @@ backend/app/
 │   ├── etfs.py          # /api/etfs — 종목 목록, 가격, 매매동향, 지표, 인사이트, 비교, 배치요약, 분봉
 │   ├── news.py          # /api/news — 뉴스 조회·수집
 │   ├── data.py          # /api/data — 일괄 수집, 백필, 상태, 스케줄러 상태, 캐시, DB 초기화
-│   └── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   ├── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   ├── alerts.py        # /api/alerts — 알림 규칙 CRUD, 트리거 기록, 이력 조회
+│   ├── scanner.py      # /api/scanner — 조건 검색, 테마 탐색, 추천, 데이터 수집
+│   └── simulation.py    # /api/simulation — 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
 ├── services/
 │   ├── data_collector.py         # 가격·매매동향 수집 (Naver Finance)
 │   ├── intraday_collector.py    # 분봉 수집
@@ -58,6 +66,9 @@ backend/app/
 │   ├── news_analyzer.py          # 뉴스 분석
 │   ├── insights_service.py       # 인사이트 생성 (전략, 핵심 포인트)
 │   ├── comparison_service.py     # 종목 비교 (정규화 가격, 통계, 상관관계)
+│   ├── simulation_service.py     # 투자 시뮬레이션 (일시/적립식/포트폴리오)
+│   ├── catalog_data_collector.py # 스크리닝용 카탈로그 데이터 수집 (가격·수급)
+│   ├── progress.py               # 백그라운드 작업 진행률 관리
 │   ├── scheduler.py              # 주기/일일/백필/종목목록 수집 스케줄
 │   ├── ticker_scraper.py         # 티커 검증 (네이버 스크래핑)
 │   └── ticker_catalog_collector.py # 코스피/코스닥/ETF 종목 목록 수집
@@ -78,18 +89,43 @@ backend/app/
 
 ---
 
+## SDK / MCP 서버 구조
+
+```
+ETFWeeklyReport/
+├── sdk/
+│   ├── openapi.json        # FastAPI에서 추출한 OpenAPI 스펙 (52개 경로)
+│   ├── config.yaml         # openapi-python-client 생성 설정
+│   ├── generate.sh         # 스펙 추출 + 클라이언트 재생성 스크립트
+│   └── python/             # 자동 생성된 Python 클라이언트 (sdk/generate.sh로 생성)
+└── mcp-server/
+    ├── src/etf_report_mcp/
+    │   ├── __init__.py
+    │   └── server.py       # MCP 서버 구현 (16개 tool)
+    ├── pyproject.toml
+    └── README.md
+```
+
+- **OpenAPI Python SDK**: `openapi-python-client`로 FastAPI `/openapi.json` 에서 타입 안전 클라이언트 자동 생성. `bash sdk/generate.sh`로 재생성.
+- **MCP 서버**: FastAPI에 HTTP 요청을 MCP 도구로 래핑. `ETF_REPORT_BASE_URL`로 연결 대상 설정.
+
+---
+
 ## 프론트엔드 구조
 
 ```
 frontend/src/
 ├── main.jsx             # React 진입점
-├── App.jsx               # 라우팅 (/, /etf/:ticker, /compare, /portfolio, /settings)
+├── App.jsx               # 라우팅 (/, /etf/:ticker, /compare, /portfolio, /scanner, /simulation, /alerts, /settings)
 ├── constants.js          # 캐시 TTL, API 타임아웃 등
 ├── pages/
 │   ├── Dashboard.jsx    # 대시보드 (히트맵 + 카드 그리드)
 │   ├── ETFDetail.jsx    # 종목 상세 (인사이트, 가격, 차트, 분봉, 뉴스)
 │   ├── Comparison.jsx   # 종목 비교 (정규화 차트, 비교 테이블)
 │   ├── Portfolio.jsx    # 포트폴리오 (요약, 비중, 추이, 기여도, 분석 리포트)
+│   ├── Screening.jsx    # 종목 발굴 (조건 검색, 히트맵/테이블, 테마 탐색)
+│   ├── Simulation.jsx   # 시뮬레이션 (일시투자, 적립식, 포트폴리오)
+│   ├── Alerts.jsx       # 알림 (목표가 규칙 관리, 이력)
 │   └── Settings.jsx     # 설정 (종목 관리, 일반 설정, 데이터 관리)
 ├── components/
 │   ├── layout/          # Header, Footer
@@ -98,12 +134,14 @@ frontend/src/
 │   ├── charts/          # PriceChart, TradingFlowChart, RSIChart, MACDChart, IntradayChart, DateRangeSelector
 │   ├── comparison/      # TickerSelector, NormalizedPriceChart, ComparisonTable
 │   ├── portfolio/       # PortfolioSummaryCards, AllocationPieChart, PortfolioTrendChart, ContributionTable, PortfolioAnalysisReport
+│   ├── screening/       # ScreeningFilters, ScreeningTable, ScreeningHeatmap, ThemeExplorer
+│   ├── simulation/      # LumpSumSimulation, DCASimulation, PortfolioSimulation
 │   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel, TickerDeleteConfirm
 │   ├── news/            # NewsTimeline
 │   └── common/          # PageHeader, Spinner, LoadingIndicator, ErrorBoundary, Toast, ETFCardSkeleton
-├── contexts/             # SettingsContext, ToastContext
+├── contexts/             # SettingsContext, ToastContext, AlertContext
 ├── hooks/                # useContainerWidth, useWindowSize
-├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi)
+├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, scannerApi, simulationApi)
 ├── utils/                # format, chartUtils, dateRange, portfolio, portfolioAnalysis, returns, technicalIndicators, validation, insights, newsAnalyzer
 ├── styles/               # index.css (Tailwind)
 └── test/                 # Vitest setup, mocks (MSW), polyfills, utils
@@ -111,7 +149,7 @@ frontend/src/
 
 **패턴**: Page → Components → Hooks / Context → services(api) → Backend
 
-**상태**: TanStack React Query(서버 상태), React Context(설정·토스트), LocalStorage(설정 유지).
+**상태**: TanStack React Query(서버 상태), React Context(설정·토스트·알림), LocalStorage(설정 유지).
 
 ---
 

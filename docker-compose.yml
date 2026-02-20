@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # 개발용 PostgreSQL (로컬 개발 시 SQLite 대신 사용)
+  postgres:
+    image: postgres:16-alpine
+    container_name: etf_postgres
+    environment:
+      POSTGRES_DB: etf_dev
+      POSTGRES_USER: etf_user
+      POSTGRES_PASSWORD: etf_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etf_user -d etf_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 테스트 전용 PostgreSQL (데이터 미보존, 포트 5433)
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: etf_postgres_test
+    environment:
+      POSTGRES_DB: etf_test
+      POSTGRES_USER: etf_user
+      POSTGRES_PASSWORD: etf_pass
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etf_user -d etf_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

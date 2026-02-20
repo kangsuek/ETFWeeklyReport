@@ -45,7 +45,6 @@ export default function ApiKeysPanel() {
       if (keys.NAVER_CLIENT_SECRET && !keys.NAVER_CLIENT_SECRET.includes('*')) {
         payload.NAVER_CLIENT_SECRET = keys.NAVER_CLIENT_SECRET
       }
-
       if (Object.keys(payload).length === 0) {
         setMessage({ type: 'warning', text: '변경된 값이 없습니다. 새 값을 입력해주세요.' })
         return
@@ -63,13 +62,15 @@ export default function ApiKeysPanel() {
     }
   }
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
     setEditing(true)
-    setKeys({
-      NAVER_CLIENT_ID: '',
-      NAVER_CLIENT_SECRET: '',
-    })
     setMessage(null)
+    try {
+      const response = await settingsApi.getApiKeys(true)
+      setKeys(response.data.keys)
+    } catch (err) {
+      console.error('Failed to fetch raw API keys:', err)
+    }
   }
 
   const handleCancel = () => {
@@ -100,20 +101,18 @@ export default function ApiKeysPanel() {
               API 키 설정
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-              뉴스 수집에 필요한 네이버 API 키를 설정합니다
+              뉴스 수집을 위한 네이버 검색 API 키를 설정합니다
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                configured.naver
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-              }`}
-            >
-              {configured.naver ? '설정됨' : '미설정'}
-            </span>
-          </div>
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              configured.naver
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+            }`}
+          >
+            {configured.naver ? '설정됨' : '미설정'}
+          </span>
         </div>
       </div>
 

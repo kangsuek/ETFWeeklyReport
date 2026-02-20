@@ -1,7 +1,82 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../contexts/ToastContext'
-import { dataApi, settingsApi } from '../../services/api'
+import { dataApi, settingsApi, getHealthCheck } from '../../services/api'
+
+/**
+ * 진행률 바 컴포넌트
+ */
+function ProgressBar({ current, total, message, colorClass = 'bg-primary-500' }) {
+  const percentage = total > 0 ? Math.round((current / total) * 100) : 0
+
+  return (
+    <div className="mt-3 space-y-1">
+      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
+        <div
+          className={`h-3 rounded-full transition-all duration-500 ${colorClass}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="flex justify-between items-center">
+        <span className="text-xs text-gray-600 dark:text-gray-300 truncate mr-2">
+          {message}
+        </span>
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+          {percentage}%
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 단계별 진행률 바 컴포넌트 (종목 목록 수집용)
+ */
+function StepProgressBar({ stepIndex, totalSteps, message, itemsCollected }) {
+  const stepLabels = ['코스피', '코스닥', 'ETF', '저장']
+  const percentage = totalSteps > 0 ? Math.round((stepIndex / totalSteps) * 100) : 0
+
+  return (
+    <div className="mt-3 space-y-2">
+      {/* 단계 표시 */}
+      <div className="flex items-center gap-1">
+        {stepLabels.map((label, idx) => (
+          <div key={label} className="flex items-center">
+            <div
+              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                idx < stepIndex
+                  ? 'bg-blue-500 text-white'
+                  : idx === stepIndex
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 ring-1 ring-blue-400'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+              }`}
+            >
+              {label}
+            </div>
+            {idx < stepLabels.length - 1 && (
+              <div className={`w-3 h-0.5 mx-0.5 ${idx < stepIndex ? 'bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+      {/* 프로그레스 바 */}
+      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
+        <div
+          className="h-3 rounded-full transition-all duration-500 bg-blue-500"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="flex justify-between items-center">
+        <span className="text-xs text-gray-600 dark:text-gray-300 truncate mr-2">
+          {message}
+        </span>
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+          {itemsCollected > 0 ? `${itemsCollected.toLocaleString('ko-KR')}개 수집` : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 /**
  * 데이터 관리 패널 컴포넌트
@@ -15,6 +90,12 @@ export default function DataManagementPanel() {
   const [isCollectAllModalOpen, setIsCollectAllModalOpen] = useState(false)
   const [collectionDays, setCollectionDays] = useState(90)
 
+  // 진행률 상태
+  const [collectAllProgress, setCollectAllProgress] = useState(null)
+  const [tickerCatalogProgress, setTickerCatalogProgress] = useState(null)
+  const collectAllPollingRef = useRef(null)
+  const tickerCatalogPollingRef = useRef(null)
+
   // 데이터 통계 조회
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['data-stats'],
@@ -25,6 +106,76 @@ export default function DataManagementPanel() {
     refetchInterval: 30000, // 30초마다 자동 갱신
   })
 
+  // 전체 데이터 수집 진행률 polling
+  useEffect(() => {
+    if (collectAllPollingRef.current) {
+      clearInterval(collectAllPollingRef.current)
+      collectAllPollingRef.current = null
+    }
+
+    if (!collectAllProgress || collectAllProgress.status === 'idle') return
+
+    if (collectAllProgress.status === 'completed' || collectAllProgress.status === 'error') {
+      return
+    }
+
+    collectAllPollingRef.current = setInterval(async () => {
+      try {
+        const response = await dataApi.getCollectProgress()
+        const data = response.data
+        setCollectAllProgress(data)
+        if (data.status === 'completed' || data.status === 'error' || data.status === 'idle') {
+          clearInterval(collectAllPollingRef.current)
+          collectAllPollingRef.current = null
+        }
+      } catch {
+        // polling 실패는 무시
+      }
+    }, 2000)
+
+    return () => {
+      if (collectAllPollingRef.current) {
+        clearInterval(collectAllPollingRef.current)
+        collectAllPollingRef.current = null
+      }
+    }
+  }, [collectAllProgress?.status])
+
+  // 종목 목록 수집 진행률 polling
+  useEffect(() => {
+    if (tickerCatalogPollingRef.current) {
+      clearInterval(tickerCatalogPollingRef.current)
+      tickerCatalogPollingRef.current = null
+    }
+
+    if (!tickerCatalogProgress || tickerCatalogProgress.status === 'idle') return
+
+    if (tickerCatalogProgress.status === 'completed' || tickerCatalogProgress.status === 'error') {
+      return
+    }
+
+    tickerCatalogPollingRef.current = setInterval(async () => {
+      try {
+        const response = await settingsApi.getTickerCatalogProgress()
+        const data = response.data
+        setTickerCatalogProgress(data)
+        if (data.status === 'completed' || data.status === 'error' || data.status === 'idle') {
+          clearInterval(tickerCatalogPollingRef.current)
+          tickerCatalogPollingRef.current = null
+        }
+      } catch {
+        // polling 실패는 무시
+      }
+    }, 2000)
+
+    return () => {
+      if (tickerCatalogPollingRef.current) {
+        clearInterval(tickerCatalogPollingRef.current)
+        tickerCatalogPollingRef.current = null
+      }
+    }
+  }, [tickerCatalogProgress?.status])
+
   // 전체 데이터 수집 Mutation
   const collectMutation = useMutation({
     mutationFn: async (days) => {
@@ -32,9 +183,13 @@ export default function DataManagementPanel() {
       return response.data
     },
     onSuccess: (data) => {
+      setCollectAllProgress({ status: 'completed', current: data.result.total_tickers, total: data.result.total_tickers, message: '수집 완료' })
       // 성공 메시지 표시
+      const fundamentalsPart = data.result.fundamentals_success != null
+        ? `, 펀더멘털: ${data.result.fundamentals_success}개 성공${data.result.fundamentals_failed > 0 ? `/${data.result.fundamentals_failed}개 실패` : ''}`
+        : ''
       toast.success(
-        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건`,
+        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건${fundamentalsPart}`,
         5000
       )
 
@@ -42,6 +197,7 @@ export default function DataManagementPanel() {
       queryClient.invalidateQueries()
     },
     onError: (error) => {
+      setCollectAllProgress(null)
       toast.error(`데이터 수집 실패: ${error.message}`)
     },
   })
@@ -49,36 +205,29 @@ export default function DataManagementPanel() {
   // 종목 목록 수집 Mutation
   const collectTickerCatalogMutation = useMutation({
     mutationFn: async () => {
-      console.log('[종목목록수집] API 호출 시작...')
-      try {
-        const response = await settingsApi.collectTickerCatalog()
-        console.log('[종목목록수집] API 호출 성공:', response)
-        return response.data
-      } catch (error) {
-        console.error('[종목목록수집] API 호출 실패:', error)
-        throw error
-      }
+      const response = await settingsApi.collectTickerCatalog()
+      return response.data
     },
     onSuccess: (data) => {
-      console.log('[종목목록수집] 수집 성공:', data)
+      setTickerCatalogProgress({ status: 'completed', step_index: 4, total_steps: 4, items_collected: data.total_collected, message: '수집 완료' })
       // 성공 메시지 표시 (실제 저장된 건수 사용)
       const savedCount = data.saved_count || data.total_collected
       const totalCollected = data.total_collected
-      
+
       let message = `종목 목록 수집 완료! 저장: ${savedCount.toLocaleString('ko-KR')}개 (코스피: ${data.kospi_count.toLocaleString('ko-KR')}, 코스닥: ${data.kosdaq_count.toLocaleString('ko-KR')}, ETF: ${data.etf_count.toLocaleString('ko-KR')})`
-      
+
       // 수집 건수와 저장 건수가 다를 경우 경고 표시
       if (totalCollected !== savedCount) {
-        message += `\n⚠️ 수집: ${totalCollected.toLocaleString('ko-KR')}개, 저장: ${savedCount.toLocaleString('ko-KR')}개 (일부 저장 실패)`
+        message += `\n수집: ${totalCollected.toLocaleString('ko-KR')}개, 저장: ${savedCount.toLocaleString('ko-KR')}개 (일부 저장 실패)`
       }
-      
+
       toast.success(message, 5000)
 
       // 캐시 무효화
       queryClient.invalidateQueries({ queryKey: ['data-stats'] })
     },
     onError: (error) => {
-      console.error('[종목목록수집] 수집 실패:', error)
+      setTickerCatalogProgress(null)
       toast.error(`종목 목록 수집 실패: ${error.message}`)
     },
   })
@@ -86,21 +235,8 @@ export default function DataManagementPanel() {
   // 데이터베이스 초기화 Mutation
   const resetMutation = useMutation({
     mutationFn: async () => {
-      console.log('[데이터베이스초기화] API 호출 시작...')
-      try {
-        const response = await dataApi.reset()
-        console.log('[데이터베이스초기화] API 호출 성공:', response)
-        return response.data
-      } catch (error) {
-        console.error('[데이터베이스초기화] API 호출 실패:', error)
-        console.error('[데이터베이스초기화] 에러 상세:', {
-          message: error.message,
-          response: error.response,
-          status: error.response?.status,
-          data: error.response?.data
-        })
-        throw error
-      }
+      const response = await dataApi.reset()
+      return response.data
     },
     onSuccess: (data) => {
       setIsResetModalOpen(false)
@@ -113,7 +249,7 @@ export default function DataManagementPanel() {
         `수집 상태: ${data.deleted.collection_status || 0}건`,
         `분봉: ${data.deleted.intraday_prices || 0}건`
       ].filter(item => !item.includes(': 0건')).join(', ')
-      
+
       toast.success(
         `데이터베이스 초기화 완료. ${deletedCounts} 삭제됨`,
         5000
@@ -142,36 +278,22 @@ export default function DataManagementPanel() {
   const handleConfirmCollectAll = async () => {
     setIsCollectAllModalOpen(false)
 
-    // 백엔드 연결 확인
+    // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
-      console.log('[전체데이터수집] 백엔드 연결 확인 중...')
-      const healthCheck = await fetch('/api/health')
-      if (healthCheck.ok) {
-        console.log('[전체데이터수집] 백엔드 연결 확인됨')
-      } else {
-        console.error('[전체데이터수집] 백엔드 연결 실패:', healthCheck.status)
-        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
-        return
-      }
+      await getHealthCheck()
     } catch (error) {
-      console.error('[전체데이터수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
       return
     }
 
-    console.log('[전체데이터수집] 확인됨, 수집 시작...')
+    // 진행률 polling 시작
+    setCollectAllProgress({ status: 'in_progress', current: 0, total: 0, message: '수집 시작 중...' })
     collectMutation.mutate(collectionDays)
   }
 
   // 종목 목록 수집 핸들러
   const handleCollectTickerCatalog = () => {
-    console.log('[종목목록수집] 버튼 클릭됨')
-    
-    if (collectTickerCatalogMutation.isPending) {
-      console.log('[종목목록수집] 이미 진행 중입니다.')
-      return
-    }
-
+    if (collectTickerCatalogMutation.isPending) return
     setIsCollectTickerCatalogModalOpen(true)
   }
 
@@ -179,24 +301,16 @@ export default function DataManagementPanel() {
   const handleConfirmCollectTickerCatalog = async () => {
     setIsCollectTickerCatalogModalOpen(false)
 
-    // 백엔드 연결 확인
+    // 백엔드 연결 확인 (배포 시 백엔드 URL로 요청)
     try {
-      console.log('[종목목록수집] 백엔드 연결 확인 중...')
-      const healthCheck = await fetch('/api/health')
-      if (healthCheck.ok) {
-        console.log('[종목목록수집] 백엔드 연결 확인됨')
-      } else {
-        console.error('[종목목록수집] 백엔드 연결 실패:', healthCheck.status)
-        toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
-        return
-      }
+      await getHealthCheck()
     } catch (error) {
-      console.error('[종목목록수집] 백엔드 연결 에러:', error)
       toast.error('백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.')
       return
     }
 
-    console.log('[종목목록수집] 확인됨, 수집 시작...')
+    // 진행률 polling 시작
+    setTickerCatalogProgress({ status: 'in_progress', step_index: 0, total_steps: 4, items_collected: 0, message: '수집 시작 중...' })
     collectTickerCatalogMutation.mutate()
   }
 
@@ -210,6 +324,15 @@ export default function DataManagementPanel() {
   // 초기화 확인 모달 핸들러
   const handleConfirmReset = () => {
     resetMutation.mutate()
+  }
+
+  // 수집 소요 시간 문구 (60초 이상이면 분 단위로 표시)
+  const formatCollectionDuration = (seconds) => {
+    if (seconds >= 60) {
+      const minutes = Math.ceil(seconds / 60)
+      return minutes < 60 ? `약 ${minutes}분` : `약 ${Math.ceil(minutes / 60)}시간`
+    }
+    return `약 ${seconds}초`
   }
 
   // 날짜 포맷팅
@@ -341,7 +464,7 @@ export default function DataManagementPanel() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span>종목 목록 수집 중... (5-10분 소요)</span>
+                    <span>종목 목록 수집 중...</span>
                   </>
                 ) : (
                   <>
@@ -352,15 +475,26 @@ export default function DataManagementPanel() {
                   </>
                 )}
               </button>
+
+              {/* 종목 목록 수집 진행률 */}
+              {collectTickerCatalogMutation.isPending && tickerCatalogProgress && tickerCatalogProgress.status === 'in_progress' && (
+                <StepProgressBar
+                  stepIndex={tickerCatalogProgress.step_index || 0}
+                  totalSteps={tickerCatalogProgress.total_steps || 4}
+                  message={tickerCatalogProgress.message || '수집 중...'}
+                  itemsCollected={tickerCatalogProgress.items_collected || 0}
+                />
+              )}
+
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                💡 최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
+                최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
               </p>
             </div>
 
             {/* 가격/뉴스 데이터 수집 */}
             <div>
               <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">가격/뉴스 데이터 수집</h4>
-              
+
               {/* 수집 일수 선택 */}
               <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -406,8 +540,17 @@ export default function DataManagementPanel() {
               )}
             </button>
 
+            {/* 전체 데이터 수집 진행률 */}
+            {collectMutation.isPending && collectAllProgress && collectAllProgress.status === 'in_progress' && (
+              <ProgressBar
+                current={collectAllProgress.current || 0}
+                total={collectAllProgress.total || 1}
+                message={collectAllProgress.message || '수집 중...'}
+              />
+            )}
+
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: 약 {collectionDays * 6}초
+              모든 종목의 가격, 매매 동향 데이터를 수집합니다. 소요 시간: {formatCollectionDuration(collectionDays * 6)}
             </p>
             </div>
           </div>
@@ -479,7 +622,7 @@ export default function DataManagementPanel() {
                   <li>모든 분봉 데이터 삭제</li>
                 </ul>
                 <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-3">
-                  ⚠️ 이 작업은 되돌릴 수 없습니다!
+                  이 작업은 되돌릴 수 없습니다!
                 </p>
               </div>
             </div>
@@ -530,7 +673,7 @@ export default function DataManagementPanel() {
                   </div>
                 </div>
                 <p className="text-sm text-blue-600 dark:text-blue-400 mt-3 font-medium">
-                  💡 최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
+                  최초 1회 실행 권장. 이후에는 분기별 1회 정도 실행하면 충분합니다.
                 </p>
               </div>
             </div>
@@ -588,7 +731,7 @@ export default function DataManagementPanel() {
                     <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>소요 시간: 약 {collectionDays * 6}초</span>
+                    <span>소요 시간: {formatCollectionDuration(collectionDays * 6)}</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -596,9 +739,15 @@ export default function DataManagementPanel() {
                     </svg>
                     <span>모든 종목의 가격, 매매 동향, 뉴스 데이터를 수집합니다.</span>
                   </div>
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>펀더멘털 데이터(ETF: NAV·구성종목, 주식: PER·PBR·ROE 등)도 함께 수집됩니다.</span>
+                  </div>
                 </div>
                 <p className="text-sm text-primary-600 dark:text-primary-400 mt-3 font-medium">
-                  💡 수집 기간은 상단의 드롭다운에서 변경할 수 있습니다.
+                  수집 기간은 상단의 드롭다운에서 변경할 수 있습니다.
                 </p>
               </div>
             </div>

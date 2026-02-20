@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { AlertProvider } from './contexts/AlertContext'
 import ErrorBoundary from './components/common/ErrorBoundary'
 import ToastContainer from './components/common/ToastContainer'
 import Header from './components/layout/Header'
@@ -15,6 +16,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const ETFDetail = lazy(() => import('./pages/ETFDetail.jsx'))
 const Comparison = lazy(() => import('./pages/Comparison.jsx'))
 const Portfolio = lazy(() => import('./pages/Portfolio.jsx'))
+const Screening = lazy(() => import('./pages/Screening.jsx'))
+const Alerts = lazy(() => import('./pages/Alerts.jsx'))
+const Simulation = lazy(() => import('./pages/Simulation.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 
 // TanStack Query 클라이언트 설정
@@ -36,6 +40,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <SettingsProvider>
           <ToastProvider>
+            <AlertProvider>
             <Router>
               <ErrorBoundary>
                 <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -52,6 +57,9 @@ function App() {
                           <Route path="/etf/:ticker" element={<ETFDetail />} />
                           <Route path="/portfolio" element={<Portfolio />} />
                           <Route path="/compare" element={<Comparison />} />
+                          <Route path="/scanner" element={<Screening />} />
+                          <Route path="/simulation" element={<Simulation />} />
+                          <Route path="/alerts" element={<Alerts />} />
                           <Route path="/settings" element={<Settings />} />
                         </Routes>
                       </Suspense>
@@ -62,6 +70,7 @@ function App() {
               </ErrorBoundary>
               <ToastContainer />
             </Router>
+          </AlertProvider>
           </ToastProvider>
         </SettingsProvider>
       </QueryClientProvider>

@@ -325,6 +325,23 @@ def delete_stock(ticker: str) -> Dict[str, int]:
         deleted_counts["trading_flow"] = result['cnt'] if USE_POSTGRES else result[0]
         cursor.execute(f"DELETE FROM trading_flow WHERE ticker = {param_placeholder}", (ticker,))
 
+        # Delete all tables that FK-reference etfs(ticker), before deleting etfs row
+        # alert_history references alert_rules, so delete it first
+        cursor.execute(f"""
+            DELETE FROM alert_history WHERE rule_id IN (
+                SELECT id FROM alert_rules WHERE ticker = {param_placeholder}
+            )
+        """, (ticker,))
+        cursor.execute(f"DELETE FROM alert_rules WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM collection_status WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM intraday_prices WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM etf_fundamentals WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM etf_rebalancing WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM etf_distributions WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM etf_holdings WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM stock_fundamentals WHERE ticker = {param_placeholder}", (ticker,))
+        cursor.execute(f"DELETE FROM stock_distributions WHERE ticker = {param_placeholder}", (ticker,))
+
         # Delete from etfs table
         cursor.execute(f"DELETE FROM etfs WHERE ticker = {param_placeholder}", (ticker,))
 

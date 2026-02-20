@@ -31,6 +31,7 @@ frontend/.env
 backend/config/api-keys.json
 
 # IDE
+.cursor/
 .vscode/
 .idea/
 *.swp
@@ -69,5 +70,9 @@ macos/dist/
 *.temp
 .cache/
 
-# Windows app build output
+# App build output (platform-specific)
+macos/
 windows/
+
+# SDK auto-generated client (regenerate with sdk/generate.sh)
+sdk/python/

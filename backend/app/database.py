@@ -97,11 +97,15 @@ class ConnectionPool:
                         logger.debug(f"Created new connection ({self.current_connections}/{self.max_connections})")
                         return conn
                     else:
-                        # Wait for a connection to become available
+                        # Wait for a connection to become available (with timeout)
                         logger.debug("Pool full, waiting for connection...")
-                        conn = self.pool.get(block=True)
-                        logger.debug("Got connection after waiting")
-                        return conn
+                        try:
+                            conn = self.pool.get(block=True, timeout=30)
+                            logger.debug("Got connection after waiting")
+                            return conn
+                        except Empty:
+                            logger.error("Connection pool timeout: no connection available after 30s")
+                            raise TimeoutError("Database connection pool exhausted. Please try again later.")
 
     def return_connection(self, conn):
         """Return a connection to the pool"""
@@ -111,7 +115,7 @@ class ConnectionPool:
             try:
                 self.pool.put_nowait(conn)
                 logger.debug("Returned connection to pool")
-            except:
+            except Exception:
                 # Pool is full, close the connection
                 conn.close()
                 with self.lock:
@@ -310,6 +314,7 @@ def init_db():
             id {id_type},
             ticker {text_type} NOT NULL,
             date DATE NOT NULL,
+            published_at TIMESTAMP,
             title {text_type},
             url {text_type},
             source {text_type},
@@ -317,6 +322,31 @@ def init_db():
             FOREIGN KEY (ticker) REFERENCES etfs(ticker)
         )
     """)
+
+    # news 테이블에 published_at 컬럼 추가 (기존 DB 마이그레이션)
+    news_columns_to_add = [("published_at", "TIMESTAMP")]
+    if USE_POSTGRES:
+        for col_name, col_type in news_columns_to_add:
+            try:
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='news' AND column_name=%s
+                """, (col_name,))
+                if not cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                    logger.info(f"Added {col_name} column to news table")
+            except Exception as e:
+                logger.warning(f"Could not check/add {col_name} column: {e}")
+                conn.rollback()
+    else:
+        for col_name, col_type in news_columns_to_add:
+            try:
+                cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                logger.info(f"Added {col_name} column to news table")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                    logger.warning(f"Could not add {col_name} column to news: {e}")
     
     # Create stock_catalog table for ticker catalog
     if USE_POSTGRES:
@@ -396,6 +426,55 @@ def init_db():
         ON stock_catalog(is_active)
     """)
 
+    # stock_catalog 스크리닝용 컬럼 마이그레이션
+    screening_columns = [
+        ("close_price", real_type),
+        ("daily_change_pct", real_type),
+        ("volume", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("weekly_return", real_type),
+        ("foreign_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("institutional_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("catalog_updated_at", "TIMESTAMP"),
+        ("week_base_price", real_type),
+        ("week_base_date", "TEXT"),
+    ]
+    if USE_POSTGRES:
+        for col_name, col_type in screening_columns:
+            try:
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='stock_catalog' AND column_name=%s
+                """, (col_name,))
+                if not cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                    logger.info(f"Added {col_name} column to stock_catalog table")
+            except Exception as e:
+                logger.warning(f"Could not check/add {col_name} column to stock_catalog: {e}")
+                conn.rollback()
+    else:
+        for col_name, col_type in screening_columns:
+            try:
+                cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                logger.info(f"Added {col_name} column to stock_catalog table")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                    logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
+
+    # stock_catalog 스크리닝용 인덱스
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_screening
+        ON stock_catalog(type, is_active, weekly_return)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_sector
+        ON stock_catalog(sector, is_active)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_catalog_catalog_updated
+        ON stock_catalog(catalog_updated_at)
+    """)
+
     # Create indexes for collection_status
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_collection_status_last_dates
@@ -422,6 +501,190 @@ def init_db():
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_intraday_prices_ticker_datetime
         ON intraday_prices(ticker, datetime DESC)
+    """)
+
+    # Create alert_rules table for price alerts
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS alert_rules (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            alert_type {text_type} NOT NULL,
+            direction {text_type} NOT NULL,
+            target_price {real_type} NOT NULL,
+            memo {text_type},
+            is_active {integer_type} DEFAULT 1,
+            created_at TIMESTAMP {timestamp_default},
+            last_triggered_at TIMESTAMP,
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alert_rules_ticker
+        ON alert_rules(ticker, is_active)
+    """)
+
+    # Create alert_history table for alert logs
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS alert_history (
+            id {id_type},
+            rule_id {integer_type} NOT NULL,
+            ticker {text_type} NOT NULL,
+            alert_type {text_type} NOT NULL,
+            message {text_type},
+            triggered_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alert_history_ticker
+        ON alert_history(ticker, triggered_at DESC)
+    """)
+
+    # Create etf_fundamentals table for NAV, AUM tracking
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_fundamentals (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            nav {real_type},
+            nav_change_pct {real_type},
+            aum {real_type},
+            tracking_error {real_type},
+            expense_ratio {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_fundamentals_ticker_date
+        ON etf_fundamentals(ticker, date DESC)
+    """)
+
+    # Create etf_rebalancing table for rebalancing history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_rebalancing (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            rebalance_date DATE NOT NULL,
+            action {text_type} NOT NULL,
+            stock_code {text_type},
+            stock_name {text_type},
+            weight_before {real_type},
+            weight_after {real_type},
+            shares_change {integer_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_rebalancing_ticker_date
+        ON etf_rebalancing(ticker, rebalance_date DESC)
+    """)
+
+    # Create etf_distributions table for dividend/distribution history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_distributions (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            record_date DATE NOT NULL,
+            payment_date DATE,
+            ex_date DATE,
+            amount_per_share {real_type} NOT NULL,
+            distribution_type {text_type},
+            yield_pct {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            UNIQUE(ticker, record_date)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_distributions_ticker_date
+        ON etf_distributions(ticker, record_date DESC)
+    """)
+
+    # Create etf_holdings table for portfolio composition
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS etf_holdings (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            stock_code {text_type} NOT NULL,
+            stock_name {text_type},
+            weight {real_type},
+            shares {integer_type},
+            market_value {real_type},
+            sector {text_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date, stock_code),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_holdings_ticker_date
+        ON etf_holdings(ticker, date DESC)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_etf_holdings_weight
+        ON etf_holdings(ticker, date, weight DESC)
+    """)
+
+    # Create stock_fundamentals table for stock financial metrics
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS stock_fundamentals (
+            ticker {text_type} NOT NULL,
+            date DATE NOT NULL,
+            per {real_type},
+            pbr {real_type},
+            roe {real_type},
+            roa {real_type},
+            eps {real_type},
+            bps {real_type},
+            revenue {real_type},
+            operating_profit {real_type},
+            net_profit {real_type},
+            operating_margin {real_type},
+            net_margin {real_type},
+            debt_ratio {real_type},
+            current_ratio {real_type},
+            dividend_yield {real_type},
+            payout_ratio {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            PRIMARY KEY (ticker, date),
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_fundamentals_ticker_date
+        ON stock_fundamentals(ticker, date DESC)
+    """)
+
+    # Create stock_distributions table for dividend history
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS stock_distributions (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            record_date DATE NOT NULL,
+            payment_date DATE,
+            ex_date DATE,
+            amount_per_share {real_type},
+            distribution_type {text_type},
+            yield_pct {real_type},
+            created_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            UNIQUE(ticker, record_date)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_distributions_ticker_date
+        ON stock_distributions(ticker, record_date DESC)
     """)
 
     # Insert initial stock data from config (ETF 4개 + 주식 2개)
@@ -463,6 +726,51 @@ def init_db():
     conn.close()
     
     logger.info("Database initialized successfully")
+
+
+def run_migrations():
+    """
+    init_db() 이후 별도 실행이 필요한 스키마 마이그레이션.
+    autocommit=True로 트랜잭션 없이 ALTER TABLE 실행 (PostgreSQL 전용).
+    """
+    if not USE_POSTGRES:
+        return
+
+    import psycopg2
+
+    # (table, column, new_type) 형식
+    migrations = [
+        ("stock_catalog", "foreign_net", "BIGINT"),
+        ("stock_catalog", "institutional_net", "BIGINT"),
+        ("stock_catalog", "volume", "BIGINT"),
+    ]
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        for table, col, new_type in migrations:
+            try:
+                # 현재 컬럼 타입 확인
+                cursor.execute("""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = %s
+                """, (table, col))
+                row = cursor.fetchone()
+                if row and row[0].upper() != new_type:
+                    cursor.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {new_type}")
+                    logger.info(f"Migration: {table}.{col} → {new_type}")
+                else:
+                    logger.debug(f"Migration skipped: {table}.{col} already {new_type or 'not found'}")
+            except Exception as e:
+                logger.warning(f"Migration failed for {table}.{col}: {e}")
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"run_migrations() failed: {e}")
+
 
 def update_collection_status(ticker: str,
                             price_date: str = None,

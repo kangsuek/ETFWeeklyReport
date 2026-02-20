@@ -13,6 +13,9 @@
 | **종목 상세** | 투자 전략·핵심 포인트, 가격/통계, 가격·매매동향·RSI·MACD 차트, 분봉, 지지/저항선, 뉴스 타임라인 |
 | **종목 비교** | 2~6종목 선택, 정규화 가격 차트(시작일=100), 수익률·변동성·MDD·샤프 비율 비교 테이블 |
 | **포트폴리오** | 총 투자금·평가금·손익·수익률, 비중 파이차트, 일별 추이 차트, 종목별 기여도 테이블, 포트폴리오 분석 리포트 |
+| **종목 발굴** | ETF 조건 검색(주간수익률·수급 필터), 히트맵/테이블 뷰, 테마 탐색, 데이터 수집·진행률 표시 |
+| **시뮬레이션** | 일시 투자(그때 샀다면?), 적립식(DCA) 투자, 포트폴리오 시뮬레이션 — 과거 데이터 기반 수익률 차트·테이블 |
+| **알림** | 종목별 목표가 알림 규칙 설정 (상한/하한), 알림 이력 조회 |
 | **설정** | 다크 모드, 자동 갱신 간격, 기본 날짜 범위, **종목 추가/수정/삭제**, 데이터 수집·DB 초기화·캐시 관리 |
 
 ---
@@ -46,7 +49,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 
 ### 한 번에 설정·실행
 
-상세 절차는 **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**를 따르세요. 요약:
+요약:
 
 1. `backend`에서 `uv venv` → `uv pip install -r requirements-dev.txt`  
 2. 프로젝트 루트에서 `cp .env.example .env` (필요 시 편집)  
@@ -91,6 +94,19 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 
 ---
 
+## SDK / MCP 서버
+
+백엔드 API를 외부 프로그램·AI 에이전트에서 사용하기 위한 두 가지 인터페이스를 제공합니다.
+
+| 인터페이스 | 위치 | 설명 |
+|-----------|------|------|
+| **OpenAPI Python SDK** | `sdk/` | `openapi-python-client`로 FastAPI 스펙에서 자동 생성된 타입 안전 Python 클라이언트. `bash sdk/generate.sh`로 재생성. |
+| **MCP 서버** | `mcp-server/` | Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 도구(tool)로 직접 호출. 16개 도구 제공. |
+
+자세한 설정 절차: **[docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md)**
+
+---
+
 ## 주요 API (요약)
 
 | 구분 | 엔드포인트 예시 |
@@ -100,6 +116,9 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 | 뉴스 | `GET /api/news/{ticker}` |
 | 데이터 | `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats`, `DELETE /api/data/reset` |
 | 설정 | `GET/POST /api/settings/stocks`, `PUT/DELETE /api/settings/stocks/{ticker}`, `GET /api/settings/stocks/search`, `POST /api/settings/stocks/reorder`, `POST /api/settings/ticker-catalog/collect` |
+| 알림 | `GET /api/alerts/{ticker}`, `POST /api/alerts/`, `PUT /api/alerts/{rule_id}`, `DELETE /api/alerts/{rule_id}` |
+| 종목 발굴 | `GET /api/scanner`, `GET /api/scanner/themes`, `POST /api/scanner/collect-data`, `GET /api/scanner/collect-progress`, `POST /api/scanner/cancel-collect` |
+| 시뮬레이션 | `POST /api/simulation/lump-sum`, `POST /api/simulation/dca`, `POST /api/simulation/portfolio` |
 
 상세 스펙은 [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) 및 [docs/FEATURES.md](./docs/FEATURES.md)를 참고하세요.
 
@@ -108,7 +127,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 ## 기술 스택
 
 상세: [docs/TECH_STACK.md](./docs/TECH_STACK.md)  
-Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React 18, Vite 5, Tailwind, TanStack Query, Recharts
+Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React 18, Vite 5, Tailwind CSS, TanStack Query, Recharts
 
 ---
 
@@ -118,16 +137,17 @@ Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React
 |------|------|
 | [CLAUDE.md](./CLAUDE.md) | 문서 인덱스 |
 | [docs/FEATURES.md](./docs/FEATURES.md) | 제공 기능 상세 |
-| [docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md) | 환경 설정·실행·Pre-commit |
 | [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | 개발 가이드 |
 | [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) | REST API 명세 |
+| [docs/API_MANUAL.md](./docs/API_MANUAL.md) | REST API 상세 매뉴얼 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 시스템 아키텍처 |
-| [docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) | 파일 구조 (표준 정합성) |
 | [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | DB 스키마 |
-| [docs/INTRADAY.md](./docs/INTRADAY.md) | 분봉 차트 조회·수집 |
 | [docs/TECH_STACK.md](./docs/TECH_STACK.md) | 기술 스택 |
-| [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md) | Render.com 배포 |
-| [docs/SECURITY_CHECKLIST.md](./docs/SECURITY_CHECKLIST.md) | 보안 체크리스트 |
+| [docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md) | SDK/MCP 서버 설정 가이드 |
+| [docs/BRANCHES.md](./docs/BRANCHES.md) | Git 브랜치 전략 |
+| [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md) | Render.com 배포 전체 가이드 |
+| [frontend/DEPLOYMENT.md](./frontend/DEPLOYMENT.md) | Render.com 배포 간략 가이드 |
+| [docs/detail_features/](./docs/detail_features/) | 화면별 상세 기능 명세 |
 
 ---
 

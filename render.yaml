@@ -6,7 +6,7 @@ services:
     region: singapore
     plan: free
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: cd backend && bash render-start.sh  # DB 초기화 후 uvicorn 실행
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -16,12 +16,14 @@ services:
         fromDatabase:
           name: etf-report-db
           property: connectionString
+      - key: API_KEY
+        sync: false  # 필수: Render 대시보드에서 반드시 설정 (미설정 시 503 오류)
       - key: CORS_ORIGINS
-        sync: false  # 프론트엔드 배포 후 Render 대시보드에서 설정
+        sync: false  # 필수: 프론트엔드 배포 후 Render 대시보드에서 설정
       - key: NAVER_CLIENT_ID
-        sync: false  # 선택사항: Render 대시보드에서 설정
+        sync: false  # 선택사항: 뉴스 수집 기능 사용 시 설정
       - key: NAVER_CLIENT_SECRET
-        sync: false  # 선택사항: Render 대시보드에서 설정
+        sync: false  # 선택사항: 뉴스 수집 기능 사용 시 설정
       - key: SCRAPING_INTERVAL_MINUTES
         value: 60  # 무료 플랜 고려: 1시간마다 수집
       - key: CACHE_TTL_MINUTES
@@ -37,7 +39,9 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false  # 백엔드 URL로 Render 대시보드에서 설정 (예: https://etf-report-backend.onrender.com/api)
+        sync: false  # 필수: 백엔드 URL (예: https://etf-report-backend.onrender.com/api)
+      - key: VITE_API_KEY
+        sync: false  # 필수: Backend API_KEY와 동일한 값 (데이터 수집·설정 기능)
 
 databases:
   # PostgreSQL Database

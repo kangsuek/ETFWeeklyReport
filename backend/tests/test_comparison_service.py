@@ -68,14 +68,14 @@ class TestValidation:
         assert "at least 2 tickers" in str(exc_info.value).lower()
 
     def test_validate_too_many_tickers(self, comparison_service):
-        """Test validation with more than 6 tickers"""
+        """Test validation with more than 20 tickers"""
         with pytest.raises(ValidationException) as exc_info:
             comparison_service._validate_inputs(
-                ['t1', 't2', 't3', 't4', 't5', 't6', 't7'],
+                ['t' + str(i) for i in range(21)],
                 date(2025, 1, 1),
                 date(2025, 1, 31)
             )
-        assert "maximum 6 tickers" in str(exc_info.value).lower()
+        assert "maximum 20 tickers" in str(exc_info.value).lower()
 
     def test_validate_invalid_date_range(self, comparison_service):
         """Test validation with start_date >= end_date"""
@@ -209,15 +209,12 @@ class TestCalculateAnnualizedReturn:
     """Annualized return calculation tests"""
 
     def test_annualized_return_30_days(self, comparison_service):
-        """Test annualized return with 30-day period and 10% return"""
-        # 10% return over 30 days
+        """Test annualized return with 30-day period: 3개월 미만이므로 None 반환"""
         prices = pd.Series([100, 110])
         days = 30
         result = comparison_service.calculate_annualized_return(prices, days)
-
-        # (1.10)^(365/30) - 1 = 3.495 = 349.5%
-        expected = ((1.10) ** (365 / 30) - 1) * 100
-        assert abs(result - expected) < 0.1
+        # 서비스 정책: 90일 미만은 연환산 계산 안 함
+        assert result is None
 
     def test_annualized_return_365_days(self, comparison_service):
         """Test annualized return with 365-day period"""
@@ -230,42 +227,32 @@ class TestCalculateAnnualizedReturn:
         assert result == 20.0
 
     def test_annualized_return_negative(self, comparison_service):
-        """Test annualized return with negative return"""
-        # -10% return over 30 days
+        """Test annualized return with negative return: 3개월 미만이므로 None 반환"""
         prices = pd.Series([100, 90])
         days = 30
         result = comparison_service.calculate_annualized_return(prices, days)
-
-        # (0.90)^(365/30) - 1 = -0.722 = -72.2%
-        expected = ((0.90) ** (365 / 30) - 1) * 100
-        assert abs(result - expected) < 0.1
+        assert result is None
 
     def test_annualized_return_small_gain_short_period(self, comparison_service):
-        """Test annualized return with small gain over short period"""
-        # 2% return over 7 days
+        """Test annualized return with small gain over short period: 90일 미만이므로 None"""
         prices = pd.Series([100, 102])
         days = 7
         result = comparison_service.calculate_annualized_return(prices, days)
-
-        # (1.02)^(365/7) - 1 = 1.53 = 153%
-        expected = ((1.02) ** (365 / 7) - 1) * 100
-        assert abs(result - expected) < 1.0
+        assert result is None
 
     def test_annualized_return_zero_days(self, comparison_service):
-        """Test annualized return with zero days"""
+        """Test annualized return with zero days -> None"""
         prices = pd.Series([100, 110])
         days = 0
         result = comparison_service.calculate_annualized_return(prices, days)
-
-        assert result == 0.0
+        assert result is None
 
     def test_annualized_return_insufficient_data(self, comparison_service):
-        """Test annualized return with insufficient data"""
+        """Test annualized return with insufficient data -> None"""
         prices = pd.Series([100])
         days = 30
         result = comparison_service.calculate_annualized_return(prices, days)
-
-        assert result == 0.0
+        assert result is None
 
 
 class TestCalculateVolatility:

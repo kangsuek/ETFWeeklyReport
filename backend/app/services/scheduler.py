@@ -15,6 +15,8 @@ from app.config import Config
 from app.services.data_collector import ETFDataCollector
 from app.services.news_scraper import NewsScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
+from app.services.catalog_data_collector import CatalogDataCollector
+from app.database import get_db_connection, USE_POSTGRES
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -35,10 +37,14 @@ class DataCollectionScheduler:
         self.collector = ETFDataCollector()
         self.news_scraper = NewsScraper()
         self.ticker_catalog_collector = TickerCatalogCollector()
+        self.catalog_data_collector = CatalogDataCollector()
         self._jobs = {}
         self.last_collection_time = None
         self.is_collecting = False
         self.last_catalog_collection_time = None
+        self.last_catalog_data_collection_time = None
+        self.last_fundamentals_collection_time = None
+        self.is_collecting_fundamentals = False
         logger.info("DataCollectionScheduler 초기화 완료")
     
     def collect_periodic_data(self):
@@ -210,6 +216,145 @@ class DataCollectionScheduler:
             logger.error(f"[스케줄러-카탈로그수집] 전체 실패: {e}", exc_info=True)
             raise
     
+    def collect_catalog_data(self):
+        """
+        카탈로그 가격/수급 데이터 수집 작업
+
+        ETF 종목의 가격, 거래량, 외국인/기관 순매수 데이터를 수집하여
+        stock_catalog 테이블에 업데이트합니다.
+        """
+        from app.services.progress import get_progress
+
+        # 이미 수집 중이면 건너뜀 (수동 트리거와 충돌 방지)
+        current = get_progress("catalog-data")
+        if current and current.get("status") == "in_progress":
+            logger.warning("[스케줄러-카탈로그데이터수집] 이미 수집 작업이 진행 중입니다. 건너뜁니다.")
+            return
+
+        start_time = datetime.now(KST)
+        logger.info(f"[스케줄러-카탈로그데이터수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        try:
+            result = self.catalog_data_collector.collect_all()
+
+            end_time = datetime.now(KST)
+            self.last_catalog_data_collection_time = end_time
+
+            logger.info(
+                f"[스케줄러-카탈로그데이터수집] 완료: "
+                f"가격 {result['price_count']}개, 수급 {result['supply_count']}개, "
+                f"저장 {result['saved_count']}개, "
+                f"소요 시간 {result['duration_seconds']}초"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[스케줄러-카탈로그데이터수집] 실패: {e}", exc_info=True)
+            raise
+
+    def collect_fundamentals(self):
+        """
+        펀더멘털 데이터 수집 작업 (평일 16:30 KST)
+
+        etfs 테이블의 모든 종목에 대해 type별로 펀더멘털 데이터를 수집합니다.
+        - ETF: 네이버 NAV 추이 + 구성종목 → etf_fundamentals, etf_holdings
+        - STOCK: 네이버 기업실적분석 → stock_fundamentals
+        """
+        from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+        from app.services.stock_fundamentals_collector import collect_stock_fundamentals
+
+        if self.is_collecting_fundamentals:
+            logger.warning("[스케줄러-펀더멘털] 이미 수집 작업이 진행 중입니다. 건너뜁니다.")
+            return
+
+        self.is_collecting_fundamentals = True
+        start_time = datetime.now(KST)
+        logger.info(f"[스케줄러-펀더멘털] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        try:
+            # 종목 목록 조회
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    cursor = conn_or_cursor
+                else:
+                    cursor = conn_or_cursor.cursor()
+                cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
+                rows = cursor.fetchall()
+
+            tickers = [(r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1]) for r in rows]
+
+            etf_collector = ETFFundamentalsCollector()
+            success_count = 0
+            error_count = 0
+
+            for ticker, etf_type in tickers:
+                try:
+                    if etf_type == 'STOCK':
+                        result = collect_stock_fundamentals(ticker)
+                        ok = result.get('success', False)
+                    else:
+                        result = etf_collector.collect_all(ticker)
+                        ok = result.get('nav', False) or result.get('holdings', False)
+
+                    if ok:
+                        success_count += 1
+                        logger.info(f"[스케줄러-펀더멘털] {ticker} 수집 완료")
+                    else:
+                        logger.warning(f"[스케줄러-펀더멘털] {ticker} 수집 실패: {result}")
+                        error_count += 1
+
+                except Exception as e:
+                    logger.error(f"[스케줄러-펀더멘털] {ticker} 수집 에러: {e}")
+                    error_count += 1
+
+            end_time = datetime.now(KST)
+            self.last_fundamentals_collection_time = end_time
+            duration = (end_time - start_time).total_seconds()
+
+            logger.info(
+                f"[스케줄러-펀더멘털] 완료: "
+                f"성공 {success_count}/{len(tickers)}, 실패 {error_count}, "
+                f"소요 시간 {duration:.2f}초"
+            )
+
+        except Exception as e:
+            logger.error(f"[스케줄러-펀더멘털] 전체 실패: {e}", exc_info=True)
+        finally:
+            self.is_collecting_fundamentals = False
+
+    def _collect_fundamentals_if_needed(self):
+        """
+        오늘 펀더멘털 데이터가 없으면 즉시 수집.
+
+        서버 재시작 후 당일 수집 여부를 etf_holdings.date 기준으로 확인합니다.
+        미수집이면 collect_fundamentals()를 즉시 실행합니다.
+        """
+        from datetime import date as date_type
+
+        try:
+            today = date_type.today().isoformat()
+            param = '%s' if USE_POSTGRES else '?'
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    cursor = conn_or_cursor
+                else:
+                    cursor = conn_or_cursor.cursor()
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM etf_holdings WHERE date = {param}", (today,)
+                )
+                row = cursor.fetchone()
+                count = row[0] if row else 0
+
+            if count == 0:
+                logger.info(f"[스케줄러-펀더멘털] 오늘({today}) 수집된 데이터 없음 → 즉시 수집 시작")
+                self.collect_fundamentals()
+            else:
+                logger.info(f"[스케줄러-펀더멘털] 오늘({today}) 이미 {count}건 수집됨, 건너뜀")
+
+        except Exception as e:
+            logger.warning(f"[스케줄러-펀더멘털] 수집 여부 확인 실패: {e}")
+
     def start(self):
         """
         스케줄러 시작
@@ -283,6 +428,38 @@ class DataCollectionScheduler:
         self._jobs['ticker_catalog_collection'] = catalog_job
         logger.info("종목 목록 카탈로그 수집 스케줄 등록: 매일 03:00 KST")
 
+        # ETF 카탈로그 가격/수급 데이터 수집 스케줄 (평일 16:00 KST, 장 마감 30분 후)
+        catalog_data_job = self.scheduler.add_job(
+            self.collect_catalog_data,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=16,
+                minute=0,
+                timezone=KST
+            ),
+            id='catalog_data_collection',
+            name='ETF 카탈로그 가격/수급 수집',
+            replace_existing=True
+        )
+        self._jobs['catalog_data_collection'] = catalog_data_job
+        logger.info("ETF 카탈로그 가격/수급 수집 스케줄 등록: 평일 16:00 KST")
+
+        # 펀더멘털 데이터 수집 스케줄 (평일 16:30 KST, 장마감 1시간 후)
+        fundamentals_job = self.scheduler.add_job(
+            self.collect_fundamentals,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=16,
+                minute=30,
+                timezone=KST
+            ),
+            id='fundamentals_collection',
+            name='펀더멘털 데이터 수집',
+            replace_existing=True
+        )
+        self._jobs['fundamentals_collection'] = fundamentals_job
+        logger.info("펀더멘털 수집 스케줄 등록: 평일 16:30 KST")
+
         # 스케줄러 시작
         self.scheduler.start()
         logger.info("스케줄러 시작 완료")
@@ -290,6 +467,10 @@ class DataCollectionScheduler:
         # 즉시 첫 수집 실행
         logger.info("즉시 첫 주기적 수집 실행...")
         self.collect_periodic_data()
+
+        # 오늘 펀더멘털 수집 여부 확인 → 미수집이면 즉시 실행
+        logger.info("펀더멘털 수집 여부 확인...")
+        self._collect_fundamentals_if_needed()
     
     def stop(self):
         """
@@ -342,20 +523,30 @@ class DataCollectionScheduler:
             if job.id == 'periodic_collection' and job.next_run_time:
                 next_job = job.next_run_time
 
-        # 카탈로그 수집 다음 실행 시간 찾기
+        # 카탈로그/펀더멘털 수집 다음 실행 시간 찾기
         catalog_next_job = None
+        catalog_data_next_job = None
+        fundamentals_next_job = None
         for job in self.scheduler.get_jobs():
             if job.id == 'ticker_catalog_collection' and job.next_run_time:
                 catalog_next_job = job.next_run_time
+            if job.id == 'catalog_data_collection' and job.next_run_time:
+                catalog_data_next_job = job.next_run_time
+            if job.id == 'fundamentals_collection' and job.next_run_time:
+                fundamentals_next_job = job.next_run_time
 
         return {
             "is_running": self.scheduler.running,
             "is_collecting": self.is_collecting,
             "last_collection_time": self.last_collection_time.isoformat() if self.last_collection_time else None,
             "last_catalog_collection_time": self.last_catalog_collection_time.isoformat() if self.last_catalog_collection_time else None,
+            "last_catalog_data_collection_time": self.last_catalog_data_collection_time.isoformat() if self.last_catalog_data_collection_time else None,
+            "last_fundamentals_collection_time": self.last_fundamentals_collection_time.isoformat() if self.last_fundamentals_collection_time else None,
             "interval_minutes": Config.SCRAPING_INTERVAL_MINUTES,
             "next_run_time": next_job.isoformat() if next_job else None,
-            "next_catalog_collection_time": catalog_next_job.isoformat() if catalog_next_job else None
+            "next_catalog_collection_time": catalog_next_job.isoformat() if catalog_next_job else None,
+            "next_catalog_data_collection_time": catalog_data_next_job.isoformat() if catalog_data_next_job else None,
+            "next_fundamentals_collection_time": fundamentals_next_job.isoformat() if fundamentals_next_job else None,
         }
 
 

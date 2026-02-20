@@ -2,13 +2,12 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { etfApi, newsApi } from '../services/api'
+import { etfApi, newsApi, alertApi } from '../services/api'
 import { useSettings } from '../contexts/SettingsContext'
 import PageHeader from '../components/common/PageHeader'
 import Spinner from '../components/common/Spinner'
 import ErrorFallback from '../components/common/ErrorFallback'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
-import StatsSummary from '../components/etf/StatsSummary'
 import PriceTable from '../components/etf/PriceTable'
 import NewsTimeline from '../components/news/NewsTimeline'
 import ETFHeader from '../components/etf/ETFHeader'
@@ -16,6 +15,8 @@ import ETFCharts from '../components/etf/ETFCharts'
 import InsightSummary from '../components/etf/InsightSummary'
 import StrategySummary from '../components/etf/StrategySummary'
 import IntradayChart from '../components/charts/IntradayChart'
+import PriceTargetPanel from '../components/etf/PriceTargetPanel'
+import useAlertChecker from '../hooks/useAlertChecker'
 import { formatPrice, formatNumber, formatPercent, getPriceChangeColor } from '../utils/format'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_SLOW } from '../constants'
 import { calculateDateRange } from '../utils/dateRange'
@@ -63,12 +64,9 @@ export default function ETFDetail() {
   // 가격 테이블 접힘 상태 (기본: 접힘)
   const [isTableExpanded, setIsTableExpanded] = useState(false)
 
-  // 고급 분석 모드 토글 (기본: 닫힘 - 일반인을 위한 간결한 화면)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-
-  // 기술지표 토글 상태 (기본: 꺼짐 - 고급 분석에서 사용자가 선택)
-  const [showRSI, setShowRSI] = useState(false)
-  const [showMACD, setShowMACD] = useState(false)
+  // 기술지표 토글 상태 (기본: 켜짐)
+  const [showRSI, setShowRSI] = useState(true)
+  const [showMACD, setShowMACD] = useState(true)
 
   // 설정 변경 시 날짜 범위 반영 (사용자가 수동으로 변경하지 않은 경우)
   useEffect(() => {
@@ -224,6 +222,30 @@ export default function ETFDetail() {
     forceRefreshRef.current = true
     refetchIntraday()
   }, [refetchIntraday])
+
+  // 알림 규칙 (목표가) 조회 - 분봉 차트에 표시
+  const { data: alertRules = [] } = useQuery({
+    queryKey: ['alertRules', ticker],
+    queryFn: async () => {
+      const res = await alertApi.getRules(ticker, false)
+      return res.data
+    },
+    enabled: !!ticker,
+    staleTime: 30_000,
+  })
+
+  // 전일 종가 (분봉 차트 + 알림 체크용)
+  const previousClose = pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null
+
+  // 3종 알림 감지 훅
+  useAlertChecker({
+    ticker,
+    tickerName: etf?.name || '',
+    alertRules,
+    intradayData,
+    previousClose,
+    tradingFlowData: tradingFlowData || [],
+  })
 
   // 날짜 범위 변경 핸들러
   const handleDateRangeChange = (newRange) => {
@@ -538,7 +560,7 @@ export default function ETFDetail() {
         ticker={ticker}
         dateRange={dateRange.range}
         showVolume={settings.display.showVolume}
-        showTradingFlow={showAdvanced && settings.display.showTradingFlow}
+        showTradingFlow={settings.display.showTradingFlow}
         pricesLoading={pricesLoading}
         pricesFetching={pricesFetching}
         tradingFlowLoading={tradingFlowLoading}
@@ -554,12 +576,12 @@ export default function ETFDetail() {
         purchasePrice={etf?.purchase_price}
         rsiData={rsiData}
         macdData={macdData}
-        showRSI={showAdvanced && showRSI}
-        showMACD={showAdvanced && showMACD}
+        showRSI={showRSI}
+        showMACD={showMACD}
         onToggleRSI={() => setShowRSI(v => !v)}
         onToggleMACD={() => setShowMACD(v => !v)}
-        supportResistanceData={showAdvanced ? supportResistanceData : null}
-        showTechnicalSection={showAdvanced}
+        supportResistanceData={supportResistanceData}
+        showTechnicalSection={true}
       />
 
       {/* 5. 오늘의 실시간 체결 (분봉 차트) */}
@@ -625,8 +647,9 @@ export default function ETFDetail() {
             ticker={ticker}
             height={300}
             showVolume={settings.display.showVolume}
-            previousClose={pricesData && pricesData.length >= 2 ? pricesData[1]?.close_price : null}
-            pivotLevels={showAdvanced ? supportResistanceData?.pivot : null}
+            previousClose={previousClose}
+            pivotLevels={supportResistanceData?.pivot}
+            priceTargets={alertRules}
           />
         )}
 
@@ -635,6 +658,16 @@ export default function ETFDetail() {
             장중이 아니거나 휴장일입니다. 장 시작 후 데이터가 수집됩니다.
           </p>
         )}
+
+        {/* 목표가 설정 패널 */}
+        <PriceTargetPanel
+          ticker={ticker}
+          currentPrice={
+            intradayData?.data?.length > 0
+              ? intradayData.data[intradayData.data.length - 1].price
+              : pricesData?.[0]?.close_price ?? null
+          }
+        />
       </div>
 
       {/* 6. 최근 뉴스 */}
@@ -647,50 +680,8 @@ export default function ETFDetail() {
       {/* 고급 분석: 전문 투자자를 위한 상세 지표      */}
       {/* ========================================== */}
 
-      {/* 고급 분석 토글 버튼 */}
-      <div className="mb-4">
-        <button
-          onClick={() => setShowAdvanced(v => !v)}
-          className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 transition-all duration-200 ${
-            showAdvanced
-              ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <span className="font-medium">
-            {showAdvanced ? '고급 분석 접기' : '고급 분석 보기'}
-          </span>
-          <span className="text-xs opacity-60">
-            {showAdvanced ? '' : '(기술지표, 매매동향, 수익률 분석 등)'}
-          </span>
-          <svg
-            className={`w-4 h-4 transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {/* 고급 분석 콘텐츠 */}
-      {showAdvanced && (
-        <div className="space-y-4 animate-fadeIn">
-          {/* 성과 및 리스크 지표 */}
-          {pricesData && pricesData.length > 0 && (
-            <div className="card">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">성과 및 리스크 지표</h3>
-              <StatsSummary 
-                data={pricesData} 
-                purchasePrice={etf?.purchase_price}
-                purchaseDate={etf?.purchase_date}
-              />
-            </div>
-          )}
-
-          {/* 가격 데이터 테이블 */}
+      {/* 가격 데이터 테이블 */}
+      <div className="space-y-4 animate-fadeIn">
           {pricesData && pricesData.length > 0 && (
             <div className="card">
               <button
@@ -717,7 +708,6 @@ export default function ETFDetail() {
             </div>
           )}
         </div>
-      )}
     </div>
   )
 }

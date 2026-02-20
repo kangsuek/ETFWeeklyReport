@@ -1,268 +1,338 @@
 # Render.com 배포 가이드
 
-ETF Weekly Report를 Render.com에 무료로 배포하는 방법입니다.  
-프로젝트 루트의 **render.yaml**로 Blueprint 배포를 지원하며, 백엔드(FastAPI)·프론트엔드(Static Site)·PostgreSQL 구성을 정의합니다.
+ETF Weekly Report를 **Render.com**에서 배포하는 전체 가이드입니다.  
+PostgreSQL(DB) + Web Service(백엔드) + Static Site(프론트엔드) 3개 서비스를 구성합니다.
 
-> **참고**: 로컬 개발 환경은 **uv**를 사용합니다. Render 등 클라우드 빌드에서는 uv 미제공으로 **pip**를 사용합니다.
+---
 
-## 📋 사전 요구사항
+## 사전 요구사항
 
-1. **Render.com 계정**: https://render.com 에서 무료 계정 생성
-2. **GitHub 저장소**: 프로젝트가 GitHub에 푸시되어 있어야 함
-3. **Naver API 키** (선택): 뉴스 수집 기능 사용 시만 필요
+- **Render.com 계정**: https://render.com
+- **GitHub 저장소**에 프로젝트 푸시 완료
+- **Naver API 키** (선택): 뉴스 수집 시에만 필요
 
-## 🚀 배포 단계
+---
 
-### 방법 1: render.yaml Blueprint (권장)
+## 배포 전 필수 확인 사항
 
-#### 1단계: GitHub에 코드 푸시
+배포 실패의 가장 흔한 원인 4가지를 먼저 이해하세요.
 
-```bash
-git add .
-git commit -m "Add Render deployment configuration"
-git push origin main
+| # | 문제 | 증상 | 원인 |
+|---|------|------|------|
+| 1 | `API_KEY` 미설정 | 데이터 수집/설정 API → **503** | Render 환경(`RENDER` env 존재)에서 `API_KEY` 없으면 인증 미들웨어가 모든 protected 요청 거부 |
+| 2 | `VITE_API_BASE_URL` 미설정 | API 호출 → **404** | 기본값 `/api`가 프론트 정적 사이트 자체로 요청됨 |
+| 3 | `CORS_ORIGINS` 미설정 | 브라우저 → **CORS 에러** | 백엔드가 프론트 도메인을 허용하지 않음 |
+| 4 | 초기 데이터 수집 누락 | 모든 API → **빈 배열** `[]` | DB 테이블은 생성됐지만 데이터 수집을 한 번도 실행하지 않은 상태 |
+
+---
+
+## 배포 구성 요약
+
+| 서비스 | 타입 | Root Directory | Build Command | Start / Publish |
+|--------|------|----------------|---------------|-----------------|
+| **Backend** | Web Service | (루트) | `pip install -r backend/requirements.txt` | `cd backend && bash render-start.sh` (권장) 또는 `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| **Frontend** | Static Site | `frontend` | `npm install && npm run build` | Publish: `dist` |
+| **DB** | PostgreSQL | - | - | Render에서 생성 후 `DATABASE_URL` 연결 |
+
+---
+
+## 방법 A: render.yaml Blueprint (권장)
+
+### 1단계 — render.yaml startCommand 수정
+
+현재 `render.yaml`의 `startCommand`는 DB 초기화(`python -m app.database`)를 건너뜁니다.
+`render-start.sh`를 사용하도록 수정합니다.
+
+```yaml
+# render.yaml 수정 전
+startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+# render.yaml 수정 후 (render-start.sh 사용)
+startCommand: cd backend && bash render-start.sh
 ```
 
-#### 2단계: Render에서 Blueprint 배포
+`backend/render-start.sh`가 하는 일:
+```bash
+#!/bin/bash
+python -m app.database   # DB 테이블 생성 (없으면 생성, 있으면 건너뜀)
+uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+```
 
-1. Render 대시보드 접속
-2. **New +** → **Blueprint** 선택
-3. GitHub 저장소 연결
-4. 저장소 루트의 **render.yaml**이 자동으로 감지됨
-5. **Apply** 클릭하여 배포 시작
+### 2단계 — Blueprint 배포
 
-**render.yaml 요약** (현재 소스 기준):
+1. [Render 대시보드](https://dashboard.render.com) → **New +** → **Blueprint**
+2. GitHub 저장소 연결 → `render.yaml` 자동 감지 → **Apply**
+3. PostgreSQL, Backend Web Service, Frontend Static Site 3개 서비스 자동 생성됨
 
-| 서비스 | 타입 | 빌드/시작 |
-|--------|------|------------|
-| **etf-report-backend** | Web (Python) | Build: `pip install -r backend/requirements.txt` / Start: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| **etf-report-frontend** | Static | Build: `cd frontend && npm install && npm run build` / Publish: `frontend/dist` |
-| **etf-report-db** | PostgreSQL | 자동 생성, Backend에 `DATABASE_URL` 연결 |
+### 3단계 — 환경 변수 설정 (필수)
 
-render.yaml에 `sync: false`로 되어 있는 변수는 **반드시 Render 대시보드에서 수동 설정**해야 합니다.
+Blueprint 배포 후 Render 대시보드에서 각 서비스에 아래 값을 입력합니다.
 
-#### 3단계: 환경 변수 설정 (대시보드)
+#### ① Backend 서비스 환경 변수
 
-배포 후 각 서비스 → **Environment** 탭에서 아래 변수를 설정하세요.
+Render 대시보드 → `etf-report-backend` → **Environment** 탭
 
-**Backend (`etf-report-backend`)**  
-(yaml에서 이미 설정된 것: `PYTHON_VERSION`, `API_HOST`, `DATABASE_URL`, `SCRAPING_INTERVAL_MINUTES`, `CACHE_TTL_MINUTES`, `DB_POOL_SIZE`)
+| 변수 | 설명 | 예시 |
+|------|------|------|
+| `DATABASE_URL` | PostgreSQL → **Connections** 탭 → **Internal Database URL** | `postgresql://user:pass@host/dbname` |
+| `API_KEY` | 관리용 비밀키 (임의로 생성) | `openssl rand -hex 32` 출력값 |
+| `CORS_ORIGINS` | 프론트엔드 URL (끝에 `/` 없이) | `https://etf-report-frontend.onrender.com` |
+| `NAVER_CLIENT_ID` | Naver 검색 API ID (뉴스 수집 시 필요) | |
+| `NAVER_CLIENT_SECRET` | Naver 검색 API Secret (뉴스 수집 시 필요) | |
+| `SCRAPING_INTERVAL_MINUTES` | 수집 간격(분), 무료 플랜은 `60` 권장 | `60` |
+| `CACHE_TTL_MINUTES` | 캐시 TTL(분) | `5` |
+| `DB_POOL_SIZE` | DB 연결 풀 크기, 무료 플랜은 `5` 권장 | `5` |
 
-- **`API_KEY`**: 관리용 API 키 (수집·설정·DB 초기화 등, 프로덕션 권장). render.yaml에 없으므로 대시보드에서 추가.
-- **`CORS_ORIGINS`**: 프론트엔드 URL (예: `https://etf-report-frontend.onrender.com`). 프론트 배포 후 URL 확정되면 설정.
-- **`NAVER_CLIENT_ID`** / **`NAVER_CLIENT_SECRET`**: 뉴스 수집 시 선택.
+> **`API_KEY`는 반드시 설정하세요.** Render 환경(`RENDER` 환경 변수 자동 주입)에서 `API_KEY`가 없으면 인증 미들웨어가 모든 쓰기 요청에 503을 반환합니다.
 
-**Frontend (`etf-report-frontend`)**
+#### ② Frontend 서비스 환경 변수
 
-- **`VITE_API_BASE_URL`**: 백엔드 API URL (예: `https://etf-report-backend.onrender.com/api`). 끝에 슬래시(`/`) 붙이지 마세요.
+Render 대시보드 → `etf-report-frontend` → **Environment** 탭
 
-**데이터베이스**
+| 변수 | 설명 | 예시 |
+|------|------|------|
+| `VITE_API_BASE_URL` | 백엔드 API Base URL (끝에 `/` 없이) | `https://etf-report-backend.onrender.com/api` |
+| `VITE_API_KEY` | Backend의 `API_KEY`와 동일한 값 (데이터 수집/설정 기능) | |
 
-- **`DATABASE_URL`**: render.yaml의 `fromDatabase`로 Backend에 자동 연결되므로 별도 설정 불필요.
+> **`VITE_API_BASE_URL`은 반드시 설정하세요.** 미설정 시 기본값 `/api`(상대경로)가 사용되어 프론트엔드 정적 사이트 자체에 API를 요청해 404가 발생합니다.
+> `VITE_` 접두사 변수는 **빌드 시점**에 코드에 삽입되므로, 값 변경 후에는 반드시 **재배포**해야 합니다.
+> URL 끝에 **슬래시(`/`) 붙이지 마세요.** 백엔드를 먼저 배포한 뒤 생성된 URL을 넣습니다.
 
-#### 환경 변수 상세 (참고)
+### 4단계 — 프론트엔드 재배포
 
-| 서비스 | 변수 | 설명 | 비고 |
-|--------|------|------|------|
-| Backend | `DATABASE_URL` | PostgreSQL 연결 문자열 | render.yaml에서 DB 자동 연결 |
-| Backend | `API_KEY` | 관리용 API 키 | 대시보드에서 설정 (yaml 없음) |
-| Backend | `CORS_ORIGINS` | 프론트엔드 도메인 | 대시보드에서 설정 (sync: false) |
-| Backend | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 수집 | 선택, 대시보드에서 설정 |
-| Backend | `SCRAPING_INTERVAL_MINUTES` | 수집 간격(분) | yaml 기본값 60 |
-| Backend | `CACHE_TTL_MINUTES` | 캐시(분) | yaml 기본값 5 |
-| Backend | `DB_POOL_SIZE` | DB 연결 풀 | yaml 기본값 5 |
-| Frontend | `VITE_API_BASE_URL` | 백엔드 API URL | 필수, 대시보드에서 설정 |
+`VITE_API_BASE_URL`을 설정한 뒤, Frontend 서비스에서 **Manual Deploy → Deploy latest commit** 클릭.
 
-로컬에서는 프로젝트 루트의 `.env`를 사용하지만, Render에는 `.env`가 없으므로 **모든 설정은 Render 환경 변수**에서 읽습니다. URL 끝에 슬래시(`/`)를 붙이지 마세요.
+---
 
-### 방법 2: 수동 배포
+## 방법 B: 수동 설정
 
-#### 1단계: PostgreSQL 데이터베이스 생성
+### 1. PostgreSQL 생성
 
-1. Render 대시보드에서 **New +** → **PostgreSQL** 선택
+1. **New +** → **PostgreSQL**
+2. Name: `etf-report-db`, Region: Singapore, Plan: Free
+3. 생성 후 **Connections** 탭 → **Internal Database URL** 복사 (백엔드 설정에서 사용)
+
+### 2. 백엔드 Web Service 생성
+
+1. **New +** → **Web Service** → GitHub 저장소 연결 → Branch: `main`
 2. 설정:
-   - **Name**: `etf-report-db`
-   - **Database**: `etf_report`
-   - **User**: `etf_report_user`
-   - **Region**: `Singapore` (또는 가까운 지역)
-   - **Plan**: `Free`
-3. **Create Database** 클릭
-4. 생성 후 **Connections** 탭에서 **Internal Database URL** 복사
 
-#### 2단계: Backend Web Service 배포
+| 항목 | 값 |
+|------|-----|
+| **Root Directory** | (비움) |
+| **Environment** | Python 3 |
+| **Region** | Singapore |
+| **Build Command** | `pip install -r backend/requirements.txt` |
+| **Start Command** | `cd backend && bash render-start.sh` |
+| **Plan** | Free |
 
-1. **New +** → **Web Service** 선택
-2. GitHub 저장소 연결
-3. 설정:
-   - **Name**: `etf-report-backend`
-   - **Region**: `Singapore`
-   - **Branch**: `main`
-   - **Root Directory**: (비움 — 저장소 루트 기준)
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r backend/requirements.txt`
-   - **Start Command**: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Plan**: `Free`
-4. **Environment** (또는 Advanced → Add Environment Variable):
-   - `DATABASE_URL`: 1단계에서 복사한 Internal Database URL
-   - `API_KEY`: 관리용 API 키 (프로덕션 권장)
-   - `CORS_ORIGINS`: `https://etf-report-frontend.onrender.com` (프론트 배포 후 실제 URL로 변경)
-   - `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`: (선택)
-   - `SCRAPING_INTERVAL_MINUTES`: `60`
-   - `CACHE_TTL_MINUTES`: `5`
-   - `DB_POOL_SIZE`: `5`
-5. **Create Web Service** 클릭
+3. **Environment Variables**에서 위 [Backend 환경 변수 표](#-backend-서비스-환경-변수) 참고하여 입력
+4. **Create Web Service** 클릭
 
-#### 3단계: Frontend Static Site 배포
+### 3. 프론트엔드 Static Site 생성
 
-1. **New +** → **Static Site** 선택
-2. GitHub 저장소 연결
-3. 설정:
-   - **Name**: `etf-report-frontend`
-   - **Region**: `Singapore`
-   - **Branch**: `main`
-   - **Root Directory**: `frontend`
-   - **Build Command**: `npm install && npm run build`
-   - **Publish Directory**: `dist`
-   - **Plan**: `Free`
-4. **Environment**에서:
-   - `VITE_API_BASE_URL`: 백엔드 URL + `/api` (예: `https://etf-report-backend.onrender.com/api`). 끝에 `/` 제외.
-5. **Create Static Site** 클릭
+1. **New +** → **Static Site** → GitHub 저장소 연결 → Branch: `main`
+2. 설정:
 
-## 🔧 배포 후 설정
+| 항목 | 값 |
+|------|-----|
+| **Root Directory** | `frontend` |
+| **Build Command** | `npm install && npm run build` |
+| **Publish Directory** | `dist` |
+| **Plan** | Free |
 
-### 데이터베이스 초기화
+3. **Environment Variables**에서 `VITE_API_BASE_URL`, `VITE_API_KEY` 설정
+4. **Create Static Site** 클릭
+5. 배포 후 생성된 URL(예: `https://etf-report-frontend.onrender.com`)을 백엔드 **CORS_ORIGINS**에 추가
 
-Backend 서비스 시작 시 **앱 진입점(`app.main`)에서 `init_db()`가 자동 호출**되므로, 별도 DB 초기화는 필요하지 않습니다.  
-테이블 생성·stocks 동기화는 모두 시작 시점에 수행됩니다.
+### 4. CORS 업데이트
 
-수동으로 DB만 초기화해야 할 때 (예: 스키마 문제 복구):
+프론트엔드 배포 후 생성된 URL을 백엔드 `CORS_ORIGINS`에 설정하고 백엔드를 재배포합니다.
 
-1. Render 대시보드 → Backend 서비스 → **Shell** 탭
-2. 다음 실행:
+---
+
+## 로컬에서 프로덕션 빌드 확인
+
+배포 전에 로컬에서 프로덕션 빌드를 테스트할 수 있습니다.
+
 ```bash
-cd backend
-python -m app.database
+# 루트 .env 또는 frontend에서 빌드 시 사용할 값 설정
+# VITE_API_BASE_URL=https://your-backend.onrender.com/api
+
+cd frontend
+npm run build
+npm run preview
 ```
 
-### CORS 설정 업데이트
+- http://localhost:4173 에서 `dist/` 내용 미리보기
 
-Frontend 배포 후 생성된 URL로 Backend의 CORS를 맞춰주세요.
+---
 
-1. Backend 서비스 → **Environment** 탭
-2. `CORS_ORIGINS`를 프론트엔드 URL로 설정 (예: `https://etf-report-frontend.onrender.com`)
-3. **Save Changes** (재시작은 자동)
+## 배포 후 초기 데이터 수집
 
-## 📝 무료 플랜 제한사항
+DB 테이블은 `render-start.sh` 실행 시 자동 생성되지만, 가격·수급 데이터는 직접 수집해야 합니다.
 
-### Render.com 무료 플랜 제한
+### 헬스 체크
 
-1. **슬리프 모드**: 15분간 요청이 없으면 서비스가 슬리프 모드로 전환
-   - 첫 요청 시 약 30초~1분 정도 지연될 수 있음
-   - 해결: 무료 Keep-Alive 서비스 사용 (예: UptimeRobot)
+```bash
+curl https://etf-report-backend.onrender.com/api/health
+# {"status": "ok"} 확인
+```
 
-2. **월 750시간 제한**: 무료 플랜은 월 750시간만 사용 가능
-   - 24시간 운영 시 약 31일 사용 가능
-   - 2개 서비스(Backend + Frontend) = 월 375시간씩 사용
+### curl로 수집 트리거
 
-3. **PostgreSQL 제한**:
-   - 90일간 비활성 시 삭제될 수 있음
-   - 최대 1GB 저장 공간
+```bash
+export BACKEND_URL="https://etf-report-backend.onrender.com"
+export API_KEY="your-api-key-here"
 
-### 권장 사항
+# 전체 종목 30일치 가격·수급 수집
+curl -X POST "$BACKEND_URL/api/data/collect-all?days=30" \
+  -H "X-API-Key: $API_KEY"
 
-1. **Keep-Alive 설정**: 
-   - UptimeRobot (https://uptimerobot.com) 무료 계정 생성
-   - 백엔드 서비스 URL을 5분마다 핑
-   - 슬리프 모드 방지
+# 수집 진행 상황 확인
+curl "$BACKEND_URL/api/data/collect-progress"
 
-2. **스케줄러 간격 조정**:
-   - 무료 플랜에서는 `SCRAPING_INTERVAL_MINUTES=60` (1시간) 권장
-   - 너무 자주 실행하면 리소스 제한에 걸릴 수 있음
+# DB 통계 확인 (prices count가 0보다 커야 정상)
+curl "$BACKEND_URL/api/data/stats"
+```
 
-3. **모니터링**:
-   - Render 대시보드에서 로그 확인
-   - 에러 발생 시 즉시 확인 가능
+### 앱 설정 화면에서 수집
 
-## 🔍 트러블슈팅
+1. 프론트엔드 URL 접속 → **설정** 메뉴
+2. **API 키** 입력 (백엔드 `API_KEY`와 동일)
+3. **데이터 관리** → **전체 수집** 버튼 클릭
+4. 진행률 바 확인
 
-### 데이터베이스 연결 실패
+---
 
-**증상**: `psycopg2.OperationalError` 또는 연결 타임아웃
+## DB 관리
 
-**해결책**:
-1. `DATABASE_URL`이 올바른지 확인 (Internal Database URL 사용)
-2. 데이터베이스가 같은 지역에 있는지 확인
-3. Backend 서비스 재시작
+### 테이블 생성 (자동)
 
-### CORS 에러
+배포/재시작 시 `render-start.sh`가 `python -m app.database`를 실행하여 테이블을 자동 생성합니다.
+`CREATE TABLE IF NOT EXISTS`를 사용하므로 이미 있는 테이블은 영향 없습니다.
 
-**증상**: 브라우저 콘솔에 CORS 에러
+### 데이터만 초기화 (API)
 
-**해결책**:
-1. Backend의 `CORS_ORIGINS` 환경 변수에 프론트엔드 URL이 포함되어 있는지 확인
-2. URL 끝에 슬래시(`/`)가 없는지 확인
-3. HTTPS 프로토콜 사용 확인
+가격·뉴스·수급 데이터만 삭제하고 종목 목록은 유지:
 
-### 빌드 실패
+```bash
+curl -X DELETE "https://etf-report-backend.onrender.com/api/data/reset" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
 
-**증상**: 배포 시 빌드 에러
+> **되돌릴 수 없습니다.** 실행 전 확인하세요.
 
-**해결책**:
-1. 로그 확인: Render 대시보드 → 서비스 → **Logs** 탭
-2. Backend: `backend/requirements.txt` 경로 및 의존성 확인. render.yaml 기준 Python 3.11.9 사용.
-3. Frontend: Root Directory `frontend`일 때 `npm install && npm run build`가 정상 동작하는지 로컬에서 확인 (Node 18+).
+### 스키마 완전 초기화 (PostgreSQL DROP)
 
-### 프론트엔드 API 호출 실패
+테이블까지 모두 삭제 후 재생성하려면:
 
-**증상**: 프론트엔드에서 API 호출이 실패
+1. Render 대시보드 → PostgreSQL 서비스 → **Connect** → PSQL 또는 External URL로 접속
+2. 아래 SQL 실행:
 
-**해결책**:
-1. `VITE_API_BASE_URL` 환경 변수가 올바른지 확인
-2. 백엔드 서비스가 실행 중인지 확인
-3. 브라우저 개발자 도구 → Network 탭에서 요청 확인
+```sql
+DROP TABLE IF EXISTS
+  alert_history, alert_rules, intraday_prices, collection_status,
+  news, trading_flow, prices, etf_holdings, etf_fundamentals,
+  etf_rebalancing, etf_distributions, stock_fundamentals,
+  stock_distributions, stock_catalog, etfs CASCADE;
+```
 
-### 슬리프 모드 지연
+3. 백엔드 서비스 **Manual Deploy** 또는 **Restart** → `init_db()` 재실행으로 테이블 재생성
 
-**증상**: 첫 요청이 매우 느림 (30초~1분)
+---
 
-**해결책**:
-1. UptimeRobot 등 Keep-Alive 서비스 설정
-2. 또는 유료 플랜으로 업그레이드
+## 무료 플랜 참고
 
-## 📊 모니터링
+- **슬리프 모드**: 15분 무요청 시 슬립 → 첫 요청 시 30초~1분 지연 가능. UptimeRobot 등 Keep-Alive 권장.
+- **월 750시간**: Backend + Frontend 합산.
+- **PostgreSQL**: 90일 비활성 시 삭제 가능, 1GB 제한.
 
-### 로그 확인
+---
 
-1. Render 대시보드 → 서비스 선택
-2. "Logs" 탭에서 실시간 로그 확인
-3. 에러 발생 시 로그에서 원인 파악
+## 트러블슈팅 요약
 
-### 메트릭 확인
+| 증상 | 확인 사항 |
+|------|-----------|
+| CORS 에러 | Backend `CORS_ORIGINS`에 프론트 URL 포함, 끝에 `/` 없음, HTTPS |
+| API 호출 실패 | `VITE_API_BASE_URL` 값, Backend 서비스 실행 여부, `/api/health` 확인 |
+| 빌드 실패 | Render 로그 확인, Node 18+, `npm install && npm run build` 로컬 재현 |
+| 첫 로딩 느림 | 슬리프 모드 — Keep-Alive 또는 유료 플랜 |
 
-1. "Metrics" 탭에서 CPU, 메모리 사용량 확인
-2. 무료 플랜 제한 내에서 운영되는지 확인
+---
 
-## 🔄 업데이트 배포
+## 트러블슈팅 상세
 
-코드 변경 후 자동 배포:
+### 데이터 수집/설정 API → 503 오류
 
-1. GitHub에 푸시
-2. Render가 자동으로 감지하여 재배포
-3. 배포 상태는 대시보드에서 확인 가능
+**원인**: Render 환경에서 `API_KEY`가 미설정됨.
+```
+# 확인: 백엔드 로그에 아래 메시지가 있으면 이 문제
+[인증] 프로덕션 환경에서 API_KEY가 설정되지 않았습니다! 요청을 거부합니다.
+```
+**해결**: Backend 환경 변수에 `API_KEY` 설정 후 재배포.
 
-수동 재배포:
+---
 
-1. 서비스 선택 → "Manual Deploy" → "Deploy latest commit"
+### API 요청이 404 (정적 사이트 자체로 요청)
 
-## 📚 참고 자료
+**원인**: `VITE_API_BASE_URL` 미설정으로 `/api` 상대경로 사용.
+```
+# Network 탭에서 확인: 요청 URL이 아래처럼 보이면 이 문제
+GET https://etf-report-frontend.onrender.com/api/etfs
+```
+**해결**: Frontend 환경 변수 `VITE_API_BASE_URL=https://etf-report-backend.onrender.com/api` 설정 후 **재배포**.
 
-- [Render.com 공식 문서](https://render.com/docs)
-- [FastAPI 배포 가이드](https://fastapi.tiangolo.com/deployment/)
-- [React 배포 가이드](https://react.dev/learn/start-a-new-react-project#production-builds)
+---
 
-## 🆘 지원
+### 브라우저 콘솔에 CORS 에러
 
-문제가 발생하면:
-1. Render 대시보드의 로그 확인
-2. GitHub Issues에 문제 보고
-3. Render.com 지원팀에 문의
+**원인**: `CORS_ORIGINS`에 프론트엔드 도메인이 없음.
+```
+Access to XMLHttpRequest at 'https://...backend...' from origin 'https://...frontend...'
+has been blocked by CORS policy
+```
+**해결**: Backend 환경 변수 `CORS_ORIGINS=https://etf-report-frontend.onrender.com` (끝에 `/` 없이) 설정 후 백엔드 재배포.
+
+---
+
+### 모든 API 응답이 빈 배열 `[]`
+
+**원인**: 데이터 수집을 한 번도 실행하지 않음.
+**해결**: [배포 후 초기 데이터 수집](#배포-후-초기-데이터-수집) 섹션 참고.
+
+---
+
+### DB 테이블 없음 에러
+
+**원인**: `startCommand`가 `uvicorn`만 실행하고 `python -m app.database` 미실행.
+**해결**: Start Command를 `cd backend && bash render-start.sh`로 변경 후 재배포.
+
+---
+
+### 첫 요청이 30초 이상 느림
+
+**원인**: 무료 플랜 슬립 모드 (15분 무요청 시 슬립).
+**해결**: [UptimeRobot](https://uptimerobot.com) 등에서 5분마다 `https://...backend.../api/health` 모니터링 설정.
+
+---
+
+## 배포 완료 체크리스트
+
+```
+□ Backend: /api/health → {"status": "ok"}
+□ Frontend: 페이지 로딩 정상
+□ Network 탭: API 요청이 backend URL(etf-report-backend.onrender.com)로 전송됨
+□ 브라우저 콘솔: CORS 에러 없음
+□ 설정 화면: API 키 입력 후 수집 버튼 작동
+□ 대시보드: 종목 카드 표시됨
+```
+
+---
+
+## 참고
+
+- [render.yaml](../render.yaml) — Render Blueprint 설정 파일
+- [frontend/DEPLOYMENT.md](../frontend/DEPLOYMENT.md) — 프론트엔드 배포 간략 가이드
+- [Render 공식 문서](https://render.com/docs)
+- [Naver Developers](https://developers.naver.com/apps/#/register) — API 키 발급

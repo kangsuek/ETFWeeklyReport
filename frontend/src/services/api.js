@@ -22,55 +22,26 @@ const api = axios.create({
   },
 })
 
+// 백엔드 연결 확인 (배포 시 VITE_API_BASE_URL 기준으로 요청, 상대 경로로 /api/health 도달)
+export const getHealthCheck = () =>
+  api.get('health', { timeout: FAST_API_TIMEOUT })
+
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {
-    // 디버깅: 종목 목록 수집 요청 로깅
-    if (config.url && config.url.includes('ticker-catalog/collect')) {
-      console.log('[API] 종목 목록 수집 요청:', {
-        method: config.method,
-        url: config.url,
-        baseURL: config.baseURL,
-        fullURL: `${config.baseURL}${config.url}`,
-        headers: config.headers
-      })
-    }
-    
     // API Key가 설정된 경우 모든 요청에 추가
     if (API_KEY) {
       config.headers['X-API-Key'] = API_KEY
     }
     return config
   },
-  (error) => {
-    console.error('[API] 요청 인터셉터 에러:', error)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
 // 응답 인터셉터
 api.interceptors.response.use(
-  (response) => {
-    // 디버깅: 종목 목록 수집 응답 로깅
-    if (response.config.url && response.config.url.includes('ticker-catalog/collect')) {
-      console.log('[API] 종목 목록 수집 응답 성공:', {
-        status: response.status,
-        data: response.data
-      })
-    }
-    return response
-  },
+  (response) => response,
   (error) => {
-    // 디버깅: 종목 목록 수집 에러 로깅
-    if (error.config && error.config.url && error.config.url.includes('ticker-catalog/collect')) {
-      console.error('[API] 종목 목록 수집 응답 에러:', {
-        message: error.message,
-        response: error.response,
-        request: error.request,
-        config: error.config
-      })
-    }
-    
     // 에러 응답 처리
     if (error.response) {
       // 서버 응답이 있는 경우
@@ -206,6 +177,14 @@ export const etfApi = {
       timeout: LONG_API_TIMEOUT,
       params: { pages }
     }),
+
+  // AI 분석 프롬프트 생성 (API 호출 없이 프롬프트만 반환)
+  getAIPrompt: (ticker) =>
+    api.get(`/etfs/${ticker}/ai-prompt`, { timeout: FAST_API_TIMEOUT }),
+
+  // 복수 종목 통합 비교 분석 프롬프트 생성
+  getAIPromptMulti: (stocks) =>
+    api.post('/etfs/ai-prompt-multi', { stocks }, { timeout: FAST_API_TIMEOUT }),
 }
 
 // News API 서비스
@@ -278,6 +257,9 @@ export const dataApi = {
   // 데이터베이스 초기화 (위험!) (긴 작업)
   reset: () => api.delete('/data/reset', { timeout: LONG_API_TIMEOUT }),
 
+  // 전체 데이터 수집 진행률 조회 (빠른 조회)
+  getCollectProgress: () => api.get('/data/collect-progress', { timeout: FAST_API_TIMEOUT }),
+
   // 백엔드 캐시 클리어 후 요청 (새로고침용 헬퍼)
   // X-No-Cache 헤더를 포함한 GET 요청을 보내면 백엔드 미들웨어가 캐시를 클리어한 뒤 처리
   fetchWithNoCache: (url, options = {}) =>
@@ -316,14 +298,74 @@ export const settingsApi = {
   // 종목 목록 수집 트리거 (긴 작업)
   collectTickerCatalog: () => api.post('/settings/ticker-catalog/collect', null, { timeout: LONG_API_TIMEOUT }),
 
+  // 종목 목록 수집 진행률 조회 (빠른 조회)
+  getTickerCatalogProgress: () => api.get('/settings/ticker-catalog/collect-progress', { timeout: FAST_API_TIMEOUT }),
+
   // 종목 순서 변경 (일반 작업)
   reorderStocks: (tickers) => api.post('/settings/stocks/reorder', tickers, { timeout: NORMAL_API_TIMEOUT }),
 
   // API 키 조회 (마스킹된 값)
-  getApiKeys: () => api.get('/settings/api-keys', { timeout: FAST_API_TIMEOUT }),
+  getApiKeys: (raw = false) => api.get('/settings/api-keys', { params: { raw }, timeout: FAST_API_TIMEOUT }),
 
   // API 키 저장
   updateApiKeys: (data) => api.put('/settings/api-keys', data, { timeout: NORMAL_API_TIMEOUT }),
+}
+
+// Alert (목표가/알림) API 서비스
+export const alertApi = {
+  // 종목별 알림 규칙 조회
+  getRules: (ticker, activeOnly = true) =>
+    api.get(`/alerts/${ticker}`, { params: { active_only: activeOnly }, timeout: FAST_API_TIMEOUT }),
+
+  // 알림 규칙 생성
+  createRule: (data) => api.post('/alerts/', data, { timeout: NORMAL_API_TIMEOUT }),
+
+  // 알림 규칙 수정
+  updateRule: (ruleId, data) => api.put(`/alerts/${ruleId}`, data, { timeout: NORMAL_API_TIMEOUT }),
+
+  // 알림 규칙 삭제
+  deleteRule: (ruleId) => api.delete(`/alerts/${ruleId}`, { timeout: NORMAL_API_TIMEOUT }),
+
+  // 알림 트리거 기록 (프론트에서 감지 후 백엔드에 기록)
+  recordTrigger: (data) => api.post('/alerts/trigger', data, { timeout: FAST_API_TIMEOUT }),
+
+  // 종목별 알림 이력 조회
+  getHistory: (ticker, limit = 20) =>
+    api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
+}
+
+// Simulation API 서비스
+export const simulationApi = {
+  // 일시 투자 시뮬레이션 (긴 작업 - 자동 수집 가능)
+  lumpSum: (data) => api.post('/simulation/lump-sum', data, { timeout: LONG_API_TIMEOUT }),
+
+  // 적립식 투자 시뮬레이션 (긴 작업)
+  dca: (data) => api.post('/simulation/dca', data, { timeout: LONG_API_TIMEOUT }),
+
+  // 포트폴리오 시뮬레이션 (긴 작업)
+  portfolio: (data) => api.post('/simulation/portfolio', data, { timeout: LONG_API_TIMEOUT }),
+}
+
+// Scanner API 서비스 (조건 검색, 테마 탐색, 추천)
+export const scannerApi = {
+  // 조건 검색 (일반 조회)
+  search: (params = {}) => api.get('/scanner', { params, timeout: NORMAL_API_TIMEOUT }),
+
+  // 테마 탐색 (일반 조회)
+  getThemes: () => api.get('/scanner/themes', { timeout: NORMAL_API_TIMEOUT }),
+
+  // 추천 프리셋 (일반 조회)
+  getRecommendations: (limit = 5) =>
+    api.get('/scanner/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
+
+  // 데이터 수집 트리거 (긴 작업)
+  collectData: () => api.post('/scanner/collect-data', null, { timeout: FAST_API_TIMEOUT }),
+
+  // 데이터 수집 진행률 조회 (빠른 조회)
+  getCollectProgress: () => api.get('/scanner/collect-progress', { timeout: FAST_API_TIMEOUT }),
+
+  // 데이터 수집 중지
+  cancelCollect: () => api.post('/scanner/cancel-collect', null, { timeout: FAST_API_TIMEOUT }),
 }
 
 // 단순화된 API 인터페이스

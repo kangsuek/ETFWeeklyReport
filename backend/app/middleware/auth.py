@@ -113,10 +113,18 @@ async def verify_api_key_dependency(api_key: Optional[str] = Depends(api_key_hea
         ```
     """
     logger.info(f"[인증] API Key 검증 시작 - 제공된 API Key: {'있음' if api_key else '없음'}")
-    
-    # 개발 모드: API_KEY가 설정되지 않은 경우 모든 요청 허용
+
+    # 개발 모드: API_KEY가 설정되지 않은 경우 경고와 함께 허용
     if not Config.API_KEY:
-        logger.info("[인증] 개발 모드: API_KEY 미설정, 모든 요청 허용")
+        import os
+        env = os.getenv("RENDER", "") or os.getenv("RAILWAY_ENVIRONMENT", "") or os.getenv("FLY_APP_NAME", "")
+        if env:
+            logger.error("[인증] 프로덕션 환경에서 API_KEY가 설정되지 않았습니다! 요청을 거부합니다.")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="서버 구성 오류: API_KEY가 설정되지 않았습니다. 관리자에게 문의하세요.",
+            )
+        logger.warning("[인증] 개발 모드: API_KEY 미설정, 모든 요청 허용. 프로덕션에서는 반드시 API_KEY를 설정하세요.")
         return "dev-mode"  # Placeholder API key for development
 
     if not api_key:
@@ -137,41 +145,3 @@ async def verify_api_key_dependency(api_key: Optional[str] = Depends(api_key_hea
 
     logger.info("[인증] API Key 검증 성공")
     return api_key
-
-
-async def auth_middleware(request: Request, call_next):
-    """
-    인증 미들웨어
-
-    모든 요청을 가로채서 공개 엔드포인트가 아닌 경우 API Key 검증
-
-    Args:
-        request: FastAPI Request 객체
-        call_next: 다음 미들웨어/핸들러
-
-    Returns:
-        Response: 응답 객체
-
-    Raises:
-        HTTPException: 401 Unauthorized
-    """
-    path = request.url.path
-    method = request.method
-
-    # 공개 엔드포인트는 인증 불필요
-    if APIKeyAuth.is_public_endpoint(path, method):
-        return await call_next(request)
-
-    # 쓰기 작업은 인증 필요
-    api_key = request.headers.get("X-API-Key")
-
-    if not APIKeyAuth.verify_api_key(api_key):
-        logger.warning(f"인증 실패: {method} {path} - API Key: {api_key[:8] if api_key else 'None'}...")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API Key가 필요합니다. X-API-Key 헤더를 포함해주세요.",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
-
-    logger.debug(f"인증 성공: {method} {path}")
-    return await call_next(request)

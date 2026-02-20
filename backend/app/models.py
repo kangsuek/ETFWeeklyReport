@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict
-from datetime import date
+from datetime import date, datetime
 
 class ETF(BaseModel):
     ticker: str
@@ -30,6 +30,7 @@ class TradingFlow(BaseModel):
 
 class News(BaseModel):
     date: date
+    published_at: Optional[datetime] = None  # 뉴스 발행 시각 (표시용)
     title: str
     url: str
     source: str
@@ -132,3 +133,147 @@ class ETFInsights(BaseModel):
     strategy: StrategyInsights
     key_points: List[str]  # 핵심 포인트 (최대 3개)
     risks: List[str]  # 리스크 요약 (최대 3개)
+
+
+# Alert Models
+class AlertRuleCreate(BaseModel):
+    """알림 규칙 생성 요청"""
+    ticker: str
+    alert_type: str  # "buy", "sell", "price_change", "trading_signal"
+    direction: str  # "above", "below", "both"
+    target_price: float  # 목표가(buy/sell) 또는 임계%(price_change) 또는 0(trading_signal)
+    memo: Optional[str] = None
+
+class AlertRuleUpdate(BaseModel):
+    """알림 규칙 수정 요청"""
+    alert_type: Optional[str] = None
+    direction: Optional[str] = None
+    target_price: Optional[float] = None
+    memo: Optional[str] = None
+    is_active: Optional[int] = None
+
+class AlertRuleResponse(BaseModel):
+    """알림 규칙 응답"""
+    id: int
+    ticker: str
+    alert_type: str
+    direction: str
+    target_price: float
+    memo: Optional[str] = None
+    is_active: int = 1
+    created_at: Optional[str] = None
+    last_triggered_at: Optional[str] = None
+
+
+# Screening Models
+class ScreeningItem(BaseModel):
+    """스크리닝 결과 항목"""
+    ticker: str
+    name: str
+    type: str
+    market: Optional[str] = None
+    sector: Optional[str] = None
+    close_price: Optional[float] = None
+    daily_change_pct: Optional[float] = None
+    volume: Optional[int] = None
+    weekly_return: Optional[float] = None
+    foreign_net: Optional[int] = None
+    institutional_net: Optional[int] = None
+    catalog_updated_at: Optional[str] = None
+    is_registered: bool = False
+
+class ScreeningResponse(BaseModel):
+    """스크리닝 검색 응답"""
+    items: List[ScreeningItem]
+    total: int
+    page: int
+    page_size: int
+
+class ThemeGroup(BaseModel):
+    """테마/섹터 그룹"""
+    sector: str
+    count: int
+    avg_weekly_return: Optional[float] = None
+    top_performers: List[ScreeningItem]
+
+class RecommendationPreset(BaseModel):
+    """추천 프리셋"""
+    preset_id: str
+    title: str
+    description: str
+    items: List[ScreeningItem]
+
+
+# --- Simulation Models ---
+
+class LumpSumRequest(BaseModel):
+    """일시 투자 시뮬레이션 요청"""
+    ticker: str
+    buy_date: date
+    amount: float  # 투자금 (원)
+
+class LumpSumResponse(BaseModel):
+    """일시 투자 시뮬레이션 응답"""
+    ticker: str
+    name: str
+    buy_date: date
+    buy_price: float
+    current_date: date
+    current_price: float
+    shares: int               # 매수 가능 주수
+    remainder: float           # 잔여금
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    max_gain: dict             # { date, price, return_pct }
+    max_loss: dict             # { date, price, return_pct }
+    price_series: list         # [{ date, close_price, valuation, return_pct }]
+
+class DCARequest(BaseModel):
+    """적립식 투자 시뮬레이션 요청"""
+    ticker: str
+    monthly_amount: float
+    start_date: date
+    end_date: date
+    buy_day: int = 1           # 매월 매수일 (1~28)
+
+class DCAMonthlyData(BaseModel):
+    """적립식 매월 데이터"""
+    date: date
+    buy_price: float
+    shares_bought: int
+    cumulative_shares: int
+    cumulative_invested: float
+    cumulative_valuation: float
+    return_pct: float
+
+class DCAResponse(BaseModel):
+    """적립식 투자 시뮬레이션 응답"""
+    ticker: str
+    name: str
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    avg_buy_price: float
+    total_shares: int
+    monthly_data: List[DCAMonthlyData]
+
+class PortfolioHolding(BaseModel):
+    """포트폴리오 종목 비중"""
+    ticker: str
+    weight: float              # 비중 (0~1, 합계 1.0)
+
+class PortfolioSimulationRequest(BaseModel):
+    """포트폴리오 시뮬레이션 요청"""
+    holdings: List[PortfolioHolding]
+    amount: float
+    start_date: date
+    end_date: date
+
+class PortfolioSimulationResponse(BaseModel):
+    """포트폴리오 시뮬레이션 응답"""
+    total_invested: float
+    total_valuation: float
+    total_return_pct: float
+    holdings_result: list      # 종목별 결과
+    daily_series: list         # [{ date, valuation, return_pct }]

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date, datetime, timedelta, time as dtime
 from app.models import (
@@ -13,6 +14,7 @@ from app.utils.date_utils import apply_default_dates
 from app.utils.data_collection import auto_collect_if_needed
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
+from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.constants import (
     ERROR_DATABASE,
     ERROR_DATABASE_COLLECTION,
@@ -112,7 +114,7 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
 
 @router.get("/compare")
 async def compare_etfs(
-    tickers: str = Query(..., description="Comma-separated ticker codes (2-6 tickers)"),
+    tickers: str = Query(..., description="Comma-separated ticker codes (2-20 tickers)"),
     start_date: Optional[date] = Query(default=None, description="Start date (default: 30 days ago)"),
     end_date: Optional[date] = Query(default=None, description="End date (default: today)"),
     collector: ETFDataCollector = Depends(get_collector)
@@ -123,7 +125,7 @@ async def compare_etfs(
     여러 종목의 가격 변화를 비교하고 통계 지표를 제공합니다.
 
     **Query Parameters:**
-    - tickers: 쉼표로 구분된 종목 코드 (2-6개, 예: "487240,466920,042660")
+    - tickers: 쉼표로 구분된 종목 코드 (2-20개, 예: "487240,466920,042660")
     - start_date: 조회 시작 날짜 (선택, 기본값: 30일 전)
     - end_date: 조회 종료 날짜 (선택, 기본값: 오늘)
 
@@ -186,7 +188,7 @@ async def compare_etfs(
     - 500: 서버 오류
 
     **Notes:**
-    - 최소 2개, 최대 6개 종목 비교 가능
+    - 최소 2개, 최대 20개 종목 비교 가능
     - 최대 조회 기간: 1년 (365일)
     - 데이터가 없는 종목은 결과에서 제외
     - 상관관계는 일일 수익률 기준으로 계산
@@ -1170,3 +1172,192 @@ async def collect_intraday_prices(
     except Exception as e:
         logger.error(f"Error collecting intraday data for {etf.ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"분봉 데이터 수집 실패: {str(e)}")
+
+
+class StockItem(BaseModel):
+    ticker: str
+    name: str
+
+class MultiAnalysisRequest(BaseModel):
+    stocks: List[StockItem]
+
+
+@router.get("/{ticker}/ai-prompt")
+async def get_ai_prompt(
+    etf: ETF = Depends(get_etf_or_404),
+    use_db_data: bool = Query(
+        default=True,
+        description="DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+    ),
+):
+    """
+    단일 종목 AI 분석 프롬프트 생성 (RAG 지원)
+
+    API 호출 없이 프롬프트만 반환합니다.
+    기본적으로 DB에 저장된 실제 데이터(가격, 거래량, 매매동향, 뉴스)를
+    프롬프트에 포함하여 더 정확한 분석을 위한 프롬프트를 생성합니다.
+
+    **Path Parameters:**
+    - ticker: 종목 코드
+
+    **Query Parameters:**
+    - use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)
+    """
+    from app.services.perplexity_service import PerplexityService
+    try:
+        service = PerplexityService()
+        prompt = service.get_prompt(etf.ticker, etf.name, use_db_data=use_db_data)
+        return {
+            "ticker": etf.ticker,
+            "name": etf.name,
+            "prompt": prompt,
+            "use_db_data": use_db_data,
+        }
+    except Exception as e:
+        logger.error(f"Prompt generation error for {etf.ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-prompt-multi")
+async def get_ai_prompt_multi(
+    body: MultiAnalysisRequest,
+    use_db_data: bool = Query(
+        default=True,
+        description="DB 데이터를 RAG context로 포함할지 여부 (기본: True)"
+    ),
+):
+    """
+    복수 종목 통합 비교 분석 프롬프트 생성 (RAG 지원)
+
+    API 호출 없이 프롬프트만 반환합니다.
+    기본적으로 각 종목의 DB 데이터를 프롬프트에 포함하여
+    더 정확한 비교 분석을 위한 프롬프트를 생성합니다.
+
+    **Request Body:**
+    - stocks: 종목 목록 (2개 이상)
+
+    **Query Parameters:**
+    - use_db_data: DB 데이터를 포함 (기본: true, RAG 활성화)
+    """
+    from app.services.perplexity_service import PerplexityService
+    stocks = [s.model_dump() for s in body.stocks]
+    if len(stocks) < 2:
+        raise HTTPException(status_code=400, detail="통합 분석은 2개 이상의 종목이 필요합니다.")
+    try:
+        service = PerplexityService()
+        prompt = service.get_multi_prompt(stocks, use_db_data=use_db_data)
+        return {
+            "stocks": stocks,
+            "prompt": prompt,
+            "use_db_data": use_db_data,
+        }
+    except Exception as e:
+        logger.error(f"Multi-prompt generation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{ticker}/collect-fundamentals")
+async def collect_fundamentals(etf: ETF = Depends(get_etf_or_404)):
+    """
+    종목 펀더멘털 데이터를 수집하여 DB에 저장합니다.
+    - type=STOCK: 네이버 기업실적분석 테이블에서 PER/PBR/ROE/EPS 등 수집
+    - type=ETF:   네이버 NAV 추이, 펀드보수, 구성종목 수집
+    """
+    ticker = etf.ticker
+    etf_type = etf.type
+
+    try:
+        if etf_type == 'STOCK':
+            result = await asyncio.to_thread(
+                _collect_stock_fundamentals_sync, ticker
+            )
+        else:
+            result = await asyncio.to_thread(
+                _collect_etf_fundamentals_sync, ticker
+            )
+        return result
+    except Exception as e:
+        logger.error(f"collect_fundamentals error for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"펀더멘털 수집 중 오류가 발생했습니다: {str(e)}")
+
+
+def _collect_stock_fundamentals_sync(ticker: str) -> dict:
+    from app.services.stock_fundamentals_collector import collect_stock_fundamentals
+    return collect_stock_fundamentals(ticker)
+
+
+def _collect_etf_fundamentals_sync(ticker: str) -> dict:
+    from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+    collector = ETFFundamentalsCollector()
+    result = collector.collect_all(ticker)
+    return {'ticker': ticker, 'type': 'ETF', 'result': result}
+
+
+@router.get("/{ticker}/fundamentals")
+async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
+    """
+    DB에 저장된 가장 최근 펀더멘털 데이터를 반환합니다.
+    - type=STOCK: stock_fundamentals (최근 1건)
+    - type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)
+    """
+    from app.database import get_db_connection, USE_POSTGRES
+    ticker = etf.ticker
+    etf_type = etf.type
+    param = '%s' if USE_POSTGRES else '?'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        if etf_type == 'STOCK':
+            cursor.execute(f"""
+                SELECT * FROM stock_fundamentals
+                WHERE ticker = {param}
+                ORDER BY date DESC LIMIT 1
+            """, (ticker,))
+            row = cursor.fetchone()
+            if not row:
+                return {'ticker': ticker, 'type': 'STOCK', 'data': None}
+            if USE_POSTGRES:
+                data = dict(row)
+            else:
+                cols = [d[0] for d in cursor.description]
+                data = dict(zip(cols, row))
+            return {'ticker': ticker, 'type': 'STOCK', 'data': data}
+        else:
+            cursor.execute(f"""
+                SELECT * FROM etf_fundamentals
+                WHERE ticker = {param}
+                ORDER BY date DESC LIMIT 10
+            """, (ticker,))
+            rows = cursor.fetchall()
+            if USE_POSTGRES:
+                fundamentals = [dict(r) for r in rows]
+            else:
+                cols = [d[0] for d in cursor.description]
+                fundamentals = [dict(zip(cols, r)) for r in rows]
+
+            latest_date = fundamentals[0]['date'] if fundamentals else None
+            holdings = []
+            if latest_date:
+                cursor.execute(f"""
+                    SELECT * FROM etf_holdings
+                    WHERE ticker = {param} AND date = {param}
+                    ORDER BY weight DESC
+                """, (ticker, latest_date))
+                h_rows = cursor.fetchall()
+                if USE_POSTGRES:
+                    holdings = [dict(r) for r in h_rows]
+                else:
+                    h_cols = [d[0] for d in cursor.description]
+                    holdings = [dict(zip(h_cols, r)) for r in h_rows]
+
+            return {
+                'ticker': ticker,
+                'type': 'ETF',
+                'fundamentals': fundamentals,
+                'holdings': holdings,
+            }
+    finally:
+        cursor.close()
+        conn.close()

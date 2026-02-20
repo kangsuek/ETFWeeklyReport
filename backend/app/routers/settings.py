@@ -70,6 +70,7 @@ def load_api_keys_to_env():
             Config.NAVER_CLIENT_ID = keys["NAVER_CLIENT_ID"]
         if "NAVER_CLIENT_SECRET" in keys:
             Config.NAVER_CLIENT_SECRET = keys["NAVER_CLIENT_SECRET"]
+        # PERPLEXITY_API_KEY는 os.environ으로만 관리 (Config 속성 불필요)
 
 # Initialize ticker scraper
 ticker_scraper = TickerScraper()
@@ -406,15 +407,28 @@ async def validate_ticker(
         raise HTTPException(status_code=500, detail="Failed to validate ticker")
 
 
+@router.get("/ticker-catalog/collect-progress")
+async def get_ticker_catalog_progress(request: Request):
+    """
+    종목 목록 수집 진행률 조회
+
+    Returns:
+        현재 수집 진행 상태 (idle, in_progress, completed)
+    """
+    from app.services.progress import get_progress
+    progress = get_progress("ticker-catalog")
+    return progress or {"status": "idle"}
+
+
 @router.post("/ticker-catalog/collect")
 @limiter.limit(RateLimitConfig.DANGEROUS)
 async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify_api_key_dependency)) -> Dict[str, Any]:
     """
     종목 목록 수집 트리거 (관리자용)
-    
+
     네이버 금융에서 전체 종목 목록(코스피, 코스닥, ETF)을 수집하여
     stock_catalog 테이블에 저장합니다.
-    
+
     **Example Response:**
     ```json
     {
@@ -426,26 +440,28 @@ async def collect_ticker_catalog(request: Request, api_key: str = Depends(verify
       "timestamp": "2025-01-15T10:30:00"
     }
     ```
-    
+
     **Status Codes:**
     - 200: Successfully collected
     - 500: Collection error
-    
+
     **Notes:**
     - 수집에는 시간이 걸릴 수 있습니다 (약 5-10분)
     - 기존 데이터는 업데이트됩니다
     """
+    import asyncio
+
     logger.info(f"[종목목록수집] 요청 수신: {request.method} {request.url.path}")
     logger.info(f"[종목목록수집] 클라이언트: {request.client.host if request.client else 'unknown'}")
-    
+
     try:
         logger.info("[종목목록수집] 종목 목록 수집 시작...")
-        
-        result = ticker_catalog_collector.collect_all_stocks()
-        
+
+        result = await asyncio.to_thread(ticker_catalog_collector.collect_all_stocks)
+
         logger.info(f"[종목목록수집] 종목 목록 수집 완료: {result}")
         return result
-        
+
     except ScraperException as e:
         logger.error(f"[종목목록수집] 수집 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -608,32 +624,34 @@ class ApiKeysUpdate(BaseModel):
     """API 키 업데이트 요청 모델"""
     NAVER_CLIENT_ID: Optional[str] = None
     NAVER_CLIENT_SECRET: Optional[str] = None
+    PERPLEXITY_API_KEY: Optional[str] = None
 
 
 @router.get("/api-keys")
-async def get_api_keys() -> Dict[str, Any]:
+async def get_api_keys(raw: bool = False) -> Dict[str, Any]:
     """
-    저장된 API 키 조회 (마스킹 처리)
+    저장된 API 키 조회
+
+    **Query Parameters:**
+    - raw: true면 원본 값 반환, false면 마스킹 처리 (기본: false)
 
     **Status Codes:**
     - 200: Success
     """
     keys = _load_api_keys()
 
-    # 마스킹 처리: 앞 4자만 표시
-    masked = {}
+    result = {}
     for key in ["NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]:
         value = keys.get(key, "") or os.getenv(key, "")
         if value and not value.startswith("your_"):
-            masked[key] = value[:4] + "*" * max(0, len(value) - 4)
+            result[key] = value if raw else value[:4] + "*" * max(0, len(value) - 4)
         else:
-            masked[key] = ""
+            result[key] = ""
 
-    # 설정 여부
-    has_naver = bool(masked["NAVER_CLIENT_ID"] and masked["NAVER_CLIENT_SECRET"])
+    has_naver = bool(result["NAVER_CLIENT_ID"] and result["NAVER_CLIENT_SECRET"])
 
     return {
-        "keys": masked,
+        "keys": result,
         "configured": {
             "naver": has_naver,
         }
@@ -651,6 +669,7 @@ async def update_api_keys(
     **Request Body:**
     - NAVER_CLIENT_ID: 네이버 API Client ID
     - NAVER_CLIENT_SECRET: 네이버 API Client Secret
+    - PERPLEXITY_API_KEY: Perplexity AI API Key
 
     **Status Codes:**
     - 200: Successfully saved
@@ -673,7 +692,7 @@ async def update_api_keys(
         for key, value in current_keys.items():
             if value and not value.startswith("your_"):
                 os.environ[key] = value
-                logger.info(f"Updated env: {key}={value[:4]}****")
+                logger.info(f"Updated env key: {key}")
 
         # Config 클래스 속성 업데이트
         if "NAVER_CLIENT_ID" in current_keys:

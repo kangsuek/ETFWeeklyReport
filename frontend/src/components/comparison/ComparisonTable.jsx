@@ -72,8 +72,8 @@ export default function ComparisonTable({ statistics = null, tickerInfo = {} }) 
   }
 
   const SortIcon = ({ column }) => {
-    if (sortBy !== column) return <span className="text-gray-400">↕</span>
-    return sortDirection === 'asc' ? <span>↑</span> : <span>↓</span>
+    if (sortBy !== column) return <span className="text-gray-400 ml-0.5">↕</span>
+    return <span className="text-primary-500 ml-0.5">{sortDirection === 'asc' ? '▲' : '▼'}</span>
   }
 
   if (!statistics || Object.keys(statistics).length === 0) {
