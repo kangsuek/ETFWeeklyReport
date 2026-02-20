@@ -432,8 +432,8 @@ def init_db():
         ("daily_change_pct", real_type),
         ("volume", integer_type),
         ("weekly_return", real_type),
-        ("foreign_net", integer_type),
-        ("institutional_net", integer_type),
+        ("foreign_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("institutional_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("catalog_updated_at", "TIMESTAMP"),
         ("week_base_price", real_type),
         ("week_base_date", "TEXT"),
@@ -460,6 +460,15 @@ def init_db():
             except Exception as e:
                 if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
                     logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
+
+    # foreign_net, institutional_net: INTEGER → BIGINT 마이그레이션 (대형주 수급 overflow 방지)
+    if USE_POSTGRES:
+        for col in ("foreign_net", "institutional_net"):
+            try:
+                cursor.execute(f"ALTER TABLE stock_catalog ALTER COLUMN {col} TYPE BIGINT")
+                logger.info(f"Migrated stock_catalog.{col} to BIGINT")
+            except Exception:
+                conn.rollback()  # 이미 BIGINT이거나 컬럼 없으면 무시
 
     # stock_catalog 스크리닝용 인덱스
     cursor.execute("""
