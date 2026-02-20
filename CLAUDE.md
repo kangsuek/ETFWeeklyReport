@@ -16,6 +16,9 @@ After making multi-file changes, always run the build/test suite to verify nothi
 ## Working Style section
 When working on implementation tasks, be concise and act quickly. Do not over-explain or spend excessive time on codebase exploration before starting work. If the user has provided a plan document, follow it directly.
 
+## Number Formatting section
+Always display thousands separators for all numbers shown to the user (e.g. prices, volumes, counts). Use commas: `1,234,567`. In Python use `f"{value:,}"`, in JavaScript/React use `toLocaleString()` or `Intl.NumberFormat`.
+
 ## Core Documentation (Essential)
 
 1. **[README.md](./README.md)** - Project overview, asset configuration, quick start guide

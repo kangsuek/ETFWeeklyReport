@@ -45,4 +45,6 @@ Branch policy: [docs/BRANCHES.md](docs/BRANCHES.md)
 
 **Documentation:** Korean for business logic comments, English for technical terms, update API_SPECIFICATION.md for new endpoints, update DATABASE_SCHEMA.md for schema changes
 
+**Number Formatting:** Always apply thousands separators to all numbers displayed to the user (prices, volumes, counts, etc.). Use `f"{value:,}"` in Python and `toLocaleString()` or `Intl.NumberFormat` in JavaScript/React. Example: `1234567` → `1,234,567`.
+
 **Critical Rules:** Read CLAUDE.md first, all tests must pass before merging (see DEVELOPMENT_GUIDE.md for test policy), respond in Korean
