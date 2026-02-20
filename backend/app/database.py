@@ -462,13 +462,17 @@ def init_db():
                     logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
 
     # foreign_net, institutional_net: INTEGER → BIGINT 마이그레이션 (대형주 수급 overflow 방지)
+    # 이전 DDL을 먼저 commit한 후 독립 트랜잭션으로 ALTER COLUMN 실행
     if USE_POSTGRES:
+        conn.commit()
         for col in ("foreign_net", "institutional_net"):
             try:
                 cursor.execute(f"ALTER TABLE stock_catalog ALTER COLUMN {col} TYPE BIGINT")
+                conn.commit()
                 logger.info(f"Migrated stock_catalog.{col} to BIGINT")
-            except Exception:
-                conn.rollback()  # 이미 BIGINT이거나 컬럼 없으면 무시
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"Could not migrate stock_catalog.{col} to BIGINT: {e}")
 
     # stock_catalog 스크리닝용 인덱스
     cursor.execute("""
