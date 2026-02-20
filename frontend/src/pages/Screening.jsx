@@ -27,7 +27,7 @@ const SORT_OPTIONS = [
 
 const DEFAULT_FILTERS = {
   q: undefined,
-  type: 'ETF',
+  market: 'ETF',
   sector: undefined,
   min_weekly_return: undefined,
   max_weekly_return: undefined,

@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
 
+const MARKET_TABS = [
+  { value: 'ETF', label: 'ETF' },
+  { value: 'KOSPI', label: 'KOSPI' },
+  { value: 'KOSDAQ', label: 'KOSDAQ' },
+  { value: 'ALL', label: '전체' },
+]
+
 export default function ScreeningFilters({ filters, onFilterChange, onReset, lastUpdated }) {
   const [localQ, setLocalQ] = useState(filters.q || '')
   const [localMinWR, setLocalMinWR] = useState(filters.min_weekly_return ?? '')
@@ -14,7 +21,13 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
 
   const handleSearch = (e) => {
     e.preventDefault()
-    onFilterChange({ q: localQ || undefined })
+    const minWR = localMinWR !== '' ? parseFloat(localMinWR) : undefined
+    const maxWR = localMaxWR !== '' ? parseFloat(localMaxWR) : undefined
+    onFilterChange({
+      q: localQ || undefined,
+      min_weekly_return: minWR !== undefined && !isNaN(minWR) ? minWR : undefined,
+      max_weekly_return: maxWR !== undefined && !isNaN(maxWR) ? maxWR : undefined,
+    })
   }
 
   const handleReset = () => {
@@ -36,6 +49,27 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-4 transition-colors">
       <form onSubmit={handleSearch} className="space-y-4">
+        {/* 시장 탭 */}
+        <div>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">시장</label>
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 w-fit">
+            {MARKET_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => onFilterChange({ market: tab.value })}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  (filters.market || 'ETF') === tab.value
+                    ? 'bg-white dark:bg-gray-600 text-primary-600 dark:text-primary-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* 검색 입력 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

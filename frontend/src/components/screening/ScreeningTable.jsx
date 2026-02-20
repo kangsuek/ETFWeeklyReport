@@ -62,30 +62,43 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
                 {/* 종목명 */}
                 <td className="px-3 py-2.5">
                   <div>
-                    {item.is_registered ? (
-                      <Link
-                        to={`/etf/${item.ticker}`}
-                        className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors"
-                      >
-                        {item.name}
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => navigate('/settings', {
-                          state: {
-                            addStock: {
-                              ticker: item.ticker,
-                              name: item.name,
-                              type: item.type,
-                              theme: item.sector || '',
+                    <div className="flex items-center gap-1.5">
+                      {item.is_registered ? (
+                        <Link
+                          to={`/etf/${item.ticker}`}
+                          className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors"
+                        >
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/settings', {
+                            state: {
+                              addStock: {
+                                ticker: item.ticker,
+                                name: item.name,
+                                type: item.type,
+                                theme: item.sector || '',
+                              },
                             },
-                          },
-                        })}
-                        className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
-                      >
-                        {item.name}
-                      </button>
-                    )}
+                          })}
+                          className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
+                        >
+                          {item.name}
+                        </button>
+                      )}
+                      {item.market && (
+                        <span className={`inline-block px-1 py-0.5 text-xs rounded font-medium flex-shrink-0 ${
+                          item.market === 'ETF'
+                            ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                            : item.market === 'KOSPI'
+                            ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                            : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                        }`}>
+                          {item.market}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{item.ticker}</p>
                   </div>
                 </td>

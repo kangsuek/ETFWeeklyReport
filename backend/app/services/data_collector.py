@@ -427,17 +427,12 @@ class ETFDataCollector:
                         row_dict['relevance_keywords'] = []
                 etfs_dict[row_dict['ticker']] = ETF(**row_dict)
 
-            # stocks.json의 순서대로 정렬
+            # stocks.json의 순서대로 정렬 (stocks.json이 소스 오브 트루스)
             stock_config = Config.get_stock_config()
             ordered_etfs = []
             for ticker in stock_config.keys():
                 if ticker in etfs_dict:
                     ordered_etfs.append(etfs_dict[ticker])
-            
-            # stocks.json에 없지만 DB에 있는 종목들은 뒤에 추가 (fallback)
-            for ticker, etf in etfs_dict.items():
-                if ticker not in stock_config:
-                    ordered_etfs.append(etf)
 
             return ordered_etfs
     

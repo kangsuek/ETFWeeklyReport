@@ -51,6 +51,7 @@ def _get_registered_tickers(existing_cursor=None) -> set:
 async def search_scanner(
     q: Optional[str] = Query(None, description="종목명/코드 검색"),
     type: str = Query("ETF", description="ETF / STOCK / ALL"),
+    market: Optional[str] = Query(None, description="시장 필터: ETF / KOSPI / KOSDAQ"),
     sector: Optional[str] = Query(None, description="섹터 필터"),
     min_weekly_return: Optional[float] = Query(None, description="최소 주간수익률"),
     max_weekly_return: Optional[float] = Query(None, description="최대 주간수익률"),
@@ -64,7 +65,7 @@ async def search_scanner(
     """조건 기반 종목 검색"""
     cache = get_cache()
     cache_key = make_cache_key(
-        "scanner", q=q, type=type, sector=sector,
+        "scanner", q=q, type=type, market=market, sector=sector,
         min_wr=min_weekly_return, max_wr=max_weekly_return,
         fnp=foreign_net_positive, inp=institutional_net_positive,
         sort_by=sort_by, sort_dir=sort_dir, page=page, page_size=page_size
@@ -78,7 +79,11 @@ async def search_scanner(
     where_clauses = [is_active_where]
     params = []
 
-    if type != "ALL":
+    # market 파라미터가 있으면 market 기준 필터 (ETF/KOSPI/KOSDAQ)
+    if market and market != "ALL":
+        where_clauses.append(f"sc.market = {p}")
+        params.append(market)
+    elif type != "ALL":
         where_clauses.append(f"sc.type = {p}")
         params.append(type)
 

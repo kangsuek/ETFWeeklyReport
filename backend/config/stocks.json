@@ -35,100 +35,11 @@
     "purchase_price": 45240.0,
     "quantity": 201
   },
-  "284430": {
-    "name": "KODEX 200미국채혼합",
-    "type": "ETF",
-    "theme": "주식채권 혼합",
-    "purchase_date": null,
-    "search_keyword": "KODEX 200미국채혼합",
-    "relevance_keywords": [
-      "KODEX 200미국채혼합",
-      "코스피200",
-      "미국 10년 국채",
-      "자산배분",
-      "변동성 제어"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "466940": {
-    "name": "TIGER 은행고배당플러스TOP10",
-    "type": "ETF",
-    "theme": "미분류",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "TIGER 은행고배당플러스TOP10",
-    "relevance_keywords": [
-      "TIGER 은행고배당플러스TOP10",
-      "TIGER",
-      "은행고배당플러스TOP10",
-      "은행고배당"
-    ]
-  },
-  "489030": {
-    "name": "PLUS 고배당주위클리커버드콜",
-    "type": "ETF",
-    "theme": "미분류",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "PLUS 고배당주위클리커버드콜",
-    "relevance_keywords": [
-      "PLUS 고배당주위클리커버드콜",
-      "PLUS",
-      "고배당주위클리커버드콜",
-      "고배당"
-    ]
-  },
-  "091220": {
-    "name": "TIGER 은행",
-    "type": "ETF",
-    "theme": "은행",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "TIGER 은행",
-    "relevance_keywords": [
-      "TIGER 은행",
-      "TIGER",
-      "은행"
-    ]
-  },
-  "445290": {
-    "name": "KODEX 로봇액티브",
-    "type": "ETF",
-    "theme": "로봇",
-    "purchase_date": null,
-    "search_keyword": "KODEX 로봇액티브",
-    "relevance_keywords": [
-      "KODEX 로봇액티브",
-      "로봇",
-      "로봇산업",
-      "액티브 ETF"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "449450": {
-    "name": "PLUS K방산",
-    "type": "ETF",
-    "theme": "방산",
-    "purchase_date": null,
-    "search_keyword": "PLUS K방산",
-    "relevance_keywords": [
-      "PLUS K방산",
-      "PLUS",
-      "K방산",
-      "방위산업",
-      "FnGuide K-방위산업 지수"
-    ]
-  },
   "466920": {
     "name": "신한 SOL 조선TOP3플러스 ETF",
     "type": "ETF",
     "theme": "조선",
-    "purchase_date": "2023-08-10",
+    "purchase_date": "2026-02-20",
     "search_keyword": "조선",
     "relevance_keywords": [
       "조선",
@@ -141,8 +52,40 @@
       "글로벌해운",
       "선박"
     ],
-    "purchase_price": null,
-    "quantity": null
+    "purchase_price": 38235.0,
+    "quantity": 90
+  },
+  "449450": {
+    "name": "PLUS K방산",
+    "type": "ETF",
+    "theme": "방산",
+    "purchase_date": "2026-02-20",
+    "search_keyword": "PLUS K방산",
+    "relevance_keywords": [
+      "PLUS K방산",
+      "PLUS",
+      "K방산",
+      "방위산업",
+      "FnGuide K-방위산업 지수"
+    ],
+    "purchase_price": 69755.0,
+    "quantity": 31
+  },
+  "434730": {
+    "name": "HANARO 원자력iSelect",
+    "type": "ETF",
+    "theme": "AI/원자력",
+    "purchase_date": "2026-02-20",
+    "purchase_price": 68245.0,
+    "quantity": 50,
+    "search_keyword": "HANARO 원자력iSelect",
+    "relevance_keywords": [
+      "HANARO 원자력iSelect",
+      "HANARO",
+      "원자력iSelect",
+      "AI",
+      "원자력"
+    ]
   },
   "487240": {
     "name": "삼성 KODEX AI전력핵심설비 ETF",
@@ -160,6 +103,36 @@
       "변압기",
       "배전",
       "반도체"
+    ]
+  },
+  "0131V0": {
+    "name": "1Q 미국우주항공테크",
+    "type": "ETF",
+    "theme": "미국우주항공테크",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "1Q 미국우주항공테크",
+    "relevance_keywords": [
+      "1Q 미국우주항공테크",
+      "1Q",
+      "미국우주항공테크",
+      "우주항공"
+    ]
+  },
+  "473640": {
+    "name": "HANARO 글로벌금채굴기업",
+    "type": "ETF",
+    "theme": "금채굴",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "HANARO 글로벌금채굴기업",
+    "relevance_keywords": [
+      "HANARO 글로벌금채굴기업",
+      "HANARO",
+      "글로벌금채굴기업",
+      "금채굴"
     ]
   },
   "0020H0": {
@@ -181,38 +154,21 @@
     "purchase_price": null,
     "quantity": null
   },
-  "442320": {
-    "name": "KB RISE 글로벌원자력 iSelect ETF",
+  "284430": {
+    "name": "KODEX 200미국채혼합",
     "type": "ETF",
-    "theme": "글로벌 원자력",
-    "purchase_date": "2024-01-25",
-    "search_keyword": "원자력",
+    "theme": "주식채권 혼합",
+    "purchase_date": null,
+    "search_keyword": "KODEX 200미국채혼합",
     "relevance_keywords": [
-      "원자력",
-      "원전",
-      "Uranium",
-      "SMR",
-      "두산에너빌리티",
-      "클린에너지",
-      "핵발전"
+      "KODEX 200미국채혼합",
+      "코스피200",
+      "미국 10년 국채",
+      "자산배분",
+      "변동성 제어"
     ],
     "purchase_price": null,
     "quantity": null
-  },
-  "473640": {
-    "name": "HANARO 글로벌금채굴기업",
-    "type": "ETF",
-    "theme": "금채굴",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "HANARO 글로벌금채굴기업",
-    "relevance_keywords": [
-      "HANARO 글로벌금채굴기업",
-      "HANARO",
-      "글로벌금채굴기업",
-      "금채굴"
-    ]
   },
   "091180": {
     "name": "KODEX 자동차",
@@ -231,95 +187,20 @@
       "현대모비스"
     ]
   },
-  "267260": {
-    "name": "HD현대일렉트릭",
-    "type": "STOCK",
-    "theme": "에너지솔루션",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "HD현대일렉트릭",
-    "relevance_keywords": [
-      "HD현대일렉트릭",
-      "현대일렉트릭",
-      "변압기",
-      "에너지솔루션"
-    ]
-  },
-  "0131V0": {
-    "name": "1Q 미국우주항공테크",
+  "445290": {
+    "name": "KODEX 로봇액티브",
     "type": "ETF",
-    "theme": "미국우주항공테크",
+    "theme": "로봇",
     "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "1Q 미국우주항공테크",
+    "search_keyword": "KODEX 로봇액티브",
     "relevance_keywords": [
-      "1Q 미국우주항공테크",
-      "1Q",
-      "미국우주항공테크",
-      "우주항공"
-    ]
-  },
-  "0138Y0": {
-    "name": "PLUS 금채권혼합",
-    "type": "ETF",
-    "theme": "금채권혼합",
-    "purchase_date": null,
+      "KODEX 로봇액티브",
+      "로봇",
+      "로봇산업",
+      "액티브 ETF"
+    ],
     "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "PLUS 금채권혼합",
-    "relevance_keywords": [
-      "PLUS 금채권혼합",
-      "PLUS",
-      "금채권혼합",
-      "미분류"
-    ]
-  },
-  "453870": {
-    "name": "TIGER 인도니프티50",
-    "type": "ETF",
-    "theme": "인도 (대형 우량주 50)",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "TIGER 인도니프티50",
-    "relevance_keywords": [
-      "TIGER 인도니프티50",
-      "TIGER",
-      "인도니프티50",
-      "미분류"
-    ]
-  },
-  "0065G0": {
-    "name": "KODEX 차이나테크TOP10",
-    "type": "ETF",
-    "theme": "중국 4대 핵심산업(기술·소비·헬스케어·자본재)",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "차이나테크TOP10",
-    "relevance_keywords": [
-      "KODEX 차이나테크TOP10",
-      "차이나테크TOP10",
-      "중국",
-      "차이나"
-    ]
-  },
-  "241180": {
-    "name": "TIGER 일본니케이225",
-    "type": "ETF",
-    "theme": "일본",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "TIGER 일본니케이225",
-    "relevance_keywords": [
-      "TIGER 일본니케이225",
-      "TIGER",
-      "일본니케이225",
-      "일본"
-    ]
+    "quantity": null
   },
   "360750": {
     "name": "TIGER 미국S&P500",
@@ -333,6 +214,20 @@
       "TIGER 미국S&P500",
       "TIGER",
       "S&P500"
+    ]
+  },
+  "102970": {
+    "name": "KODEX 증권",
+    "type": "ETF",
+    "theme": "IT",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "증권",
+    "relevance_keywords": [
+      "KODEX 증권",
+      "증권",
+      "IT"
     ]
   }
 }

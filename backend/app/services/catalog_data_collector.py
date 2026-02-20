@@ -32,12 +32,13 @@ class CatalogDataCollector:
 
     def collect_all(self) -> Dict[str, Any]:
         """
-        전체 ETF 카탈로그 데이터 수집 (가격 + 수급)
+        전체 카탈로그 데이터 수집 (ETF 가격+수급 + KOSPI/KOSDAQ 가격)
 
         Returns:
             수집 통계 dict
         """
         from app.services.progress import update_progress, is_cancelled
+        from app.services.ticker_catalog_collector import TickerCatalogCollector
 
         TASK_ID = "catalog-data"
 
@@ -50,7 +51,7 @@ class CatalogDataCollector:
                 "status": "in_progress",
                 "step": "prices",
                 "step_index": 0,
-                "total_steps": 3,
+                "total_steps": 4,
                 "items_collected": 0,
                 "message": "ETF 가격/거래량 수집 중..."
             })
@@ -68,7 +69,7 @@ class CatalogDataCollector:
                 "status": "in_progress",
                 "step": "supply_demand",
                 "step_index": 1,
-                "total_steps": 3,
+                "total_steps": 4,
                 "items_collected": len(price_data),
                 "message": f"수급 데이터 수집 중... ({len(price_data):,}개 ETF)"
             })
@@ -87,23 +88,41 @@ class CatalogDataCollector:
 
             logger.info(f"Phase 2 완료: {len(supply_data)}개 ETF 수급 수집")
 
-            # Phase 3: DB 저장
+            # Phase 3: ETF DB 저장
             update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "saving",
                 "step_index": 2,
-                "total_steps": 3,
+                "total_steps": 4,
                 "items_collected": len(price_data),
-                "message": "데이터베이스 저장 중..."
+                "message": "ETF 데이터 저장 중..."
             })
 
             saved_count = self._save_to_database(price_data, supply_data)
+
+            if is_cancelled(TASK_ID):
+                update_progress(TASK_ID, {"status": "cancelled", "message": "수집이 중지되었습니다."})
+                return {"cancelled": True, "saved_count": saved_count}
+
+            # Phase 4: KOSPI/KOSDAQ 가격 업데이트
+            update_progress(TASK_ID, {
+                "status": "in_progress",
+                "step": "stock_prices",
+                "step_index": 3,
+                "total_steps": 4,
+                "items_collected": saved_count,
+                "message": "KOSPI/KOSDAQ 가격 업데이트 중..."
+            })
+
+            stock_updated = self._update_stock_prices()
+            logger.info(f"Phase 4 완료: {stock_updated}개 KOSPI/KOSDAQ 가격 업데이트")
 
             duration = (datetime.now() - start_time).total_seconds()
             result = {
                 "price_count": len(price_data),
                 "supply_count": len(supply_data),
                 "saved_count": saved_count,
+                "stock_updated": stock_updated,
                 "duration_seconds": round(duration, 1),
                 "timestamp": datetime.now().isoformat()
             }
@@ -111,10 +130,10 @@ class CatalogDataCollector:
             update_progress(TASK_ID, {
                 "status": "completed",
                 "step": "done",
-                "step_index": 3,
-                "total_steps": 3,
-                "items_collected": saved_count,
-                "message": f"수집 완료! {saved_count:,}개 ETF 업데이트 ({duration:.0f}초)"
+                "step_index": 4,
+                "total_steps": 4,
+                "items_collected": saved_count + stock_updated,
+                "message": f"수집 완료! ETF {saved_count:,}개 + 주식 {stock_updated:,}개 업데이트 ({duration:.0f}초)"
             })
 
             logger.info(f"Catalog data collection completed: {result}")
@@ -127,6 +146,44 @@ class CatalogDataCollector:
             })
             logger.error(f"Catalog data collection failed: {e}", exc_info=True)
             raise ScraperException(f"카탈로그 데이터 수집 실패: {e}")
+
+    def _update_stock_prices(self) -> int:
+        """KOSPI/KOSDAQ 종목 가격 데이터를 sise_market_sum에서 업데이트"""
+        from app.services.ticker_catalog_collector import TickerCatalogCollector
+
+        catalog_collector = TickerCatalogCollector()
+        updated = 0
+
+        try:
+            kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
+            kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
+            all_stocks = kospi_stocks + kosdaq_stocks
+
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    cursor = conn_or_cursor
+                    conn = cursor.connection
+                    p = "%s"
+                else:
+                    conn = conn_or_cursor
+                    cursor = conn.cursor()
+                    p = "?"
+
+                for s in all_stocks:
+                    cursor.execute(f"""
+                        UPDATE stock_catalog
+                        SET close_price = {p}, daily_change_pct = {p}, volume = {p},
+                            catalog_updated_at = CURRENT_TIMESTAMP
+                        WHERE ticker = {p}
+                    """, (s.get("close_price"), s.get("daily_change_pct"), s.get("volume"), s["ticker"]))
+                    if cursor.rowcount > 0:
+                        updated += 1
+
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update KOSPI/KOSDAQ prices: {e}")
+
+        return updated
 
     @retry_with_backoff(
         max_retries=3,
