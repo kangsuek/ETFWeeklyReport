@@ -90,7 +90,30 @@ lint-frontend:
 pre-commit:
     ./scripts/setup-pre-commit.sh
 
-# PostgreSQL 테스트 컨테이너 시작 (포트 5433)
+# 개발용 PostgreSQL 컨테이너 시작 (포트 5432, 데이터 영구 보존)
+pg-up-dev:
+    docker-compose up -d postgres
+    @echo "Waiting for PostgreSQL dev to be ready..."
+    @until docker exec etf_postgres pg_isready -U etf_user -d etf_dev > /dev/null 2>&1; do sleep 1; done
+    @echo "PostgreSQL dev ready at localhost:5432"
+
+# 개발용 PostgreSQL 컨테이너 종료
+pg-down-dev:
+    docker-compose stop postgres
+
+# PostgreSQL 개발환경으로 백엔드 + 프론트엔드 시작
+dev-postgres: pg-up-dev
+    -./scripts/stop-servers.sh 2>/dev/null; true
+    DATABASE_URL=postgresql://etf_user:etf_pass@localhost:5432/etf_dev \
+    ./scripts/start-servers.sh
+
+# PostgreSQL 환경으로 백엔드만 시작
+backend-postgres: pg-up-dev
+    cd {{project_root}}/backend && \
+    DATABASE_URL=postgresql://etf_user:etf_pass@localhost:5432/etf_dev \
+    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 테스트용 PostgreSQL 컨테이너 시작 (포트 5433)
 pg-up:
     docker-compose up -d postgres-test
     @echo "Waiting for PostgreSQL to be ready..."

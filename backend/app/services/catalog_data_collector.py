@@ -379,6 +379,7 @@ class CatalogDataCollector:
                 change_rate = -abs(change_rate)
 
             result[ticker] = {
+                'name': item.get('itemname'),
                 'close_price': item.get('nowVal'),
                 'daily_change_pct': change_rate,
                 'volume': item.get('quant'),
@@ -565,28 +566,61 @@ class CatalogDataCollector:
                 for ticker in all_tickers:
                     price = price_data.get(ticker, {})
                     supply = supply_data.get(ticker, {})
+                    name = price.get('name') or ticker
 
-                    # COALESCE로 새 값이 NULL이면 기존 값 유지 (부분 수집/취소 시 데이터 보존)
-                    cursor.execute(f"""
-                        UPDATE stock_catalog
-                        SET close_price = COALESCE({p}, close_price),
-                            daily_change_pct = COALESCE({p}, daily_change_pct),
-                            volume = COALESCE({p}, volume),
-                            weekly_return = COALESCE({p}, weekly_return),
-                            foreign_net = COALESCE({p}, foreign_net),
-                            institutional_net = COALESCE({p}, institutional_net),
-                            catalog_updated_at = {p}
-                        WHERE ticker = {p}
-                    """, (
-                        price.get('close_price'),
-                        price.get('daily_change_pct'),
-                        price.get('volume'),
-                        supply.get('weekly_return'),
-                        supply.get('foreign_net'),
-                        supply.get('institutional_net'),
-                        now,
-                        ticker
-                    ))
+                    if USE_POSTGRES:
+                        # UPSERT: 신규 ETF도 INSERT (stock_catalog가 비어 있을 때 포함)
+                        cursor.execute(f"""
+                            INSERT INTO stock_catalog
+                                (ticker, name, type, market, is_active,
+                                 close_price, daily_change_pct, volume,
+                                 weekly_return, foreign_net, institutional_net,
+                                 catalog_updated_at)
+                            VALUES ({p}, {p}, 'ETF', 'ETF', TRUE,
+                                    {p}, {p}, {p},
+                                    {p}, {p}, {p},
+                                    {p})
+                            ON CONFLICT (ticker) DO UPDATE SET
+                                name = COALESCE(EXCLUDED.name, stock_catalog.name),
+                                close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
+                                daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
+                                volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
+                                weekly_return = COALESCE(EXCLUDED.weekly_return, stock_catalog.weekly_return),
+                                foreign_net = COALESCE(EXCLUDED.foreign_net, stock_catalog.foreign_net),
+                                institutional_net = COALESCE(EXCLUDED.institutional_net, stock_catalog.institutional_net),
+                                catalog_updated_at = EXCLUDED.catalog_updated_at
+                        """, (
+                            ticker, name,
+                            price.get('close_price'),
+                            price.get('daily_change_pct'),
+                            price.get('volume'),
+                            supply.get('weekly_return'),
+                            supply.get('foreign_net'),
+                            supply.get('institutional_net'),
+                            now,
+                        ))
+                    else:
+                        # SQLite: UPDATE only (기존 동작 유지)
+                        cursor.execute(f"""
+                            UPDATE stock_catalog
+                            SET close_price = COALESCE({p}, close_price),
+                                daily_change_pct = COALESCE({p}, daily_change_pct),
+                                volume = COALESCE({p}, volume),
+                                weekly_return = COALESCE({p}, weekly_return),
+                                foreign_net = COALESCE({p}, foreign_net),
+                                institutional_net = COALESCE({p}, institutional_net),
+                                catalog_updated_at = {p}
+                            WHERE ticker = {p}
+                        """, (
+                            price.get('close_price'),
+                            price.get('daily_change_pct'),
+                            price.get('volume'),
+                            supply.get('weekly_return'),
+                            supply.get('foreign_net'),
+                            supply.get('institutional_net'),
+                            now,
+                            ticker
+                        ))
 
                     if cursor.rowcount > 0:
                         saved += 1

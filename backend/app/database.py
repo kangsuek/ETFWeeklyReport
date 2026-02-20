@@ -430,7 +430,7 @@ def init_db():
     screening_columns = [
         ("close_price", real_type),
         ("daily_change_pct", real_type),
-        ("volume", integer_type),
+        ("volume", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("weekly_return", real_type),
         ("foreign_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("institutional_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
@@ -742,6 +742,7 @@ def run_migrations():
     migrations = [
         ("stock_catalog", "foreign_net", "BIGINT"),
         ("stock_catalog", "institutional_net", "BIGINT"),
+        ("stock_catalog", "volume", "BIGINT"),
     ]
 
     try:
