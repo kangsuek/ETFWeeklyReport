@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import etfs, news, data, settings, alerts, scanner, simulation
-from app.database import init_db
+from app.database import init_db, run_migrations
 from app.services.scheduler import get_scheduler
 from app.config import Config
 from app.utils import stocks_manager
@@ -111,6 +111,7 @@ async def startup_event():
 
     logger.info(message="initializing_database", phase="app_startup")
     init_db()
+    run_migrations()
     logger.info(message="database_initialized", phase="app_startup", status="success")
 
     # stocks.json → DB 자동 동기화

@@ -461,19 +461,6 @@ def init_db():
                 if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
                     logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
 
-    # foreign_net, institutional_net: INTEGER → BIGINT 마이그레이션 (대형주 수급 overflow 방지)
-    # 이전 DDL을 먼저 commit한 후 독립 트랜잭션으로 ALTER COLUMN 실행
-    if USE_POSTGRES:
-        conn.commit()
-        for col in ("foreign_net", "institutional_net"):
-            try:
-                cursor.execute(f"ALTER TABLE stock_catalog ALTER COLUMN {col} TYPE BIGINT")
-                conn.commit()
-                logger.info(f"Migrated stock_catalog.{col} to BIGINT")
-            except Exception as e:
-                conn.rollback()
-                logger.warning(f"Could not migrate stock_catalog.{col} to BIGINT: {e}")
-
     # stock_catalog 스크리닝용 인덱스
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_stock_catalog_screening
@@ -739,6 +726,50 @@ def init_db():
     conn.close()
     
     logger.info("Database initialized successfully")
+
+
+def run_migrations():
+    """
+    init_db() 이후 별도 실행이 필요한 스키마 마이그레이션.
+    autocommit=True로 트랜잭션 없이 ALTER TABLE 실행 (PostgreSQL 전용).
+    """
+    if not USE_POSTGRES:
+        return
+
+    import psycopg2
+
+    # (table, column, new_type) 형식
+    migrations = [
+        ("stock_catalog", "foreign_net", "BIGINT"),
+        ("stock_catalog", "institutional_net", "BIGINT"),
+    ]
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        for table, col, new_type in migrations:
+            try:
+                # 현재 컬럼 타입 확인
+                cursor.execute("""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = %s
+                """, (table, col))
+                row = cursor.fetchone()
+                if row and row[0].upper() != new_type:
+                    cursor.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {new_type}")
+                    logger.info(f"Migration: {table}.{col} → {new_type}")
+                else:
+                    logger.debug(f"Migration skipped: {table}.{col} already {new_type or 'not found'}")
+            except Exception as e:
+                logger.warning(f"Migration failed for {table}.{col}: {e}")
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"run_migrations() failed: {e}")
+
 
 def update_collection_status(ticker: str,
                             price_date: str = None,
