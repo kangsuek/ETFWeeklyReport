@@ -80,10 +80,11 @@ async def search_scanner(
     params = []
 
     # market 파라미터가 있으면 market 기준 필터 (ETF/KOSPI/KOSDAQ)
+    # market=ALL이면 전체 조회 (type 필터도 적용하지 않음)
     if market and market != "ALL":
         where_clauses.append(f"sc.market = {p}")
         params.append(market)
-    elif type != "ALL":
+    elif not market and type != "ALL":
         where_clauses.append(f"sc.type = {p}")
         params.append(type)
 

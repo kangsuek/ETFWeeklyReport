@@ -435,6 +435,8 @@ def init_db():
         ("foreign_net", integer_type),
         ("institutional_net", integer_type),
         ("catalog_updated_at", "TIMESTAMP"),
+        ("week_base_price", real_type),
+        ("week_base_date", "TEXT"),
     ]
     if USE_POSTGRES:
         for col_name, col_type in screening_columns:

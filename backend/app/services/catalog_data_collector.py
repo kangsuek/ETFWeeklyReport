@@ -15,10 +15,15 @@ from datetime import datetime
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, USE_POSTGRES
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
+
+
+KOSPI_TOP_N_SUPPLY = 200    # 시가총액 상위 200개 - frgn.naver 수급 수집
+KOSDAQ_TOP_N_SUPPLY = 300   # 시가총액 상위 300개 - frgn.naver 수급 수집
+STOCK_SUPPLY_WORKERS = 10   # 병렬 수급 수집 워커 수
 
 
 class CatalogDataCollector:
@@ -38,7 +43,6 @@ class CatalogDataCollector:
             수집 통계 dict
         """
         from app.services.progress import update_progress, is_cancelled
-        from app.services.ticker_catalog_collector import TickerCatalogCollector
 
         TASK_ID = "catalog-data"
 
@@ -104,25 +108,30 @@ class CatalogDataCollector:
                 update_progress(TASK_ID, {"status": "cancelled", "message": "수집이 중지되었습니다."})
                 return {"cancelled": True, "saved_count": saved_count}
 
-            # Phase 4: KOSPI/KOSDAQ 가격 업데이트
+            # Phase 4: KOSPI/KOSDAQ 가격+수급 업데이트
             update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "stock_prices",
                 "step_index": 3,
                 "total_steps": 4,
                 "items_collected": saved_count,
-                "message": "KOSPI/KOSDAQ 가격 업데이트 중..."
+                "message": "KOSPI/KOSDAQ 가격+수급 업데이트 중..."
             })
 
-            stock_updated = self._update_stock_prices()
-            logger.info(f"Phase 4 완료: {stock_updated}개 KOSPI/KOSDAQ 가격 업데이트")
+            stock_result = self._update_stock_prices()
+            logger.info(
+                f"Phase 4 완료: {stock_result['updated']}개 KOSPI/KOSDAQ 업데이트 "
+                f"(수급 {stock_result['supply_updated']}개, 주간수익률 {stock_result['weekly_calc_count']}개)"
+            )
 
             duration = (datetime.now() - start_time).total_seconds()
             result = {
                 "price_count": len(price_data),
                 "supply_count": len(supply_data),
                 "saved_count": saved_count,
-                "stock_updated": stock_updated,
+                "stock_updated": stock_result["updated"],
+                "stock_supply_updated": stock_result["supply_updated"],
+                "stock_weekly_calc": stock_result["weekly_calc_count"],
                 "duration_seconds": round(duration, 1),
                 "timestamp": datetime.now().isoformat()
             }
@@ -132,8 +141,12 @@ class CatalogDataCollector:
                 "step": "done",
                 "step_index": 4,
                 "total_steps": 4,
-                "items_collected": saved_count + stock_updated,
-                "message": f"수집 완료! ETF {saved_count:,}개 + 주식 {stock_updated:,}개 업데이트 ({duration:.0f}초)"
+                "items_collected": saved_count + stock_result["updated"],
+                "message": (
+                    f"수집 완료! ETF {saved_count:,}개 + "
+                    f"주식 {stock_result['updated']:,}개 (수급 {stock_result['supply_updated']:,}개) "
+                    f"업데이트 ({duration:.0f}초)"
+                )
             })
 
             logger.info(f"Catalog data collection completed: {result}")
@@ -147,18 +160,35 @@ class CatalogDataCollector:
             logger.error(f"Catalog data collection failed: {e}", exc_info=True)
             raise ScraperException(f"카탈로그 데이터 수집 실패: {e}")
 
-    def _update_stock_prices(self) -> int:
-        """KOSPI/KOSDAQ 종목 가격 데이터를 sise_market_sum에서 업데이트"""
+    def _update_stock_prices(self) -> Dict[str, int]:
+        """
+        KOSPI/KOSDAQ 종목 가격+수급 데이터 업데이트 (방안 A+B)
+
+        - 전체 종목: sise_market_sum에서 현재가/등락률/거래량 수집
+        - 상위 N개(KOSPI 200 + KOSDAQ 300): frgn.naver 병렬 수집으로 수급+주간수익률 추가
+        - 나머지 종목: week_base_price 기준으로 7일 누적 weekly_return 계산
+
+        Returns:
+            {updated, supply_updated, weekly_calc_count}
+        """
         from app.services.ticker_catalog_collector import TickerCatalogCollector
 
         catalog_collector = TickerCatalogCollector()
         updated = 0
+        supply_updated = 0
+        weekly_calc_count = 0
+        today_str = datetime.now().strftime("%Y-%m-%d")
 
         try:
+            # Step 1: sise_market_sum에서 전체 가격 수집 (시가총액 내림차순)
             kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
             kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
-            all_stocks = kospi_stocks + kosdaq_stocks
+            logger.info(f"sise 수집: KOSPI {len(kospi_stocks)}개, KOSDAQ {len(kosdaq_stocks)}개")
 
+            # {ticker: stock_dict} 매핑
+            price_map = {s["ticker"]: s for s in kospi_stocks + kosdaq_stocks}
+
+            # Step 2: DB에서 기존 상태 일괄 조회
             with get_db_connection() as conn_or_cursor:
                 if USE_POSTGRES:
                     cursor = conn_or_cursor
@@ -169,21 +199,146 @@ class CatalogDataCollector:
                     cursor = conn.cursor()
                     p = "?"
 
-                for s in all_stocks:
-                    cursor.execute(f"""
-                        UPDATE stock_catalog
-                        SET close_price = {p}, daily_change_pct = {p}, volume = {p},
-                            catalog_updated_at = CURRENT_TIMESTAMP
-                        WHERE ticker = {p}
-                    """, (s.get("close_price"), s.get("daily_change_pct"), s.get("volume"), s["ticker"]))
-                    if cursor.rowcount > 0:
-                        updated += 1
+                cursor.execute("""
+                    SELECT ticker, close_price, week_base_price, week_base_date, weekly_return
+                    FROM stock_catalog
+                    WHERE market IN ('KOSPI', 'KOSDAQ')
+                """)
+                rows = cursor.fetchall()
+
+                existing_db = {}
+                for row in rows:
+                    if isinstance(row, dict):
+                        existing_db[row["ticker"]] = row
+                    else:
+                        existing_db[row[0]] = {
+                            "ticker": row[0],
+                            "close_price": row[1],
+                            "week_base_price": row[2],
+                            "week_base_date": row[3],
+                            "weekly_return": row[4],
+                        }
+
+            # Step 3: 시가총액 상위 N개 frgn.naver 수급 병렬 수집
+            top_stocks = kospi_stocks[:KOSPI_TOP_N_SUPPLY] + kosdaq_stocks[:KOSDAQ_TOP_N_SUPPLY]
+            top_tickers = [s["ticker"] for s in top_stocks]
+            logger.info(f"수급 수집 대상: {len(top_tickers)}개 (KOSPI {KOSPI_TOP_N_SUPPLY} + KOSDAQ {KOSDAQ_TOP_N_SUPPLY})")
+
+            supply_map: Dict[str, Dict[str, Any]] = {}
+            lock = threading.Lock()
+
+            def fetch_supply(ticker: str):
+                data = self._fetch_supply_data(ticker, use_rate_limiter=False)
+                return ticker, data
+
+            with ThreadPoolExecutor(max_workers=STOCK_SUPPLY_WORKERS) as executor:
+                futures = {executor.submit(fetch_supply, t): t for t in top_tickers}
+                for future in as_completed(futures):
+                    ticker, data = future.result()
+                    with lock:
+                        if data:
+                            supply_map[ticker] = data
+
+            logger.info(f"수급 수집 완료: {len(supply_map)}/{len(top_tickers)}개")
+
+            # Step 4+5: 전체 종목 UPDATE
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    cursor = conn_or_cursor
+                    conn = cursor.connection
+                    p = "%s"
+                else:
+                    conn = conn_or_cursor
+                    cursor = conn.cursor()
+                    p = "?"
+
+                top_ticker_set = set(top_tickers)
+
+                for ticker, s in price_map.items():
+                    close_price = s.get("close_price")
+                    daily_change_pct = s.get("daily_change_pct")
+                    volume = s.get("volume")
+                    db_row = existing_db.get(ticker, {})
+
+                    if ticker in top_ticker_set and ticker in supply_map:
+                        # 상위 N개: 수급 포함 업데이트
+                        sup = supply_map[ticker]
+                        cursor.execute(f"""
+                            UPDATE stock_catalog
+                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
+                                weekly_return = {p},
+                                foreign_net = {p}, institutional_net = {p},
+                                week_base_price = {p}, week_base_date = {p},
+                                catalog_updated_at = CURRENT_TIMESTAMP
+                            WHERE ticker = {p}
+                        """, (
+                            close_price, daily_change_pct, volume,
+                            sup.get("weekly_return"),
+                            sup.get("foreign_net"), sup.get("institutional_net"),
+                            close_price, today_str,
+                            ticker
+                        ))
+                        if cursor.rowcount > 0:
+                            updated += 1
+                            supply_updated += 1
+                    else:
+                        # 나머지 종목: 방안 A - 7일 누적 weekly_return 계산
+                        week_base_price = db_row.get("week_base_price")
+                        week_base_date = db_row.get("week_base_date")
+                        existing_weekly = db_row.get("weekly_return")
+
+                        new_weekly_return = None
+                        new_base_price = week_base_price
+                        new_base_date = week_base_date
+
+                        if week_base_date is None or week_base_price is None:
+                            # 기준가 없음 → 오늘 현재가로 초기화
+                            new_base_price = close_price
+                            new_base_date = today_str
+                            new_weekly_return = None
+                        else:
+                            try:
+                                base_dt = datetime.strptime(week_base_date, "%Y-%m-%d")
+                                days_elapsed = (datetime.now() - base_dt).days
+                                if days_elapsed >= 7:
+                                    # 7일 경과 → weekly_return 계산 후 기준 갱신
+                                    if week_base_price and week_base_price > 0 and close_price:
+                                        new_weekly_return = round(
+                                            (close_price - week_base_price) / week_base_price * 100, 2
+                                        )
+                                        weekly_calc_count += 1
+                                    new_base_price = close_price
+                                    new_base_date = today_str
+                                else:
+                                    # 7일 미경과 → 기존 weekly_return 유지
+                                    new_weekly_return = existing_weekly
+                            except (ValueError, TypeError):
+                                new_base_price = close_price
+                                new_base_date = today_str
+                                new_weekly_return = None
+
+                        cursor.execute(f"""
+                            UPDATE stock_catalog
+                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
+                                weekly_return = COALESCE({p}, weekly_return),
+                                week_base_price = {p}, week_base_date = {p},
+                                catalog_updated_at = CURRENT_TIMESTAMP
+                            WHERE ticker = {p}
+                        """, (
+                            close_price, daily_change_pct, volume,
+                            new_weekly_return,
+                            new_base_price, new_base_date,
+                            ticker
+                        ))
+                        if cursor.rowcount > 0:
+                            updated += 1
 
                 conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to update KOSPI/KOSDAQ prices: {e}")
 
-        return updated
+        except Exception as e:
+            logger.error(f"Failed to update KOSPI/KOSDAQ prices: {e}", exc_info=True)
+
+        return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
 
     @retry_with_backoff(
         max_retries=3,
