@@ -90,6 +90,24 @@ lint-frontend:
 pre-commit:
     ./scripts/setup-pre-commit.sh
 
+# PostgreSQL 테스트 컨테이너 시작 (포트 5433)
+pg-up:
+    docker-compose up -d postgres-test
+    @echo "Waiting for PostgreSQL to be ready..."
+    @until docker exec etf_postgres_test pg_isready -U etf_user -d etf_test > /dev/null 2>&1; do sleep 1; done
+    @echo "PostgreSQL test instance ready at localhost:5433"
+
+# PostgreSQL 테스트 컨테이너 종료
+pg-down:
+    docker-compose stop postgres-test
+    docker-compose rm -f postgres-test
+
+# PostgreSQL 전용 테스트 실행 (just pg-up 먼저 실행 필요)
+test-postgres:
+    cd {{project_root}}/backend && \
+    DATABASE_URL=postgresql://etf_user:etf_pass@localhost:5433/etf_test \
+    uv run pytest tests/test_postgres_specific.py -v --no-cov
+
 # 백엔드 보안 스캔 (safety)
 security:
     cd {{project_root}}/backend && ./scripts/security_check.sh
