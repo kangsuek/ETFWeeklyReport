@@ -325,6 +325,9 @@ def delete_stock(ticker: str) -> Dict[str, int]:
         deleted_counts["trading_flow"] = result['cnt'] if USE_POSTGRES else result[0]
         cursor.execute(f"DELETE FROM trading_flow WHERE ticker = {param_placeholder}", (ticker,))
 
+        # Delete from collection_status (FK references etfs, must delete before etfs)
+        cursor.execute(f"DELETE FROM collection_status WHERE ticker = {param_placeholder}", (ticker,))
+
         # Delete from etfs table
         cursor.execute(f"DELETE FROM etfs WHERE ticker = {param_placeholder}", (ticker,))
 
