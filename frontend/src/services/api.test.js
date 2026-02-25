@@ -13,7 +13,7 @@ describe('API Services', () => {
       ]
 
       server.use(
-        http.get('http://localhost:8000/api/etfs/', () => {
+        http.get('/api/etfs/', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -31,7 +31,7 @@ describe('API Services', () => {
       }
 
       server.use(
-        http.get('http://localhost:8000/api/etfs/487240', () => {
+        http.get('/api/etfs/487240', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -51,7 +51,7 @@ describe('API Services', () => {
       ]
 
       server.use(
-        http.get('http://localhost:8000/api/etfs/487240/prices', () => {
+        http.get('/api/etfs/487240/prices', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -71,7 +71,7 @@ describe('API Services', () => {
       ]
 
       server.use(
-        http.get('http://localhost:8000/api/etfs/487240/trading-flow', () => {
+        http.get('/api/etfs/487240/trading-flow', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -88,7 +88,7 @@ describe('API Services', () => {
       }
 
       server.use(
-        http.get('http://localhost:8000/api/etfs/487240/metrics', () => {
+        http.get('/api/etfs/487240/metrics', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -101,7 +101,7 @@ describe('API Services', () => {
       const mockData = { message: 'Collection started', status: 'success' }
 
       server.use(
-        http.post('http://localhost:8000/api/etfs/487240/collect', () => {
+        http.post('/api/etfs/487240/collect', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -114,7 +114,7 @@ describe('API Services', () => {
       const mockData = { message: 'Collection started', status: 'success' }
 
       server.use(
-        http.post('http://localhost:8000/api/etfs/487240/collect-trading-flow', () => {
+        http.post('/api/etfs/487240/collect-trading-flow', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -140,7 +140,7 @@ describe('API Services', () => {
       ]
 
       server.use(
-        http.get('http://localhost:8000/api/news/487240', () => {
+        http.get('/api/news/487240', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -157,7 +157,7 @@ describe('API Services', () => {
       ]
 
       server.use(
-        http.get('http://localhost:8000/api/news', () => {
+        http.get('/api/news', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -170,7 +170,7 @@ describe('API Services', () => {
       const mockData = { message: 'News collection started', status: 'success' }
 
       server.use(
-        http.post('http://localhost:8000/api/news/487240/collect', () => {
+        http.post('/api/news/487240/collect', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -185,7 +185,7 @@ describe('API Services', () => {
       const mockData = { message: 'All data collection started', status: 'success' }
 
       server.use(
-        http.post('http://localhost:8000/api/data/collect-all', () => {
+        http.post('/api/data/collect-all', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -198,7 +198,7 @@ describe('API Services', () => {
       const mockData = { message: 'Backfill started', status: 'success' }
 
       server.use(
-        http.post('http://localhost:8000/api/data/backfill', () => {
+        http.post('/api/data/backfill', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -214,7 +214,7 @@ describe('API Services', () => {
       }
 
       server.use(
-        http.get('http://localhost:8000/api/data/status', () => {
+        http.get('/api/data/status', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -232,7 +232,7 @@ describe('API Services', () => {
       }
 
       server.use(
-        http.get('http://localhost:8000/api/data/scheduler-status', () => {
+        http.get('/api/data/scheduler-status', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -247,7 +247,7 @@ describe('API Services', () => {
       const mockData = { status: 'ok' }
 
       server.use(
-        http.get('http://localhost:8000/api/health', () => {
+        http.get('/api/health', () => {
           return HttpResponse.json(mockData)
         })
       )
@@ -260,7 +260,7 @@ describe('API Services', () => {
   describe('Error Handling', () => {
     it('404 에러를 올바르게 처리한다', async () => {
       server.use(
-        http.get('http://localhost:8000/api/etfs/999999', () => {
+        http.get('/api/etfs/999999', () => {
           return new HttpResponse(
             JSON.stringify({ detail: 'ETF not found' }),
             { status: 404, headers: { 'Content-Type': 'application/json' } }
@@ -278,7 +278,7 @@ describe('API Services', () => {
 
     it('500 에러를 올바르게 처리한다', async () => {
       server.use(
-        http.get('http://localhost:8000/api/etfs/', () => {
+        http.get('/api/etfs/', () => {
           return new HttpResponse(null, { status: 500 })
         })
       )
@@ -293,7 +293,7 @@ describe('API Services', () => {
 
     it('네트워크 에러를 올바르게 처리한다', async () => {
       server.use(
-        http.get('http://localhost:8000/api/etfs/', () => {
+        http.get('/api/etfs/', () => {
           return HttpResponse.error()
         })
       )

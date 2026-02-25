@@ -68,10 +68,11 @@ describe('StatsSummary', () => {
 
       // 기간 수익률 = (11000 - 10000) / 10000 * 100 = 10%
       expect(screen.getByText('기간 수익률')).toBeInTheDocument()
-      expect(screen.getByText('+10.00%')).toBeInTheDocument()
+      const returnElements = screen.getAllByText('+10.00%')
+      expect(returnElements.length).toBeGreaterThan(0)
     })
 
-    it('연환산 수익률을 복리 효과를 반영하여 계산한다 (거래일 기준)', () => {
+    it('수익률을 복리 효과를 반영하여 계산한다 (거래일 기준)', () => {
       // 21개 데이터, 7.09% 수익 (두산에너빌리티 예시)
       const baseDate = new Date('2025-10-13')
       const testData = Array.from({ length: 21 }, (_, i) => {
@@ -89,22 +90,20 @@ describe('StatsSummary', () => {
 
       renderWithProviders(<StatsSummary data={testData} />)
 
-      expect(screen.getByText('연환산 수익률')).toBeInTheDocument()
+      // 21거래일 < 60일이므로 "21일 수익률" 레이블로 표시됨
+      expect(screen.getByText('21일 수익률')).toBeInTheDocument()
       expect(screen.getByText('기간 수익률')).toBeInTheDocument()
 
       // 기간 수익률: 7.09%
-      expect(screen.getByText('+7.09%')).toBeInTheDocument()
+      const returnElements = screen.getAllByText('+7.09%')
+      expect(returnElements.length).toBeGreaterThan(0)
 
-      // 거래일수: 21일 (데이터 포인트 개수)
-      // 연환산: (1.0709)^(365/21) - 1 ≈ 183.33%
-      // 백엔드 ComparisonService와 동일한 로직 (거래일 기준)
-
-      // 모든 퍼센트 값을 가져와서 연환산 수익률 확인
+      // 모든 퍼센트 값을 가져와서 수익률 확인
       const percentageElements = screen.getAllByText(/[+-]\d+\.\d+%/)
-      expect(percentageElements.length).toBeGreaterThan(1)  // 기간 수익률 + 연환산 수익률
+      expect(percentageElements.length).toBeGreaterThan(1)
     })
 
-    it('거래일 기준 연환산 계산 - 실제 데이터와 일치', () => {
+    it('거래일 기준 수익률 계산 - 실제 데이터와 일치', () => {
       // 31개 데이터 (거래일 기준)
       const baseDate = new Date('2025-10-01')
       const testData = Array.from({ length: 31 }, (_, i) => {
@@ -121,9 +120,8 @@ describe('StatsSummary', () => {
 
       renderWithProviders(<StatsSummary data={testData} />)
 
-      // 거래일수: 31일
-      // 연환산: (1.0709)^(365/31) - 1 ≈ 1.2395 = 123.95%
-      expect(screen.getByText('연환산 수익률')).toBeInTheDocument()
+      // 31거래일 < 60일이므로 "31일 수익률" 레이블로 표시됨
+      expect(screen.getByText('31일 수익률')).toBeInTheDocument()
     })
 
     it('양수 수익률은 빨강색으로 표시된다', () => {
@@ -246,8 +244,9 @@ describe('StatsSummary', () => {
       renderWithProviders(<StatsSummary data={largePriceData} />)
 
       expect(screen.getByText('수익률')).toBeInTheDocument()
-      // 100% 수익률
-      expect(screen.getByText('+100.00%')).toBeInTheDocument()
+      // 100% 수익률 (여러 곳에 표시될 수 있음)
+      const returnElements = screen.getAllByText('+100.00%')
+      expect(returnElements.length).toBeGreaterThan(0)
     })
 
     it('소수점 가격도 처리한다', () => {

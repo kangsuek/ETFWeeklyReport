@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { SettingsProvider } from '../contexts/SettingsContext'
 import { ToastProvider } from '../contexts/ToastContext'
+import { AlertProvider } from '../contexts/AlertContext'
 
 // Custom render function with providers
 export function renderWithProviders(ui, options = {}) {
@@ -24,7 +25,9 @@ export function renderWithProviders(ui, options = {}) {
         <QueryClientProvider client={queryClient}>
           <SettingsProvider>
             <ToastProvider>
-              {children}
+              <AlertProvider>
+                {children}
+              </AlertProvider>
             </ToastProvider>
           </SettingsProvider>
         </QueryClientProvider>

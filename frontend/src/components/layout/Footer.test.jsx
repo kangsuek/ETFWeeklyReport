@@ -9,7 +9,7 @@ describe('Footer', () => {
   beforeEach(() => {
     // Setup default handler
     server.use(
-      http.get('http://localhost:8000/api/data/scheduler-status', () => {
+      http.get('/api/data/scheduler-status', () => {
         return HttpResponse.json({
           scheduler: {
             last_collection_time: '2025-11-10T09:00:00',
@@ -51,7 +51,7 @@ describe('Footer', () => {
 
   it('업데이트 시간 로딩 실패 시 "-"를 표시한다', async () => {
     server.use(
-      http.get('http://localhost:8000/api/data/scheduler-status', () => {
+      http.get('/api/data/scheduler-status', () => {
         return new HttpResponse(null, { status: 500 })
       })
     )

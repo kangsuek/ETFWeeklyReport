@@ -101,12 +101,18 @@ describe('chartUtils', () => {
     })
 
     it('프로덕션 환경에서는 성능 측정을 하지 않는다', () => {
-      process.env.NODE_ENV = 'production'
+      const originalProd = import.meta.env.PROD
+      const originalMode = import.meta.env.MODE
+      import.meta.env.PROD = true
+      import.meta.env.MODE = 'production'
 
       const fn = () => 'test'
       measureChartPerformance('Test Label', fn)
 
       expect(consoleLogSpy).not.toHaveBeenCalled()
+
+      import.meta.env.PROD = originalProd
+      import.meta.env.MODE = originalMode
     })
 
     it('500ms 이상 걸리면 경고를 출력한다', () => {

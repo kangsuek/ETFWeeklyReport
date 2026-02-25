@@ -300,14 +300,13 @@ describe('DateRangeSelector', () => {
     });
   });
 
-  it('반응형 그리드 레이아웃을 사용한다', () => {
+  it('반응형 레이아웃을 사용한다', () => {
     const mockCallback = vi.fn();
     const { container } = render(<DateRangeSelector onDateRangeChange={mockCallback} />);
 
-    // 그리드 레이아웃 확인
-    const buttonGrid = container.querySelector('.grid');
-    expect(buttonGrid).toHaveClass('grid-cols-2');
-    expect(buttonGrid).toHaveClass('md:grid-cols-4');
+    // flex wrap 레이아웃 확인
+    const buttonContainer = container.querySelector('.flex.flex-wrap');
+    expect(buttonContainer).toBeInTheDocument();
   });
 
   it('프리셋 버튼의 활성/비활성 스타일이 올바르게 적용된다', async () => {

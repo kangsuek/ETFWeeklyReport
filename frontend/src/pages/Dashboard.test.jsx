@@ -69,10 +69,10 @@ describe('Dashboard', () => {
   // Setup default handlers for all tests
   beforeEach(() => {
     server.use(
-      http.get('http://localhost:8000/api/etfs/', () => {
+      http.get('/api/etfs/', () => {
         return HttpResponse.json(mockETFsData)
       }),
-      http.get('http://localhost:8000/api/data/scheduler-status', () => {
+      http.get('/api/data/scheduler-status', () => {
         return HttpResponse.json(mockSchedulerStatus)
       })
     )
@@ -109,7 +109,7 @@ describe('Dashboard', () => {
 
   it('에러 발생 시 에러 메시지를 표시한다', async () => {
     server.use(
-      http.get('http://localhost:8000/api/etfs/', () => {
+      http.get('/api/etfs/', () => {
         return new HttpResponse(null, { status: 500 })
       })
     )
@@ -133,7 +133,7 @@ describe('Dashboard', () => {
 
   it('빈 데이터 상태를 올바르게 표시한다', async () => {
     server.use(
-      http.get('http://localhost:8000/api/etfs', () => {
+      http.get('/api/etfs', () => {
         return HttpResponse.json([])
       })
     )
@@ -156,8 +156,8 @@ describe('Dashboard', () => {
       expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
     })
 
-    // 새로고침 버튼 찾기 (title 속성으로)
-    const refreshButton = screen.getByTitle('모든 데이터 새로고침')
+    // 새로고침 버튼 찾기 (aria-label 속성으로)
+    const refreshButton = screen.getByRole('button', { name: '모든 데이터 새로고침' })
     await user.click(refreshButton)
 
     // 데이터가 다시 로드되는지 확인
@@ -175,17 +175,17 @@ describe('Dashboard', () => {
       expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
     })
 
-    // 자동 갱신 체크박스 찾기
+    // 자동 갱신 체크박스 찾기 (기본값: enabled=true로 체크됨)
     const autoRefreshCheckbox = screen.getByRole('checkbox', { name: /자동 갱신/ })
-    expect(autoRefreshCheckbox).not.toBeChecked()
-
-    // 자동 갱신 활성화
-    await user.click(autoRefreshCheckbox)
     expect(autoRefreshCheckbox).toBeChecked()
 
     // 자동 갱신 비활성화
     await user.click(autoRefreshCheckbox)
     expect(autoRefreshCheckbox).not.toBeChecked()
+
+    // 자동 갱신 다시 활성화
+    await user.click(autoRefreshCheckbox)
+    expect(autoRefreshCheckbox).toBeChecked()
   })
 
   it('스케줄러 상태를 표시한다', async () => {
@@ -293,35 +293,35 @@ describe('Dashboard', () => {
 
   it('같은 정렬 버튼을 다시 클릭하면 정렬 방향이 바뀐다', async () => {
     const user = userEvent.setup()
-    const { container } = renderWithProviders(<Dashboard />)
+    renderWithProviders(<Dashboard />)
 
     // 데이터 로딩 대기
     await waitFor(() => {
       expect(screen.getByText('삼성 KODEX AI전력핵심설비 ETF')).toBeInTheDocument()
     })
 
-    // 타입순 버튼 클릭 (오름차순 -> 내림차순)
+    // 타입순 버튼 클릭 (첫 클릭: 오름차순 활성화)
     const typeButton = screen.getByRole('button', { name: '타입순 정렬' })
-
-    // 초기 상태: 오름차순 아이콘 확인 (위 방향 화살표)
-    let upArrow = container.querySelector('path[d="M5 15l7-7 7 7"]')
-    expect(upArrow).toBeInTheDocument()
-
-    // 첫 번째 클릭: 내림차순으로 변경
     await user.click(typeButton)
 
-    // 내림차순 아이콘 확인 (아래 방향 화살표)
+    // 오름차순 화살표 (▲) 확인
     await waitFor(() => {
-      const downArrow = container.querySelector('path[d="M19 9l-7 7-7-7"]')
-      expect(downArrow).toBeInTheDocument()
+      expect(typeButton.textContent).toContain('▲')
     })
 
-    // 다시 클릭하면 오름차순으로 변경
+    // 두 번째 클릭: 내림차순으로 변경
+    await user.click(typeButton)
+
+    // 내림차순 화살표 (▼) 확인
+    await waitFor(() => {
+      expect(typeButton.textContent).toContain('▼')
+    })
+
+    // 세 번째 클릭: 오름차순으로 변경
     await user.click(typeButton)
 
     await waitFor(() => {
-      upArrow = container.querySelector('path[d="M5 15l7-7 7 7"]')
-      expect(upArrow).toBeInTheDocument()
+      expect(typeButton.textContent).toContain('▲')
     })
   })
 

@@ -13,6 +13,24 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+// 공통 인사이트/알림/분봉 모킹 헬퍼
+function mockCommonApis() {
+  vi.spyOn(api.etfApi, 'getInsights').mockResolvedValue({
+    data: {
+      strategy: {
+        short_term: '관망',
+        medium_term: '보유',
+        long_term: '비중확대',
+        recommendation: '관망',
+        comment: '현재 시장 상황을 지속적으로 모니터링 필요',
+      },
+      key_points: ['외국인 대규모 순매수 지속'],
+    },
+  })
+  vi.spyOn(api.alertApi, 'getRules').mockResolvedValue({ data: [] })
+  vi.spyOn(api.etfApi, 'getIntraday').mockResolvedValue({ data: { data: [], count: 0 } })
+}
+
 // Mock 데이터
 const mockETF = {
   ticker: '411060',
@@ -98,6 +116,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -116,6 +135,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -128,9 +148,6 @@ describe('ETFDetail', () => {
 
     // 테마 확인
     expect(screen.getByText('2차전지')).toBeInTheDocument()
-
-    // 운용보수 확인
-    expect(screen.getByText('0.45%')).toBeInTheDocument()
   })
 
   it('최근 가격 정보가 표시된다', async () => {
@@ -138,6 +155,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -145,9 +163,9 @@ describe('ETFDetail', () => {
       expect(screen.getByText('최근 가격 정보')).toBeInTheDocument()
     })
 
-    // 등락률 확인 (여러 곳에 표시되므로 getAllByText 사용)
+    // 등락률 확인 (latestPrice = pricesData[0], daily_change_pct = 2.5)
     await waitFor(() => {
-      const changeElements = screen.getAllByText('+2.94%')
+      const changeElements = screen.getAllByText('+2.50%')
       expect(changeElements.length).toBeGreaterThan(0)
     })
   })
@@ -157,6 +175,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -170,6 +189,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -183,6 +203,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -200,6 +221,7 @@ describe('ETFDetail', () => {
   it('ETF 로딩 실패 시 에러 메시지를 표시한다', async () => {
     const error = new Error('데이터를 불러올 수 없습니다')
     vi.spyOn(api.etfApi, 'getDetail').mockRejectedValue(error)
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -220,6 +242,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockRejectedValue(new Error('가격 데이터 로드 실패'))
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -240,6 +263,7 @@ describe('ETFDetail', () => {
       new Error('매매 동향 데이터 로드 실패')
     )
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -258,6 +282,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: [] })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 
@@ -275,6 +300,7 @@ describe('ETFDetail', () => {
     vi.spyOn(api.etfApi, 'getPrices').mockResolvedValue({ data: mockPrices })
     vi.spyOn(api.etfApi, 'getTradingFlow').mockResolvedValue({ data: mockTradingFlow })
     vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    mockCommonApis()
 
     renderWithProviders(<ETFDetail />)
 

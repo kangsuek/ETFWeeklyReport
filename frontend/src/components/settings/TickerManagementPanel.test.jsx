@@ -59,12 +59,8 @@ describe('TickerManagementPanel 컴포넌트', () => {
     }
 
     server.use(
-      http.get('/api/etfs/', listHandler),
-      http.get('/api/etfs', listHandler),
-      http.get('http://localhost:8000/api/etfs/', listHandler),
-      http.get('http://localhost:8000/api/etfs', listHandler),
-      http.delete('/api/settings/stocks/:ticker', deleteHandler),
-      http.delete('http://localhost:8000/api/settings/stocks/:ticker', deleteHandler)
+      http.get('/api/settings/stocks', listHandler),
+      http.delete('/api/settings/stocks/:ticker', deleteHandler)
     )
 
     renderWithProviders(<TickerManagementPanel />)

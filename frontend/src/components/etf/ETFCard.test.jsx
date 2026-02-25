@@ -97,22 +97,22 @@ describe('ETFCard', () => {
   beforeEach(() => {
     // Setup default handlers
     server.use(
-      http.get('http://localhost:8000/api/etfs/487240/prices', () => {
+      http.get('/api/etfs/487240/prices', () => {
         return HttpResponse.json(mockPricesData)
       }),
-      http.get('http://localhost:8000/api/etfs/487240/trading-flow', () => {
+      http.get('/api/etfs/487240/trading-flow', () => {
         return HttpResponse.json(mockTradingFlowData)
       }),
-      http.get('http://localhost:8000/api/news/487240', () => {
+      http.get('/api/news/487240', () => {
         return HttpResponse.json(mockNewsData)
       }),
-      http.get('http://localhost:8000/api/etfs/042660/prices', () => {
+      http.get('/api/etfs/042660/prices', () => {
         return HttpResponse.json(mockPricesData)
       }),
-      http.get('http://localhost:8000/api/etfs/042660/trading-flow', () => {
+      http.get('/api/etfs/042660/trading-flow', () => {
         return HttpResponse.json(mockTradingFlowData)
       }),
-      http.get('http://localhost:8000/api/news/042660', () => {
+      http.get('/api/news/042660', () => {
         return HttpResponse.json(mockNewsData)
       })
     )
@@ -206,11 +206,11 @@ describe('ETFCard', () => {
     expect(screen.getByText('AI 전력 수요 급증, ETF 상승세')).toBeInTheDocument()
   })
 
-  it('수수료 정보를 표시한다 (ETF)', async () => {
+  it('ETF 종목 코드를 하단에 표시한다', async () => {
     renderWithProviders(<ETFCard etf={mockETF} />)
 
     await waitFor(() => {
-      expect(screen.getByText('수수료: 0.45%')).toBeInTheDocument()
+      expect(screen.getByLabelText(`종목 코드: ${mockETF.ticker}`)).toBeInTheDocument()
     })
   })
 
@@ -226,13 +226,13 @@ describe('ETFCard', () => {
 
   it('가격 데이터 로딩 실패 시 적절한 메시지를 표시한다', async () => {
     server.use(
-      http.get('http://localhost:8000/api/etfs/487240/prices', () => {
+      http.get('/api/etfs/487240/prices', () => {
         return new HttpResponse(null, { status: 500 })
       }),
-      http.get('http://localhost:8000/api/etfs/487240/trading-flow', () => {
+      http.get('/api/etfs/487240/trading-flow', () => {
         return new HttpResponse(null, { status: 500 })
       }),
-      http.get('http://localhost:8000/api/news/487240', () => {
+      http.get('/api/news/487240', () => {
         return HttpResponse.json([])
       })
     )
@@ -255,7 +255,7 @@ describe('ETFCard', () => {
 
   it('하락 등락률에 파란색을 적용한다', async () => {
     server.use(
-      http.get('http://localhost:8000/api/etfs/487240/prices', () => {
+      http.get('/api/etfs/487240/prices', () => {
         const negativeData = [
           {
             ...mockPricesData[0],

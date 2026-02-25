@@ -62,8 +62,10 @@ describe('TickerForm 컴포넌트', () => {
       await waitFor(() => {
         expect(screen.getByText('티커 코드는 필수입니다.')).toBeInTheDocument()
         expect(screen.getByText('종목명은 필수입니다.')).toBeInTheDocument()
-        expect(screen.getByText('테마는 필수입니다.')).toBeInTheDocument()
       })
+
+      // 테마는 이제 선택사항이므로 검증 에러가 표시되지 않아야 함
+      expect(screen.queryByText('테마는 필수입니다.')).not.toBeInTheDocument()
 
       expect(mockOnSubmit).not.toHaveBeenCalled()
     })

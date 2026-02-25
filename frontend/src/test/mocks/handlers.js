@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 
-const BASE_URL = 'http://localhost:8000/api'
+const BASE_URL = '/api'
 
 // Mock data - 6개 종목
 const mockETFData = [
@@ -268,6 +268,57 @@ export const handlers = [
     })
   }),
 
+  // POST /api/etfs/batch-summary - 배치 요약 조회
+  http.post(`${BASE_URL}/etfs/batch-summary`, async ({ request }) => {
+    const body = await request.json()
+    const { tickers = [] } = body
+    const summaries = {}
+    for (const ticker of tickers) {
+      const etf = mockETFData.find(e => e.ticker === ticker)
+      if (etf) {
+        summaries[ticker] = {
+          ...etf,
+          prices: mockPricesData,
+          trading_flow: mockTradingFlowData,
+          news: mockNewsData.filter(n => n.ticker === ticker),
+        }
+      }
+    }
+    return HttpResponse.json(summaries)
+  }),
+
+  // GET /api/etfs/:ticker/metrics - 종목 지표
+  http.get(`${BASE_URL}/etfs/:ticker/metrics`, () => {
+    return HttpResponse.json({
+      average_volume: 1200000,
+      volatility: 1.25,
+    })
+  }),
+
+  // GET /api/etfs/:ticker/insights - 종목 인사이트
+  http.get(`${BASE_URL}/etfs/:ticker/insights`, () => {
+    return HttpResponse.json({
+      strategy: {
+        short_term: '관망',
+        medium_term: '보유',
+        long_term: '비중확대',
+        recommendation: '관망',
+        comment: '현재 시장 상황을 지속적으로 모니터링 필요',
+      },
+      key_points: ['외국인 대규모 순매수 지속'],
+    })
+  }),
+
+  // GET /api/alerts/rules/:ticker - 알림 규칙
+  http.get(`${BASE_URL}/alerts/rules/:ticker`, () => {
+    return HttpResponse.json([])
+  }),
+
+  // GET /api/etfs/:ticker/intraday - 분봉 데이터
+  http.get(`${BASE_URL}/etfs/:ticker/intraday`, () => {
+    return HttpResponse.json({ data: [], count: 0 })
+  }),
+
   // GET /api/health - Health check
   http.get(`${BASE_URL}/health`, () => {
     return HttpResponse.json({
@@ -277,6 +328,11 @@ export const handlers = [
   }),
 
   // Settings API Handlers
+
+  // GET /api/settings/stocks - 종목 목록 조회
+  http.get(`${BASE_URL}/settings/stocks`, () => {
+    return HttpResponse.json(mockETFData)
+  }),
 
   // POST /api/settings/stocks - 종목 추가
   http.post(`${BASE_URL}/settings/stocks`, async ({ request }) => {
