@@ -48,3 +48,38 @@ Branch policy: [docs/BRANCHES.md](docs/BRANCHES.md)
 **Number Formatting:** Always apply thousands separators to all numbers displayed to the user (prices, volumes, counts, etc.). Use `f"{value:,}"` in Python and `toLocaleString()` or `Intl.NumberFormat` in JavaScript/React. Example: `1234567` → `1,234,567`.
 
 **Critical Rules:** Read CLAUDE.md first, all tests must pass before merging (see DEVELOPMENT_GUIDE.md for test policy), respond in Korean
+
+## Cursor Cloud specific instructions
+
+### Prerequisites (installed by VM snapshot, not the update script)
+
+- **uv** (Python package manager): `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **just** (command runner): installed to `/usr/local/bin/just`
+- Ensure `$HOME/.local/bin` is on `PATH` for `uv` (add `export PATH="$HOME/.local/bin:$PATH"` to shell profile if needed).
+
+### Quick start after update script runs
+
+1. `just db` — initialise/reset SQLite database (fast, idempotent)
+2. `just backend` — start backend on port 8000 (or background: `cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`)
+3. `just frontend` — start frontend on port 5173 (or background: `cd frontend && npm run dev &`)
+4. Both at once in background: `./scripts/start-servers.sh` (logs to `logs/`)
+
+### Known pre-existing issues
+
+- **Backend lint (`just lint-backend`)**: `.flake8` config has inline comments in the `ignore` field which flake8 rejects. Workaround: `cd backend && uv run flake8 --isolated app/ --max-line-length=100 --ignore=E203,E501,W503,W504`
+- **Frontend lint (`just lint-frontend`)**: `.eslintrc.cjs` config file is missing from the repository; `npm run lint` fails with "couldn't find a configuration file."
+- **Frontend tests**: 74 of 369 tests fail due to MSW mock handlers using `http://localhost:8000/api` as base URL while the API client sends requests to relative `/api`. The 14 passing test files (292 tests) cover components/utilities and work correctly.
+- **Backend tests**: full `uv run pytest` can take 5+ minutes due to scraper/collector tests with network mocking. Use `-x` flag or run specific test files for faster feedback.
+
+### Ports
+
+| Service | Port |
+|---------|------|
+| Backend (FastAPI) | 8000 |
+| Frontend (Vite) | 5173 |
+
+### Environment
+
+- `.env` at project root (copied from `.env.example` by `just setup`). Backend + frontend both read from this file.
+- Naver API keys (`NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`) are optional; news features are disabled without them.
+- No Docker required for default SQLite development workflow.
