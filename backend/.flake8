@@ -15,11 +15,15 @@ exclude =
     *.egg-info
 
 # 무시할 에러 코드
+# E203: whitespace before ':' (black과 충돌)
+# E501: line too long (black이 처리)
+# W503: line break before binary operator
+# W504: line break after binary operator
 ignore =
-    E203,  # whitespace before ':' (black과 충돌)
-    E501,  # line too long (black이 처리)
-    W503,  # line break before binary operator
-    W504,  # line break after binary operator
+    E203,
+    E501,
+    W503,
+    W504
 
 # 파일당 최대 복잡도
 max-complexity = 10

@@ -64,12 +64,11 @@ Branch policy: [docs/BRANCHES.md](docs/BRANCHES.md)
 3. `just frontend` — start frontend on port 5173 (or background: `cd frontend && npm run dev &`)
 4. Both at once in background: `./scripts/start-servers.sh` (logs to `logs/`)
 
-### Known pre-existing issues
+### Known caveats
 
-- **Backend lint (`just lint-backend`)**: `.flake8` config has inline comments in the `ignore` field which flake8 rejects. Workaround: `cd backend && uv run flake8 --isolated app/ --max-line-length=100 --ignore=E203,E501,W503,W504`
-- **Frontend lint (`just lint-frontend`)**: `.eslintrc.cjs` config file is missing from the repository; `npm run lint` fails with "couldn't find a configuration file."
-- **Frontend tests**: 74 of 369 tests fail due to MSW mock handlers using `http://localhost:8000/api` as base URL while the API client sends requests to relative `/api`. The 14 passing test files (292 tests) cover components/utilities and work correctly.
-- **Backend tests**: full `uv run pytest` can take 5+ minutes due to scraper/collector tests with network mocking. Use `-x` flag or run specific test files for faster feedback.
+- **Backend tests**: full `uv run pytest` can take 5+ minutes due to scraper/collector tests with network mocking. Use `-x` flag or run specific test files for faster feedback (e.g., `uv run pytest tests/test_api.py tests/test_settings_api.py -v`).
+- **Backend lint**: Pre-existing whitespace warnings exist in some test files (e.g., `test_trading_flow.py`). These are not blocking.
+- **Frontend lint**: Pre-existing warnings (256+) from `react-hooks/rules-of-hooks` and `no-unused-vars`. The `--max-warnings 0` flag in `npm run lint` causes exit code 1. These are not blocking for development.
 
 ### Ports
 
