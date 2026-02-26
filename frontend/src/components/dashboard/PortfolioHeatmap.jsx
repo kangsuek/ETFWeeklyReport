@@ -59,7 +59,7 @@ const HeatmapCell = (props) => {
   const canShowName = width > 50 && height > 25
   const canShowPrice = width > 60 && height > 45
   const canShowChange = width > 40 && height > 20
-  const canShowWeekly = width > 80 && height > 60
+  const canShowWeekly = width > 60 && height > 50
 
   // 셀 폭에 맞게 이름 자르기
   const maxChars = Math.floor(width / 9)

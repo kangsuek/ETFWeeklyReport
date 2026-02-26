@@ -633,9 +633,9 @@ class ETFDataCollector:
                 # Calculate returns
                 returns = {}
 
-                # 1 week return
-                if len(prices) >= 7:
-                    week_ago_price = prices[min(6, len(prices)-1)]['close_price']
+                # 1 week return (5 trading days)
+                if len(prices) >= 5:
+                    week_ago_price = prices[min(4, len(prices)-1)]['close_price']
                     current_price = prices[0]['close_price']
                     if week_ago_price and current_price:
                         returns['1w'] = ((current_price - week_ago_price) / week_ago_price) * PERCENT_MULTIPLIER
@@ -644,9 +644,9 @@ class ETFDataCollector:
                 else:
                     returns['1w'] = None
 
-                # 1 month return
-                if len(prices) >= 30:
-                    month_ago_price = prices[min(29, len(prices)-1)]['close_price']
+                # 1 month return (20 trading days)
+                if len(prices) >= 20:
+                    month_ago_price = prices[min(19, len(prices)-1)]['close_price']
                     current_price = prices[0]['close_price']
                     if month_ago_price and current_price:
                         returns['1m'] = ((current_price - month_ago_price) / month_ago_price) * PERCENT_MULTIPLIER

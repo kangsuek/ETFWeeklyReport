@@ -11,22 +11,39 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
   const [localQ, setLocalQ] = useState(filters.q || '')
   const [localMinWR, setLocalMinWR] = useState(filters.min_weekly_return ?? '')
   const [localMaxWR, setLocalMaxWR] = useState(filters.max_weekly_return ?? '')
+  const [localMinMR, setLocalMinMR] = useState(filters.min_monthly_return ?? '')
+  const [localMaxMR, setLocalMaxMR] = useState(filters.max_monthly_return ?? '')
+  const [localMinYR, setLocalMinYR] = useState(filters.min_ytd_return ?? '')
+  const [localMaxYR, setLocalMaxYR] = useState(filters.max_ytd_return ?? '')
 
   // 외부에서 filters가 리셋될 때 로컬 상태도 동기화
   useEffect(() => {
     setLocalQ(filters.q || '')
     setLocalMinWR(filters.min_weekly_return ?? '')
     setLocalMaxWR(filters.max_weekly_return ?? '')
-  }, [filters.q, filters.min_weekly_return, filters.max_weekly_return])
+    setLocalMinMR(filters.min_monthly_return ?? '')
+    setLocalMaxMR(filters.max_monthly_return ?? '')
+    setLocalMinYR(filters.min_ytd_return ?? '')
+    setLocalMaxYR(filters.max_ytd_return ?? '')
+  }, [filters])
 
   const handleSearch = (e) => {
     e.preventDefault()
     const minWR = localMinWR !== '' ? parseFloat(localMinWR) : undefined
     const maxWR = localMaxWR !== '' ? parseFloat(localMaxWR) : undefined
+    const minMR = localMinMR !== '' ? parseFloat(localMinMR) : undefined
+    const maxMR = localMaxMR !== '' ? parseFloat(localMaxMR) : undefined
+    const minYR = localMinYR !== '' ? parseFloat(localMinYR) : undefined
+    const maxYR = localMaxYR !== '' ? parseFloat(localMaxYR) : undefined
+    
     onFilterChange({
       q: localQ || undefined,
       min_weekly_return: minWR !== undefined && !isNaN(minWR) ? minWR : undefined,
       max_weekly_return: maxWR !== undefined && !isNaN(maxWR) ? maxWR : undefined,
+      min_monthly_return: minMR !== undefined && !isNaN(minMR) ? minMR : undefined,
+      max_monthly_return: maxMR !== undefined && !isNaN(maxMR) ? maxMR : undefined,
+      min_ytd_return: minYR !== undefined && !isNaN(minYR) ? minYR : undefined,
+      max_ytd_return: maxYR !== undefined && !isNaN(maxYR) ? maxYR : undefined,
     })
   }
 
@@ -34,6 +51,10 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
     setLocalQ('')
     setLocalMinWR('')
     setLocalMaxWR('')
+    setLocalMinMR('')
+    setLocalMaxMR('')
+    setLocalMinYR('')
+    setLocalMaxYR('')
     onReset()
   }
 
@@ -41,9 +62,14 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
     const str = value !== undefined && value !== null ? String(value).trim() : ''
     const parsed = str !== '' ? parseFloat(str) : undefined
     if (str !== '' && isNaN(parsed)) return // NaN 무시
+
     if (key === 'min_weekly_return') setLocalMinWR(str === '' ? '' : parsed)
     if (key === 'max_weekly_return') setLocalMaxWR(str === '' ? '' : parsed)
-    onFilterChange({ [key]: parsed })
+    if (key === 'min_monthly_return') setLocalMinMR(str === '' ? '' : parsed)
+    if (key === 'max_monthly_return') setLocalMaxMR(str === '' ? '' : parsed)
+    if (key === 'min_ytd_return') setLocalMinYR(str === '' ? '' : parsed)
+    if (key === 'max_ytd_return') setLocalMaxYR(str === '' ? '' : parsed)
+    // 검색 버튼(handleSearch)으로만 API 호출 — blur 시 중복 호출 방지 (FIX-07)
   }
 
   return (
@@ -90,47 +116,87 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
         </div>
 
         {/* 필터 행 */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* 주간수익률 범위 */}
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">주간수익률 (최소 %)</label>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">주간 (최소 %)</label>
             <input
               type="number"
               step="0.1"
               value={localMinWR}
               onChange={(e) => setLocalMinWR(e.target.value)}
               onBlur={(e) => applyNumberFilter('min_weekly_return', e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  applyNumberFilter('min_weekly_return', e.target.value)
-                }
-              }}
-              placeholder="예: -5"
+              placeholder="최소 %"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">주간수익률 (최대 %)</label>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">주간 (최대 %)</label>
             <input
               type="number"
               step="0.1"
               value={localMaxWR}
               onChange={(e) => setLocalMaxWR(e.target.value)}
               onBlur={(e) => applyNumberFilter('max_weekly_return', e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  applyNumberFilter('max_weekly_return', e.target.value)
-                }
-              }}
-              placeholder="예: 10"
+              placeholder="최대 %"
               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
             />
           </div>
 
-          {/* 토글 */}
-          <div className="flex flex-col justify-end">
+          {/* 월간수익률 범위 */}
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">월간 (최소 %)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={localMinMR}
+              onChange={(e) => setLocalMinMR(e.target.value)}
+              onBlur={(e) => applyNumberFilter('min_monthly_return', e.target.value)}
+              placeholder="최소 %"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">월간 (최대 %)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={localMaxMR}
+              onChange={(e) => setLocalMaxMR(e.target.value)}
+              onBlur={(e) => applyNumberFilter('max_monthly_return', e.target.value)}
+              placeholder="최대 %"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
+            />
+          </div>
+
+          {/* 연간수익률 범위 */}
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">연간 (최소 %)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={localMinYR}
+              onChange={(e) => setLocalMinYR(e.target.value)}
+              onBlur={(e) => applyNumberFilter('min_ytd_return', e.target.value)}
+              placeholder="최소 %"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">연간 (최대 %)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={localMaxYR}
+              onChange={(e) => setLocalMaxYR(e.target.value)}
+              onBlur={(e) => applyNumberFilter('max_ytd_return', e.target.value)}
+              placeholder="최대 %"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-primary-500 transition-colors"
+            />
+          </div>
+
+          {/* 토글 행 (별도 div로 분리하여 한 줄에 표시) */}
+          <div className="lg:col-span-6 flex gap-4 mt-1">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -140,8 +206,6 @@ export default function ScreeningFilters({ filters, onFilterChange, onReset, las
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">외국인 순매수</span>
             </label>
-          </div>
-          <div className="flex flex-col justify-end">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"

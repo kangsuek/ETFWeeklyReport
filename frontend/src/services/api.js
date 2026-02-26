@@ -148,7 +148,7 @@ export const etfApi = {
   },
 
   // 배치 요약 조회 (일반 조회) - N+1 쿼리 최적화
-  getBatchSummary: (tickers, priceDays = 5, newsLimit = 5) => {
+  getBatchSummary: (tickers, priceDays = 10, newsLimit = 5) => {
     return api.post('/etfs/batch-summary', {
       tickers,
       price_days: priceDays,

@@ -98,9 +98,14 @@ class TickerCatalogCollector:
                 "message": "코스피 종목 수집 중..."
             })
             logger.info("Collecting KOSPI stocks...")
-            kospi_stocks = self._collect_kospi_stocks()
+            kospi_stocks = self._collect_kospi_stocks(task_id="ticker-catalog")
             all_stocks.extend(kospi_stocks)
             logger.info(f"Collected {len(kospi_stocks)} KOSPI stocks")
+            
+            from app.services.progress import is_cancelled
+            if is_cancelled("ticker-catalog"):
+                update_progress("ticker-catalog", {"status": "cancelled", "message": "수집이 중지되었습니다."})
+                return {"cancelled": True}
 
             # 2. 코스닥 종목 수집
             update_progress("ticker-catalog", {
@@ -112,9 +117,13 @@ class TickerCatalogCollector:
                 "message": f"코스닥 종목 수집 중... (코스피 {len(kospi_stocks)}개 완료)"
             })
             logger.info("Collecting KOSDAQ stocks...")
-            kosdaq_stocks = self._collect_kosdaq_stocks()
+            kosdaq_stocks = self._collect_kosdaq_stocks(task_id="ticker-catalog")
             all_stocks.extend(kosdaq_stocks)
             logger.info(f"Collected {len(kosdaq_stocks)} KOSDAQ stocks")
+
+            if is_cancelled("ticker-catalog"):
+                update_progress("ticker-catalog", {"status": "cancelled", "message": "수집이 중지되었습니다."})
+                return {"cancelled": True}
 
             # 3. ETF 종목 수집
             update_progress("ticker-catalog", {
@@ -202,12 +211,18 @@ class TickerCatalogCollector:
             pass
         return result
 
-    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
+    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)"""
+        from app.services.progress import is_cancelled
+        
         stocks = []
         page = 1
 
         while page <= max_pages:
+            if task_id and is_cancelled(task_id):
+                logger.info(f"Collection cancelled during {market} page {page}")
+                break
+                
             url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
 
             try:
@@ -280,18 +295,18 @@ class TickerCatalogCollector:
         base_delay=1.0,
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
-    def _collect_kospi_stocks(self) -> List[Dict[str, Any]]:
+    def _collect_kospi_stocks(self, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """코스피 종목 목록 + 가격 데이터 수집"""
-        return self._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
+        return self._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80, task_id=task_id)
 
     @retry_with_backoff(
         max_retries=3,
         base_delay=1.0,
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
-    def _collect_kosdaq_stocks(self) -> List[Dict[str, Any]]:
+    def _collect_kosdaq_stocks(self, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """코스닥 종목 목록 + 가격 데이터 수집"""
-        return self._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
+        return self._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110, task_id=task_id)
 
     def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
         """

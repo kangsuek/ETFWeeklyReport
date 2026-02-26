@@ -14,7 +14,7 @@
       "AI반도체"
     ],
     "purchase_price": 25558.0,
-    "quantity": 6524
+    "quantity": 1491
   },
   "446770": {
     "name": "ACE 글로벌반도체TOP4 Plus",
@@ -216,18 +216,17 @@
       "S&P500"
     ]
   },
-  "102970": {
-    "name": "KODEX 증권",
-    "type": "ETF",
-    "theme": "IT",
+  "006800": {
+    "name": "미래에셋증권",
+    "type": "STOCK",
+    "theme": "증권사",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "증권",
+    "search_keyword": "미래에셋증권",
     "relevance_keywords": [
-      "KODEX 증권",
-      "증권",
-      "IT"
+      "미래에셋증권",
+      "증권사"
     ]
   }
 }
