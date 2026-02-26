@@ -6,7 +6,9 @@ const COLUMNS = [
   { key: 'close_price', label: '현재가', sortable: true, align: 'right' },
   { key: 'daily_change_pct', label: '등락률', sortable: true, align: 'right' },
   { key: 'volume', label: '거래량', sortable: true, align: 'right' },
-  { key: 'weekly_return', label: '주간수익률', sortable: true, align: 'right' },
+  { key: 'weekly_return', label: '주간', sortable: true, align: 'right' },
+  { key: 'monthly_return', label: '월간', sortable: true, align: 'right' },
+  { key: 'ytd_return', label: '연간(YTD)', sortable: true, align: 'right' },
   { key: 'foreign_net', label: '외국인', sortable: true, align: 'right' },
   { key: 'institutional_net', label: '기관', sortable: true, align: 'right' },
 ]
@@ -117,6 +119,21 @@ export default function ScreeningTable({ items, total, page, pageSize, sortBy, s
                 {/* 주간수익률 */}
                 <td className={`px-3 py-2.5 text-right font-medium tabular-nums ${getChangeColor(item.weekly_return)}`}>
                   {formatPercent(item.weekly_return)}
+                </td>
+                {/* 월간수익률 */}
+                <td className={`px-3 py-2.5 text-right font-medium tabular-nums ${getChangeColor(item.monthly_return)}`}>
+                  {formatPercent(item.monthly_return)}
+                </td>
+                {/* 연간수익률 */}
+                <td className={`px-3 py-2.5 text-right font-medium tabular-nums ${getChangeColor(item.ytd_return)}`}>
+                  <div className="flex flex-col items-end">
+                    <span>{formatPercent(item.ytd_return)}</span>
+                    {item.ytd_base_date && !item.ytd_base_date.startsWith(`${new Date().getFullYear()}.01`) && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">
+                        {item.ytd_base_date.slice(5)} ~
+                      </span>
+                    )}
+                  </div>
                 </td>
                 {/* 외국인 */}
                 <td className={`px-3 py-2.5 text-right tabular-nums ${getChangeColor(item.foreign_net)}`}>

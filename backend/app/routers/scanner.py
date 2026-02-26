@@ -29,6 +29,9 @@ def _row_to_screening_item(row, registered_tickers: set) -> ScreeningItem:
         daily_change_pct=row.get('daily_change_pct'),
         volume=row.get('volume'),
         weekly_return=row.get('weekly_return'),
+        monthly_return=row.get('monthly_return'),
+        ytd_return=row.get('ytd_return'),
+        ytd_base_date=row.get('ytd_base_date'),
         foreign_net=row.get('foreign_net'),
         institutional_net=row.get('institutional_net'),
         catalog_updated_at=str(row['catalog_updated_at']) if row.get('catalog_updated_at') else None,
@@ -55,6 +58,10 @@ async def search_scanner(
     sector: Optional[str] = Query(None, description="섹터 필터"),
     min_weekly_return: Optional[float] = Query(None, description="최소 주간수익률"),
     max_weekly_return: Optional[float] = Query(None, description="최대 주간수익률"),
+    min_monthly_return: Optional[float] = Query(None, description="최소 월간수익률"),
+    max_monthly_return: Optional[float] = Query(None, description="최대 월간수익률"),
+    min_ytd_return: Optional[float] = Query(None, description="최소 연간수익률(YTD)"),
+    max_ytd_return: Optional[float] = Query(None, description="최대 연간수익률(YTD)"),
     foreign_net_positive: Optional[bool] = Query(None, description="외국인 순매수만"),
     institutional_net_positive: Optional[bool] = Query(None, description="기관 순매수만"),
     sort_by: str = Query("weekly_return", description="정렬 기준"),
@@ -67,6 +74,8 @@ async def search_scanner(
     cache_key = make_cache_key(
         "scanner", q=q, type=type, market=market, sector=sector,
         min_wr=min_weekly_return, max_wr=max_weekly_return,
+        min_mr=min_monthly_return, max_mr=max_monthly_return,
+        min_yr=min_ytd_return, max_yr=max_ytd_return,
         fnp=foreign_net_positive, inp=institutional_net_positive,
         sort_by=sort_by, sort_dir=sort_dir, page=page, page_size=page_size
     )
@@ -104,6 +113,22 @@ async def search_scanner(
         where_clauses.append(f"sc.weekly_return <= {p}")
         params.append(max_weekly_return)
 
+    if min_monthly_return is not None:
+        where_clauses.append(f"sc.monthly_return >= {p}")
+        params.append(min_monthly_return)
+
+    if max_monthly_return is not None:
+        where_clauses.append(f"sc.monthly_return <= {p}")
+        params.append(max_monthly_return)
+
+    if min_ytd_return is not None:
+        where_clauses.append(f"sc.ytd_return >= {p}")
+        params.append(min_ytd_return)
+
+    if max_ytd_return is not None:
+        where_clauses.append(f"sc.ytd_return <= {p}")
+        params.append(max_ytd_return)
+
     if foreign_net_positive:
         where_clauses.append("sc.foreign_net > 0")
 
@@ -118,6 +143,8 @@ async def search_scanner(
     # 정렬 컬럼 화이트리스트 (키: 파라미터명, 값: 실제 컬럼명)
     ALLOWED_SORT_COLUMNS = {
         "weekly_return": "sc.weekly_return",
+        "monthly_return": "sc.monthly_return",
+        "ytd_return": "sc.ytd_return",
         "daily_change_pct": "sc.daily_change_pct",
         "volume": "sc.volume",
         "close_price": "sc.close_price",
@@ -150,7 +177,9 @@ async def search_scanner(
         cursor.execute(f"""
             SELECT sc.ticker, sc.name, sc.type, sc.market, sc.sector,
                    sc.close_price, sc.daily_change_pct, sc.volume,
-                   sc.weekly_return, sc.foreign_net, sc.institutional_net,
+                   sc.weekly_return, sc.monthly_return, sc.ytd_return,
+                   sc.ytd_base_date,
+                   sc.foreign_net, sc.institutional_net,
                    sc.catalog_updated_at
             FROM stock_catalog sc
             WHERE {where_sql}

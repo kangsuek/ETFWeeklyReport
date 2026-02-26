@@ -11,7 +11,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
@@ -179,10 +179,29 @@ class CatalogDataCollector:
         weekly_calc_count = 0
         today_str = datetime.now().strftime("%Y-%m-%d")
 
+        # 주간 수익률 기준일: 화~금은 이번 주 월요일, 월/토/일은 지난주 월요일
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+        if today.weekday() in (0, 5, 6):  # 월, 토, 일
+            target_base_date = week_start - timedelta(days=7)
+        else:
+            target_base_date = week_start
+        target_base_str = target_base_date.isoformat()
+
         try:
+            from app.services.progress import is_cancelled
+            
             # Step 1: sise_market_sum에서 전체 가격 수집 (시가총액 내림차순)
-            kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
-            kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
+            kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80, task_id="catalog-data")
+            if is_cancelled("catalog-data"):
+                logger.info("Cancelled during KOSPI collection in Phase 4")
+                return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
+                
+            kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110, task_id="catalog-data")
+            if is_cancelled("catalog-data"):
+                logger.info("Cancelled during KOSDAQ collection in Phase 4")
+                return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
+                
             logger.info(f"sise 수집: KOSPI {len(kospi_stocks)}개, KOSDAQ {len(kosdaq_stocks)}개")
 
             # {ticker: stock_dict} 매핑
@@ -228,16 +247,28 @@ class CatalogDataCollector:
             lock = threading.Lock()
 
             def fetch_supply(ticker: str):
+                if is_cancelled("catalog-data"):
+                    return ticker, None
                 data = self._fetch_supply_data(ticker, use_rate_limiter=False)
                 return ticker, data
 
             with ThreadPoolExecutor(max_workers=STOCK_SUPPLY_WORKERS) as executor:
                 futures = {executor.submit(fetch_supply, t): t for t in top_tickers}
                 for future in as_completed(futures):
+                    if is_cancelled("catalog-data"):
+                        logger.info("Cancelled during supply collection loop in Phase 4. Cancelling remaining futures.")
+                        for f in futures:
+                            f.cancel()
+                        break
+                        
                     ticker, data = future.result()
                     with lock:
                         if data:
                             supply_map[ticker] = data
+
+            if is_cancelled("catalog-data"):
+                logger.info("Cancelled after supply collection in Phase 4")
+                return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
 
             logger.info(f"수급 수집 완료: {len(supply_map)}/{len(top_tickers)}개")
 
@@ -262,60 +293,51 @@ class CatalogDataCollector:
 
                     if ticker in top_ticker_set and ticker in supply_map:
                         # 상위 N개: 수급 포함 업데이트
+                        # COALESCE: None(NULL) 값이 들어올 경우 기존 DB 값 보존 (FIX-02)
+                        # week_base_date: target_base_str(이번 주 월요일) 사용 (FIX-03)
                         sup = supply_map[ticker]
                         cursor.execute(f"""
                             UPDATE stock_catalog
                             SET close_price = {p}, daily_change_pct = {p}, volume = {p},
-                                weekly_return = {p},
+                                weekly_return  = COALESCE({p}, weekly_return),
+                                monthly_return = COALESCE({p}, monthly_return),
+                                ytd_return     = COALESCE({p}, ytd_return),
                                 foreign_net = {p}, institutional_net = {p},
                                 week_base_price = {p}, week_base_date = {p},
+                                ytd_base_date = COALESCE({p}, ytd_base_date),
                                 catalog_updated_at = CURRENT_TIMESTAMP
                             WHERE ticker = {p}
                         """, (
                             close_price, daily_change_pct, volume,
                             sup.get("weekly_return"),
+                            sup.get("monthly_return"),
+                            sup.get("ytd_return"),
                             sup.get("foreign_net"), sup.get("institutional_net"),
-                            close_price, today_str,
+                            close_price, target_base_str,
+                            sup.get("ytd_base_date"),
                             ticker
                         ))
                         if cursor.rowcount > 0:
                             updated += 1
                             supply_updated += 1
                     else:
-                        # 나머지 종목: 방안 A - 7일 누적 weekly_return 계산
+                        # 나머지 종목: 이번 주 기준일(target_base_str) 기준 weekly_return 계산
                         week_base_price = db_row.get("week_base_price")
                         week_base_date = db_row.get("week_base_date")
-                        existing_weekly = db_row.get("weekly_return")
 
-                        new_weekly_return = None
-                        new_base_price = week_base_price
-                        new_base_date = week_base_date
-
-                        if week_base_date is None or week_base_price is None:
-                            # 기준가 없음 → 오늘 현재가로 초기화
-                            new_base_price = close_price
-                            new_base_date = today_str
-                            new_weekly_return = None
+                        if week_base_date == target_base_str and week_base_price and week_base_price > 0 and close_price:
+                            # 기준일 일치 → 기준가 vs 현재가로 계산
+                            new_weekly_return = round(
+                                (close_price - week_base_price) / week_base_price * 100, 2
+                            )
+                            weekly_calc_count += 1
+                            new_base_price = week_base_price
+                            new_base_date = target_base_str
                         else:
-                            try:
-                                base_dt = datetime.strptime(week_base_date, "%Y-%m-%d")
-                                days_elapsed = (datetime.now() - base_dt).days
-                                if days_elapsed >= 7:
-                                    # 7일 경과 → weekly_return 계산 후 기준 갱신
-                                    if week_base_price and week_base_price > 0 and close_price:
-                                        new_weekly_return = round(
-                                            (close_price - week_base_price) / week_base_price * 100, 2
-                                        )
-                                        weekly_calc_count += 1
-                                    new_base_price = close_price
-                                    new_base_date = today_str
-                                else:
-                                    # 7일 미경과 → 기존 weekly_return 유지
-                                    new_weekly_return = existing_weekly
-                            except (ValueError, TypeError):
-                                new_base_price = close_price
-                                new_base_date = today_str
-                                new_weekly_return = None
+                            # 기준일 불일치 → 오늘 현재가로 기준 초기화, 수익률 0%
+                            new_base_price = close_price
+                            new_base_date = target_base_str
+                            new_weekly_return = 0.0
 
                         cursor.execute(f"""
                             UPDATE stock_catalog
@@ -375,8 +397,11 @@ class CatalogDataCollector:
 
             # risefall: "2"=상승, "5"=하락, "3"=보합
             change_rate = item.get('changeRate')
-            if item.get('risefall') == '5' and change_rate is not None:
+            risefall = item.get('risefall')
+            if risefall == '5' and change_rate is not None:
                 change_rate = -abs(change_rate)
+            elif risefall == '3':
+                change_rate = 0.0
 
             result[ticker] = {
                 'name': item.get('itemname'),
@@ -441,7 +466,7 @@ class CatalogDataCollector:
                             "status": "in_progress",
                             "step": "supply_demand",
                             "step_index": 1,
-                            "total_steps": 3,
+                            "total_steps": 4,
                             "items_collected": completed_count,
                             "items_total": total,
                             "percent": pct,
@@ -461,86 +486,138 @@ class CatalogDataCollector:
 
     def _fetch_supply_data(self, ticker: str, use_rate_limiter: bool = True) -> Optional[Dict[str, Any]]:
         """
-        개별 종목 수급 데이터 수집 (외국인/기관 순매수, 주간수익률)
+        개별 종목 수급 데이터 수집 (외국인/기관 순매수, 주간/월간/YTD 수익률)
 
         Args:
             ticker: 종목 코드
             use_rate_limiter: True면 공유 rate limiter 사용, False면 건너뜀 (병렬 수집 시)
 
         Returns:
-            {foreign_net, institutional_net, weekly_return} or None
+            {foreign_net, institutional_net, weekly_return, monthly_return, ytd_return} or None
         """
-        url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
+        foreign_net = None
+        institutional_net = None
+        prices_with_date = []  # [(date, price), ...]
+        current_year = date.today().year
 
-        try:
-            if use_rate_limiter:
-                with self.rate_limiter:
+        # YTD 계산을 위해 올해 첫 거래일(1월 1~15일)에 도달할 때까지 동적으로 페이지 수집
+        # 최대 15페이지(약 300거래일 = 1년치 이상)로 상한 설정 (FIX-01)
+        MAX_SUPPLY_PAGES = 15
+
+        def _has_ytd_base(prices):
+            """수집 목록에 올해 1월 1~15일 데이터가 있으면 True (첫 거래일 도달 판단)"""
+            for d, _ in prices:
+                if d.year == current_year and d.month == 1 and d.day <= 15:
+                    return True
+            return False
+
+        page = 1
+        while page <= MAX_SUPPLY_PAGES:
+            url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
+
+            try:
+                if use_rate_limiter:
+                    with self.rate_limiter:
+                        response = requests.get(url, headers=self.headers, timeout=10)
+                        response.raise_for_status()
+                else:
                     response = requests.get(url, headers=self.headers, timeout=10)
                     response.raise_for_status()
-            else:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-            tables = soup.find_all('table', {'class': 'type2'})
-            if len(tables) < 2:
-                return None
+                tables = soup.find_all('table', {'class': 'type2'})
+                if len(tables) < 2:
+                    break
 
-            table = tables[1]
-            rows = table.find_all('tr')
+                table = tables[1]
+                rows = table.find_all('tr')
 
-            foreign_net = None
-            institutional_net = None
-            prices_for_weekly = []
+                page_data_count = 0
+                for row in rows:
+                    cols = row.find_all('td')
+                    if len(cols) < 7:
+                        continue
 
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 7:
-                    continue
+                    date_text = cols[0].get_text(strip=True)
+                    if not date_text or '.' not in date_text:
+                        continue
 
-                date_text = cols[0].get_text(strip=True)
-                if not date_text or '.' not in date_text:
-                    continue
+                    try:
+                        row_date = datetime.strptime(date_text, "%Y.%m.%d").date()
+                        # 종가 (1번째 컬럼)
+                        close_text = cols[1].get_text(strip=True).replace(',', '')
+                        if close_text:
+                            prices_with_date.append((row_date, float(close_text)))
+                            page_data_count += 1
 
-                try:
-                    # 종가 (1번째 컬럼)
-                    close_text = cols[1].get_text(strip=True).replace(',', '')
-                    if close_text:
-                        prices_for_weekly.append(float(close_text))
+                        # 최근 1일 수급만 (첫 번째 페이지의 첫 번째 데이터 행)
+                        if page == 1 and foreign_net is None:
+                            inst_text = cols[5].get_text(strip=True).replace(',', '')
+                            frgn_text = cols[6].get_text(strip=True).replace(',', '')
+                            institutional_net = self._parse_int(inst_text)
+                            foreign_net = self._parse_int(frgn_text)
 
-                    # 최근 1일 수급만 (첫 번째 데이터 행)
-                    if foreign_net is None:
-                        inst_text = cols[5].get_text(strip=True).replace(',', '')
-                        frgn_text = cols[6].get_text(strip=True).replace(',', '')
-                        institutional_net = self._parse_int(inst_text)
-                        foreign_net = self._parse_int(frgn_text)
+                    except (ValueError, IndexError):
+                        continue
 
-                    # 주간수익률 계산을 위해 최대 6일치 수집
-                    if len(prices_for_weekly) >= 6:
-                        break
+                # 페이지에 데이터가 없으면 더 이상 페이지 없음
+                if page_data_count == 0:
+                    break
 
-                except (ValueError, IndexError):
-                    continue
+                # 월간(20개) + YTD 기준일 도달 시 수집 완료
+                if len(prices_with_date) >= 20 and _has_ytd_base(prices_with_date):
+                    break
 
-            # 주간수익률 계산 (현재가 vs 5일 전)
-            weekly_return = None
-            if len(prices_for_weekly) >= 2:
-                current = prices_for_weekly[0]
-                # 5일 전 (또는 가능한 가장 오래된 가격)
-                past = prices_for_weekly[min(5, len(prices_for_weekly) - 1)]
-                if past > 0:
-                    weekly_return = round((current - past) / past * 100, 2)
+                page += 1
 
-            return {
-                'foreign_net': foreign_net,
-                'institutional_net': institutional_net,
-                'weekly_return': weekly_return
-            }
+            except Exception as e:
+                logger.debug(f"[{ticker}] 수급 데이터 페이지 {page} 수집 실패: {e}")
+                break
 
-        except Exception as e:
-            logger.debug(f"[{ticker}] 수급 데이터 수집 실패: {e}")
+        if not prices_with_date:
             return None
+
+        # 수익률 계산 함수
+        def calc_ret(curr, prev):
+            if prev and prev > 0:
+                return round((curr - prev) / prev * 100, 2)
+            return None
+
+        current_val = prices_with_date[0][1]
+
+        # 1. 주간수익률 (5거래일)
+        weekly_return = calc_ret(current_val, prices_with_date[4][1] if len(prices_with_date) >= 5 else None)
+
+        # 2. 월간수익률 (20거래일)
+        monthly_return = calc_ret(current_val, prices_with_date[19][1] if len(prices_with_date) >= 20 else None)
+
+        # 3. YTD수익률 (올해 첫 거래일)
+        # _has_ytd_base()로 실제 1월 데이터에 도달했는지 확인 후 계산 (FIX-05)
+        ytd_return = None
+        ytd_base_date = None
+        this_year_prices = [p for p in prices_with_date if p[0].year == current_year]
+        if this_year_prices and _has_ytd_base(prices_with_date):
+            # 올해의 가장 오래된 데이터 = 올해 첫 거래일에 가장 가까운 데이터
+            base_val = this_year_prices[-1][1]
+            ytd_base_date = this_year_prices[-1][0].strftime("%Y.%m.%d")
+            ytd_return = calc_ret(current_val, base_val)
+        elif this_year_prices:
+            # 1월 데이터 미도달: 수집된 올해 데이터 중 가장 오래된 것으로 fallback
+            # (신규 상장 종목 또는 연말 수집 실패 상황 대비)
+            base_val = this_year_prices[-1][1]
+            ytd_base_date = this_year_prices[-1][0].strftime("%Y.%m.%d")
+            ytd_return = calc_ret(current_val, base_val)
+            logger.debug(f"[{ticker}] YTD fallback: 1월 데이터 미도달, {this_year_prices[-1][0]} 기준 사용")
+
+        return {
+            'foreign_net': foreign_net,
+            'institutional_net': institutional_net,
+            'weekly_return': weekly_return,
+            'monthly_return': monthly_return,
+            'ytd_return': ytd_return,
+            'ytd_base_date': ytd_base_date,
+        }
 
     def _save_to_database(
         self,
@@ -574,11 +651,15 @@ class CatalogDataCollector:
                             INSERT INTO stock_catalog
                                 (ticker, name, type, market, is_active,
                                  close_price, daily_change_pct, volume,
-                                 weekly_return, foreign_net, institutional_net,
+                                 weekly_return, monthly_return, ytd_return,
+                                 foreign_net, institutional_net,
+                                 ytd_base_date,
                                  catalog_updated_at)
                             VALUES ({p}, {p}, 'ETF', 'ETF', TRUE,
                                     {p}, {p}, {p},
                                     {p}, {p}, {p},
+                                    {p}, {p},
+                                    {p},
                                     {p})
                             ON CONFLICT (ticker) DO UPDATE SET
                                 name = COALESCE(EXCLUDED.name, stock_catalog.name),
@@ -586,8 +667,11 @@ class CatalogDataCollector:
                                 daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
                                 volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
                                 weekly_return = COALESCE(EXCLUDED.weekly_return, stock_catalog.weekly_return),
+                                monthly_return = COALESCE(EXCLUDED.monthly_return, stock_catalog.monthly_return),
+                                ytd_return = COALESCE(EXCLUDED.ytd_return, stock_catalog.ytd_return),
                                 foreign_net = COALESCE(EXCLUDED.foreign_net, stock_catalog.foreign_net),
                                 institutional_net = COALESCE(EXCLUDED.institutional_net, stock_catalog.institutional_net),
+                                ytd_base_date = COALESCE(EXCLUDED.ytd_base_date, stock_catalog.ytd_base_date),
                                 catalog_updated_at = EXCLUDED.catalog_updated_at
                         """, (
                             ticker, name,
@@ -595,8 +679,11 @@ class CatalogDataCollector:
                             price.get('daily_change_pct'),
                             price.get('volume'),
                             supply.get('weekly_return'),
+                            supply.get('monthly_return'),
+                            supply.get('ytd_return'),
                             supply.get('foreign_net'),
                             supply.get('institutional_net'),
+                            supply.get('ytd_base_date'),
                             now,
                         ))
                     else:
@@ -607,8 +694,11 @@ class CatalogDataCollector:
                                 daily_change_pct = COALESCE({p}, daily_change_pct),
                                 volume = COALESCE({p}, volume),
                                 weekly_return = COALESCE({p}, weekly_return),
+                                monthly_return = COALESCE({p}, monthly_return),
+                                ytd_return = COALESCE({p}, ytd_return),
                                 foreign_net = COALESCE({p}, foreign_net),
                                 institutional_net = COALESCE({p}, institutional_net),
+                                ytd_base_date = COALESCE({p}, ytd_base_date),
                                 catalog_updated_at = {p}
                             WHERE ticker = {p}
                         """, (
@@ -616,8 +706,11 @@ class CatalogDataCollector:
                             price.get('daily_change_pct'),
                             price.get('volume'),
                             supply.get('weekly_return'),
+                            supply.get('monthly_return'),
+                            supply.get('ytd_return'),
                             supply.get('foreign_net'),
                             supply.get('institutional_net'),
+                            supply.get('ytd_base_date'),
                             now,
                             ticker
                         ))

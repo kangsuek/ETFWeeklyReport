@@ -177,6 +177,9 @@ class ScreeningItem(BaseModel):
     daily_change_pct: Optional[float] = None
     volume: Optional[int] = None
     weekly_return: Optional[float] = None
+    monthly_return: Optional[float] = None
+    ytd_return: Optional[float] = None
+    ytd_base_date: Optional[str] = None
     foreign_net: Optional[int] = None
     institutional_net: Optional[int] = None
     catalog_updated_at: Optional[str] = None

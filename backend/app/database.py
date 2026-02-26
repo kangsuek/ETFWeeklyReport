@@ -432,11 +432,14 @@ def init_db():
         ("daily_change_pct", real_type),
         ("volume", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("weekly_return", real_type),
+        ("monthly_return", real_type),
+        ("ytd_return", real_type),
         ("foreign_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("institutional_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
         ("catalog_updated_at", "TIMESTAMP"),
         ("week_base_price", real_type),
         ("week_base_date", "TEXT"),
+        ("ytd_base_date", "TEXT"),
     ]
     if USE_POSTGRES:
         for col_name, col_type in screening_columns:
