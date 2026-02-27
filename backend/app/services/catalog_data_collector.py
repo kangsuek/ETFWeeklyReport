@@ -179,13 +179,9 @@ class CatalogDataCollector:
         weekly_calc_count = 0
         today_str = datetime.now().strftime("%Y-%m-%d")
 
-        # 주간 수익률 기준일: 화~금은 이번 주 월요일, 월/토/일은 지난주 월요일
+        # 주간 수익률 기준일: 5거래일 ≈ 7달력일 전 (rolling window)
         today = date.today()
-        week_start = today - timedelta(days=today.weekday())
-        if today.weekday() in (0, 5, 6):  # 월, 토, 일
-            target_base_date = week_start - timedelta(days=7)
-        else:
-            target_base_date = week_start
+        target_base_date = today - timedelta(days=7)
         target_base_str = target_base_date.isoformat()
 
         try:
@@ -206,6 +202,22 @@ class CatalogDataCollector:
 
             # {ticker: stock_dict} 매핑
             price_map = {s["ticker"]: s for s in kospi_stocks + kosdaq_stocks}
+
+            # Step 1.5: price_map에서 ETF 티커 제외 (FIX-08)
+            # sise_market_sum에는 KOSPI 상장 ETF도 포함되지만, ETF는 Phase 1~3에서
+            # 이미 처리됨. Phase 4에서 ETF를 처리하면 weekly_return이 0.0으로 덮어써짐.
+            with get_db_connection() as conn_or_cursor2:
+                if USE_POSTGRES:
+                    cursor2 = conn_or_cursor2
+                else:
+                    cursor2 = conn_or_cursor2.cursor()
+                cursor2.execute("SELECT ticker FROM stock_catalog WHERE market = 'ETF'")
+                etf_tickers = {row["ticker"] if isinstance(row, dict) else row[0] for row in cursor2.fetchall()}
+            if etf_tickers:
+                excluded = sum(1 for t in price_map if t in etf_tickers)
+                price_map = {t: s for t, s in price_map.items() if t not in etf_tickers}
+                if excluded > 0:
+                    logger.info(f"Phase 4: ETF {excluded}개 제외 (price_map에서)")
 
             # Step 2: DB에서 기존 상태 일괄 조회
             with get_db_connection() as conn_or_cursor:
@@ -321,22 +333,30 @@ class CatalogDataCollector:
                             updated += 1
                             supply_updated += 1
                     else:
-                        # 나머지 종목: 이번 주 기준일(target_base_str) 기준 weekly_return 계산
+                        # 나머지 종목: 5거래일 rolling window 기준 weekly_return 계산
                         week_base_price = db_row.get("week_base_price")
                         week_base_date = db_row.get("week_base_date")
 
-                        if week_base_date == target_base_str and week_base_price and week_base_price > 0 and close_price:
-                            # 기준일 일치 → 기준가 vs 현재가로 계산
+                        # 기준일로부터 경과일 계산 (5~9일이면 유효 = 5거래일 ± 휴일 여유)
+                        base_days_ago = None
+                        if week_base_date:
+                            try:
+                                base_days_ago = (today - date.fromisoformat(week_base_date)).days
+                            except (ValueError, TypeError):
+                                pass
+
+                        if base_days_ago is not None and 5 <= base_days_ago <= 9 and week_base_price and week_base_price > 0 and close_price:
+                            # 유효 기준일 → 기준가 vs 현재가로 5거래일 수익률 계산
                             new_weekly_return = round(
                                 (close_price - week_base_price) / week_base_price * 100, 2
                             )
                             weekly_calc_count += 1
                             new_base_price = week_base_price
-                            new_base_date = target_base_str
+                            new_base_date = week_base_date  # 기존 기준일 유지
                         else:
-                            # 기준일 불일치 → 오늘 현재가로 기준 초기화, 수익률 0%
+                            # 기준일 유효하지 않음 → 오늘 현재가로 기준 초기화, 수익률 0%
                             new_base_price = close_price
-                            new_base_date = target_base_str
+                            new_base_date = today.isoformat()  # 오늘 실제 날짜 저장
                             new_weekly_return = 0.0
 
                         cursor.execute(f"""
@@ -586,8 +606,8 @@ class CatalogDataCollector:
 
         current_val = prices_with_date[0][1]
 
-        # 1. 주간수익률 (5거래일)
-        weekly_return = calc_ret(current_val, prices_with_date[4][1] if len(prices_with_date) >= 5 else None)
+        # 1. 주간수익률 (5거래일 전 종가 기준)
+        weekly_return = calc_ret(current_val, prices_with_date[5][1] if len(prices_with_date) >= 6 else None)
 
         # 2. 월간수익률 (20거래일)
         monthly_return = calc_ret(current_val, prices_with_date[19][1] if len(prices_with_date) >= 20 else None)

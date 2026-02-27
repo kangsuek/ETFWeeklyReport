@@ -228,5 +228,19 @@
       "미래에셋증권",
       "증권사"
     ]
+  },
+  "144600": {
+    "name": "KODEX 은선물(H)",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "은선물(H)",
+    "relevance_keywords": [
+      "KODEX 은선물(H)",
+      "은선물(H)",
+      "미분류"
+    ]
   }
 }

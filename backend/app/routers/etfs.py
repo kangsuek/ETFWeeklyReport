@@ -856,20 +856,13 @@ async def get_batch_summary(
                     summary.prices = prices
                     summary.latest_price = prices[0] if prices else None
 
-                    # 주간 수익률 계산
-                    # 화~금: 이번 주 첫 거래일(월요일) 종가 대비 현재 종가
-                    # 월/토/일: 지난주 첫 거래일(월요일) 종가 대비 지난주 금요일 종가
-                    week_start = end_date - timedelta(days=end_date.weekday())  # 이번 주 월요일
-                    if end_date.weekday() in (0, 5, 6):  # 월, 토, 일
-                        prev_week_start = week_start - timedelta(days=7)  # 지난주 월요일
-                        prev_week_end   = week_start - timedelta(days=3)  # 지난주 금요일
-                        week_prices = [p for p in prices if prev_week_start <= p.date <= prev_week_end]
-                    else:  # 화~금
-                        week_prices = [p for p in prices if p.date >= week_start]
-                    if len(week_prices) >= 2:
-                        current_price = week_prices[0].close_price   # 해당 주 최신 종가
-                        base_price = week_prices[-1].close_price      # 해당 주 첫 거래일 종가
-                        summary.weekly_return = ((current_price - base_price) / base_price) * 100
+                    # 주간 수익률 계산: (현재가 - 5거래일 전 종가) / 5거래일 전 종가 * 100
+                    # prices는 날짜 내림차순 정렬, index 5 = 5거래일 전 종가
+                    if len(prices) >= 6:
+                        current_price = prices[0].close_price
+                        base_price = prices[5].close_price
+                        if base_price and base_price > 0:
+                            summary.weekly_return = ((current_price - base_price) / base_price) * 100
                 else:
                     logger.debug(f"[{ticker}] No price data found")
 
