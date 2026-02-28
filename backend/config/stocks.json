@@ -13,7 +13,7 @@
       "HBM",
       "AI반도체"
     ],
-    "purchase_price": 25558.0,
+    "purchase_price": 22828.0,
     "quantity": 1491
   },
   "446770": {
@@ -32,14 +32,14 @@
       "TSMC",
       "브로드컴"
     ],
-    "purchase_price": 45240.0,
-    "quantity": 201
+    "purchase_price": 45305.0,
+    "quantity": 202
   },
   "466920": {
     "name": "신한 SOL 조선TOP3플러스 ETF",
     "type": "ETF",
     "theme": "조선",
-    "purchase_date": "2026-02-20",
+    "purchase_date": null,
     "search_keyword": "조선",
     "relevance_keywords": [
       "조선",
@@ -52,14 +52,14 @@
       "글로벌해운",
       "선박"
     ],
-    "purchase_price": 38235.0,
-    "quantity": 90
+    "purchase_price": null,
+    "quantity": null
   },
   "449450": {
     "name": "PLUS K방산",
     "type": "ETF",
     "theme": "방산",
-    "purchase_date": "2026-02-20",
+    "purchase_date": null,
     "search_keyword": "PLUS K방산",
     "relevance_keywords": [
       "PLUS K방산",
@@ -68,16 +68,16 @@
       "방위산업",
       "FnGuide K-방위산업 지수"
     ],
-    "purchase_price": 69755.0,
-    "quantity": 31
+    "purchase_price": null,
+    "quantity": null
   },
   "434730": {
     "name": "HANARO 원자력iSelect",
     "type": "ETF",
     "theme": "AI/원자력",
-    "purchase_date": "2026-02-20",
-    "purchase_price": 68245.0,
-    "quantity": 50,
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
     "search_keyword": "HANARO 원자력iSelect",
     "relevance_keywords": [
       "HANARO 원자력iSelect",
