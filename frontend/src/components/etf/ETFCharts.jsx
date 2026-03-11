@@ -155,9 +155,14 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
               MACD (12, 26, 9)
               {currentMACD && (
-                <span className={`ml-2 font-semibold ${currentMACD.macd >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-300'}`}>
-                  {currentMACD.macd.toFixed(0)}
-                </span>
+                <>
+                  <span className="ml-2 font-semibold text-gray-700 dark:text-gray-300">
+                    {currentMACD.macd.toFixed(0)}
+                  </span>
+                  <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                    (0기준 {currentMACD.macd >= 0 ? '↑위' : '↓아래'})
+                  </span>
+                </>
               )}
             </h4>
           </div>
