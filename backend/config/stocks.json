@@ -3,7 +3,7 @@
     "name": "HANARO Fn K-반도체",
     "type": "ETF",
     "theme": "반도체",
-    "purchase_date": "2026-01-26",
+    "purchase_date": null,
     "search_keyword": "반도체",
     "relevance_keywords": [
       "반도체",
@@ -13,14 +13,14 @@
       "HBM",
       "AI반도체"
     ],
-    "purchase_price": 22828.0,
-    "quantity": 1491
+    "purchase_price": null,
+    "quantity": null
   },
   "446770": {
     "name": "ACE 글로벌반도체TOP4 Plus",
     "type": "ETF",
     "theme": "글로벌 반도체",
-    "purchase_date": "2025-11-12",
+    "purchase_date": null,
     "search_keyword": "ACE 글로벌반도체TOP4 Plus",
     "relevance_keywords": [
       "ACE 글로벌반도체TOP4 Plus",
@@ -32,28 +32,21 @@
       "TSMC",
       "브로드컴"
     ],
-    "purchase_price": 45305.0,
-    "quantity": 202
-  },
-  "466920": {
-    "name": "신한 SOL 조선TOP3플러스 ETF",
-    "type": "ETF",
-    "theme": "조선",
-    "purchase_date": null,
-    "search_keyword": "조선",
-    "relevance_keywords": [
-      "조선",
-      "LNG선",
-      "친환경선박",
-      "HD한국조선해양",
-      "한화오션",
-      "HD현대중공업",
-      "수주잔고",
-      "글로벌해운",
-      "선박"
-    ],
     "purchase_price": null,
     "quantity": null
+  },
+  "006800": {
+    "name": "미래에셋증권",
+    "type": "STOCK",
+    "theme": "증권사",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "미래에셋증권",
+    "relevance_keywords": [
+      "미래에셋증권",
+      "증권사"
+    ]
   },
   "449450": {
     "name": "PLUS K방산",
@@ -104,6 +97,26 @@
       "배전",
       "반도체"
     ]
+  },
+  "466920": {
+    "name": "신한 SOL 조선TOP3플러스 ETF",
+    "type": "ETF",
+    "theme": "조선",
+    "purchase_date": null,
+    "search_keyword": "조선",
+    "relevance_keywords": [
+      "조선",
+      "LNG선",
+      "친환경선박",
+      "HD한국조선해양",
+      "한화오션",
+      "HD현대중공업",
+      "수주잔고",
+      "글로벌해운",
+      "선박"
+    ],
+    "purchase_price": null,
+    "quantity": null
   },
   "0131V0": {
     "name": "1Q 미국우주항공테크",
@@ -216,30 +229,17 @@
       "S&P500"
     ]
   },
-  "006800": {
-    "name": "미래에셋증권",
-    "type": "STOCK",
-    "theme": "증권사",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "미래에셋증권",
-    "relevance_keywords": [
-      "미래에셋증권",
-      "증권사"
-    ]
-  },
-  "144600": {
-    "name": "KODEX 은선물(H)",
+  "261220": {
+    "name": "KODEX WTI원유선물(H)",
     "type": "ETF",
     "theme": "미분류",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "은선물(H)",
+    "search_keyword": "WTI원유선물(H)",
     "relevance_keywords": [
-      "KODEX 은선물(H)",
-      "은선물(H)",
+      "KODEX WTI원유선물(H)",
+      "WTI원유선물(H)",
       "미분류"
     ]
   }
