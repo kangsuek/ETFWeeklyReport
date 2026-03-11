@@ -151,20 +151,33 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
       {/* MACD 섹션 */}
       {showMACD && macdData && (
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              MACD (12, 26, 9)
-              {currentMACD && (
-                <>
-                  <span className="ml-2 font-semibold text-gray-700 dark:text-gray-300">
-                    {currentMACD.macd.toFixed(0)}
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">MACD (12, 26, 9)</h4>
+            {currentMACD && (() => {
+              const validData = macdData.filter(d => d.macd !== null && d.signal !== null && d.histogram !== null)
+              const prev = validData.length >= 2 ? validData[validData.length - 2] : null
+              const aboveZero = currentMACD.macd >= 0
+              const aboveSignal = currentMACD.macd > currentMACD.signal
+              const momentumUp = prev ? currentMACD.histogram > prev.histogram : null
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {/* 추세: 0선 기준 */}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${aboveZero ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                    {aboveZero ? '▲' : '▼'} 추세 {aboveZero ? '상승' : '하락'}
                   </span>
-                  <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
-                    (0기준 {currentMACD.macd >= 0 ? '↑위' : '↓아래'})
+                  {/* 신호: 시그널선 기준 */}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${aboveSignal ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                    {aboveSignal ? '● 매수신호' : '● 매도신호'}
                   </span>
-                </>
-              )}
-            </h4>
+                  {/* 모멘텀: 히스토그램 방향 */}
+                  {momentumUp !== null && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${momentumUp ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                      {momentumUp ? '↑ 모멘텀 강화' : '↓ 모멘텀 약화'}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* MACD 해석 카드 */}
@@ -181,14 +194,25 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
 
           {/* MACD 읽는 법 설명 */}
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
-            <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">MACD 읽는 법</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-              <p><span className="text-green-600 dark:text-green-400 font-medium">골든크로스</span> = MACD가 시그널 상향 돌파 (매수)</p>
-              <p><span className="text-red-600 dark:text-red-300 font-medium">데드크로스</span> = MACD가 시그널 하향 돌파 (매도)</p>
-              <p><span className="text-green-600 dark:text-green-400 font-medium">히스토그램 양수(+)</span> = 상승 모멘텀</p>
-              <p><span className="text-red-600 dark:text-red-300 font-medium">히스토그램 음수(−)</span> = 하락 모멘텀</p>
+            <p className="font-medium text-gray-600 dark:text-gray-300 mb-1">배지 읽는 법</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1">
+              <div>
+                <p className="font-medium text-gray-600 dark:text-gray-400 mb-0.5">① 추세 (0선 기준)</p>
+                <p><span className="text-red-600 dark:text-red-400 font-medium">▲ 상승</span> = 단기 > 장기 이평선</p>
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">▼ 하락</span> = 단기 &lt; 장기 이평선</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-600 dark:text-gray-400 mb-0.5">② 신호 (시그널선 기준)</p>
+                <p><span className="text-red-600 dark:text-red-400 font-medium">● 매수신호</span> = MACD가 시그널 위</p>
+                <p><span className="text-blue-600 dark:text-blue-400 font-medium">● 매도신호</span> = MACD가 시그널 아래</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-600 dark:text-gray-400 mb-0.5">③ 모멘텀 (속도)</p>
+                <p><span className="text-green-600 dark:text-green-400 font-medium">↑ 강화</span> = 추세 가속 중</p>
+                <p><span className="text-gray-600 dark:text-gray-400 font-medium">↓ 약화</span> = 추세 감속 중</p>
+              </div>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">MACD는 단기(12일) EMA와 장기(26일) EMA의 차이를 나타내며, 시그널선(9일)과의 교차를 매매 시그널로 사용합니다.</p>
+            <p className="text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-600 pt-1.5">골든크로스(매수↑)/데드크로스(매도↓)는 신호 배지가 바뀌는 순간입니다. 배너에서 확인하세요.</p>
           </div>
         </div>
       )}
