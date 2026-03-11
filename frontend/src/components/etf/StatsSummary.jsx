@@ -3,16 +3,28 @@ import PropTypes from 'prop-types'
 import { format } from 'date-fns'
 import { formatPrice, formatPercent } from '../../utils/format'
 import { calculateStats, calculateAnnualizedReturn } from '../../utils/returns'
+import InfoTooltip from '../common/InfoTooltip'
+
+// 연환산 변동성 기준 리스크 등급 계산
+const getRiskLevel = (volatility) => {
+  if (volatility === null || volatility === undefined) return null
+  if (volatility < 10) return { label: '안전', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (volatility < 15) return { label: '낮음', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+  if (volatility < 25) return { label: '보통', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
+  if (volatility < 35) return { label: '높음', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
+  return { label: '매우높음', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
+}
 
 /**
  * StatCard 컴포넌트
  * 개별 통계 카드를 표시
  */
-const StatCard = ({ title, children, icon }) => (
+const StatCard = ({ title, children, icon, titleExtra }) => (
   <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
     <div className="flex items-center gap-2 mb-3">
       {icon && <span className="text-2xl">{icon}</span>}
       <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h4>
+      {titleExtra}
     </div>
     <div className="space-y-2">{children}</div>
   </div>
@@ -22,15 +34,19 @@ StatCard.propTypes = {
   title: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
   icon: PropTypes.string,
+  titleExtra: PropTypes.node,
 }
 
 /**
  * StatItem 컴포넌트
- * 통계 항목 표시
+ * 통계 항목 표시 (선택적 툴팁 지원)
  */
-const StatItem = ({ label, value, color = 'text-gray-900 dark:text-gray-100' }) => (
+const StatItem = ({ label, value, color = 'text-gray-900 dark:text-gray-100', tooltip }) => (
   <div className="flex items-center justify-between">
-    <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+    <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+      {label}
+      {tooltip && <InfoTooltip content={tooltip} position="top" />}
+    </span>
     <span className={`text-sm font-semibold ${color}`}>{value}</span>
   </div>
 )
@@ -39,6 +55,7 @@ StatItem.propTypes = {
   label: PropTypes.string.isRequired,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   color: PropTypes.string,
+  tooltip: PropTypes.string,
 }
 
 /**
@@ -271,6 +288,11 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
     return calculateAnnualizedReturn(data)
   }, [data])
 
+  // 리스크 등급 계산
+  const riskLevel = useMemo(() => {
+    return getRiskLevel(stats?.annualizedVolatility)
+  }, [stats?.annualizedVolatility])
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* 수익률 카드 */}
@@ -279,6 +301,7 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
           label="기간 수익률"
           value={formatPercent(stats.periodReturn)}
           color={getReturnColor(stats.periodReturn)}
+          tooltip="선택한 기간의 첫날 종가 대비 현재 종가의 수익률입니다. 양수(+)는 수익, 음수(-)는 손실을 의미합니다."
         />
         {annualizedReturn.showAnnualized ? (
           <div className="flex items-center justify-between">
@@ -371,16 +394,28 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
       </StatCard>
 
       {/* 리스크 지표 카드 */}
-      <StatCard title="리스크 지표" icon="⚠️">
+      <StatCard
+        title="리스크 지표"
+        icon="⚠️"
+        titleExtra={riskLevel && (
+          <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${riskLevel.color}`}>
+            {riskLevel.label}
+          </span>
+        )}
+      >
         {stats.annualizedVolatility !== null ? (
           <StatItem
             label="연환산 변동성"
             value={formatPercent(stats.annualizedVolatility)}
             color={stats.annualizedVolatility > 30 ? 'text-red-600 dark:text-red-400' : stats.annualizedVolatility < 15 ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}
+            tooltip="일별 수익률의 표준편차를 연 단위로 환산한 값입니다. 값이 클수록 가격 변동이 심합니다. 15% 미만은 안정적, 30% 이상은 고위험입니다."
           />
         ) : (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 dark:text-gray-400">연환산 변동성</span>
+            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              연환산 변동성
+              <InfoTooltip content="일별 수익률의 표준편차를 연 단위로 환산한 값입니다. 값이 클수록 가격 변동이 심합니다." position="top" />
+            </span>
             <span className="text-xs text-gray-400 dark:text-gray-500 italic">
               (데이터 부족)
             </span>
@@ -391,10 +426,14 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
             label="최대 낙폭 (MDD)"
             value={formatPercent(-stats.maxDrawdown.value)}
             color="text-red-600 dark:text-red-400"
+            tooltip="특정 기간 내 최고점에서 최저점까지 하락한 최대 폭입니다. 예를 들어 MDD -25%는 최악의 경우 투자금의 25%를 잃을 수 있었다는 의미입니다."
           />
         ) : (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 dark:text-gray-400">최대 낙폭 (MDD)</span>
+            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              최대 낙폭 (MDD)
+              <InfoTooltip content="최고점에서 최저점까지 하락한 최대 폭입니다. 투자 리스크를 가늠하는 핵심 지표입니다." position="top" />
+            </span>
             <span className="text-xs text-gray-400 dark:text-gray-500 italic">
               (데이터 부족)
             </span>
@@ -405,6 +444,7 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
             label="일간 변동성"
             value={formatPercent(stats.dailyVolatility)}
             color="text-gray-700 dark:text-gray-300"
+            tooltip="하루 동안 가격이 평균적으로 얼마나 움직이는지를 나타냅니다. 일간 변동성이 2%면 하루에 ±2% 내외로 가격이 움직인다고 이해하면 됩니다."
           />
         )}
       </StatCard>

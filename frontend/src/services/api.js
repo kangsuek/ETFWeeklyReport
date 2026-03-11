@@ -368,6 +368,12 @@ export const scannerApi = {
   cancelCollect: () => api.post('/scanner/cancel-collect', null, { timeout: FAST_API_TIMEOUT }),
 }
 
+// Market Overview API 서비스
+export const marketApi = {
+  // KOSPI/KOSDAQ 지수 현황 조회
+  getOverview: () => api.get('/market/overview', { timeout: 8000 }),
+}
+
 // 단순화된 API 인터페이스
 export const apiService = {
   getETFs: async () => {
