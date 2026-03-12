@@ -236,6 +236,9 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
             {/* 캔들스틱 */}
             <Bar dataKey="high_price" shape={renderCandlestick} isAnimationActive={false} legendType="none" />
 
+            {/* 종가 선 */}
+            <Line type="monotone" dataKey="close_price" stroke={COLORS.CHART_PRIMARY} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} isAnimationActive={false} legendType="none" />
+
             {/* 이동평균선 */}
             {showMA5 && <Line type="monotone" dataKey="ma5" stroke={COLORS.MA_5} strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} legendType="none" />}
             {showMA10 && <Line type="monotone" dataKey="ma10" stroke={COLORS.MA_10} strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} legendType="none" />}
@@ -284,6 +287,10 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
           <div className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-sm bg-blue-500"></span>
             <span className="text-gray-600 dark:text-gray-400">음봉 (하락)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-6 h-0.5" style={{ backgroundColor: COLORS.CHART_PRIMARY }}></span>
+            <span className="text-gray-600 dark:text-gray-400" style={{ color: COLORS.CHART_PRIMARY }}>종가</span>
           </div>
 
           <label className="flex items-center gap-1.5 cursor-pointer">
