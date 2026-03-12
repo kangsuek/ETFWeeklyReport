@@ -71,3 +71,5 @@ windows/
 
 # SDK auto-generated client (regenerate with sdk/generate.sh)
 sdk/python/
+.superset/
+.playwright-mcp/
