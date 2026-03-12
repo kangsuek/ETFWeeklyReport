@@ -42,14 +42,18 @@ export default function Dashboard() {
     if (isRefreshing) return
     setIsRefreshing(true)
     try {
-      // 1. 백엔드에 데이터 수집 요청 (네이버 금융에서 최신 가격/매매동향 수집)
+      // 1. 시장 지수는 실시간 API이므로 즉시 갱신 (collectAll 완료 대기 불필요)
+      await queryClient.refetchQueries({ queryKey: ['market-overview'] })
+
+      // 2. 백엔드에 데이터 수집 요청 (네이버 금융에서 최신 가격/매매동향 수집)
       toast.info('데이터 수집 중... 잠시 기다려주세요', 3000)
       await dataApi.collectAll(1) // 최근 1일 데이터 수집
 
-      // 2. 프론트엔드 React Query 캐시 전체 무효화 후 재요청
+      // 3. 프론트엔드 React Query 캐시 전체 무효화 후 재요청
       await queryClient.refetchQueries({ queryKey: ['etfs'] })
       await queryClient.refetchQueries({ queryKey: ['batch-summary'] })
       await queryClient.refetchQueries({ queryKey: ['scheduler-status'] })
+      await queryClient.refetchQueries({ queryKey: ['market-overview'] })
 
       setLastUpdate(new Date())
       toast.success('데이터가 갱신되었습니다', 2000)

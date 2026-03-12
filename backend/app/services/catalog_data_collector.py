@@ -417,11 +417,27 @@ class CatalogDataCollector:
 
             # risefall: "2"=상승, "5"=하락, "3"=보합
             change_rate = item.get('changeRate')
+            change_val = item.get('changeVal')
+            now_val = item.get('nowVal')
             risefall = item.get('risefall')
-            if risefall == '5' and change_rate is not None:
-                change_rate = -abs(change_rate)
+            if risefall == '5':
+                if change_rate is not None:
+                    change_rate = -abs(change_rate)
+                if change_val is not None:
+                    change_val = -abs(float(change_val))
             elif risefall == '3':
                 change_rate = 0.0
+
+            # changeRate가 없을 때 changeVal/nowVal로 직접 계산 (stale 방지)
+            if change_rate is None and change_val is not None and now_val:
+                try:
+                    cv = float(change_val)
+                    nv = float(now_val)
+                    prev_val = nv - cv
+                    if prev_val > 0:
+                        change_rate = round((cv / prev_val) * 100, 2)
+                except (TypeError, ValueError):
+                    pass
 
             result[ticker] = {
                 'name': item.get('itemname'),
