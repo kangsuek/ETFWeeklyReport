@@ -54,6 +54,73 @@ def _fetch_index(code: str) -> dict | None:
         return None
 
 
+PERIOD_COUNT = {
+    "1M": 25,
+    "3M": 70,
+    "6M": 135,
+    "1Y": 260,
+    "3Y": 780,
+}
+
+
+def _fetch_index_chart(code: str, period: str = "3M") -> list[dict]:
+    """
+    Naver 모바일 API에서 지수 일별 차트 데이터를 가져옵니다.
+    period: 1M | 3M | 6M | 1Y | 3Y
+    """
+    try:
+        count = PERIOD_COUNT.get(period, 70)
+        url = f"https://m.stock.naver.com/api/index/{code}/price?count={count}&requestType=1"
+        resp = requests.get(url, headers=HEADERS, timeout=8)
+        resp.raise_for_status()
+        raw = resp.json()
+
+        result = []
+        for item in raw:
+            date_str = item.get("localTradedAt", "")
+            close = item.get("closePrice", "").replace(",", "")
+            open_ = item.get("openPrice", "").replace(",", "")
+            high = item.get("highPrice", "").replace(",", "")
+            low = item.get("lowPrice", "").replace(",", "")
+            if not date_str or not close:
+                continue
+            result.append({
+                "date": date_str,
+                "close": float(close) if close else None,
+                "open": float(open_) if open_ else None,
+                "high": float(high) if high else None,
+                "low": float(low) if low else None,
+            })
+        # 오래된 순으로 정렬 (차트 표시용)
+        result.sort(key=lambda x: x["date"])
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to fetch chart for {code} period={period}: {e}")
+        return []
+
+
+@router.get("/index/{code}/chart")
+async def get_index_chart(code: str, period: str = "3M"):
+    """
+    KOSPI / KOSDAQ 지수 일별 차트 데이터 조회
+
+    - code: KOSPI | KOSDAQ
+    - period: 1M | 3M | 6M | 1Y | 3Y
+    """
+    if code not in INDICES:
+        return {"code": code, "period": period, "data": []}
+
+    cache_key = make_cache_key(f"market_chart_{code}_{period}")
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    data = _fetch_index_chart(code, period)
+    response = {"code": code, "name": INDICES[code], "period": period, "data": data}
+    cache.set(cache_key, response, ttl_seconds=300)  # 5분 캐시
+    return response
+
+
 @router.get("/overview")
 async def get_market_overview():
     """

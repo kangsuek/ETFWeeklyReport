@@ -372,6 +372,8 @@ export const scannerApi = {
 export const marketApi = {
   // KOSPI/KOSDAQ 지수 현황 조회
   getOverview: () => api.get('/market/overview', { timeout: 8000 }),
+  // 지수 일별 차트 데이터 조회
+  getIndexChart: (code, period = '3M') => api.get(`/market/index/${code}/chart`, { params: { period }, timeout: 10000 }),
 }
 
 // 단순화된 API 인터페이스

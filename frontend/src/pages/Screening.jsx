@@ -48,6 +48,7 @@ export default function Screening() {
   const [isCollecting, setIsCollecting] = useState(false)
   const [progress, setProgress] = useState(null)
   const pollingRef = useRef(null)
+  const startingRef = useRef(false) // collectData() 요청이 아직 서버에 반영되기 전 구간
 
   // 히트맵 모드에서는 50개씩, 테이블은 기존 page_size
   const effectivePageSize = viewMode === 'heatmap' ? 50 : filters.page_size
@@ -115,7 +116,8 @@ export default function Screening() {
           setProgress(null)
           toast.error(p.message || '수집 중 오류 발생', 3000)
         } else if (p.status === 'idle') {
-          // 서버에 진행 정보가 없으면 중지
+          // collectData() 요청 직후에는 아직 서버에 반영 안 됐을 수 있으므로 무시
+          if (startingRef.current) return
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
             pollingRef.current = null
@@ -123,7 +125,8 @@ export default function Screening() {
           setIsCollecting(false)
           setProgress(null)
         } else {
-          // in_progress만 UI 업데이트
+          // in_progress: 서버가 수집 중임을 확인했으므로 starting 플래그 해제
+          startingRef.current = false
           setProgress(p)
         }
       } catch {
@@ -181,16 +184,18 @@ export default function Screening() {
 
   const handleSectorClick = useCallback((sector) => {
     setActiveTab('search')
-    setFilters({ ...DEFAULT_FILTERS, sector })
+    setFilters({ ...DEFAULT_FILTERS, sector, market: 'ALL' })
   }, [])
 
   const handleCollectData = async () => {
     if (isCollecting) return
+    startingRef.current = true
     setIsCollecting(true)
     setProgress({ status: 'in_progress', message: '수집 시작 중...' })
     try {
       await scannerApi.collectData()
     } catch (err) {
+      startingRef.current = false
       toast.error(`수집 실패: ${err.message}`, 3000)
       setIsCollecting(false)
       setProgress(null)

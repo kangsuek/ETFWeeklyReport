@@ -55,11 +55,16 @@ const HeatmapCell = (props) => {
   const bgColor = getChangeColor(changePct)
   const textColor = getTextColor(changePct)
 
-  // 셀 크기별 표시 레벨
-  const canShowName = width > 50 && height > 25
-  const canShowPrice = width > 60 && height > 45
-  const canShowChange = width > 40 && height > 20
-  const canShowWeekly = width > 60 && height > 50
+  // 텍스트 영역 내부 패딩 (상하 4px)
+  const padY = 4
+  const innerH = Math.max(height - 2, 0)
+  const textAreaH = innerH - padY * 2
+
+  // 셀 크기별 표시 레벨 (텍스트 영역 기준)
+  const canShowName = width > 50 && textAreaH > 14
+  const canShowPrice = width > 60 && textAreaH > 36
+  const canShowChange = width > 40 && textAreaH > 14
+  const canShowWeekly = width > 60 && textAreaH > 50
 
   // 셀 폭에 맞게 이름 자르기
   const maxChars = Math.floor(width / 9)
@@ -78,8 +83,17 @@ const HeatmapCell = (props) => {
   // 표시할 줄 수에 따라 세로 간격 조정
   const lines = [canShowName, canShowPrice, canShowChange, canShowWeekly].filter(Boolean).length
   const lineHeight = 14
-  const startY = y + height / 2 - ((lines - 1) * lineHeight) / 2
+  // 텍스트 블록 중앙 정렬, 패딩 범위 내로 클램핑
+  const centerY = y + 1 + padY + textAreaH / 2
+  const blockH = (lines - 1) * lineHeight
+  const rawStartY = centerY - blockH / 2
+  const minStartY = y + 1 + padY + lineHeight / 2
+  const maxStartY = y + height - 1 - padY - lineHeight / 2 - blockH
+  const startY = Math.max(minStartY, Math.min(rawStartY, maxStartY))
   let currentLine = 0
+
+  // clipPath ID: 셀마다 고유하게
+  const clipId = `hm-clip-${Math.round(x)}-${Math.round(y)}`
 
   // 네이티브 툴팁 텍스트
   const tooltipText = [
@@ -91,74 +105,77 @@ const HeatmapCell = (props) => {
 
   return (
     <g style={{ cursor: 'pointer' }}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={x + 1} y={y + 1} width={Math.max(width - 2, 0)} height={innerH} rx={4} />
+        </clipPath>
+      </defs>
       <rect
         x={x + 1}
         y={y + 1}
         width={Math.max(width - 2, 0)}
-        height={Math.max(height - 2, 0)}
+        height={innerH}
         fill={bgColor}
         rx={4}
         stroke={isInvested ? '#00e5ff' : 'none'}
         strokeWidth={isInvested ? 3 : 0}
       />
       <title>{tooltipText}</title>
-      {canShowName && (
-        <text
-          x={x + width / 2}
-          y={startY + lineHeight * currentLine++}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill={textColor}
-          fontSize={11}
-          fontWeight="600"
-          style={{ pointerEvents: 'none' }}
-        >
-          {displayName}
-        </text>
-      )}
-      {canShowPrice && closePrice && (
-        <text
-          x={x + width / 2}
-          y={startY + lineHeight * currentLine++}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill={textColor}
-          fontSize={10}
-          fontWeight="normal"
-          style={{ pointerEvents: 'none' }}
-        >
-          {formatPrice(closePrice)}원
-        </text>
-      )}
-      {canShowChange && (
-        <text
-          x={x + width / 2}
-          y={startY + lineHeight * currentLine++}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill={textColor}
-          fontSize={12}
-          fontWeight="bold"
-          style={{ pointerEvents: 'none' }}
-        >
-          {changeStr}
-        </text>
-      )}
-      {canShowWeekly && weeklyReturn != null && (
-        <text
-          x={x + width / 2}
-          y={startY + lineHeight * currentLine++}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill={textColor}
-          fontSize={9}
-          fontWeight="normal"
-          opacity={0.85}
-          style={{ pointerEvents: 'none' }}
-        >
-          {weeklyStr}
-        </text>
-      )}
+      <g clipPath={`url(#${clipId})`} style={{ pointerEvents: 'none' }}>
+        {canShowName && (
+          <text
+            x={x + width / 2}
+            y={startY + lineHeight * currentLine++}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={textColor}
+            fontSize={11}
+            fontWeight="600"
+          >
+            {displayName}
+          </text>
+        )}
+        {canShowPrice && closePrice && (
+          <text
+            x={x + width / 2}
+            y={startY + lineHeight * currentLine++}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={textColor}
+            fontSize={10}
+            fontWeight="normal"
+          >
+            {formatPrice(closePrice)}원
+          </text>
+        )}
+        {canShowChange && (
+          <text
+            x={x + width / 2}
+            y={startY + lineHeight * currentLine++}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={textColor}
+            fontSize={12}
+            fontWeight="bold"
+          >
+            {changeStr}
+          </text>
+        )}
+        {canShowWeekly && weeklyReturn != null && (
+          <text
+            x={x + width / 2}
+            y={startY + lineHeight * currentLine++}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={textColor}
+            fontSize={9}
+            fontWeight="normal"
+            opacity={0.85}
+          >
+            {weeklyStr}
+          </text>
+        )}
+      </g>
     </g>
   )
 }
