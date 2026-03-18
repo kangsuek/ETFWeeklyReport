@@ -167,63 +167,6 @@ async def list_tools() -> list[Tool]:
             description="투자 테마 목록 및 관련 종목 조회",
             inputSchema={"type": "object", "properties": {}},
         ),
-        Tool(
-            name="simulate_lump_sum",
-            description="일시 투자 시뮬레이션 (특정 날짜에 일괄 매수 시 현재 수익률 계산)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "종목 코드"},
-                    "buy_date": {"type": "string", "description": "매수일 (YYYY-MM-DD)"},
-                    "amount": {"type": "number", "description": "투자 금액 (원)"},
-                },
-                "required": ["ticker", "buy_date", "amount"],
-            },
-        ),
-        Tool(
-            name="simulate_dca",
-            description="적립식 투자 시뮬레이션 (매월 일정 금액 매수 시 수익률 계산)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "종목 코드"},
-                    "monthly_amount": {"type": "number", "description": "월 투자 금액 (원)"},
-                    "start_date": {"type": "string", "description": "시작일 (YYYY-MM-DD)"},
-                    "end_date": {"type": "string", "description": "종료일 (YYYY-MM-DD)"},
-                    "buy_day": {"type": "integer", "description": "매월 매수일 (기본값 1)"},
-                },
-                "required": ["ticker", "monthly_amount", "start_date", "end_date"],
-            },
-        ),
-        Tool(
-            name="simulate_portfolio",
-            description="포트폴리오 시뮬레이션 (여러 종목 비중 설정 후 수익률 계산)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "holdings": {
-                        "type": "array",
-                        "description": "보유 종목 목록 (예: [{\"ticker\": \"487240\", \"weight\": 0.5}])",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "ticker": {"type": "string"},
-                                "weight": {"type": "number"},
-                            },
-                        },
-                    },
-                    "amount": {"type": "number", "description": "총 투자 금액 (원)"},
-                    "start_date": {"type": "string", "description": "시작일 (YYYY-MM-DD)"},
-                    "end_date": {"type": "string", "description": "종료일 (YYYY-MM-DD)"},
-                },
-                "required": ["holdings", "amount", "start_date", "end_date"],
-            },
-        ),
-        Tool(
-            name="get_db_stats",
-            description="데이터베이스 통계 조회 (수집된 데이터 현황)",
-            inputSchema={"type": "object", "properties": {}},
-        ),
     ]
 
 
@@ -286,18 +229,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             case "get_themes":
                 r = await client.get("/api/scanner/themes", headers=headers)
-
-            case "simulate_lump_sum":
-                r = await client.post("/api/simulation/lump-sum", json=arguments, headers=headers)
-
-            case "simulate_dca":
-                r = await client.post("/api/simulation/dca", json=arguments, headers=headers)
-
-            case "simulate_portfolio":
-                r = await client.post("/api/simulation/portfolio", json=arguments, headers=headers)
-
-            case "get_db_stats":
-                r = await client.get("/api/data/stats", headers=headers)
 
             case _:
                 return [TextContent(type="text", text=f"Unknown tool: {name}")]

@@ -1,9 +1,40 @@
 {
+  "0092B0": {
+    "name": "SOL 한국원자력SMR",
+    "type": "ETF",
+    "theme": "원자력/SMR",
+    "purchase_date": "2026-03-13",
+    "purchase_price": 20440.0,
+    "quantity": 980,
+    "search_keyword": "한국원자력SMR",
+    "relevance_keywords": [
+      "SOL 한국원자력SMR",
+      "한국원자력SMR",
+      "원자력",
+      "SMR"
+    ]
+  },
+  "421320": {
+    "name": "PLUS 우주항공&UAM",
+    "type": "ETF",
+    "theme": "AI/IT",
+    "purchase_date": "2026-03-13",
+    "purchase_price": 48355.0,
+    "quantity": 414,
+    "search_keyword": "PLUS 우주항공&UAM",
+    "relevance_keywords": [
+      "PLUS 우주항공&UAM",
+      "PLUS",
+      "우주항공&UAM",
+      "AI",
+      "IT"
+    ]
+  },
   "395270": {
     "name": "HANARO Fn K-반도체",
     "type": "ETF",
     "theme": "반도체",
-    "purchase_date": null,
+    "purchase_date": "2026-03-17",
     "search_keyword": "반도체",
     "relevance_keywords": [
       "반도체",
@@ -12,6 +43,26 @@
       "메모리",
       "HBM",
       "AI반도체"
+    ],
+    "purchase_price": 34740.0,
+    "quantity": 663
+  },
+  "466920": {
+    "name": "신한 SOL 조선TOP3플러스 ETF",
+    "type": "ETF",
+    "theme": "조선",
+    "purchase_date": null,
+    "search_keyword": "조선",
+    "relevance_keywords": [
+      "조선",
+      "LNG선",
+      "친환경선박",
+      "HD한국조선해양",
+      "한화오션",
+      "HD현대중공업",
+      "수주잔고",
+      "글로벌해운",
+      "선박"
     ],
     "purchase_price": null,
     "quantity": null
@@ -96,41 +147,6 @@
       "변압기",
       "배전",
       "반도체"
-    ]
-  },
-  "466920": {
-    "name": "신한 SOL 조선TOP3플러스 ETF",
-    "type": "ETF",
-    "theme": "조선",
-    "purchase_date": null,
-    "search_keyword": "조선",
-    "relevance_keywords": [
-      "조선",
-      "LNG선",
-      "친환경선박",
-      "HD한국조선해양",
-      "한화오션",
-      "HD현대중공업",
-      "수주잔고",
-      "글로벌해운",
-      "선박"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "0131V0": {
-    "name": "1Q 미국우주항공테크",
-    "type": "ETF",
-    "theme": "미국우주항공테크",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "1Q 미국우주항공테크",
-    "relevance_keywords": [
-      "1Q 미국우주항공테크",
-      "1Q",
-      "미국우주항공테크",
-      "우주항공"
     ]
   },
   "473640": {
@@ -229,17 +245,60 @@
       "S&P500"
     ]
   },
-  "261220": {
-    "name": "KODEX WTI원유선물(H)",
+  "005930": {
+    "name": "삼성전자",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "삼성전자",
+    "relevance_keywords": [
+      "삼성전자",
+      "미분류"
+    ]
+  },
+  "000660": {
+    "name": "SK하이닉스",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "SK하이닉스",
+    "relevance_keywords": [
+      "SK하이닉스",
+      "미분류"
+    ]
+  },
+  "0142D0": {
+    "name": "TIGER 미국AI데이터센터TOP4Plus",
+    "type": "ETF",
+    "theme": "AI/데이터센터",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "TIGER 미국AI데이터센터TOP4Plus",
+    "relevance_keywords": [
+      "TIGER 미국AI데이터센터TOP4Plus",
+      "TIGER",
+      "미국AI데이터센터TOP4Plus",
+      "AI",
+      "데이터센터"
+    ]
+  },
+  "252710": {
+    "name": "TIGER 200선물인버스2X",
     "type": "ETF",
     "theme": "미분류",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "WTI원유선물(H)",
+    "search_keyword": "TIGER 200선물인버스2X",
     "relevance_keywords": [
-      "KODEX WTI원유선물(H)",
-      "WTI원유선물(H)",
+      "TIGER 200선물인버스2X",
+      "TIGER",
+      "200선물인버스2X",
       "미분류"
     ]
   }
