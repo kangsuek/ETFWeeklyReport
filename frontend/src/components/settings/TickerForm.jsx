@@ -158,48 +158,20 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
   const handleChange = (e) => {
     const { name, value } = e.target
     
-    // 보유 수량 필드인 경우 숫자만 허용하고 콤마 포맷팅
+    // 보유 수량 필드인 경우 숫자만 허용 (타이핑 중에는 raw 값 저장, blur 시 포맷팅)
     if (name === 'quantity') {
-      // 숫자만 추출 (콤마 제거)
       const numericValue = value.replace(/,/g, '')
-      // 숫자가 아니거나 빈 값인 경우 처리
       if (numericValue === '' || /^\d+$/.test(numericValue)) {
-        // 숫자를 콤마로 포맷팅
-        const formattedValue = numericValue === '' ? '' : parseInt(numericValue, 10).toLocaleString('ko-KR')
-        setFormData(prev => ({ ...prev, [name]: formattedValue }))
+        setFormData(prev => ({ ...prev, [name]: numericValue }))
       }
       return
     }
-    
-    // 매입 평균 금액 필드인 경우 숫자(소수점 포함)만 허용하고 콤마 포맷팅
+
+    // 매입 평균 금액 필드인 경우 숫자(소수점 포함)만 허용 (타이핑 중에는 raw 값 저장, blur 시 포맷팅)
     if (name === 'purchase_price') {
-      // 숫자와 소수점만 추출 (콤마 제거)
       const numericValue = value.replace(/,/g, '')
-      // 숫자(소수점 포함) 또는 빈 값인 경우 처리
       if (numericValue === '' || /^\d*\.?\d*$/.test(numericValue)) {
-        // 소수점이 있는 경우와 없는 경우를 구분하여 포맷팅
-        let formattedValue = ''
-        if (numericValue !== '' && numericValue !== '.') {
-          // 소수점 위치 찾기
-          const dotIndex = numericValue.indexOf('.')
-          if (dotIndex === -1) {
-            // 소수점이 없으면 정수로 포맷팅
-            const intValue = parseInt(numericValue, 10)
-            formattedValue = isNaN(intValue) ? '' : intValue.toLocaleString('ko-KR')
-          } else {
-            // 소수점이 있으면 정수 부분과 소수 부분을 분리하여 포맷팅
-            const integerPart = numericValue.substring(0, dotIndex)
-            const decimalPart = numericValue.substring(dotIndex)
-            if (integerPart === '') {
-              // 정수 부분이 없으면 "0" + 소수 부분
-              formattedValue = '0' + decimalPart
-            } else {
-              const intValue = parseInt(integerPart, 10)
-              formattedValue = isNaN(intValue) ? '0' + decimalPart : intValue.toLocaleString('ko-KR') + decimalPart
-            }
-          }
-        }
-        setFormData(prev => ({ ...prev, [name]: formattedValue }))
+        setFormData(prev => ({ ...prev, [name]: numericValue }))
       }
       return
     }
@@ -241,6 +213,47 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
       setSearchField(name)
       setShowSuggestions(value.length >= MIN_SEARCH_LENGTH)
     }
+  }
+
+  // 매입 평균 금액 포커스: 콤마 제거하여 raw 값으로 (편집 용이)
+  const handlePurchasePriceFocus = () => {
+    const raw = formData.purchase_price.toString().replace(/,/g, '')
+    setFormData(prev => ({ ...prev, purchase_price: raw }))
+  }
+
+  // 매입 평균 금액 블러: 콤마 포맷팅 적용
+  const handlePurchasePriceBlur = () => {
+    const raw = formData.purchase_price
+    if (!raw) return
+    const numericStr = raw.replace(/,/g, '')
+    const dotIndex = numericStr.indexOf('.')
+    let formatted = ''
+    if (dotIndex === -1) {
+      const intValue = parseInt(numericStr, 10)
+      formatted = isNaN(intValue) ? '' : intValue.toLocaleString('ko-KR')
+    } else {
+      const intPart = numericStr.substring(0, dotIndex)
+      const decPart = numericStr.substring(dotIndex)
+      const intValue = parseInt(intPart || '0', 10)
+      formatted = (isNaN(intValue) ? '0' : intValue.toLocaleString('ko-KR')) + decPart
+    }
+    setFormData(prev => ({ ...prev, purchase_price: formatted }))
+  }
+
+  // 보유 수량 포커스: 콤마 제거하여 raw 값으로 (편집 용이)
+  const handleQuantityFocus = () => {
+    const raw = formData.quantity.toString().replace(/,/g, '')
+    setFormData(prev => ({ ...prev, quantity: raw }))
+  }
+
+  // 보유 수량 블러: 콤마 포맷팅 적용
+  const handleQuantityBlur = () => {
+    const raw = formData.quantity
+    if (!raw) return
+    const numericStr = raw.replace(/,/g, '')
+    const intValue = parseInt(numericStr, 10)
+    const formatted = isNaN(intValue) ? '' : intValue.toLocaleString('ko-KR')
+    setFormData(prev => ({ ...prev, quantity: formatted }))
   }
 
   // 자동완성에서 종목 선택
@@ -597,6 +610,8 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
               name="purchase_price"
               value={formData.purchase_price}
               onChange={handleChange}
+              onFocus={handlePurchasePriceFocus}
+              onBlur={handlePurchasePriceBlur}
               disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="예: 25,000"
@@ -616,6 +631,8 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
               name="quantity"
               value={formData.quantity}
               onChange={handleChange}
+              onFocus={handleQuantityFocus}
+              onBlur={handleQuantityBlur}
               disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               placeholder="예: 100"
