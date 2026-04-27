@@ -723,21 +723,35 @@ class CatalogDataCollector:
                             now,
                         ))
                     else:
-                        # SQLite: UPDATE only (기존 동작 유지)
+                        # SQLite: UPSERT (초기 stock_catalog 비어있는 환경에서도 저장되도록)
                         cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET close_price = COALESCE({p}, close_price),
-                                daily_change_pct = COALESCE({p}, daily_change_pct),
-                                volume = COALESCE({p}, volume),
-                                weekly_return = COALESCE({p}, weekly_return),
-                                monthly_return = COALESCE({p}, monthly_return),
-                                ytd_return = COALESCE({p}, ytd_return),
-                                foreign_net = COALESCE({p}, foreign_net),
-                                institutional_net = COALESCE({p}, institutional_net),
-                                ytd_base_date = COALESCE({p}, ytd_base_date),
-                                catalog_updated_at = {p}
-                            WHERE ticker = {p}
+                            INSERT INTO stock_catalog
+                                (ticker, name, type, market, is_active,
+                                 close_price, daily_change_pct, volume,
+                                 weekly_return, monthly_return, ytd_return,
+                                 foreign_net, institutional_net,
+                                 ytd_base_date,
+                                 catalog_updated_at)
+                            VALUES ({p}, {p}, 'ETF', 'ETF', 1,
+                                    {p}, {p}, {p},
+                                    {p}, {p}, {p},
+                                    {p}, {p},
+                                    {p},
+                                    {p})
+                            ON CONFLICT(ticker) DO UPDATE SET
+                                name = COALESCE(excluded.name, stock_catalog.name),
+                                close_price = COALESCE(excluded.close_price, stock_catalog.close_price),
+                                daily_change_pct = COALESCE(excluded.daily_change_pct, stock_catalog.daily_change_pct),
+                                volume = COALESCE(excluded.volume, stock_catalog.volume),
+                                weekly_return = COALESCE(excluded.weekly_return, stock_catalog.weekly_return),
+                                monthly_return = COALESCE(excluded.monthly_return, stock_catalog.monthly_return),
+                                ytd_return = COALESCE(excluded.ytd_return, stock_catalog.ytd_return),
+                                foreign_net = COALESCE(excluded.foreign_net, stock_catalog.foreign_net),
+                                institutional_net = COALESCE(excluded.institutional_net, stock_catalog.institutional_net),
+                                ytd_base_date = COALESCE(excluded.ytd_base_date, stock_catalog.ytd_base_date),
+                                catalog_updated_at = excluded.catalog_updated_at
                         """, (
+                            ticker, name,
                             price.get('close_price'),
                             price.get('daily_change_pct'),
                             price.get('volume'),
@@ -748,7 +762,6 @@ class CatalogDataCollector:
                             supply.get('institutional_net'),
                             supply.get('ytd_base_date'),
                             now,
-                            ticker
                         ))
 
                     if cursor.rowcount > 0:
