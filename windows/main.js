@@ -131,6 +131,7 @@ const BACKEND_PORT = 18000;
 const HEALTH_CHECK_URL = `http://localhost:${BACKEND_PORT}/api/health`;
 const HEALTH_CHECK_INTERVAL_MS = 500;
 const HEALTH_CHECK_TIMEOUT_MS = 60000;
+const REQUIRED_PYTHON_VERSION = '3.11';
 
 // ─── State ───────────────────────────────────────────────────────────────
 let mainWindow = null;
@@ -360,6 +361,47 @@ async function installUv() {
   return uvPath;
 }
 
+function ensurePythonRuntime(uvPath) {
+  sendLoadingStatus('Python 런타임 확인 중...');
+  log('INFO', `Checking Python runtime (${REQUIRED_PYTHON_VERSION}) via uv...`);
+
+  try {
+    const found = execSync(`"${uvPath}" python find ${REQUIRED_PYTHON_VERSION}`, {
+      encoding: 'utf-8',
+      timeout: 15000,
+    }).trim();
+    if (found) {
+      log('INFO', `Python runtime found: ${found}`);
+      return true;
+    }
+  } catch {
+    log('WARN', `Python ${REQUIRED_PYTHON_VERSION} not found, installing automatically...`);
+  }
+
+  sendLoadingStatus(`Python ${REQUIRED_PYTHON_VERSION} 설치 중...`);
+  try {
+    const installed = execSync(`"${uvPath}" python install ${REQUIRED_PYTHON_VERSION}`, {
+      encoding: 'utf-8',
+      timeout: 300000,
+    });
+    log('INFO', `Python installation output: ${installed.slice(0, 500)}`);
+    return true;
+  } catch (err) {
+    log('ERROR', `Python installation failed: ${err.message}`);
+    if (err.stderr) log('ERROR', `stderr: ${err.stderr.slice(0, 1000)}`);
+    dialog.showErrorBox(
+      'Python 설치 실패',
+      `Python ${REQUIRED_PYTHON_VERSION} 런타임을 자동으로 설치할 수 없습니다.\n\n` +
+      '확인 사항:\n' +
+      '1) 인터넷 연결/회사망 프록시\n' +
+      '2) 보안 프로그램(백신/EDR) 차단 여부\n' +
+      '3) PowerShell 실행 정책/권한\n\n' +
+      '해결 후 앱을 다시 실행해주세요.'
+    );
+    return false;
+  }
+}
+
 // ─── .env 파일 파서 ─────────────────────────────────────────────────────
 function parseEnvFile(envPath) {
   const vars = {};
@@ -422,6 +464,7 @@ async function setupBackendWorkspace(uvPath) {
   const workspace = getWorkspacePath();
   const bundledBackend = getBundledBackendPath();
   const venvPath = path.join(workspace, '.venv');
+  const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
   const dataDir = path.join(workspace, 'data');
   const configDir = path.join(workspace, 'config');
   const hashFile = path.join(workspace, '.requirements-hash');
@@ -454,11 +497,16 @@ async function setupBackendWorkspace(uvPath) {
   const reqPath = path.join(bundledBackend, 'requirements.txt');
   const currentHash = fs.existsSync(reqPath) ? fileHash(reqPath) : '';
   const savedHash = fs.existsSync(hashFile) ? fs.readFileSync(hashFile, 'utf-8').trim() : '';
-  const needsInstall = !fs.existsSync(venvPath) || currentHash !== savedHash;
+  const needsInstall = !fs.existsSync(venvPath) || !fs.existsSync(venvPython) || currentHash !== savedHash;
 
   if (!needsInstall) {
     log('INFO', 'Backend workspace is up to date');
     return true;
+  }
+
+  const pythonReady = ensurePythonRuntime(uvPath);
+  if (!pythonReady) {
+    return false;
   }
 
   // venv 생성
@@ -466,7 +514,7 @@ async function setupBackendWorkspace(uvPath) {
     sendLoadingStatus('Python 가상환경 생성 중...');
     log('INFO', 'Creating Python virtual environment...');
     try {
-      execSync(`"${uvPath}" venv "${venvPath}"`, {
+      execSync(`"${uvPath}" venv --python ${REQUIRED_PYTHON_VERSION} "${venvPath}"`, {
         cwd: bundledBackend,
         encoding: 'utf-8',
         timeout: 30000,
@@ -506,7 +554,12 @@ async function setupBackendWorkspace(uvPath) {
     if (err.stderr) log('ERROR', `stderr: ${err.stderr.slice(0, 1000)}`);
     dialog.showErrorBox(
       '패키지 설치 실패',
-      `Python 패키지를 설치할 수 없습니다.\n\n인터넷 연결을 확인해주세요.\n\n${err.message}`
+      'Python 패키지를 설치할 수 없습니다.\n\n' +
+      '확인 사항:\n' +
+      '1) 인터넷 연결/회사망 프록시\n' +
+      '2) 보안 프로그램(백신/EDR) 차단 여부\n' +
+      '3) 디스크 여유 공간/쓰기 권한\n\n' +
+      `오류 요약:\n${err.message}`
     );
     return false;
   }
@@ -550,6 +603,10 @@ async function startBackend() {
       dialog.showErrorBox(
         'uv 설치 실패',
         'Python 패키지 매니저 uv를 자동으로 설치할 수 없었습니다.\n\n' +
+        '확인 사항:\n' +
+        '1) 인터넷 연결/회사망 프록시\n' +
+        '2) PowerShell 실행 정책(관리자 권한 포함)\n' +
+        '3) 보안 프로그램(백신/EDR) 차단 여부\n\n' +
         '수동으로 설치해주세요:\n' +
         'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"\n\n' +
         '설치 후 앱을 다시 시작해주세요.'

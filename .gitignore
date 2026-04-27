@@ -68,6 +68,11 @@ htmlcov/
 # App build output (platform-specific)
 macos/
 windows/
+!windows/
+!windows/tests/
+!windows/tests/run-windows-e2e.ps1
+!windows/tests/run-windows-e2e.cmd
+windows/tests/reports/
 
 # SDK auto-generated client (regenerate with sdk/generate.sh)
 sdk/python/
