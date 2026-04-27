@@ -22,7 +22,7 @@ export const AlertProvider = ({ children }) => {
 
   const pushAlert = useCallback((alert) => {
     const entry = {
-      id: Date.now() + Math.random(),
+      id: crypto.randomUUID(),
       ...alert,
       timestamp: new Date().toISOString(),
       read: false,

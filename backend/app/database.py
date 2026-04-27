@@ -15,11 +15,23 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 USE_POSTGRES = False
 DB_PATH = None
 
+def _mask_db_url(url: str) -> str:
+    """비밀번호를 마스킹하여 로그 안전한 DB URL 반환"""
+    try:
+        parsed = urlparse(url)
+        if parsed.password:
+            masked = url.replace(f":{parsed.password}@", ":***@")
+            return masked
+    except Exception:
+        pass
+    return url
+
+
 if DATABASE_URL:
     parsed = urlparse(DATABASE_URL)
     if parsed.scheme == "postgresql" or parsed.scheme == "postgres":
         USE_POSTGRES = True
-        logger.info(f"Using PostgreSQL database: {DATABASE_URL}")
+        logger.info(f"Using PostgreSQL database: {_mask_db_url(DATABASE_URL)}")
         try:
             import psycopg2
             from psycopg2.extras import RealDictCursor
@@ -201,6 +213,20 @@ def get_cursor(conn_or_cursor):
         # SQLite: get_db_connection()이 connection을 반환
         return conn_or_cursor.cursor()
 
+_ALLOWED_IDENTIFIER_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_")
+
+def _safe_alter_table(cursor, table: str, col_name: str, col_type: str,
+                      allowed_cols: set, conn=None) -> None:
+    """화이트리스트 검증 후 ALTER TABLE 실행. 허용되지 않은 컬럼명은 건너뜀."""
+    if col_name not in allowed_cols:
+        logger.error(f"ALTER TABLE 거부: '{col_name}'은 허용된 컬럼이 아닙니다.")
+        return
+    if not all(c in _ALLOWED_IDENTIFIER_CHARS for c in col_name):
+        logger.error(f"ALTER TABLE 거부: '{col_name}'에 허용되지 않은 문자가 포함되어 있습니다.")
+        return
+    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+
+
 def init_db():
     """Initialize database with schema"""
     if USE_POSTGRES:
@@ -256,6 +282,7 @@ def init_db():
         ("search_keyword", text_type),
         ("relevance_keywords", text_type),
     ]
+    _etfs_allowed = {col for col, _ in columns_to_add}
     if USE_POSTGRES:
         for col_name, col_type in columns_to_add:
             try:
@@ -265,7 +292,7 @@ def init_db():
                     WHERE table_name='etfs' AND column_name=%s
                 """, (col_name,))
                 if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE etfs ADD COLUMN {col_name} {col_type}")
+                    _safe_alter_table(cursor, "etfs", col_name, col_type, _etfs_allowed)
                     logger.info(f"Added {col_name} column to etfs table")
             except Exception as e:
                 logger.warning(f"Could not check/add {col_name} column: {e}")
@@ -274,7 +301,7 @@ def init_db():
         # SQLite: ALTER ADD COLUMN 후 중복 시 무시
         for col_name, col_type in columns_to_add:
             try:
-                cursor.execute(f"ALTER TABLE etfs ADD COLUMN {col_name} {col_type}")
+                _safe_alter_table(cursor, "etfs", col_name, col_type, _etfs_allowed)
                 logger.info(f"Added {col_name} column to etfs table")
             except Exception as e:
                 if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
@@ -325,6 +352,7 @@ def init_db():
 
     # news 테이블에 published_at 컬럼 추가 (기존 DB 마이그레이션)
     news_columns_to_add = [("published_at", "TIMESTAMP")]
+    _news_allowed = {col for col, _ in news_columns_to_add}
     if USE_POSTGRES:
         for col_name, col_type in news_columns_to_add:
             try:
@@ -334,7 +362,7 @@ def init_db():
                     WHERE table_name='news' AND column_name=%s
                 """, (col_name,))
                 if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                    _safe_alter_table(cursor, "news", col_name, col_type, _news_allowed)
                     logger.info(f"Added {col_name} column to news table")
             except Exception as e:
                 logger.warning(f"Could not check/add {col_name} column: {e}")
@@ -342,7 +370,7 @@ def init_db():
     else:
         for col_name, col_type in news_columns_to_add:
             try:
-                cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+                _safe_alter_table(cursor, "news", col_name, col_type, _news_allowed)
                 logger.info(f"Added {col_name} column to news table")
             except Exception as e:
                 if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
@@ -441,6 +469,7 @@ def init_db():
         ("week_base_date", "TEXT"),
         ("ytd_base_date", "TEXT"),
     ]
+    _catalog_allowed = {col for col, _ in screening_columns}
     if USE_POSTGRES:
         for col_name, col_type in screening_columns:
             try:
@@ -450,7 +479,7 @@ def init_db():
                     WHERE table_name='stock_catalog' AND column_name=%s
                 """, (col_name,))
                 if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                    _safe_alter_table(cursor, "stock_catalog", col_name, col_type, _catalog_allowed)
                     logger.info(f"Added {col_name} column to stock_catalog table")
             except Exception as e:
                 logger.warning(f"Could not check/add {col_name} column to stock_catalog: {e}")
@@ -458,7 +487,7 @@ def init_db():
     else:
         for col_name, col_type in screening_columns:
             try:
-                cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+                _safe_alter_table(cursor, "stock_catalog", col_name, col_type, _catalog_allowed)
                 logger.info(f"Added {col_name} column to stock_catalog table")
             except Exception as e:
                 if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():

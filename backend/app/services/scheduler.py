@@ -5,6 +5,7 @@ APScheduler를 사용하여 정기적인 데이터 수집 작업을 스케줄링
 """
 
 import logging
+import threading
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -40,11 +41,11 @@ class DataCollectionScheduler:
         self.catalog_data_collector = CatalogDataCollector()
         self._jobs = {}
         self.last_collection_time = None
-        self.is_collecting = False
+        self._collecting_lock = threading.Lock()
+        self._fundamentals_lock = threading.Lock()
         self.last_catalog_collection_time = None
         self.last_catalog_data_collection_time = None
         self.last_fundamentals_collection_time = None
-        self.is_collecting_fundamentals = False
         logger.info("DataCollectionScheduler 초기화 완료")
     
     def collect_periodic_data(self):
@@ -53,11 +54,10 @@ class DataCollectionScheduler:
 
         설정된 주기(SCRAPING_INTERVAL_MINUTES)마다 모든 종목의 실시간 데이터를 수집합니다.
         """
-        if self.is_collecting:
+        if not self._collecting_lock.acquire(blocking=False):
             logger.warning("[스케줄러-주기수집] 이미 수집 작업이 진행 중입니다. 건너뜁니다.")
             return
 
-        self.is_collecting = True
         start_time = datetime.now(KST)
         logger.info(f"[스케줄러-주기수집] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -114,7 +114,7 @@ class DataCollectionScheduler:
         except Exception as e:
             logger.error(f"[스케줄러-주기수집] 전체 실패: {e}", exc_info=True)
         finally:
-            self.is_collecting = False
+            self._collecting_lock.release()
 
     def collect_daily_data(self):
         """
@@ -264,11 +264,10 @@ class DataCollectionScheduler:
         from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
         from app.services.stock_fundamentals_collector import collect_stock_fundamentals
 
-        if self.is_collecting_fundamentals:
+        if not self._fundamentals_lock.acquire(blocking=False):
             logger.warning("[스케줄러-펀더멘털] 이미 수집 작업이 진행 중입니다. 건너뜁니다.")
             return
 
-        self.is_collecting_fundamentals = True
         start_time = datetime.now(KST)
         logger.info(f"[스케줄러-펀더멘털] 시작: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -321,7 +320,7 @@ class DataCollectionScheduler:
         except Exception as e:
             logger.error(f"[스케줄러-펀더멘털] 전체 실패: {e}", exc_info=True)
         finally:
-            self.is_collecting_fundamentals = False
+            self._fundamentals_lock.release()
 
     def _collect_fundamentals_if_needed(self):
         """
@@ -537,7 +536,7 @@ class DataCollectionScheduler:
 
         return {
             "is_running": self.scheduler.running,
-            "is_collecting": self.is_collecting,
+            "is_collecting": self._collecting_lock.locked(),
             "last_collection_time": self.last_collection_time.isoformat() if self.last_collection_time else None,
             "last_catalog_collection_time": self.last_catalog_collection_time.isoformat() if self.last_catalog_collection_time else None,
             "last_catalog_data_collection_time": self.last_catalog_data_collection_time.isoformat() if self.last_catalog_data_collection_time else None,

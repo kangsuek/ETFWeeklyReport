@@ -40,7 +40,9 @@ import logging
 import os
 
 # 분봉 백그라운드 수집 중인 티커 (중복 수집 방지)
-_intraday_collecting = set()
+import threading as _threading
+_intraday_collecting: set = set()
+_intraday_collecting_lock = _threading.Lock()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1017,8 +1019,11 @@ async def get_intraday_prices(
         # 데이터가 없거나, 재수집이 필요할 때 백그라운드 수집 시작
         bg_collect_triggered = False
         if (not intraday_data or need_recollect) and auto_collect:
-            if etf.ticker not in _intraday_collecting:
-                _intraday_collecting.add(etf.ticker)
+            with _intraday_collecting_lock:
+                already_collecting = etf.ticker in _intraday_collecting
+                if not already_collecting:
+                    _intraday_collecting.add(etf.ticker)
+            if not already_collecting:
                 bg_collect_triggered = True
                 # 기존 데이터가 있으면 증분 수집 (빠름), 없으면 전체 수집
                 use_incremental = bool(intraday_data)
@@ -1036,7 +1041,8 @@ async def get_intraday_prices(
                     finally:
                         cache_obj = get_cache()
                         cache_obj.invalidate_pattern(f"intraday:{ticker}")
-                        _intraday_collecting.discard(ticker)
+                        with _intraday_collecting_lock:
+                            _intraday_collecting.discard(ticker)
 
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(None, _run_intraday_collect, etf.ticker, use_incremental)

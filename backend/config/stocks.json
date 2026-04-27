@@ -1,35 +1,4 @@
 {
-  "0092B0": {
-    "name": "SOL 한국원자력SMR",
-    "type": "ETF",
-    "theme": "원자력/SMR",
-    "purchase_date": "2026-03-13",
-    "purchase_price": 20440.0,
-    "quantity": 980,
-    "search_keyword": "한국원자력SMR",
-    "relevance_keywords": [
-      "SOL 한국원자력SMR",
-      "한국원자력SMR",
-      "원자력",
-      "SMR"
-    ]
-  },
-  "421320": {
-    "name": "PLUS 우주항공&UAM",
-    "type": "ETF",
-    "theme": "AI/IT",
-    "purchase_date": "2026-03-13",
-    "purchase_price": 48355.0,
-    "quantity": 414,
-    "search_keyword": "PLUS 우주항공&UAM",
-    "relevance_keywords": [
-      "PLUS 우주항공&UAM",
-      "PLUS",
-      "우주항공&UAM",
-      "AI",
-      "IT"
-    ]
-  },
   "395270": {
     "name": "HANARO Fn K-반도체",
     "type": "ETF",
@@ -46,74 +15,6 @@
     ],
     "purchase_price": 34740.0,
     "quantity": 663
-  },
-  "466920": {
-    "name": "신한 SOL 조선TOP3플러스 ETF",
-    "type": "ETF",
-    "theme": "조선",
-    "purchase_date": null,
-    "search_keyword": "조선",
-    "relevance_keywords": [
-      "조선",
-      "LNG선",
-      "친환경선박",
-      "HD한국조선해양",
-      "한화오션",
-      "HD현대중공업",
-      "수주잔고",
-      "글로벌해운",
-      "선박"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "446770": {
-    "name": "ACE 글로벌반도체TOP4 Plus",
-    "type": "ETF",
-    "theme": "글로벌 반도체",
-    "purchase_date": null,
-    "search_keyword": "ACE 글로벌반도체TOP4 Plus",
-    "relevance_keywords": [
-      "ACE 글로벌반도체TOP4 Plus",
-      "ACE",
-      "글로벌반도체TOP4",
-      "Plus",
-      "반도체",
-      "엔비디아",
-      "TSMC",
-      "브로드컴"
-    ],
-    "purchase_price": null,
-    "quantity": null
-  },
-  "006800": {
-    "name": "미래에셋증권",
-    "type": "STOCK",
-    "theme": "증권사",
-    "purchase_date": null,
-    "purchase_price": null,
-    "quantity": null,
-    "search_keyword": "미래에셋증권",
-    "relevance_keywords": [
-      "미래에셋증권",
-      "증권사"
-    ]
-  },
-  "449450": {
-    "name": "PLUS K방산",
-    "type": "ETF",
-    "theme": "방산",
-    "purchase_date": null,
-    "search_keyword": "PLUS K방산",
-    "relevance_keywords": [
-      "PLUS K방산",
-      "PLUS",
-      "K방산",
-      "방위산업",
-      "FnGuide K-방위산업 지수"
-    ],
-    "purchase_price": null,
-    "quantity": null
   },
   "434730": {
     "name": "HANARO 원자력iSelect",
@@ -149,52 +50,88 @@
       "반도체"
     ]
   },
-  "473640": {
-    "name": "HANARO 글로벌금채굴기업",
+  "0092B0": {
+    "name": "SOL 한국원자력SMR",
     "type": "ETF",
-    "theme": "금채굴",
+    "theme": "원자력/SMR",
+    "purchase_date": "2026-03-13",
+    "purchase_price": 20440.0,
+    "quantity": 980,
+    "search_keyword": "한국원자력SMR",
+    "relevance_keywords": [
+      "SOL 한국원자력SMR",
+      "한국원자력SMR",
+      "원자력",
+      "SMR"
+    ]
+  },
+  "0142D0": {
+    "name": "TIGER 미국AI데이터센터TOP4Plus",
+    "type": "ETF",
+    "theme": "AI/데이터센터",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "HANARO 글로벌금채굴기업",
+    "search_keyword": "TIGER 미국AI데이터센터TOP4Plus",
     "relevance_keywords": [
-      "HANARO 글로벌금채굴기업",
-      "HANARO",
-      "글로벌금채굴기업",
-      "금채굴"
+      "TIGER 미국AI데이터센터TOP4Plus",
+      "TIGER",
+      "미국AI데이터센터TOP4Plus",
+      "AI",
+      "데이터센터"
     ]
   },
-  "0020H0": {
-    "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
+  "466920": {
+    "name": "신한 SOL 조선TOP3플러스 ETF",
     "type": "ETF",
-    "theme": "양자컴퓨팅",
-    "purchase_date": "2024-05-20",
-    "search_keyword": "양자컴퓨팅",
+    "theme": "조선",
+    "purchase_date": null,
+    "search_keyword": "조선",
     "relevance_keywords": [
-      "양자컴퓨팅",
-      "양자컴퓨터",
-      "RGTI",
-      "Rigetti",
-      "IBM",
-      "Google",
-      "양자기술",
-      "큐비트"
+      "조선",
+      "LNG선",
+      "친환경선박",
+      "HD한국조선해양",
+      "한화오션",
+      "HD현대중공업",
+      "수주잔고",
+      "글로벌해운",
+      "선박"
     ],
     "purchase_price": null,
     "quantity": null
   },
-  "284430": {
-    "name": "KODEX 200미국채혼합",
+  "421320": {
+    "name": "PLUS 우주항공&UAM",
     "type": "ETF",
-    "theme": "주식채권 혼합",
-    "purchase_date": null,
-    "search_keyword": "KODEX 200미국채혼합",
+    "theme": "AI/IT",
+    "purchase_date": "2026-03-13",
+    "purchase_price": 48355.0,
+    "quantity": 414,
+    "search_keyword": "PLUS 우주항공&UAM",
     "relevance_keywords": [
-      "KODEX 200미국채혼합",
-      "코스피200",
-      "미국 10년 국채",
-      "자산배분",
-      "변동성 제어"
+      "PLUS 우주항공&UAM",
+      "PLUS",
+      "우주항공&UAM",
+      "AI",
+      "IT"
+    ]
+  },
+  "446770": {
+    "name": "ACE 글로벌반도체TOP4 Plus",
+    "type": "ETF",
+    "theme": "글로벌 반도체",
+    "purchase_date": null,
+    "search_keyword": "ACE 글로벌반도체TOP4 Plus",
+    "relevance_keywords": [
+      "ACE 글로벌반도체TOP4 Plus",
+      "ACE",
+      "글로벌반도체TOP4",
+      "Plus",
+      "반도체",
+      "엔비디아",
+      "TSMC",
+      "브로드컴"
     ],
     "purchase_price": null,
     "quantity": null
@@ -231,19 +168,53 @@
     "purchase_price": null,
     "quantity": null
   },
-  "360750": {
-    "name": "TIGER 미국S&P500",
-    "type": "ETF",
-    "theme": "미국S&P500",
+  "006800": {
+    "name": "미래에셋증권",
+    "type": "STOCK",
+    "theme": "증권사",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "TIGER 미국S&P500",
+    "search_keyword": "미래에셋증권",
     "relevance_keywords": [
-      "TIGER 미국S&P500",
-      "TIGER",
-      "S&P500"
+      "미래에셋증권",
+      "증권사"
     ]
+  },
+  "449450": {
+    "name": "PLUS K방산",
+    "type": "ETF",
+    "theme": "방산",
+    "purchase_date": null,
+    "search_keyword": "PLUS K방산",
+    "relevance_keywords": [
+      "PLUS K방산",
+      "PLUS",
+      "K방산",
+      "방위산업",
+      "FnGuide K-방위산업 지수"
+    ],
+    "purchase_price": null,
+    "quantity": null
+  },
+  "0020H0": {
+    "name": "KoAct 글로벌양자컴퓨팅액티브 ETF",
+    "type": "ETF",
+    "theme": "양자컴퓨팅",
+    "purchase_date": "2024-05-20",
+    "search_keyword": "양자컴퓨팅",
+    "relevance_keywords": [
+      "양자컴퓨팅",
+      "양자컴퓨터",
+      "RGTI",
+      "Rigetti",
+      "IBM",
+      "Google",
+      "양자기술",
+      "큐비트"
+    ],
+    "purchase_price": null,
+    "quantity": null
   },
   "005930": {
     "name": "삼성전자",
@@ -271,35 +242,49 @@
       "미분류"
     ]
   },
-  "0142D0": {
-    "name": "TIGER 미국AI데이터센터TOP4Plus",
+  "284430": {
+    "name": "KODEX 200미국채혼합",
     "type": "ETF",
-    "theme": "AI/데이터센터",
+    "theme": "주식채권 혼합",
+    "purchase_date": null,
+    "search_keyword": "KODEX 200미국채혼합",
+    "relevance_keywords": [
+      "KODEX 200미국채혼합",
+      "코스피200",
+      "미국 10년 국채",
+      "자산배분",
+      "변동성 제어"
+    ],
+    "purchase_price": null,
+    "quantity": null
+  },
+  "360750": {
+    "name": "TIGER 미국S&P500",
+    "type": "ETF",
+    "theme": "미국S&P500",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "TIGER 미국AI데이터센터TOP4Plus",
+    "search_keyword": "TIGER 미국S&P500",
     "relevance_keywords": [
-      "TIGER 미국AI데이터센터TOP4Plus",
+      "TIGER 미국S&P500",
       "TIGER",
-      "미국AI데이터센터TOP4Plus",
-      "AI",
-      "데이터센터"
+      "S&P500"
     ]
   },
-  "252710": {
-    "name": "TIGER 200선물인버스2X",
+  "473640": {
+    "name": "HANARO 글로벌금채굴기업",
     "type": "ETF",
-    "theme": "미분류",
+    "theme": "금채굴",
     "purchase_date": null,
     "purchase_price": null,
     "quantity": null,
-    "search_keyword": "TIGER 200선물인버스2X",
+    "search_keyword": "HANARO 글로벌금채굴기업",
     "relevance_keywords": [
-      "TIGER 200선물인버스2X",
-      "TIGER",
-      "200선물인버스2X",
-      "미분류"
+      "HANARO 글로벌금채굴기업",
+      "HANARO",
+      "글로벌금채굴기업",
+      "금채굴"
     ]
   }
 }

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import PropTypes from 'prop-types'
 import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
@@ -32,7 +32,7 @@ const getChangeColor = (changePct) => {
   return changePct > 0 ? 'text-red-600' : changePct < 0 ? 'text-blue-600' : 'text-gray-600'
 }
 
-export default function ETFCard({ etf, summary }) {
+const ETFCard = memo(function ETFCard({ etf, summary }) {
   const [hoveredPoint, setHoveredPoint] = useState(null)
 
   // summary가 있으면 배치 API 데이터 사용, 없으면 개별 API 호출 (폴백)
@@ -351,7 +351,9 @@ export default function ETFCard({ etf, summary }) {
       </article>
     </Link>
   )
-}
+})
+
+ETFCard.displayName = 'ETFCard'
 
 ETFCard.propTypes = {
   etf: PropTypes.shape({
@@ -372,3 +374,5 @@ ETFCard.propTypes = {
     latest_news: PropTypes.array,
   }),
 }
+
+export default ETFCard

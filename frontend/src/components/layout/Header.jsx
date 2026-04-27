@@ -1,6 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAlertStore } from '../../contexts/AlertContext'
+
+const NAV_BASE = 'px-3 py-2 rounded-md text-sm font-medium transition-all duration-200'
+const NAV_ACTIVE = `${NAV_BASE} bg-primary-500 text-white shadow-md`
+const NAV_INACTIVE = `${NAV_BASE} text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-primary-400`
+const MOBILE_BASE = 'block px-3 py-2 rounded-md text-base font-medium transition-all duration-200'
+const MOBILE_ACTIVE = `${MOBILE_BASE} bg-primary-500 text-white shadow-md`
+const MOBILE_INACTIVE = `${MOBILE_BASE} text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-primary-400`
 
 export default function Header() {
   const location = useLocation()
@@ -20,23 +27,13 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const isActive = (path) => {
-    return location.pathname === path
-  }
+  const navLinkClass = useCallback((path) =>
+    location.pathname === path ? NAV_ACTIVE : NAV_INACTIVE,
+  [location.pathname])
 
-  const navLinkClass = (path) => {
-    const baseClass = 'px-3 py-2 rounded-md text-sm font-medium transition-all duration-200'
-    return isActive(path)
-      ? `${baseClass} bg-primary-500 text-white shadow-md`
-      : `${baseClass} text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-primary-400`
-  }
-
-  const mobileNavLinkClass = (path) => {
-    const baseClass = 'block px-3 py-2 rounded-md text-base font-medium transition-all duration-200'
-    return isActive(path)
-      ? `${baseClass} bg-primary-500 text-white shadow-md`
-      : `${baseClass} text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-primary-400`
-  }
+  const mobileNavLinkClass = useCallback((path) =>
+    location.pathname === path ? MOBILE_ACTIVE : MOBILE_INACTIVE,
+  [location.pathname])
 
   return (
     <header className={`bg-white dark:bg-gray-800 shadow-sm sticky top-0 transition-colors ${alertDropdownOpen ? 'z-[9999]' : 'z-50'}`}>
@@ -77,7 +74,7 @@ export default function Header() {
               <button
                 onClick={() => { setAlertDropdownOpen(!alertDropdownOpen); if (!alertDropdownOpen) markAllRead() }}
                 className={`relative px-2 py-2 rounded-md transition-colors ${
-                  isActive('/alerts')
+                  location.pathname === '/alerts'
                     ? 'bg-primary-500 text-white shadow-md'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}

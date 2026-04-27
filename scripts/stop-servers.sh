@@ -5,35 +5,37 @@
 
 echo "🛑 개발 서버 종료 중..."
 
-# 백엔드 서버 종료 (8000 포트)
-echo "  - 백엔드 서버 종료 중 (포트 8000)..."
-BACKEND_PIDS=$(lsof -ti:8000 2>/dev/null)
-if [ -n "$BACKEND_PIDS" ]; then
-  echo "$BACKEND_PIDS" | xargs kill -9 2>/dev/null
-  echo "    ✓ 백엔드 서버 종료 완료"
-else
-  echo "    ℹ 백엔드 서버가 실행 중이지 않습니다"
-fi
+graceful_kill() {
+  local port=$1
+  local label=$2
+  local pids
+  pids=$(lsof -ti:"$port" 2>/dev/null)
+  if [ -z "$pids" ]; then
+    echo "    ℹ $label 서버가 실행 중이지 않습니다 (포트 $port)"
+    return
+  fi
 
-# 프론트엔드 서버 종료 (5173 포트)
-echo "  - 프론트엔드 서버 종료 중 (포트 5173)..."
-FRONTEND_PIDS_5173=$(lsof -ti:5173 2>/dev/null)
-if [ -n "$FRONTEND_PIDS_5173" ]; then
-  echo "$FRONTEND_PIDS_5173" | xargs kill -9 2>/dev/null
-  echo "    ✓ 프론트엔드 서버 종료 완료 (5173)"
-else
-  echo "    ℹ 프론트엔드 서버가 실행 중이지 않습니다 (5173)"
-fi
+  echo "$pids" | xargs kill -15 2>/dev/null
+  local waited=0
+  while [ $waited -lt 5 ]; do
+    remaining=$(lsof -ti:"$port" 2>/dev/null)
+    [ -z "$remaining" ] && break
+    sleep 1
+    waited=$((waited + 1))
+  done
 
-# 프론트엔드 서버 종료 (5174 포트 - 대체 포트)
-echo "  - 프론트엔드 서버 종료 중 (포트 5174)..."
-FRONTEND_PIDS_5174=$(lsof -ti:5174 2>/dev/null)
-if [ -n "$FRONTEND_PIDS_5174" ]; then
-  echo "$FRONTEND_PIDS_5174" | xargs kill -9 2>/dev/null
-  echo "    ✓ 프론트엔드 서버 종료 완료 (5174)"
-else
-  echo "    ℹ 프론트엔드 서버가 실행 중이지 않습니다 (5174)"
-fi
+  remaining=$(lsof -ti:"$port" 2>/dev/null)
+  if [ -n "$remaining" ]; then
+    echo "$remaining" | xargs kill -9 2>/dev/null
+    echo "    ✓ $label 서버 강제 종료 (포트 $port)"
+  else
+    echo "    ✓ $label 서버 정상 종료 (포트 $port)"
+  fi
+}
+
+graceful_kill 8000 "백엔드"
+graceful_kill 5173 "프론트엔드"
+graceful_kill 5174 "프론트엔드(대체)"
 
 echo ""
 echo "✅ 모든 개발 서버 종료 완료"

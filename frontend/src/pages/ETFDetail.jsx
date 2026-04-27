@@ -7,6 +7,7 @@ import { useSettings } from '../contexts/SettingsContext'
 import PageHeader from '../components/common/PageHeader'
 import Spinner from '../components/common/Spinner'
 import ErrorFallback from '../components/common/ErrorFallback'
+import ErrorBoundary from '../components/common/ErrorBoundary'
 import DateRangeSelector from '../components/charts/DateRangeSelector'
 import PriceTable from '../components/etf/PriceTable'
 import NewsTimeline from '../components/news/NewsTimeline'
@@ -554,6 +555,12 @@ export default function ETFDetail() {
         defaultRange={defaultRangeFromSettings}
       />
 
+      <ErrorBoundary fallback={({ resetError }) => (
+        <div className="card mb-4 text-center py-8 text-gray-500 dark:text-gray-400">
+          <p>차트를 불러오는 중 오류가 발생했습니다.</p>
+          <button onClick={resetError} className="mt-2 text-blue-600 dark:text-blue-400 text-sm underline">다시 시도</button>
+        </div>
+      )}>
       <ETFCharts
         pricesData={pricesData}
         tradingFlowData={tradingFlowData}
@@ -583,6 +590,7 @@ export default function ETFDetail() {
         supportResistanceData={supportResistanceData}
         showTechnicalSection={true}
       />
+      </ErrorBoundary>
 
       {/* 5. 오늘의 실시간 체결 (분봉 차트) */}
       <div className="card mb-4">
@@ -671,10 +679,14 @@ export default function ETFDetail() {
       </div>
 
       {/* 6. 최근 뉴스 */}
-      <div className="card mb-4">
-        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">최근 뉴스</h3>
-        <NewsTimeline ticker={ticker} newsData={newsData} isLoading={newsLoading} error={newsError} />
-      </div>
+      <ErrorBoundary fallback={() => (
+        <div className="card mb-4 text-center py-6 text-gray-500 dark:text-gray-400">뉴스를 불러오는 중 오류가 발생했습니다.</div>
+      )}>
+        <div className="card mb-4">
+          <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">최근 뉴스</h3>
+          <NewsTimeline ticker={ticker} newsData={newsData} isLoading={newsLoading} error={newsError} />
+        </div>
+      </ErrorBoundary>
 
       {/* ========================================== */}
       {/* 고급 분석: 전문 투자자를 위한 상세 지표      */}
