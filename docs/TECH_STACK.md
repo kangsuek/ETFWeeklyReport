@@ -28,7 +28,7 @@
 | **SQLite** | - | Development/Basic DB |
 | **PostgreSQL** | - | Production DB (Optional) |
 
-**Primary Data Sources**: Naver Finance (prices, trading trends, tick data), Naver Search API (News)
+**Primary Data Sources**: Naver Finance (prices, trading trends, intraday, fundamentals), Naver Mobile API (KOSPI/KOSDAQ market indices), Naver Search API (News), Perplexity AI `sonar` (stock/portfolio analysis reports)
 
 ## Frontend
 

@@ -9,10 +9,10 @@
 
 | 기능 | 설명 |
 |------|------|
-| **대시보드** | 상단 **히트맵**(전체 현황·일간 변동률, 투자/관심 종목 구분) + 하단 **카드 그리드**(종가, 등락률, 미니 차트, 매매동향, 뉴스). 정렬(설정순·타입·이름·테마·커스텀), 드래그앤드롭 순서 변경, 자동/수동 갱신 |
-| **종목 상세** | 투자 전략·핵심 포인트, 가격/통계, 가격·매매동향·RSI·MACD 차트, 분봉, 지지/저항선, 뉴스 타임라인 |
-| **종목 비교** | 2~6종목 선택, 정규화 가격 차트(시작일=100), 수익률·변동성·MDD·샤프 비율 비교 테이블 |
-| **포트폴리오** | 총 투자금·평가금·손익·수익률, 비중 파이차트, 일별 추이 차트, 종목별 기여도 테이블, 포트폴리오 분석 리포트 |
+| **대시보드** | 상단 **KOSPI/KOSDAQ 시장 지수** + **추천 카드** + **히트맵**(전체 현황·일간 변동률, 투자/관심 종목 구분) + 하단 **카드 그리드**(종가, 등락률, 미니 차트, 매매동향, 뉴스). 정렬(설정순·타입·이름·테마·커스텀), 드래그앤드롭 순서 변경, 자동/수동 갱신 |
+| **종목 상세** | 투자 전략·핵심 포인트, 가격/통계, 가격·매매동향·RSI·MACD 차트, 분봉, 지지/저항선, 펀더멘털, 목표가 알림, 뉴스 타임라인 |
+| **종목 비교** | 2~20종목 선택, 정규화 가격 차트(시작일=100), 수익률·변동성·MDD·샤프 비율 비교 테이블, 상관관계 히트맵, 위험-수익 산점도 |
+| **포트폴리오** | 총 투자금·평가금·손익·수익률, 비중 파이차트, 일별 추이 차트, 종목별 기여도 테이블, 포트폴리오 분석 리포트, AI 투자 분석 리포트 |
 | **종목 발굴** | ETF 조건 검색(주간수익률·수급 필터), 히트맵/테이블 뷰, 테마 탐색, 데이터 수집·진행률 표시 |
 | **시뮬레이션** | 일시 투자(그때 샀다면?), 적립식(DCA) 투자, 포트폴리오 시뮬레이션 — 과거 데이터 기반 수익률 차트·테이블 |
 | **알림** | 종목별 목표가 알림 규칙 설정 (상한/하한), 알림 이력 조회 |
@@ -89,7 +89,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 ## 테스트
 
 - **한 번에**: `just test` (백엔드 + 프론트)
-- **백엔드**: `just test-backend` 또는 `cd backend && uv run pytest` (상세: [SETUP_GUIDE.md](./docs/SETUP_GUIDE.md))
+- **백엔드**: `just test-backend` 또는 `cd backend && uv run pytest` (상세: [DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md))
 - **프론트엔드**: `just test-frontend` 또는 `cd frontend && npm test` / `npm run test:coverage`
 
 ---
@@ -101,7 +101,7 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 | 인터페이스 | 위치 | 설명 |
 |-----------|------|------|
 | **OpenAPI Python SDK** | `sdk/` | `openapi-python-client`로 FastAPI 스펙에서 자동 생성된 타입 안전 Python 클라이언트. `bash sdk/generate.sh`로 재생성. |
-| **MCP 서버** | `mcp-server/` | Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 도구(tool)로 직접 호출. 16개 도구 제공. |
+| **MCP 서버** | `mcp-server/` | Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 도구(tool)로 직접 호출. 12개 도구 제공. |
 
 자세한 설정 절차: **[docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md)**
 
@@ -111,8 +111,9 @@ just 설치: https://github.com/casey/just#installation (예: `brew install just
 
 | 구분 | 엔드포인트 예시 |
 |------|-----------------|
-| 종목 | `GET /api/etfs`, `GET /api/etfs/{ticker}`, `GET /api/etfs/{ticker}/prices`, `GET /api/etfs/{ticker}/trading-flow`, `GET /api/etfs/{ticker}/metrics`, `GET /api/etfs/{ticker}/insights`, `GET /api/etfs/{ticker}/intraday` |
-| 배치·비교 | `POST /api/etfs/batch-summary`, `GET /api/etfs/compare?tickers=...` |
+| 종목 | `GET /api/etfs`, `GET /api/etfs/{ticker}`, `GET /api/etfs/{ticker}/prices`, `GET /api/etfs/{ticker}/trading-flow`, `GET /api/etfs/{ticker}/metrics`, `GET /api/etfs/{ticker}/insights`, `GET /api/etfs/{ticker}/intraday`, `GET /api/etfs/{ticker}/fundamentals` |
+| 배치·비교·AI | `POST /api/etfs/batch-summary`, `GET /api/etfs/compare?tickers=...`, `GET /api/etfs/{ticker}/ai-prompt`, `POST /api/etfs/ai-prompt-multi` |
+| 시장 지수 | `GET /api/market/overview`, `GET /api/market/index/{code}/chart` |
 | 뉴스 | `GET /api/news/{ticker}` |
 | 데이터 | `POST /api/data/collect-all`, `GET /api/data/scheduler-status`, `GET /api/data/stats`, `DELETE /api/data/reset` |
 | 설정 | `GET/POST /api/settings/stocks`, `PUT/DELETE /api/settings/stocks/{ticker}`, `GET /api/settings/stocks/search`, `POST /api/settings/stocks/reorder`, `POST /api/settings/ticker-catalog/collect` |
@@ -154,8 +155,10 @@ Backend: FastAPI, Python 3.11+, uv(필수), SQLite/PostgreSQL · Frontend: React
 
 ## 데이터 소스
 
-- **네이버 금융**: 가격, 투자자별 매매 동향, 분봉
+- **네이버 금융**: 가격, 투자자별 매매 동향, 분봉, 펀더멘털
+- **네이버 모바일 API**: KOSPI/KOSDAQ 시장 지수
 - **네이버 검색 API**: 뉴스 (선택, API 키 필요)
+- **Perplexity AI(sonar)**: 종목·포트폴리오 AI 분석 리포트 (선택, API 키 필요)
 
 ---
 

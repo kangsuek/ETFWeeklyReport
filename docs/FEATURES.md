@@ -3,7 +3,7 @@
 ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서입니다.
 
 ## 목차
-- [백엔드 API](#백엔드-api) — ETF, 뉴스, 데이터, 설정, 알림, 스캐너, 시뮬레이션
+- [백엔드 API](#백엔드-api) — ETF, 뉴스, 데이터, 설정, 알림, 스캐너, 시뮬레이션, 시장 지수
 - [프론트엔드 기능](#프론트엔드-기능) — 대시보드, 상세, 비교, 포트폴리오, 종목 발굴, 시뮬레이션, 알림, 설정
 - [SDK / MCP 서버](#sdk--mcp-서버)
 - [데이터 수집](#데이터-수집)
@@ -69,7 +69,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 #### 1.7 종목 비교
 - **GET `/api/etfs/compare`** - 여러 종목 비교
-  - 쿼리: `tickers` (2–6개, 쉼표 구분), `start_date`, `end_date`
+  - 쿼리: `tickers` (2–20개, 쉼표 구분), `start_date`, `end_date`
   - 정규화 가격(시작일=100), 종목별 통계, 상관관계 행렬
   - 캐시: 1분
 
@@ -78,6 +78,19 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
   - Body: `tickers`, `price_days`, `news_limit`
   - 종목별 최신 가격, 차트용 가격, 매매동향, 뉴스 반환 (N+1 최적화)
   - 캐시: 30초
+
+#### 1.9 펀더멘털
+- **GET `/api/etfs/{ticker}/fundamentals`** - DB에 저장된 펀더멘털 조회
+  - STOCK: PER/PBR/ROE/EPS, 매출·이익, 부채비율, 배당 등 / ETF: NAV·AUM, 구성종목, 분배금, 리밸런싱
+- **POST `/api/etfs/{ticker}/collect-fundamentals`** - 종목 펀더멘털 수집 (STOCK/ETF 자동 구분)
+  - API Key 권장
+
+#### 1.10 AI 분석 프롬프트
+- **GET `/api/etfs/{ticker}/ai-prompt`** - 단일 종목 분석 프롬프트 생성
+  - 쿼리: `use_db_data` (DB 저장 데이터 활용 여부)
+  - `prompt/perplexity.md` 템플릿 + 종목 데이터로 Perplexity(sonar)용 프롬프트 구성
+- **POST `/api/etfs/ai-prompt-multi`** - 복수 종목 통합 비교 프롬프트
+  - Body: `stocks`. 쿼리: `use_db_data`
 
 ### 2. 뉴스 (`/api/news`)
 
@@ -95,11 +108,15 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 #### 3.1 일괄 수집
 - **POST `/api/data/collect-all`** - 전체 종목 일괄 수집
   - 쿼리: `days` (기본값: 1일, 최대: 365일)
-  - 가격, 매매동향, 뉴스 수집
+  - 가격, 매매동향, 뉴스, **펀더멘털** 수집
   - API Key 필요
 
 - **POST `/api/data/backfill`** - 히스토리 백필
   - 쿼리: `days` (기본값: 90일, 최대: 365일)
+  - API Key 필요
+
+- **POST `/api/data/collect-fundamentals`** - 전체 종목 펀더멘털 단독 일괄 수집
+  - STOCK/ETF별 펀더멘털을 `etf_fundamentals`·`stock_fundamentals` 등에 저장
   - API Key 필요
 
 #### 3.2 상태 조회
@@ -122,7 +139,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 #### 3.4 데이터베이스 관리
 - **DELETE `/api/data/reset`** - DB 초기화 (위험)
   - 삭제: `prices`, `news`, `trading_flow`, `collection_status`, `intraday_prices`
-  - 유지: `etfs`, `stock_catalog`, `alert_rules`, `alert_history`
+  - 유지: `etfs`, `stock_catalog`, `alert_rules`, `alert_history`, 펀더멘털 테이블(`etf_*`, `stock_*`)
   - API Key 필요
 
 ### 4. 설정·종목 관리 (`/api/settings`)
@@ -157,6 +174,12 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - **POST `/api/settings/ticker-catalog/collect`** - 전체 종목 목록 수집
   - 코스피, 코스닥, ETF → `stock_catalog` 저장
   - API Key 필요
+- **GET `/api/settings/ticker-catalog/collect-progress`** - 카탈로그 수집 진행률
+
+#### 4.4 API 키 관리
+- **GET `/api/settings/api-keys`** - 등록된 API 키 목록 조회(값 마스킹)
+- **PUT `/api/settings/api-keys`** - API 키 저장/수정 (`backend/config/api-keys.json`)
+  - Naver(`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`), Perplexity(`PERPLEXITY_API_KEY`) 등을 화면에서 입력
 
 ### 5. 알림 (`/api/alerts`)
 
@@ -233,7 +256,14 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
   - 응답: 종목별 결과(배정금·매수가·주수·현재가·수익률), 일별 포트폴리오 가치 시리즈
   - 중복 티커 검증, forward-fill 적용, 캐시: 5분
 
-### 8. 시스템
+### 8. 시장 지수 (`/api/market`)
+
+- **GET `/api/market/overview`** - KOSPI/KOSDAQ 지수 현황
+  - 현재가, 등락폭, 등락률 (네이버 모바일 API), 캐시 30초
+- **GET `/api/market/index/{code}/chart`** - 지수 일별 차트
+  - `code`: KOSPI/KOSDAQ, 쿼리: `period` (1M/3M/6M/1Y/3Y, 기본 3M), 캐시 5분
+
+### 9. 시스템
 
 - **GET `/api/health`** - 헬스 체크
 
@@ -244,6 +274,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 ### 1. 대시보드 (`/`)
 
 #### 기본 기능
+- **MarketOverview**: 상단 KOSPI/KOSDAQ 지수 현황(현재가·등락률), 클릭 시 **MarketIndexModal**에서 기간별(1M~3Y) 지수 차트
+- **RecommendationCards**: 추천 프리셋(주간 상위, 외국인/기관 매수, 거래량 상위 등) 빠른 진입
 - 등록 종목 카드 그리드 + **히트맵** (PortfolioHeatmap)
 - 히트맵: 종목별 종가·일간 변동률·주간 수익률, 투자/관심 구분(테두리·크기)
 - 종목별 최신 가격, 등락률, 거래량, 주간 수익률 미니 차트
@@ -284,6 +316,9 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - **IntradayChart**: 분봉 차트(당일/지정일)
 - 고급 분석: RSI, MACD, 지지/저항 (토글)
 
+#### 목표가·알림
+- **PriceTargetPanel**: 종목별 목표가/알림 규칙 설정·표시, `useAlertChecker`로 현재가와 비교해 조건 충족 시 알림
+
 #### 테이블·뉴스
 - **PriceTable**: 일자, 시가, 고가, 저가, 종가, 거래량, 등락률, 페이지네이션·정렬
 - **NewsTimeline**: 최근 뉴스, 제목·출처·URL(새 탭)
@@ -293,11 +328,13 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 ### 3. 종목 비교 (`/compare`)
 
-- **TickerSelector**: 드롭다운 멀티 셀렉트, 2–6개, 종목별 색상
+- **TickerSelector**: 드롭다운 멀티 셀렉트, 2–20개, 종목별 색상
 - 날짜 범위: 프리셋(7일/1개월/3개월), 커스텀
 - **NormalizedPriceChart**: 시작일=100 정규화 라인 차트, 툴팁
 - **ComparisonTable**: 수익률, 연환산 수익률, 변동성, MDD, 샤프, 데이터 개수, 색상 코딩
-- 상관관계 행렬(히트맵)
+- **CorrelationHeatmap**: 종목 간 상관관계 행렬 히트맵
+- **RiskReturnScatter**: 위험(변동성)–수익 산점도
+- **InvestmentSimulation**: 비교 종목 기반 간이 투자 시뮬레이션
 
 ### 4. 포트폴리오 (`/portfolio`)
 
@@ -307,6 +344,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - **PortfolioTrendChart**: 일별 포트폴리오 추이
 - **ContributionTable**: 종목별 기여도 테이블
 - **PortfolioAnalysisReport**: 분석 리포트 토글
+- **AIInvestmentReport**: Perplexity AI 기반 포트폴리오 투자 분석 리포트 (`ai-prompt-multi` 활용)
 
 ### 5. 종목 발굴 (`/scanner`)
 
@@ -365,8 +403,12 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - 전체 수집, 백필 버튼
 - DB 통계, 캐시 통계, 캐시 클리어, DB 초기화(위험)
 
+#### API 키 관리 (ApiKeysPanel)
+- Naver(뉴스), Perplexity(AI 분석) API 키 입력·저장 (`api-keys.json`)
+- 저장된 키는 마스킹 표시
+
 #### 저장
-- 설정은 LocalStorage 저장, 실시간 반영
+- 설정은 LocalStorage 저장, 실시간 반영 (API 키는 서버 `api-keys.json`에 저장)
 
 ### 9. 공통 기능
 
@@ -396,6 +438,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 ### MCP 서버 (`mcp-server/`)
 Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(tool)로 직접 호출합니다.
 
+현재 12개 도구를 제공합니다.
+
 | 도구 | API 경로 |
 |------|---------|
 | `list_stocks` | GET /api/etfs |
@@ -410,10 +454,6 @@ Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(
 | `scan_stocks` | GET /api/scanner |
 | `get_recommendations` | GET /api/scanner/recommendations |
 | `get_themes` | GET /api/scanner/themes |
-| `simulate_lump_sum` | POST /api/simulation/lump-sum |
-| `simulate_dca` | POST /api/simulation/dca |
-| `simulate_portfolio` | POST /api/simulation/portfolio |
-| `get_db_stats` | GET /api/data/stats |
 
 환경 변수: `ETF_REPORT_BASE_URL` (기본: `http://localhost:8000`), `ETF_REPORT_API_KEY`
 설정 가이드: [SDK_MCP_SETUP_GUIDE.md](./SDK_MCP_SETUP_GUIDE.md)
@@ -437,8 +477,10 @@ Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(
 - 분봉: `intraday` 요청 시 `auto_collect` 옵션으로 수집 가능
 
 ### 데이터 소스
-- **네이버 금융**: 가격, 매매동향, 분봉
-- **네이버 검색 API**: 뉴스
+- **네이버 금융**: 가격, 매매동향, 분봉, 펀더멘털
+- **네이버 모바일 API**: KOSPI/KOSDAQ 시장 지수
+- **네이버 검색 API**: 뉴스 (API 키 필요)
+- **Perplexity AI(sonar)**: 종목·포트폴리오 AI 분석 리포트 (API 키 필요)
 
 ---
 

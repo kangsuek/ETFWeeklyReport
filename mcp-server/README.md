@@ -42,7 +42,7 @@ ETF_REPORT_BASE_URL=http://localhost:8000 etf-report-mcp
 }
 ```
 
-## 제공 도구 (16개)
+## 제공 도구 (12개)
 
 | 도구 | 설명 |
 |------|------|
@@ -58,7 +58,3 @@ ETF_REPORT_BASE_URL=http://localhost:8000 etf-report-mcp
 | `scan_stocks` | 조건 기반 종목 스캔 |
 | `get_recommendations` | 추천 종목 조회 |
 | `get_themes` | 투자 테마 목록 조회 |
-| `simulate_lump_sum` | 일시 투자 시뮬레이션 |
-| `simulate_dca` | 적립식 투자 시뮬레이션 |
-| `simulate_portfolio` | 포트폴리오 시뮬레이션 |
-| `get_db_stats` | 데이터베이스 통계 조회 |

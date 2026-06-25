@@ -25,17 +25,19 @@
 ┌───────▼────────┐  ┌────────────────▼────────────────┐  ┌──────────▼──────────┐
 │ Data Collector │  │  Scheduler (APScheduler)         │  │  News Scraper       │
 │ · 가격/매매동향  │  │  · 주기 수집 (N분 간격)          │  │  (Naver Search API) │
-│ · 분봉          │  │  · 일일 수집 (평일 15:30 KST)    │  └───────────────────┘
-│ (Naver Finance) │  │  · 종목 목록 수집 (주간)         │
-└───────┬────────┘  └────────────────┬────────────────┘
+│ · 분봉/펀더멘털  │  │  · 일일 수집 (평일 15:30 KST)    │  ├─────────────────────┤
+│ · 시장 지수      │  │  · 종목 목록 수집 (주간)         │  │  Perplexity AI      │
+│ (Naver Finance) │  │                                  │  │  (sonar, 분석 리포트)│
+└───────┬────────┘  └────────────────┬────────────────┘  └─────────────────────┘
         │                             │
         └──────────────┬──────────────┘
                         │
-              ┌─────────▼─────────┐     ┌──────────────────┐
-              │  Database         │     │  Config           │
-              │  SQLite / PostgreSQL│     │  stocks.json      │
-              │  (가격, 뉴스, 매매동향, 분봉) │  (종목 목록)       │
-              └───────────────────┘     └──────────────────┘
+              ┌─────────▼───────────┐   ┌──────────────────┐
+              │  Database           │   │  Config           │
+              │  SQLite / PostgreSQL│   │  stocks.json      │
+              │  (가격, 뉴스, 매매동향,│   │  (종목 목록)       │
+              │   분봉, 펀더멘털, 알림) │   │  api-keys.json    │
+              └─────────────────────┘   └──────────────────┘
 ```
 
 ---
@@ -52,26 +54,31 @@ backend/app/
 ├── exceptions.py        # 커스텀 예외
 ├── constants.py         # 상수 (캐시 TTL, 에러 메시지 등)
 ├── routers/
-│   ├── etfs.py          # /api/etfs — 종목 목록, 가격, 매매동향, 지표, 인사이트, 비교, 배치요약, 분봉
+│   ├── etfs.py          # /api/etfs — 종목 목록, 가격, 매매동향, 지표, 인사이트, 비교, 배치요약, 분봉, 펀더멘털, AI 프롬프트
 │   ├── news.py          # /api/news — 뉴스 조회·수집
-│   ├── data.py          # /api/data — 일괄 수집, 백필, 상태, 스케줄러 상태, 캐시, DB 초기화
-│   ├── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
+│   ├── data.py          # /api/data — 일괄 수집, 백필, 펀더멘털 수집, 상태, 스케줄러 상태, 캐시, DB 초기화
+│   ├── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집, API 키 관리
 │   ├── alerts.py        # /api/alerts — 알림 규칙 CRUD, 트리거 기록, 이력 조회
 │   ├── scanner.py      # /api/scanner — 조건 검색, 테마 탐색, 추천, 데이터 수집
-│   └── simulation.py    # /api/simulation — 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
+│   ├── simulation.py    # /api/simulation — 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
+│   └── market.py        # /api/market — KOSPI/KOSDAQ 지수 현황·일별 차트 (네이버 모바일 API)
 ├── services/
-│   ├── data_collector.py         # 가격·매매동향 수집 (Naver Finance)
-│   ├── intraday_collector.py    # 분봉 수집
-│   ├── news_scraper.py           # 뉴스 수집 (Naver Search API)
-│   ├── news_analyzer.py          # 뉴스 분석
-│   ├── insights_service.py       # 인사이트 생성 (전략, 핵심 포인트)
-│   ├── comparison_service.py     # 종목 비교 (정규화 가격, 통계, 상관관계)
-│   ├── simulation_service.py     # 투자 시뮬레이션 (일시/적립식/포트폴리오)
-│   ├── catalog_data_collector.py # 스크리닝용 카탈로그 데이터 수집 (가격·수급)
-│   ├── progress.py               # 백그라운드 작업 진행률 관리
-│   ├── scheduler.py              # 주기/일일/백필/종목목록 수집 스케줄
-│   ├── ticker_scraper.py         # 티커 검증 (네이버 스크래핑)
-│   └── ticker_catalog_collector.py # 코스피/코스닥/ETF 종목 목록 수집
+│   ├── data_collector.py              # 가격·매매동향 수집 (Naver Finance)
+│   ├── naver_finance_scraper.py       # 네이버 금융 스크래핑 공통 모듈
+│   ├── intraday_collector.py          # 분봉 수집
+│   ├── news_scraper.py                # 뉴스 수집 (Naver Search API)
+│   ├── news_analyzer.py               # 뉴스 분석
+│   ├── insights_service.py            # 인사이트 생성 (전략, 핵심 포인트)
+│   ├── comparison_service.py          # 종목 비교 (정규화 가격, 통계, 상관관계)
+│   ├── simulation_service.py          # 투자 시뮬레이션 (일시/적립식/포트폴리오)
+│   ├── etf_fundamentals_collector.py  # ETF 펀더멘털 수집 (NAV/AUM, 구성종목, 분배금, 리밸런싱)
+│   ├── stock_fundamentals_collector.py# 주식 펀더멘털 수집 (PER/PBR/ROE, 실적, 배당)
+│   ├── perplexity_service.py          # Perplexity AI 분석 프롬프트 생성·리포트 (sonar 모델)
+│   ├── catalog_data_collector.py      # 스크리닝용 카탈로그 데이터 수집 (가격·수급)
+│   ├── progress.py                    # 백그라운드 작업 진행률 관리
+│   ├── scheduler.py                   # 주기/일일/백필/종목목록 수집 스케줄
+│   ├── ticker_scraper.py              # 티커 검증 (네이버 스크래핑)
+│   └── ticker_catalog_collector.py    # 코스피/코스닥/ETF 종목 목록 수집
 ├── middleware/
 │   ├── auth.py          # API Key 검증
 │   └── rate_limit.py    # SlowAPI 기반 Rate Limit
@@ -85,7 +92,7 @@ backend/app/
 
 **레이어**: Router(HTTP) → Service(비즈니스 로직) → DB / 외부 API
 
-**설정**: 환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용. 종목 목록은 `backend/config/stocks.json` + DB 동기화.
+**설정**: 환경 변수는 **프로젝트 루트**의 `.env` 한 파일만 사용. 종목 목록은 `backend/config/stocks.json` + DB 동기화. 외부 API 키(Naver, Perplexity)는 Settings 화면에서 `backend/config/api-keys.json`으로 관리하며, 시작·저장 시 `os.environ`으로 로드됨.
 
 ---
 
@@ -101,7 +108,7 @@ ETFWeeklyReport/
 └── mcp-server/
     ├── src/etf_report_mcp/
     │   ├── __init__.py
-    │   └── server.py       # MCP 서버 구현 (16개 tool)
+    │   └── server.py       # MCP 서버 구현 (12개 tool)
     ├── pyproject.toml
     └── README.md
 ```
@@ -129,20 +136,20 @@ frontend/src/
 │   └── Settings.jsx     # 설정 (종목 관리, 일반 설정, 데이터 관리)
 ├── components/
 │   ├── layout/          # Header, Footer
-│   ├── dashboard/       # DashboardFilters, ETFCardGrid, PortfolioHeatmap
-│   ├── etf/             # ETFCard, ETFHeader, ETFCharts, StrategySummary, InsightSummary, StatsSummary, PriceTable
-│   ├── charts/          # PriceChart, TradingFlowChart, RSIChart, MACDChart, IntradayChart, DateRangeSelector
-│   ├── comparison/      # TickerSelector, NormalizedPriceChart, ComparisonTable
-│   ├── portfolio/       # PortfolioSummaryCards, AllocationPieChart, PortfolioTrendChart, ContributionTable, PortfolioAnalysisReport
+│   ├── dashboard/       # DashboardFilters, ETFCardGrid, PortfolioHeatmap, MarketOverview, MarketIndexModal, RecommendationCards
+│   ├── etf/             # ETFCard, ETFHeader, ETFCharts, StrategySummary, InsightSummary, StatsSummary, PriceTable, PriceTargetPanel
+│   ├── charts/          # PriceChart, TradingFlowChart, RSIChart, MACDChart, IntradayChart, DateRangeSelector, ChartSkeleton
+│   ├── comparison/      # TickerSelector, NormalizedPriceChart, ComparisonTable, CorrelationHeatmap, RiskReturnScatter, InvestmentSimulation
+│   ├── portfolio/       # PortfolioSummaryCards, AllocationPieChart, PortfolioTrendChart, ContributionTable, PortfolioAnalysisReport, AIInvestmentReport
 │   ├── screening/       # ScreeningFilters, ScreeningTable, ScreeningHeatmap, ThemeExplorer
 │   ├── simulation/      # LumpSumSimulation, DCASimulation, PortfolioSimulation
-│   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel, TickerDeleteConfirm
+│   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel, TickerDeleteConfirm, ApiKeysPanel
 │   ├── news/            # NewsTimeline
-│   └── common/          # PageHeader, Spinner, LoadingIndicator, ErrorBoundary, Toast, ETFCardSkeleton
+│   └── common/          # PageHeader, Spinner, LoadingIndicator, ErrorBoundary, ErrorFallback, Toast, ToastContainer, InfoTooltip, ETFCardSkeleton
 ├── contexts/             # SettingsContext, ToastContext, AlertContext
-├── hooks/                # useContainerWidth, useWindowSize
-├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, scannerApi, simulationApi)
-├── utils/                # format, chartUtils, dateRange, portfolio, portfolioAnalysis, returns, technicalIndicators, validation, insights, newsAnalyzer
+├── hooks/                # useContainerWidth, useWindowSize, useAlertChecker
+├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, scannerApi, simulationApi, marketApi)
+├── utils/                # format, formatters, chartUtils, dateRange, portfolio, portfolioAnalysis, returns, technicalIndicators, validation, insights, newsAnalyzer
 ├── styles/               # index.css (Tailwind)
 └── test/                 # Vitest setup, mocks (MSW), polyfills, utils
 ```
@@ -158,15 +165,20 @@ frontend/src/
 ### 데이터 수집
 1. **주기 수집**: 스케줄러가 N분(설정값)마다 실행 — 가격, 매매동향, 뉴스 수집.
 2. **일일 수집**: 평일 15:30 KST — 당일 데이터 일괄 수집.
-3. **수동**: `POST /api/data/collect-all`, `POST /api/etfs/{ticker}/collect` 등.
+3. **수동**: `POST /api/data/collect-all`(가격·매매동향·뉴스·펀더멘털), `POST /api/etfs/{ticker}/collect` 등.
 4. **분봉**: 종목 상세 페이지 요청 시 데이터 없으면 자동 수집 가능. 또는 `POST /api/etfs/{ticker}/collect-intraday`.
+5. **펀더멘털**: `POST /api/data/collect-fundamentals`(전체) 또는 `POST /api/etfs/{ticker}/collect-fundamentals` — STOCK은 실적/배당, ETF는 NAV/구성종목/분배금.
+6. **시장 지수**: `GET /api/market/overview`·`/index/{code}/chart` — 네이버 모바일 API에서 KOSPI/KOSDAQ을 온디맨드 조회(30초~5분 캐시).
+
+### AI 분석
+- **Perplexity AI**: `GET /api/etfs/{ticker}/ai-prompt`·`POST /api/etfs/ai-prompt-multi`로 분석 프롬프트를 생성하고, `perplexity_service`가 sonar 모델로 리포트를 생성. `prompt/perplexity.md` 템플릿 사용, `PERPLEXITY_API_KEY` 필요(Settings의 API 키 관리에서 입력).
 
 ### API 요청 흐름
 ```
 Frontend (TanStack Query / Axios) → FastAPI Router → Service → DB 또는 외부 API → 응답
 ```
-- 대시보드: `GET /api/etfs` + `POST /api/etfs/batch-summary` 로 N+1 방지.
-- 종목 상세: 가격, 매매동향, 인사이트, 분봉, 뉴스 등 개별 또는 병렬 요청.
+- 대시보드: `GET /api/etfs` + `POST /api/etfs/batch-summary` 로 N+1 방지. 상단 시장 지수는 `GET /api/market/overview`.
+- 종목 상세: 가격, 매매동향, 인사이트, 분봉, 뉴스, 펀더멘털 등 개별 또는 병렬 요청.
 
 ---
 

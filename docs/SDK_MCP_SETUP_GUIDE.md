@@ -253,7 +253,7 @@ curl http://localhost:8000/api/data/stats
 ```
 list_stocks 도구를 써서 등록된 종목 목록을 보여줘
 get_etf_prices 로 487240 최근 7일 가격을 조회해줘
-simulate_lump_sum 으로 487240을 2024-01-01에 1,000,000원 투자했다면 현재 수익률은?
+compare_etfs 로 487240, 466920 두 종목의 최근 1개월 수익률을 비교해줘
 ```
 
 ---

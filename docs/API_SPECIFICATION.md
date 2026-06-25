@@ -123,6 +123,15 @@
 
 ---
 
+## 9. 시장 지수 (`/api/market`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/market/overview` | KOSPI/KOSDAQ 지수 현황(현재가, 등락폭, 등락률). 네이버 모바일 API 기반, 캐시 30초 |
+| GET | `/api/market/index/{code}/chart` | 지수 일별 차트. `code`: KOSPI/KOSDAQ. Query: `period` (1M/3M/6M/1Y/3Y, 기본 3M). 캐시 5분 |
+
+---
+
 ## 에러 코드
 | 코드 | 설명 |
 |-----|------|
