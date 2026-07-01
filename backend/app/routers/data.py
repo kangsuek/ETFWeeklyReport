@@ -136,17 +136,14 @@ async def collect_all_data(
         fundamentals_success = 0
         fundamentals_failed = 0
         try:
-            from app.database import get_db_connection, USE_POSTGRES
+            from app.database import get_db_connection
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    _cursor = conn_or_cursor
-                else:
-                    _cursor = conn_or_cursor.cursor()
+                _cursor = conn_or_cursor.cursor()
                 _cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
                 ticker_rows = _cursor.fetchall()
 
             all_tickers = [
-                (r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1])
+                (r[0], r[1])
                 for r in ticker_rows
             ]
             etf_collector = ETFFundamentalsCollector()
@@ -366,40 +363,34 @@ async def get_data_stats(request: Request):
         return cached_result
 
     try:
-        from app.database import get_db_connection, DB_PATH, USE_POSTGRES
+        from app.database import get_db_connection, DB_PATH
 
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-            else:
-                cursor = conn_or_cursor.cursor()
+            cursor = conn_or_cursor.cursor()
 
             # 각 테이블의 레코드 수 조회
             cursor.execute("SELECT COUNT(*) as cnt FROM etfs")
             result = cursor.fetchone()
-            etfs_count = result['cnt'] if USE_POSTGRES else result[0]
+            etfs_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM prices")
             result = cursor.fetchone()
-            prices_count = result['cnt'] if USE_POSTGRES else result[0]
+            prices_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM news")
             result = cursor.fetchone()
-            news_count = result['cnt'] if USE_POSTGRES else result[0]
+            news_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM trading_flow")
             result = cursor.fetchone()
-            trading_flow_count = result['cnt'] if USE_POSTGRES else result[0]
+            trading_flow_count = result[0]
 
             # stock_catalog 테이블의 종목 목록 수 조회
             # PostgreSQL: is_active는 BOOLEAN, SQLite: INTEGER (1/0)
-            if USE_POSTGRES:
-                cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = TRUE")
-            else:
-                cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = 1")
+            cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = 1")
             result = cursor.fetchone()
-            stock_catalog_count = result['cnt'] if USE_POSTGRES else result[0]
+            stock_catalog_count = result[0]
 
             # 마지막 수집 시간 (스케줄러의 수집 실행 시간을 우선 사용)
             last_collection = None
@@ -421,7 +412,7 @@ async def get_data_stats(request: Request):
                     FROM prices
                 """)
                 result = cursor.fetchone()
-                last_price_date = result['last_date'] if USE_POSTGRES else result[0]
+                last_price_date = result[0]
 
                 if last_price_date:
                     # 날짜를 datetime으로 변환
@@ -437,16 +428,7 @@ async def get_data_stats(request: Request):
                         last_collection = str(last_price_date)
 
             # 데이터베이스 파일 크기 (MB) - SQLite만 해당
-            if USE_POSTGRES:
-                # PostgreSQL에서는 데이터베이스 크기 조회
-                try:
-                    cursor.execute("SELECT pg_database_size(current_database()) as size")
-                    result = cursor.fetchone()
-                    db_size_bytes = result['size'] if result else 0
-                except Exception:
-                    db_size_bytes = 0
-            else:
-                db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH and DB_PATH.exists() else 0
+            db_size_bytes = os.path.getsize(DB_PATH) if DB_PATH and DB_PATH.exists() else 0
             db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
 
             result = {
@@ -513,20 +495,17 @@ async def collect_all_fundamentals(request: Request, api_key: str = Depends(veri
     - ETF: 네이버 NAV 추이 + 구성종목 → etf_fundamentals, etf_holdings
     """
     import asyncio
-    from app.database import get_db_connection, USE_POSTGRES
+    from app.database import get_db_connection
 
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-            else:
-                cursor = conn_or_cursor.cursor()
+            cursor = conn_or_cursor.cursor()
             cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
             rows = cursor.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
 
-    tickers = [(r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1]) for r in rows]
+    tickers = [(r[0], r[1]) for r in rows]
     results = []
 
     for ticker, etf_type in tickers:
@@ -606,40 +585,36 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
     - 500: 서버 오류
     """
     try:
-        from app.database import get_db_connection, USE_POSTGRES
+        from app.database import get_db_connection
 
         logger.info("Database reset started")
         
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             # 삭제 전 레코드 수 확인
             logger.debug("Counting records before deletion...")
             cursor.execute("SELECT COUNT(*) as cnt FROM prices")
             result = cursor.fetchone()
-            prices_count = result['cnt'] if USE_POSTGRES else result[0]
+            prices_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM news")
             result = cursor.fetchone()
-            news_count = result['cnt'] if USE_POSTGRES else result[0]
+            news_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM trading_flow")
             result = cursor.fetchone()
-            trading_flow_count = result['cnt'] if USE_POSTGRES else result[0]
+            trading_flow_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM collection_status")
             result = cursor.fetchone()
-            collection_status_count = result['cnt'] if USE_POSTGRES else result[0]
+            collection_status_count = result[0]
 
             cursor.execute("SELECT COUNT(*) as cnt FROM intraday_prices")
             result = cursor.fetchone()
-            intraday_prices_count = result['cnt'] if USE_POSTGRES else result[0]
+            intraday_prices_count = result[0]
 
             logger.info(
                 f"Records to delete: prices={prices_count}, news={news_count}, "
@@ -650,34 +625,33 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
             # 테이블 데이터 삭제 (etfs 제외)
             logger.debug("Deleting data from tables...")
             cursor.execute("DELETE FROM prices")
-            deleted_prices = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            deleted_prices = cursor.rowcount
             logger.debug(f"Deleted {deleted_prices} rows from prices")
 
             cursor.execute("DELETE FROM news")
-            deleted_news = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            deleted_news = cursor.rowcount
             logger.debug(f"Deleted {deleted_news} rows from news")
 
             cursor.execute("DELETE FROM trading_flow")
-            deleted_trading_flow = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            deleted_trading_flow = cursor.rowcount
             logger.debug(f"Deleted {deleted_trading_flow} rows from trading_flow")
 
             cursor.execute("DELETE FROM collection_status")
-            deleted_collection_status = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            deleted_collection_status = cursor.rowcount
             logger.debug(f"Deleted {deleted_collection_status} rows from collection_status")
 
             cursor.execute("DELETE FROM intraday_prices")
-            deleted_intraday = cursor.rowcount if USE_POSTGRES else cursor.rowcount
+            deleted_intraday = cursor.rowcount
             logger.debug(f"Deleted {deleted_intraday} rows from intraday_prices")
 
             # SQLite의 경우 sqlite_sequence 테이블 초기화 (AUTOINCREMENT ID를 1부터 다시 시작)
-            if not USE_POSTGRES:
-                logger.debug("Resetting SQLite sequences...")
-                try:
-                    cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('prices', 'news', 'trading_flow', 'intraday_prices')")
-                    logger.debug("SQLite sequences reset")
-                except Exception as seq_error:
-                    # sqlite_sequence 테이블이 없을 수도 있음 (테이블에 데이터가 없으면 생성되지 않음)
-                    logger.warning(f"Could not reset sqlite_sequence (may not exist): {seq_error}")
+            logger.debug("Resetting SQLite sequences...")
+            try:
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('prices', 'news', 'trading_flow', 'intraday_prices')")
+                logger.debug("SQLite sequences reset")
+            except Exception as seq_error:
+                # sqlite_sequence 테이블이 없을 수도 있음 (테이블에 데이터가 없으면 생성되지 않음)
+                logger.warning(f"Could not reset sqlite_sequence (may not exist): {seq_error}")
 
             # 커밋 전 로그
             logger.debug("Committing transaction...")
@@ -685,10 +659,9 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
             logger.info("Transaction committed successfully")
 
             # SQLite VACUUM: 전체 초기화이므로 빈 페이지를 회수하여 파일 크기 축소
-            if not USE_POSTGRES:
-                logger.debug("Running VACUUM to reclaim disk space...")
-                conn.execute("VACUUM")
-                logger.info("VACUUM completed")
+            logger.debug("Running VACUUM to reclaim disk space...")
+            conn.execute("VACUUM")
+            logger.info("VACUUM completed")
 
             logger.warning(
                 f"Database reset: deleted {prices_count} prices, {news_count} news, "

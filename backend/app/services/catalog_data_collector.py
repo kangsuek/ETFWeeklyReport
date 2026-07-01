@@ -15,7 +15,7 @@ from datetime import datetime
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
@@ -190,14 +190,9 @@ class CatalogDataCollector:
 
             # Step 2: DB에서 기존 상태 일괄 조회
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                    p = "%s"
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
-                    p = "?"
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+                p = "?"
 
                 cursor.execute("""
                     SELECT ticker, close_price, week_base_price, week_base_date, weekly_return
@@ -241,16 +236,12 @@ class CatalogDataCollector:
 
             logger.info(f"수급 수집 완료: {len(supply_map)}/{len(top_tickers)}개")
 
-            # Step 4+5: 전체 종목 UPDATE
+            # Step 4+5: 전체 종목 UPSERT (빈 stock_catalog에서도 신규 종목 INSERT)
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                    p = "%s"
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
-                    p = "?"
+                conn = conn_or_cursor
+                cursor = conn.cursor()
+                p = "?"
+                active_val = "1"
 
                 top_ticker_set = set(top_tickers)
 
@@ -261,22 +252,34 @@ class CatalogDataCollector:
                     db_row = existing_db.get(ticker, {})
 
                     if ticker in top_ticker_set and ticker in supply_map:
-                        # 상위 N개: 수급 포함 업데이트
+                        # 상위 N개: 수급 포함 업데이트 (신규 종목은 INSERT)
                         sup = supply_map[ticker]
                         cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
-                                weekly_return = {p},
-                                foreign_net = {p}, institutional_net = {p},
-                                week_base_price = {p}, week_base_date = {p},
+                            INSERT INTO stock_catalog
+                                (ticker, name, type, market, is_active,
+                                 close_price, daily_change_pct, volume,
+                                 weekly_return, foreign_net, institutional_net,
+                                 week_base_price, week_base_date, catalog_updated_at)
+                            VALUES ({p}, {p}, 'STOCK', {p}, {active_val},
+                                    {p}, {p}, {p},
+                                    {p}, {p}, {p},
+                                    {p}, {p}, CURRENT_TIMESTAMP)
+                            ON CONFLICT(ticker) DO UPDATE SET
+                                close_price = excluded.close_price,
+                                daily_change_pct = excluded.daily_change_pct,
+                                volume = excluded.volume,
+                                weekly_return = excluded.weekly_return,
+                                foreign_net = excluded.foreign_net,
+                                institutional_net = excluded.institutional_net,
+                                week_base_price = excluded.week_base_price,
+                                week_base_date = excluded.week_base_date,
                                 catalog_updated_at = CURRENT_TIMESTAMP
-                            WHERE ticker = {p}
                         """, (
+                            ticker, s.get("name") or ticker, s.get("market"),
                             close_price, daily_change_pct, volume,
                             sup.get("weekly_return"),
                             sup.get("foreign_net"), sup.get("institutional_net"),
                             close_price, today_str,
-                            ticker
                         ))
                         if cursor.rowcount > 0:
                             updated += 1
@@ -318,17 +321,28 @@ class CatalogDataCollector:
                                 new_weekly_return = None
 
                         cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
-                                weekly_return = COALESCE({p}, weekly_return),
-                                week_base_price = {p}, week_base_date = {p},
+                            INSERT INTO stock_catalog
+                                (ticker, name, type, market, is_active,
+                                 close_price, daily_change_pct, volume,
+                                 weekly_return, week_base_price, week_base_date,
+                                 catalog_updated_at)
+                            VALUES ({p}, {p}, 'STOCK', {p}, {active_val},
+                                    {p}, {p}, {p},
+                                    {p}, {p}, {p},
+                                    CURRENT_TIMESTAMP)
+                            ON CONFLICT(ticker) DO UPDATE SET
+                                close_price = excluded.close_price,
+                                daily_change_pct = excluded.daily_change_pct,
+                                volume = excluded.volume,
+                                weekly_return = COALESCE(excluded.weekly_return, stock_catalog.weekly_return),
+                                week_base_price = excluded.week_base_price,
+                                week_base_date = excluded.week_base_date,
                                 catalog_updated_at = CURRENT_TIMESTAMP
-                            WHERE ticker = {p}
                         """, (
+                            ticker, s.get("name") or ticker, s.get("market"),
                             close_price, daily_change_pct, volume,
                             new_weekly_return,
                             new_base_price, new_base_date,
-                            ticker
                         ))
                         if cursor.rowcount > 0:
                             updated += 1
@@ -548,17 +562,13 @@ class CatalogDataCollector:
         supply_data: Dict[str, Dict[str, Any]]
     ) -> int:
         """수집된 데이터를 stock_catalog 테이블에 업데이트"""
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
         saved = 0
         now = datetime.now().isoformat()
 
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
                 all_tickers = set(price_data.keys()) | set(supply_data.keys())
@@ -568,59 +578,36 @@ class CatalogDataCollector:
                     supply = supply_data.get(ticker, {})
                     name = price.get('name') or ticker
 
-                    if USE_POSTGRES:
-                        # UPSERT: 신규 ETF도 INSERT (stock_catalog가 비어 있을 때 포함)
-                        cursor.execute(f"""
-                            INSERT INTO stock_catalog
-                                (ticker, name, type, market, is_active,
-                                 close_price, daily_change_pct, volume,
-                                 weekly_return, foreign_net, institutional_net,
-                                 catalog_updated_at)
-                            VALUES ({p}, {p}, 'ETF', 'ETF', TRUE,
-                                    {p}, {p}, {p},
-                                    {p}, {p}, {p},
-                                    {p})
-                            ON CONFLICT (ticker) DO UPDATE SET
-                                name = COALESCE(EXCLUDED.name, stock_catalog.name),
-                                close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
-                                daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
-                                volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
-                                weekly_return = COALESCE(EXCLUDED.weekly_return, stock_catalog.weekly_return),
-                                foreign_net = COALESCE(EXCLUDED.foreign_net, stock_catalog.foreign_net),
-                                institutional_net = COALESCE(EXCLUDED.institutional_net, stock_catalog.institutional_net),
-                                catalog_updated_at = EXCLUDED.catalog_updated_at
-                        """, (
-                            ticker, name,
-                            price.get('close_price'),
-                            price.get('daily_change_pct'),
-                            price.get('volume'),
-                            supply.get('weekly_return'),
-                            supply.get('foreign_net'),
-                            supply.get('institutional_net'),
-                            now,
-                        ))
-                    else:
-                        # SQLite: UPDATE only (기존 동작 유지)
-                        cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET close_price = COALESCE({p}, close_price),
-                                daily_change_pct = COALESCE({p}, daily_change_pct),
-                                volume = COALESCE({p}, volume),
-                                weekly_return = COALESCE({p}, weekly_return),
-                                foreign_net = COALESCE({p}, foreign_net),
-                                institutional_net = COALESCE({p}, institutional_net),
-                                catalog_updated_at = {p}
-                            WHERE ticker = {p}
-                        """, (
-                            price.get('close_price'),
-                            price.get('daily_change_pct'),
-                            price.get('volume'),
-                            supply.get('weekly_return'),
-                            supply.get('foreign_net'),
-                            supply.get('institutional_net'),
-                            now,
-                            ticker
-                        ))
+                    # SQLite: UPSERT (빈 stock_catalog에서도 신규 ETF INSERT)
+                    cursor.execute(f"""
+                        INSERT INTO stock_catalog
+                            (ticker, name, type, market, is_active,
+                             close_price, daily_change_pct, volume,
+                             weekly_return, foreign_net, institutional_net,
+                             catalog_updated_at)
+                        VALUES ({p}, {p}, 'ETF', 'ETF', 1,
+                                {p}, {p}, {p},
+                                {p}, {p}, {p},
+                                {p})
+                        ON CONFLICT(ticker) DO UPDATE SET
+                            name = COALESCE(excluded.name, stock_catalog.name),
+                            close_price = COALESCE(excluded.close_price, stock_catalog.close_price),
+                            daily_change_pct = COALESCE(excluded.daily_change_pct, stock_catalog.daily_change_pct),
+                            volume = COALESCE(excluded.volume, stock_catalog.volume),
+                            weekly_return = COALESCE(excluded.weekly_return, stock_catalog.weekly_return),
+                            foreign_net = COALESCE(excluded.foreign_net, stock_catalog.foreign_net),
+                            institutional_net = COALESCE(excluded.institutional_net, stock_catalog.institutional_net),
+                            catalog_updated_at = excluded.catalog_updated_at
+                    """, (
+                        ticker, name,
+                        price.get('close_price'),
+                        price.get('daily_change_pct'),
+                        price.get('volume'),
+                        supply.get('weekly_return'),
+                        supply.get('foreign_net'),
+                        supply.get('institutional_net'),
+                        now,
+                    ))
 
                     if cursor.rowcount > 0:
                         saved += 1
@@ -693,7 +680,7 @@ class CatalogDataCollector:
             (['코스닥150', 'KOSDAQ'], '코스닥지수'),
         ]
 
-        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+        is_active_cmp = "is_active = 1"
         cursor.execute(f"""
             SELECT ticker, name FROM stock_catalog
             WHERE (sector IS NULL OR sector = '') AND {is_active_cmp}

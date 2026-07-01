@@ -2,7 +2,7 @@ from typing import List, Optional, Dict
 from datetime import date, datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.models import ETF, PriceData, TradingFlow, ETFMetrics
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import (
@@ -309,58 +309,28 @@ class ETFDataCollector:
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
                 # PostgreSQL과 SQLite의 문법 차이
-                if USE_POSTGRES:
-                    cursor.executemany("""
-                        INSERT INTO prices
-                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (ticker, date) DO UPDATE SET
-                            open_price = EXCLUDED.open_price,
-                            high_price = EXCLUDED.high_price,
-                            low_price = EXCLUDED.low_price,
-                            close_price = EXCLUDED.close_price,
-                            volume = EXCLUDED.volume,
-                            daily_change_pct = EXCLUDED.daily_change_pct
-                    """, [
-                        (
-                            data['ticker'],
-                            data['date'],
-                            data['open_price'],
-                            data['high_price'],
-                            data['low_price'],
-                            data['close_price'],
-                            data['volume'],
-                            data['daily_change_pct']
-                        )
-                        for data in valid_data
-                    ])
-                else:
-                    cursor.executemany("""
-                        INSERT OR REPLACE INTO prices
-                        (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, [
-                        (
-                            data['ticker'],
-                            data['date'],
-                            data['open_price'],
-                            data['high_price'],
-                            data['low_price'],
-                            data['close_price'],
-                            data['volume'],
-                            data['daily_change_pct']
-                        )
-                        for data in valid_data
-                    ])
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO prices
+                    (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    (
+                        data['ticker'],
+                        data['date'],
+                        data['open_price'],
+                        data['high_price'],
+                        data['low_price'],
+                        data['close_price'],
+                        data['volume'],
+                        data['daily_change_pct']
+                    )
+                    for data in valid_data
+                ])
 
                 conn.commit()
                 saved_count = len(valid_data)
@@ -439,8 +409,7 @@ class ETFDataCollector:
     def get_etf_info(self, ticker: str) -> Optional[ETF]:
         """Get basic info for specific ETF"""
         import json
-        from app.database import USE_POSTGRES
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        param_placeholder = "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
             cursor.execute(f"SELECT * FROM etfs WHERE ticker = {param_placeholder}", (ticker,))
@@ -466,7 +435,7 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
             cursor.execute(f"""
@@ -494,7 +463,7 @@ class ETFDataCollector:
         Returns:
             {'min_date': date, 'max_date': date, 'count': int} 또는 None (데이터 없는 경우)
         """
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
             cursor.execute(f"""
@@ -529,7 +498,7 @@ class ETFDataCollector:
             PriceData 리스트 (날짜 내림차순 정렬)
         """
         logger.debug(f"Fetching prices for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -565,7 +534,7 @@ class ETFDataCollector:
             TradingFlow 리스트 (날짜 내림차순 정렬)
         """
         logger.debug(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -599,7 +568,7 @@ class ETFDataCollector:
             ETFMetrics with calculated values
         """
         logger.debug(f"Calculating metrics for {ticker}")
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         try:
             with get_db_connection() as conn_or_cursor:
@@ -1285,49 +1254,25 @@ class ETFDataCollector:
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
                 # PostgreSQL과 SQLite의 문법 차이
-                if USE_POSTGRES:
-                    cursor.executemany("""
-                        INSERT INTO trading_flow
-                        (ticker, date, individual_net, institutional_net, foreign_net)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (ticker, date) DO UPDATE SET
-                            individual_net = EXCLUDED.individual_net,
-                            institutional_net = EXCLUDED.institutional_net,
-                            foreign_net = EXCLUDED.foreign_net
-                    """, [
-                        (
-                            data['ticker'],
-                            data['date'],
-                            data.get('individual_net'),
-                            data.get('institutional_net'),
-                            data.get('foreign_net')
-                        )
-                        for data in valid_data
-                    ])
-                else:
-                    cursor.executemany("""
-                        INSERT OR REPLACE INTO trading_flow
-                        (ticker, date, individual_net, institutional_net, foreign_net)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, [
-                        (
-                            data['ticker'],
-                            data['date'],
-                            data.get('individual_net'),
-                            data.get('institutional_net'),
-                            data.get('foreign_net')
-                        )
-                        for data in valid_data
-                    ])
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO trading_flow
+                    (ticker, date, individual_net, institutional_net, foreign_net)
+                    VALUES (?, ?, ?, ?, ?)
+                """, [
+                    (
+                        data['ticker'],
+                        data['date'],
+                        data.get('individual_net'),
+                        data.get('institutional_net'),
+                        data.get('foreign_net')
+                    )
+                    for data in valid_data
+                ])
 
                 conn.commit()
                 saved_count = len(valid_data)
@@ -1388,7 +1333,7 @@ class ETFDataCollector:
             매매동향 데이터 리스트
         """
         logger.debug(f"Fetching trading flow for {ticker} from {start_date} to {end_date}" + (f" (limit: {limit})" if limit else ""))
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -1430,7 +1375,7 @@ class ETFDataCollector:
             return {}
 
         logger.debug(f"Batch fetching prices for {len(tickers)} tickers from {start_date} to {end_date}")
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -1491,7 +1436,7 @@ class ETFDataCollector:
             return {}
 
         logger.debug(f"Batch fetching trading flow for {len(tickers)} tickers from {start_date} to {end_date}")
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -1545,7 +1490,7 @@ class ETFDataCollector:
             return {}
 
         logger.info(f"Batch fetching latest prices for {len(tickers)} tickers")
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)

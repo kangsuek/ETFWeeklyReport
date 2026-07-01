@@ -6,7 +6,7 @@
 
 from typing import List, Optional, Dict
 from datetime import datetime, date, timedelta
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
@@ -36,7 +36,7 @@ class IntradayDataCollector:
         Returns:
             마지막 거래일 또는 None
         """
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -226,54 +226,26 @@ class IntradayDataCollector:
             return 0
 
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
-                if USE_POSTGRES:
-                    cursor.executemany("""
-                        INSERT INTO intraday_prices
-                        (ticker, datetime, price, change_amount, volume, bid_volume, ask_volume)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (ticker, datetime) DO UPDATE SET
-                            price = EXCLUDED.price,
-                            change_amount = EXCLUDED.change_amount,
-                            volume = EXCLUDED.volume,
-                            bid_volume = EXCLUDED.bid_volume,
-                            ask_volume = EXCLUDED.ask_volume
-                    """, [
-                        (
-                            d['ticker'],
-                            d['datetime'],
-                            d['price'],
-                            d.get('change_amount'),
-                            d.get('volume'),
-                            d.get('bid_volume'),
-                            d.get('ask_volume')
-                        )
-                        for d in intraday_data
-                    ])
-                else:
-                    cursor.executemany("""
-                        INSERT OR REPLACE INTO intraday_prices
-                        (ticker, datetime, price, change_amount, volume, bid_volume, ask_volume)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, [
-                        (
-                            d['ticker'],
-                            d['datetime'],
-                            d['price'],
-                            d.get('change_amount'),
-                            d.get('volume'),
-                            d.get('bid_volume'),
-                            d.get('ask_volume')
-                        )
-                        for d in intraday_data
-                    ])
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO intraday_prices
+                    (ticker, datetime, price, change_amount, volume, bid_volume, ask_volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    (
+                        d['ticker'],
+                        d['datetime'],
+                        d['price'],
+                        d.get('change_amount'),
+                        d.get('volume'),
+                        d.get('bid_volume'),
+                        d.get('ask_volume')
+                    )
+                    for d in intraday_data
+                ])
 
                 conn.commit()
                 saved_count = len(intraday_data)
@@ -393,7 +365,7 @@ class IntradayDataCollector:
 
         start_dt = datetime.combine(target_date, datetime.min.time().replace(hour=9, minute=0))
         end_dt = datetime.combine(target_date, datetime.min.time().replace(hour=15, minute=30))
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -566,7 +538,7 @@ class IntradayDataCollector:
         start_dt = datetime.combine(target_date, datetime.min.time().replace(hour=9, minute=0))
         end_dt = datetime.combine(target_date, datetime.min.time().replace(hour=15, minute=30))
 
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -596,7 +568,7 @@ class IntradayDataCollector:
         Returns:
             최근 분봉 데이터 날짜 또는 None
         """
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
@@ -626,15 +598,11 @@ class IntradayDataCollector:
             삭제된 레코드 수
         """
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             cursor.execute(f"""
                 DELETE FROM intraday_prices WHERE datetime < {p}

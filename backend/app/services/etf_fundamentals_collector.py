@@ -18,7 +18,7 @@ import re
 from datetime import datetime, date
 from typing import Optional, List, Dict
 
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 from app.services.naver_finance_scraper import fetch_main_page
 
 logger = logging.getLogger(__name__)
@@ -79,34 +79,19 @@ class ETFFundamentalsCollector:
             return False
 
         # 3. DB 저장
-        param = '%s' if USE_POSTGRES else '?'
+        param = '?'
         try:
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
+                conn = conn_or_cursor
+                cursor = conn.cursor()
                 saved = 0
 
                 for row in nav_rows:
-                    if USE_POSTGRES:
-                        cursor.execute(f"""
-                            INSERT INTO etf_fundamentals
-                                (ticker, date, nav, nav_change_pct, expense_ratio)
-                            VALUES ({param},{param},{param},{param},{param})
-                            ON CONFLICT (ticker, date) DO UPDATE SET
-                                nav=EXCLUDED.nav,
-                                nav_change_pct=EXCLUDED.nav_change_pct,
-                                expense_ratio=EXCLUDED.expense_ratio
-                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    else:
-                        cursor.execute(f"""
-                            INSERT OR REPLACE INTO etf_fundamentals
-                                (ticker, date, nav, nav_change_pct, expense_ratio)
-                            VALUES ({param},{param},{param},{param},{param})
-                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
+                    cursor.execute(f"""
+                        INSERT OR REPLACE INTO etf_fundamentals
+                            (ticker, date, nav, nav_change_pct, expense_ratio)
+                        VALUES ({param},{param},{param},{param},{param})
+                    """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
                     saved += 1
 
                 conn.commit()
@@ -220,34 +205,19 @@ class ETFFundamentalsCollector:
             return False
 
         today = date.today()
-        param = '%s' if USE_POSTGRES else '?'
+        param = '?'
         try:
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
+                conn = conn_or_cursor
+                cursor = conn.cursor()
                 saved = 0
 
                 for h in holdings:
-                    if USE_POSTGRES:
-                        cursor.execute(f"""
-                            INSERT INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares)
-                            VALUES ({param},{param},{param},{param},{param},{param})
-                            ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
-                                stock_name=EXCLUDED.stock_name,
-                                weight=EXCLUDED.weight,
-                                shares=EXCLUDED.shares
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
-                    else:
-                        cursor.execute(f"""
-                            INSERT OR REPLACE INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares)
-                            VALUES ({param},{param},{param},{param},{param},{param})
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                    cursor.execute(f"""
+                        INSERT OR REPLACE INTO etf_holdings
+                            (ticker, date, stock_code, stock_name, weight, shares)
+                        VALUES ({param},{param},{param},{param},{param},{param})
+                    """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
                     saved += 1
 
                 conn.commit()
@@ -358,32 +328,17 @@ class ETFFundamentalsCollector:
 
         nav_ok = False
         if nav_rows:
-            param = '%s' if USE_POSTGRES else '?'
+            param = '?'
             try:
                 with get_db_connection() as conn_or_cursor:
-                    if USE_POSTGRES:
-                        cursor = conn_or_cursor
-                        conn = cursor.connection
-                    else:
-                        conn = conn_or_cursor
-                        cursor = conn.cursor()
+                    conn = conn_or_cursor
+                    cursor = conn.cursor()
                     for row in nav_rows:
-                        if USE_POSTGRES:
-                            cursor.execute(f"""
-                                INSERT INTO etf_fundamentals
-                                    (ticker, date, nav, nav_change_pct, expense_ratio)
-                                VALUES ({param},{param},{param},{param},{param})
-                                ON CONFLICT (ticker, date) DO UPDATE SET
-                                    nav=EXCLUDED.nav,
-                                    nav_change_pct=EXCLUDED.nav_change_pct,
-                                    expense_ratio=EXCLUDED.expense_ratio
-                            """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                        else:
-                            cursor.execute(f"""
-                                INSERT OR REPLACE INTO etf_fundamentals
-                                    (ticker, date, nav, nav_change_pct, expense_ratio)
-                                VALUES ({param},{param},{param},{param},{param})
-                            """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
+                        cursor.execute(f"""
+                            INSERT OR REPLACE INTO etf_fundamentals
+                                (ticker, date, nav, nav_change_pct, expense_ratio)
+                            VALUES ({param},{param},{param},{param},{param})
+                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
                     conn.commit()
                 nav_ok = True
                 logger.info(f"[ETFFundamentals] Saved {len(nav_rows)} NAV rows for {ticker}")
@@ -395,32 +350,17 @@ class ETFFundamentalsCollector:
         holdings_ok = False
         if holdings:
             today = date.today()
-            param = '%s' if USE_POSTGRES else '?'
+            param = '?'
             try:
                 with get_db_connection() as conn_or_cursor:
-                    if USE_POSTGRES:
-                        cursor = conn_or_cursor
-                        conn = cursor.connection
-                    else:
-                        conn = conn_or_cursor
-                        cursor = conn.cursor()
+                    conn = conn_or_cursor
+                    cursor = conn.cursor()
                     for h in holdings:
-                        if USE_POSTGRES:
-                            cursor.execute(f"""
-                                INSERT INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares)
-                                VALUES ({param},{param},{param},{param},{param},{param})
-                                ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
-                                    stock_name=EXCLUDED.stock_name,
-                                    weight=EXCLUDED.weight,
-                                    shares=EXCLUDED.shares
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
-                        else:
-                            cursor.execute(f"""
-                                INSERT OR REPLACE INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares)
-                                VALUES ({param},{param},{param},{param},{param},{param})
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                        cursor.execute(f"""
+                            INSERT OR REPLACE INTO etf_holdings
+                                (ticker, date, stock_code, stock_name, weight, shares)
+                            VALUES ({param},{param},{param},{param},{param},{param})
+                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
                     conn.commit()
                 holdings_ok = True
                 logger.info(f"[ETFFundamentals] Saved {len(holdings)} holdings for {ticker}")

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class PerplexityService:
         Returns:
             구조화된 DB 데이터 텍스트
         """
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        param_placeholder = "?"
         context_parts = []
 
         # 헤더
@@ -58,19 +58,15 @@ class PerplexityService:
 
         try:
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
+                conn = conn_or_cursor
+                cursor = conn.cursor()
 
                 # 종목 타입 확인 (ETF vs STOCK)
                 cursor.execute(f"""
                     SELECT type FROM etfs WHERE ticker = {param_placeholder}
                 """, (ticker,))
                 type_row = cursor.fetchone()
-                ticker_type = ((type_row['type'] if USE_POSTGRES else type_row[0]) or 'ETF').upper() if type_row else 'ETF'
+                ticker_type = ((type_row[0]) or 'ETF').upper() if type_row else 'ETF'
                 is_etf = (ticker_type == 'ETF')
 
                 # 1. 최근 N거래일 가격 데이터
@@ -91,13 +87,13 @@ class PerplexityService:
                     context_parts.append("|------|------|------|------|------|--------|----------|")
 
                     for row in prices:
-                        price_date = row['date'] if USE_POSTGRES else row[0]
-                        open_p = row['open_price'] if USE_POSTGRES else row[1]
-                        high_p = row['high_price'] if USE_POSTGRES else row[2]
-                        low_p = row['low_price'] if USE_POSTGRES else row[3]
-                        close_p = row['close_price'] if USE_POSTGRES else row[4]
-                        volume = row['volume'] if USE_POSTGRES else row[5]
-                        change_pct = row['daily_change_pct'] if USE_POSTGRES else row[6]
+                        price_date = row[0]
+                        open_p = row[1]
+                        high_p = row[2]
+                        low_p = row[3]
+                        close_p = row[4]
+                        volume = row[5]
+                        change_pct = row[6]
 
                         # 거래대금 계산 (억원)
                         trading_value = (close_p * volume / 100_000_000) if close_p and volume else 0
@@ -110,8 +106,8 @@ class PerplexityService:
 
                     # 주간 수익률 계산
                     if len(prices) >= 2:
-                        first_close = prices[-1]['close_price'] if USE_POSTGRES else prices[-1][4]
-                        last_close = prices[0]['close_price'] if USE_POSTGRES else prices[0][4]
+                        first_close = prices[-1][4]
+                        last_close = prices[0][4]
                         if first_close and last_close:
                             weekly_return = ((last_close - first_close) / first_close) * 100
                             context_parts.append("")
@@ -137,11 +133,11 @@ class PerplexityService:
                     context_parts.append("|------|----------|----------|-----------|-----------|-----------|-------------|")
 
                     for row in flows:
-                        flow_date = row['date'] if USE_POSTGRES else row[0]
-                        individual_shares = (row['individual_net'] if USE_POSTGRES else row[1]) or 0
-                        institutional_shares = (row['institutional_net'] if USE_POSTGRES else row[2]) or 0
-                        foreign_shares = (row['foreign_net'] if USE_POSTGRES else row[3]) or 0
-                        close_price = (row['close_price'] if USE_POSTGRES else row[4]) or 0
+                        flow_date = row[0]
+                        individual_shares = (row[1]) or 0
+                        institutional_shares = (row[2]) or 0
+                        foreign_shares = (row[3]) or 0
+                        close_price = (row[4]) or 0
 
                         # 주수 → 금액(억원) 변환
                         if close_price > 0:
@@ -176,10 +172,10 @@ class PerplexityService:
                     context_parts.append("")
 
                     for i, row in enumerate(news_items, 1):
-                        news_date = row['date'] if USE_POSTGRES else row[0]
-                        title = row['title'] if USE_POSTGRES else row[1]
-                        url = row['url'] if USE_POSTGRES else row[2]
-                        source = row['source'] if USE_POSTGRES else row[3]
+                        news_date = row[0]
+                        title = row[1]
+                        url = row[2]
+                        source = row[3]
 
                         context_parts.append(f"{i}. [{news_date}] {title}")
                         context_parts.append(f"   - 출처: {source}")
@@ -199,11 +195,11 @@ class PerplexityService:
 
                 yearly_range = cursor.fetchone()
                 if yearly_range:
-                    max_high = yearly_range['max_high'] if USE_POSTGRES else yearly_range[0]
-                    min_low = yearly_range['min_low'] if USE_POSTGRES else yearly_range[1]
+                    max_high = yearly_range[0]
+                    min_low = yearly_range[1]
 
                     if max_high and min_low and prices:
-                        current_price = prices[0]['close_price'] if USE_POSTGRES else prices[0][4]
+                        current_price = prices[0][4]
                         context_parts.append("### 4. 52주 최고/최저가 대비 현재가 위치")
                         context_parts.append("")
                         context_parts.append(f"- **52주 최고가**: {max_high:,.0f}원")
@@ -232,7 +228,7 @@ class PerplexityService:
 
                     # 종가 리스트 (최신순 → 오래된순으로 변환)
                     closes = [
-                        (row['close_price'] if USE_POSTGRES else row[1])
+                        (row[1])
                         for row in reversed(price_data)
                     ]
 
@@ -330,7 +326,7 @@ class PerplexityService:
                 theme_row = cursor.fetchone()
 
                 if theme_row:
-                    theme = theme_row['theme'] if USE_POSTGRES else theme_row[0]
+                    theme = theme_row[0]
 
                     if theme:
                         # 동일 theme를 가진 다른 종목들 찾기
@@ -350,8 +346,8 @@ class PerplexityService:
                             context_parts.append("|--------------|--------|-----------|------------|")
 
                             for etf_row in similar_etfs:
-                                comp_ticker = etf_row['ticker'] if USE_POSTGRES else etf_row[0]
-                                comp_name = etf_row['name'] if USE_POSTGRES else etf_row[1]
+                                comp_ticker = etf_row[0]
+                                comp_name = etf_row[1]
 
                                 # 최근 가격 조회
                                 cursor.execute(f"""
@@ -362,7 +358,7 @@ class PerplexityService:
                                 latest = cursor.fetchone()
 
                                 if latest:
-                                    latest_price = latest['close_price'] if USE_POSTGRES else latest[0]
+                                    latest_price = latest[0]
 
                                     # 1주일 전 가격
                                     cursor.execute(f"""
@@ -384,12 +380,12 @@ class PerplexityService:
                                     month_return = None
 
                                     if week_ago:
-                                        week_price = week_ago['close_price'] if USE_POSTGRES else week_ago[0]
+                                        week_price = week_ago[0]
                                         if week_price:
                                             week_return = ((latest_price - week_price) / week_price) * 100
 
                                     if month_ago:
-                                        month_price = month_ago['close_price'] if USE_POSTGRES else month_ago[0]
+                                        month_price = month_ago[0]
                                         if month_price:
                                             month_return = ((latest_price - month_price) / month_price) * 100
 
@@ -421,7 +417,7 @@ class PerplexityService:
                         # 총보수(expense_ratio)는 최신 행에서 추출
                         latest_expense = None
                         for _row in fundamentals:
-                            _er = _row['expense_ratio'] if USE_POSTGRES else _row[5]
+                            _er = _row[5]
                             if _er is not None:
                                 latest_expense = _er
                                 break
@@ -435,11 +431,11 @@ class PerplexityService:
                         context_parts.append("|------|-----|-----------|-----------|----------|")
 
                         for row in fundamentals[:10]:
-                            fund_date = row['date'] if USE_POSTGRES else row[0]
-                            nav = row['nav'] if USE_POSTGRES else row[1]
-                            nav_change = row['nav_change_pct'] if USE_POSTGRES else row[2]
-                            aum = row['aum'] if USE_POSTGRES else row[3]
-                            tracking_error = row['tracking_error'] if USE_POSTGRES else row[4]
+                            fund_date = row[0]
+                            nav = row[1]
+                            nav_change = row[2]
+                            aum = row[3]
+                            tracking_error = row[4]
 
                             nav_str = f"{nav:,.0f}원" if nav else "-"
                             nav_change_str = f"{nav_change:+.2f}%" if nav_change else "-"
@@ -456,8 +452,8 @@ class PerplexityService:
 
                         # 기간 NAV 변동률 요약
                         if len(fundamentals) >= 2:
-                            first_nav = fundamentals[-1]['nav'] if USE_POSTGRES else fundamentals[-1][1]
-                            latest_nav = fundamentals[0]['nav'] if USE_POSTGRES else fundamentals[0][1]
+                            first_nav = fundamentals[-1][1]
+                            latest_nav = fundamentals[0][1]
                             if first_nav and latest_nav:
                                 nav_period_change = ((latest_nav - first_nav) / first_nav) * 100
                                 context_parts.append("")
@@ -482,11 +478,11 @@ class PerplexityService:
                         context_parts.append("|--------|--------|---------------|------|-------------|")
 
                         for row in distributions:
-                            rec_date = row['record_date'] if USE_POSTGRES else row[0]
-                            pay_date = row['payment_date'] if USE_POSTGRES else row[1]
-                            amount = row['amount_per_share'] if USE_POSTGRES else row[2]
-                            dist_type = row['distribution_type'] if USE_POSTGRES else row[3]
-                            yield_pct = row['yield_pct'] if USE_POSTGRES else row[4]
+                            rec_date = row[0]
+                            pay_date = row[1]
+                            amount = row[2]
+                            dist_type = row[3]
+                            yield_pct = row[4]
 
                             pay_date_str = pay_date if pay_date else "-"
                             amount_str = f"{amount:,.0f}" if amount else "-"
@@ -521,13 +517,13 @@ class PerplexityService:
                         context_parts.append("|------|------|---------|--------|----------|-----------|")
 
                         for row in rebalancing:
-                            rebal_date = row['rebalance_date'] if USE_POSTGRES else row[0]
-                            action = row['action'] if USE_POSTGRES else row[1]
-                            stock_code = row['stock_code'] if USE_POSTGRES else row[2]
-                            stock_name = row['stock_name'] if USE_POSTGRES else row[3]
-                            weight_before = row['weight_before'] if USE_POSTGRES else row[4]
-                            weight_after = row['weight_after'] if USE_POSTGRES else row[5]
-                            shares_change = row['shares_change'] if USE_POSTGRES else row[6]
+                            rebal_date = row[0]
+                            action = row[1]
+                            stock_code = row[2]
+                            stock_name = row[3]
+                            weight_before = row[4]
+                            weight_after = row[5]
+                            shares_change = row[6]
 
                             action_kr = {'add': '편입', 'remove': '편출', 'adjust': '조정'}.get(action, action)
 
@@ -563,12 +559,12 @@ class PerplexityService:
 
                         total_weight = 0
                         for row in holdings:
-                            stock_code = row['stock_code'] if USE_POSTGRES else row[0]
-                            stock_name = row['stock_name'] if USE_POSTGRES else row[1]
-                            weight = row['weight'] if USE_POSTGRES else row[2]
-                            shares = row['shares'] if USE_POSTGRES else row[3]
-                            market_value = row['market_value'] if USE_POSTGRES else row[4]
-                            sector = row['sector'] if USE_POSTGRES else row[5]
+                            stock_code = row[0]
+                            stock_name = row[1]
+                            weight = row[2]
+                            shares = row[3]
+                            market_value = row[4]
+                            sector = row[5]
 
                             total_weight += weight or 0
 
@@ -603,11 +599,8 @@ class PerplexityService:
                     stock_fund_row = None
 
                 if stock_fund_row:
-                    if USE_POSTGRES:
-                        sf = dict(stock_fund_row)
-                    else:
-                        sf_cols = [d[0] for d in cursor.description]
-                        sf = dict(zip(sf_cols, stock_fund_row))
+                    sf_cols = [d[0] for d in cursor.description]
+                    sf = dict(zip(sf_cols, stock_fund_row))
 
                     context_parts.append("### 8. 주식 펀더멘털 데이터")
                     context_parts.append("")
@@ -658,19 +651,12 @@ class PerplexityService:
                         context_parts.append("| 기준일 | 주당배당금 | 유형 | 배당수익률 |")
                         context_parts.append("|--------|-----------|------|-----------|")
                         for dr in dist_rows:
-                            if USE_POSTGRES:
-                                d = dict(dr)
-                                rec_date = d.get('record_date', '-')
-                                amt = d.get('amount_per_share')
-                                dist_type = d.get('distribution_type', '-')
-                                yld = d.get('yield_pct')
-                            else:
-                                d_cols = [c[0] for c in cursor.description]
-                                d = dict(zip(d_cols, dr))
-                                rec_date = d.get('record_date', '-')
-                                amt = d.get('amount_per_share')
-                                dist_type = d.get('distribution_type', '-')
-                                yld = d.get('yield_pct')
+                            d_cols = [c[0] for c in cursor.description]
+                            d = dict(zip(d_cols, dr))
+                            rec_date = d.get('record_date', '-')
+                            amt = d.get('amount_per_share')
+                            dist_type = d.get('distribution_type', '-')
+                            yld = d.get('yield_pct')
                             amt_str = f"{amt:,.0f}원" if amt else "-"
                             yld_str = f"{yld:.2f}%" if yld else "-"
                             context_parts.append(

@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root))
 
 from datetime import date, datetime
 from app.services.intraday_collector import IntradayDataCollector
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 
 def check_intraday_data(ticker: str, target_date: date = None):
     """분봉 데이터 조회 범위 확인"""
@@ -46,7 +46,7 @@ def check_intraday_data(ticker: str, target_date: date = None):
         print("-" * 60)
         
         # DB에서 해당 날짜의 모든 데이터 확인
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)
             

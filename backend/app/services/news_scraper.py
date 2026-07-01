@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import date, datetime, timedelta
 from app.models import News
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
@@ -345,12 +345,8 @@ class NewsScraper:
             return 0
 
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
                 insert_data = [
@@ -366,17 +362,10 @@ class NewsScraper:
                     for news in valid_news
                 ]
 
-                if USE_POSTGRES:
-                    cursor.executemany("""
-                        INSERT INTO news (ticker, date, published_at, title, url, source, relevance_score)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (ticker, url) DO NOTHING
-                    """, insert_data)
-                else:
-                    cursor.executemany("""
-                        INSERT OR IGNORE INTO news (ticker, date, published_at, title, url, source, relevance_score)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, insert_data)
+                cursor.executemany("""
+                    INSERT OR IGNORE INTO news (ticker, date, published_at, title, url, source, relevance_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, insert_data)
 
                 conn.commit()
                 saved_count = cursor.rowcount if cursor.rowcount >= 0 else len(valid_news)
@@ -448,7 +437,7 @@ class NewsScraper:
         logger.debug(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
         # PostgreSQL과 SQLite의 플레이스홀더 차이
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        param_placeholder = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)

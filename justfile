@@ -5,10 +5,6 @@
 # 프로젝트 루트 (justfile 위치 기준)
 project_root := justfile_directory()
 
-# PostgreSQL 접속 정보
-pg_dev_url  := "postgresql://etf_user:etf_pass@localhost:5432/etf_dev"
-pg_test_url := "postgresql://etf_user:etf_pass@localhost:5433/etf_test"
-
 # 기본 레시피: 사용 가능한 명령 목록
 default:
     @just --list
@@ -22,7 +18,7 @@ setup:
     cd {{project_root}}/backend && uv venv && uv pip install -r requirements-dev.txt
     @test -f {{project_root}}/.env || cp {{project_root}}/.env.example {{project_root}}/.env
     cd {{project_root}}/frontend && npm install
-    @echo "✅ 설정 완료. SQLite 서버: just dev | PostgreSQL 서버: just pg-dev"
+    @echo "✅ 설정 완료. 서버 실행: just dev"
 
 # 백엔드 의존성만 설치
 install-backend:
@@ -117,70 +113,3 @@ test-frontend-cov:
 test:
     just test-backend
     just test-frontend
-
-# ─────────────────────────────────────────────────────────────
-# [PostgreSQL] 개발 환경 (포트 5432, 데이터 영구 보존)
-# ─────────────────────────────────────────────────────────────
-
-# PostgreSQL 개발 컨테이너 시작
-pg-up:
-    docker-compose up -d postgres
-    @echo "Waiting for PostgreSQL dev to be ready..."
-    @until docker exec etf_postgres pg_isready -U etf_user -d etf_dev > /dev/null 2>&1; do sleep 1; done
-    @echo "PostgreSQL dev ready at localhost:5432"
-
-# PostgreSQL 개발 컨테이너 종료
-pg-down:
-    docker-compose stop postgres
-
-# PostgreSQL: 백엔드 + 프론트엔드 동시 시작
-pg-dev: pg-up
-    -./scripts/stop-servers.sh 2>/dev/null; true
-    DATABASE_URL={{pg_dev_url}} ./scripts/start-servers.sh
-
-# PostgreSQL: 백엔드만 시작
-pg-backend: pg-up
-    cd {{project_root}}/backend && \
-    DATABASE_URL={{pg_dev_url}} \
-    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# PostgreSQL: DB 초기화 (마이그레이션 포함)
-pg-db: pg-up
-    cd {{project_root}}/backend && \
-    DATABASE_URL={{pg_dev_url}} \
-    uv run python -m app.database
-
-# PostgreSQL: psql 콘솔 접속
-pg-console:
-    docker exec -it etf_postgres psql -U etf_user -d etf_dev
-
-# ─────────────────────────────────────────────────────────────
-# [PostgreSQL] 테스트 환경 (포트 5433, 데이터 미보존)
-# ─────────────────────────────────────────────────────────────
-
-# PostgreSQL 테스트 컨테이너 시작
-pg-test-up:
-    docker-compose up -d postgres-test
-    @echo "Waiting for PostgreSQL test to be ready..."
-    @until docker exec etf_postgres_test pg_isready -U etf_user -d etf_test > /dev/null 2>&1; do sleep 1; done
-    @echo "PostgreSQL test instance ready at localhost:5433"
-
-# PostgreSQL 테스트 컨테이너 종료 및 삭제
-pg-test-down:
-    docker-compose stop postgres-test
-    docker-compose rm -f postgres-test
-
-# PostgreSQL 전용 테스트 실행 (pg-test-up 먼저 실행 필요)
-test-postgres:
-    cd {{project_root}}/backend && \
-    DATABASE_URL={{pg_test_url}} \
-    uv run pytest tests/test_postgres_specific.py -v --no-cov
-
-# PostgreSQL 테스트 컨테이너 시작 → 테스트 → 컨테이너 종료 (한 번에)
-test-postgres-full:
-    just pg-test-up
-    cd {{project_root}}/backend && \
-    DATABASE_URL={{pg_test_url}} \
-    uv run pytest tests/test_postgres_specific.py -v --no-cov; \
-    just pg-test-down
->>>>>>> main

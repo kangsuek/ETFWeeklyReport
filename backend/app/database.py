@@ -6,141 +6,97 @@ from contextlib import contextmanager
 from threading import Lock
 from queue import Queue, Empty
 from app.config import Config
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-# DATABASE_URL 환경 변수 사용 (설정되지 않으면 기본값 사용)
+# SQLite 전용 빌드. DATABASE_URL(sqlite:///...)로 경로 재정의 가능.
 DATABASE_URL = os.getenv("DATABASE_URL")
-USE_POSTGRES = False
 DB_PATH = None
 
-if DATABASE_URL:
-    parsed = urlparse(DATABASE_URL)
-    if parsed.scheme == "postgresql" or parsed.scheme == "postgres":
-        USE_POSTGRES = True
-        logger.info(f"Using PostgreSQL database: {DATABASE_URL}")
-        try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            from psycopg2.pool import ThreadedConnectionPool
-        except ImportError:
-            logger.error("psycopg2 is required for PostgreSQL. Install it with: pip install psycopg2-binary")
-            raise
-    elif parsed.scheme == "sqlite" or DATABASE_URL.startswith("sqlite:///"):
-        # sqlite:///path/to/db.db 형식에서 경로 추출
-        db_path_str = DATABASE_URL.replace("sqlite:///", "")
-        
-        # 절대 경로인 경우 그대로 사용
-        if Path(db_path_str).is_absolute():
-            DB_PATH = Path(db_path_str)
-        else:
-            # 상대 경로인 경우 프로젝트 루트 기준으로 해석
-            # backend/data/etf_data.db 또는 ./backend/data/etf_data.db 형식 지원
-            # 프로젝트 루트 찾기 (backend/app/database.py에서 2단계 위로)
-            project_root = Path(__file__).parent.parent.parent
-            # ./ 제거 후 경로 조합
-            db_path_str_clean = db_path_str.lstrip("./")
-            DB_PATH = project_root / db_path_str_clean
-        
-        logger.info(f"Using SQLite database: {DB_PATH} (resolved from: {DATABASE_URL})")
+if DATABASE_URL and DATABASE_URL.startswith("sqlite:///"):
+    # sqlite:///path/to/db.db 형식에서 경로 추출
+    db_path_str = DATABASE_URL.replace("sqlite:///", "")
+    if Path(db_path_str).is_absolute():
+        DB_PATH = Path(db_path_str)
     else:
-        logger.warning(f"Unsupported database URL scheme: {parsed.scheme}. Using default SQLite.")
-        DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
+        # 상대 경로는 프로젝트 루트(backend/app/database.py에서 2단계 위) 기준으로 해석
+        project_root = Path(__file__).parent.parent.parent
+        DB_PATH = project_root / db_path_str.lstrip("./")
+    logger.info(f"Using SQLite database: {DB_PATH} (resolved from: {DATABASE_URL})")
 else:
+    if DATABASE_URL:
+        logger.warning(
+            f"Non-SQLite DATABASE_URL ignored (SQLite-only build): {DATABASE_URL}"
+        )
     # 기본값: SQLite
     DB_PATH = Path(__file__).parent.parent / "data" / "etf_data.db"
     logger.info(f"Using default SQLite database path: {DB_PATH}")
 
+
 class ConnectionPool:
-    """
-    Connection pool for SQLite and PostgreSQL
-    """
+    """SQLite connection pool."""
+
     def __init__(self, max_connections: int = 10):
         self.max_connections = max_connections
-        self.use_postgres = USE_POSTGRES
-        
-        if self.use_postgres:
-            # PostgreSQL connection pool
-            try:
-                import psycopg2
-                from psycopg2.pool import ThreadedConnectionPool
-                self.pg_pool = ThreadedConnectionPool(1, max_connections, DATABASE_URL)
-                logger.info(f"PostgreSQL connection pool initialized with max_connections={max_connections}")
-            except Exception as e:
-                logger.error(f"Failed to initialize PostgreSQL connection pool: {e}")
-                raise
-        else:
-            # SQLite connection pool
-            self.pool = Queue(maxsize=max_connections)
-            self.lock = Lock()
-            self.current_connections = 0
-            logger.info(f"SQLite connection pool initialized with max_connections={max_connections}")
+        self.pool = Queue(maxsize=max_connections)
+        self.lock = Lock()
+        self.current_connections = 0
+        logger.info(f"SQLite connection pool initialized with max_connections={max_connections}")
 
     def get_connection(self):
         """Get a connection from the pool or create a new one"""
-        if self.use_postgres:
-            return self.pg_pool.getconn()
-        else:
+        try:
+            # Try to get an existing connection from the pool (non-blocking)
+            conn = self.pool.get_nowait()
+            logger.debug("Reusing connection from pool")
+            return conn
+        except Empty:
+            # Pool is empty, create a new connection if below max
+            with self.lock:
+                if self.current_connections < self.max_connections:
+                    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    self.current_connections += 1
+                    logger.debug(f"Created new connection ({self.current_connections}/{self.max_connections})")
+                    return conn
+            # Pool full, wait for a connection to become available (with timeout)
+            logger.debug("Pool full, waiting for connection...")
             try:
-                # Try to get an existing connection from the pool (non-blocking)
-                conn = self.pool.get_nowait()
-                logger.debug("Reusing connection from pool")
+                conn = self.pool.get(block=True, timeout=30)
+                logger.debug("Got connection after waiting")
                 return conn
             except Empty:
-                # Pool is empty, create a new connection if below max
-                with self.lock:
-                    if self.current_connections < self.max_connections:
-                        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-                        conn.row_factory = sqlite3.Row
-                        self.current_connections += 1
-                        logger.debug(f"Created new connection ({self.current_connections}/{self.max_connections})")
-                        return conn
-                    else:
-                        # Wait for a connection to become available (with timeout)
-                        logger.debug("Pool full, waiting for connection...")
-                        try:
-                            conn = self.pool.get(block=True, timeout=30)
-                            logger.debug("Got connection after waiting")
-                            return conn
-                        except Empty:
-                            logger.error("Connection pool timeout: no connection available after 30s")
-                            raise TimeoutError("Database connection pool exhausted. Please try again later.")
+                logger.error("Connection pool timeout: no connection available after 30s")
+                raise TimeoutError("Database connection pool exhausted. Please try again later.")
 
     def return_connection(self, conn):
         """Return a connection to the pool"""
-        if self.use_postgres:
-            self.pg_pool.putconn(conn)
-        else:
-            try:
-                self.pool.put_nowait(conn)
-                logger.debug("Returned connection to pool")
-            except Exception:
-                # Pool is full, close the connection
-                conn.close()
-                with self.lock:
-                    self.current_connections -= 1
-                logger.debug("Pool full, closed connection")
+        try:
+            self.pool.put_nowait(conn)
+            logger.debug("Returned connection to pool")
+        except Exception:
+            # Pool is full, close the connection
+            conn.close()
+            with self.lock:
+                self.current_connections -= 1
+            logger.debug("Pool full, closed connection")
 
     def close_all(self):
         """Close all connections in the pool"""
-        if self.use_postgres:
-            if hasattr(self, 'pg_pool'):
-                self.pg_pool.closeall()
-            logger.info("All PostgreSQL connections closed")
-        else:
-            while not self.pool.empty():
-                try:
-                    conn = self.pool.get_nowait()
-                    conn.close()
-                except Empty:
-                    break
-            self.current_connections = 0
-            logger.info("All SQLite connections closed")
+        while not self.pool.empty():
+            try:
+                conn = self.pool.get_nowait()
+                conn.close()
+            except Empty:
+                break
+        self.current_connections = 0
+        logger.info("All SQLite connections closed")
+
 
 # Global connection pool instance
 _connection_pool = None
 _pool_lock = Lock()
+
 
 def get_connection_pool() -> ConnectionPool:
     """Get the global connection pool instance (singleton)"""
@@ -152,87 +108,57 @@ def get_connection_pool() -> ConnectionPool:
                 _connection_pool = ConnectionPool(max_connections=max_conn)
     return _connection_pool
 
+
 @contextmanager
 def get_db_connection():
     """
     Get database connection as a context manager.
     Uses connection pooling for improved performance.
-    Ensures connection is properly closed even if an exception occurs.
+    Ensures connection is properly returned even if an exception occurs.
 
     Usage:
-        with get_db_connection() as conn_or_cursor:
-            # PostgreSQL: get_db_connection()이 이미 cursor를 반환
-            # SQLite: get_db_connection()이 connection을 반환
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-            else:
-                cursor = conn_or_cursor.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute("SELECT * FROM etfs")
             rows = cursor.fetchall()
     """
     pool = get_connection_pool()
     conn = pool.get_connection()
     try:
-        if USE_POSTGRES:
-            # PostgreSQL: Use RealDictCursor for dict-like row access
-            from psycopg2.extras import RealDictCursor
-            yield conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            # SQLite: Already has row_factory set to sqlite3.Row
-            yield conn
+        # SQLite connection already has row_factory set to sqlite3.Row
+        yield conn
     finally:
         pool.return_connection(conn)
 
-def get_cursor(conn_or_cursor):
+
+def get_cursor(conn):
     """
-    Get cursor from connection or return cursor if already a cursor.
-    Helper function to handle both PostgreSQL and SQLite.
-    
+    Get a cursor from a SQLite connection.
+
     Args:
-        conn_or_cursor: Connection (SQLite) or Cursor (PostgreSQL) from get_db_connection()
-    
+        conn: Connection from get_db_connection()
+
     Returns:
         cursor: Database cursor
     """
-    if USE_POSTGRES:
-        # PostgreSQL: get_db_connection()이 이미 cursor를 반환
-        return conn_or_cursor
-    else:
-        # SQLite: get_db_connection()이 connection을 반환
-        return conn_or_cursor.cursor()
+    return conn.cursor()
+
 
 def init_db():
-    """Initialize database with schema"""
-    if USE_POSTGRES:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-    else:
-        DB_PATH.parent.mkdir(exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-    
-    # SQL 문법 차이 처리
-    if USE_POSTGRES:
-        id_type = "SERIAL PRIMARY KEY"
-        text_type = "TEXT"
-        real_type = "REAL"
-        integer_type = "INTEGER"
-        timestamp_default = "DEFAULT CURRENT_TIMESTAMP"
-        auto_increment = ""  # SERIAL already handles this
-        insert_ignore = "ON CONFLICT (ticker) DO NOTHING"
-        param_placeholder = "%s"
-    else:
-        id_type = "INTEGER PRIMARY KEY AUTOINCREMENT"
-        text_type = "TEXT"
-        real_type = "REAL"
-        integer_type = "INTEGER"
-        timestamp_default = "DEFAULT CURRENT_TIMESTAMP"
-        auto_increment = "AUTOINCREMENT"
-        insert_ignore = "OR IGNORE"
-        param_placeholder = "?"
-    
+    """Initialize database with schema (SQLite)"""
+    DB_PATH.parent.mkdir(exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # SQLite 스키마 타입
+    id_type = "INTEGER PRIMARY KEY AUTOINCREMENT"
+    text_type = "TEXT"
+    real_type = "REAL"
+    integer_type = "INTEGER"
+    timestamp_default = "DEFAULT CURRENT_TIMESTAMP"
+    insert_ignore = "OR IGNORE"
+    param_placeholder = "?"
+
     # Create tables
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS etfs (
@@ -247,39 +173,22 @@ def init_db():
             relevance_keywords {text_type}
         )
     """)
-    
+
     # quantity, purchase_price 등 컬럼이 없으면 추가 (마이그레이션)
-    # PostgreSQL에서는 컬럼 존재 여부를 먼저 확인 (트랜잭션 오류 방지)
     columns_to_add = [
         ("quantity", integer_type),
         ("purchase_price", real_type),
         ("search_keyword", text_type),
         ("relevance_keywords", text_type),
     ]
-    if USE_POSTGRES:
-        for col_name, col_type in columns_to_add:
-            try:
-                cursor.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name='etfs' AND column_name=%s
-                """, (col_name,))
-                if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE etfs ADD COLUMN {col_name} {col_type}")
-                    logger.info(f"Added {col_name} column to etfs table")
-            except Exception as e:
-                logger.warning(f"Could not check/add {col_name} column: {e}")
-                conn.rollback()
-    else:
-        # SQLite: ALTER ADD COLUMN 후 중복 시 무시
-        for col_name, col_type in columns_to_add:
-            try:
-                cursor.execute(f"ALTER TABLE etfs ADD COLUMN {col_name} {col_type}")
-                logger.info(f"Added {col_name} column to etfs table")
-            except Exception as e:
-                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
-                    logger.warning(f"Could not add {col_name} column: {e}")
-    
+    for col_name, col_type in columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE etfs ADD COLUMN {col_name} {col_type}")
+            logger.info(f"Added {col_name} column to etfs table")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add {col_name} column: {e}")
+
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS prices (
             id {id_type},
@@ -295,7 +204,7 @@ def init_db():
             UNIQUE(ticker, date)
         )
     """)
-    
+
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS trading_flow (
             id {id_type},
@@ -308,7 +217,7 @@ def init_db():
             UNIQUE(ticker, date)
         )
     """)
-    
+
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS news (
             id {id_type},
@@ -325,35 +234,17 @@ def init_db():
 
     # news 테이블에 published_at 컬럼 추가 (기존 DB 마이그레이션)
     news_columns_to_add = [("published_at", "TIMESTAMP")]
-    if USE_POSTGRES:
-        for col_name, col_type in news_columns_to_add:
-            try:
-                cursor.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name='news' AND column_name=%s
-                """, (col_name,))
-                if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
-                    logger.info(f"Added {col_name} column to news table")
-            except Exception as e:
-                logger.warning(f"Could not check/add {col_name} column: {e}")
-                conn.rollback()
-    else:
-        for col_name, col_type in news_columns_to_add:
-            try:
-                cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
-                logger.info(f"Added {col_name} column to news table")
-            except Exception as e:
-                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
-                    logger.warning(f"Could not add {col_name} column to news: {e}")
-    
+    for col_name, col_type in news_columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE news ADD COLUMN {col_name} {col_type}")
+            logger.info(f"Added {col_name} column to news table")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add {col_name} column to news: {e}")
+
     # Create stock_catalog table for ticker catalog
-    if USE_POSTGRES:
-        is_active_type = "BOOLEAN DEFAULT TRUE"
-    else:
-        is_active_type = f"{integer_type} DEFAULT 1"
-    
+    is_active_type = f"{integer_type} DEFAULT 1"
+
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS stock_catalog (
             ticker {text_type} PRIMARY KEY,
@@ -409,18 +300,18 @@ def init_db():
         CREATE UNIQUE INDEX IF NOT EXISTS idx_news_ticker_url
         ON news(ticker, url)
     """)
-    
+
     # Create indexes for stock_catalog
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_stock_catalog_name
         ON stock_catalog(name)
     """)
-    
+
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_stock_catalog_type
         ON stock_catalog(type)
     """)
-    
+
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_stock_catalog_active
         ON stock_catalog(is_active)
@@ -430,36 +321,21 @@ def init_db():
     screening_columns = [
         ("close_price", real_type),
         ("daily_change_pct", real_type),
-        ("volume", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("volume", "INTEGER"),
         ("weekly_return", real_type),
-        ("foreign_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
-        ("institutional_net", "BIGINT" if USE_POSTGRES else "INTEGER"),
+        ("foreign_net", "INTEGER"),
+        ("institutional_net", "INTEGER"),
         ("catalog_updated_at", "TIMESTAMP"),
         ("week_base_price", real_type),
         ("week_base_date", "TEXT"),
     ]
-    if USE_POSTGRES:
-        for col_name, col_type in screening_columns:
-            try:
-                cursor.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name='stock_catalog' AND column_name=%s
-                """, (col_name,))
-                if not cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
-                    logger.info(f"Added {col_name} column to stock_catalog table")
-            except Exception as e:
-                logger.warning(f"Could not check/add {col_name} column to stock_catalog: {e}")
-                conn.rollback()
-    else:
-        for col_name, col_type in screening_columns:
-            try:
-                cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
-                logger.info(f"Added {col_name} column to stock_catalog table")
-            except Exception as e:
-                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
-                    logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
+    for col_name, col_type in screening_columns:
+        try:
+            cursor.execute(f"ALTER TABLE stock_catalog ADD COLUMN {col_name} {col_type}")
+            logger.info(f"Added {col_name} column to stock_catalog table")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add {col_name} column to stock_catalog: {e}")
 
     # stock_catalog 스크리닝용 인덱스
     cursor.execute("""
@@ -710,66 +586,23 @@ def init_db():
 
     logger.info(f"Loading {len(etfs_data)} stocks from configuration")
 
-    if USE_POSTGRES:
-        cursor.executemany(f"""
-            INSERT INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
-            VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
-            {insert_ignore}
-        """, etfs_data)
-    else:
-        cursor.executemany(f"""
-            INSERT {insert_ignore} INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
-            VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
-        """, etfs_data)
-    
+    cursor.executemany(f"""
+        INSERT {insert_ignore} INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
+        VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
+    """, etfs_data)
+
     conn.commit()
     conn.close()
-    
+
     logger.info("Database initialized successfully")
 
 
 def run_migrations():
     """
-    init_db() 이후 별도 실행이 필요한 스키마 마이그레이션.
-    autocommit=True로 트랜잭션 없이 ALTER TABLE 실행 (PostgreSQL 전용).
+    SQLite 전용 빌드에서는 별도 마이그레이션 단계가 필요하지 않습니다.
+    (스키마/컬럼 추가는 init_db()에서 처리)
     """
-    if not USE_POSTGRES:
-        return
-
-    import psycopg2
-
-    # (table, column, new_type) 형식
-    migrations = [
-        ("stock_catalog", "foreign_net", "BIGINT"),
-        ("stock_catalog", "institutional_net", "BIGINT"),
-        ("stock_catalog", "volume", "BIGINT"),
-    ]
-
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        conn.autocommit = True
-        cursor = conn.cursor()
-
-        for table, col, new_type in migrations:
-            try:
-                # 현재 컬럼 타입 확인
-                cursor.execute("""
-                    SELECT data_type FROM information_schema.columns
-                    WHERE table_name = %s AND column_name = %s
-                """, (table, col))
-                row = cursor.fetchone()
-                if row and row[0].upper() != new_type:
-                    cursor.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {new_type}")
-                    logger.info(f"Migration: {table}.{col} → {new_type}")
-                else:
-                    logger.debug(f"Migration skipped: {table}.{col} already {new_type or 'not found'}")
-            except Exception as e:
-                logger.warning(f"Migration failed for {table}.{col}: {e}")
-
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        logger.error(f"run_migrations() failed: {e}")
+    return
 
 
 def update_collection_status(ticker: str,
@@ -789,15 +622,10 @@ def update_collection_status(ticker: str,
     """
     from datetime import datetime
 
-    param_placeholder = "%s" if USE_POSTGRES else "?"
+    param_placeholder = "?"
 
-    with get_db_connection() as cursor_or_conn:
-        if USE_POSTGRES:
-            cursor = cursor_or_conn
-            conn = cursor.connection
-        else:
-            conn = cursor_or_conn
-            cursor = conn.cursor()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
 
         # 현재 상태 조회
         cursor.execute(f"""
@@ -864,6 +692,7 @@ def update_collection_status(ticker: str,
 
         conn.commit()
 
+
 def get_collection_status(ticker: str = None):
     """
     데이터 수집 상태 조회
@@ -874,14 +703,10 @@ def get_collection_status(ticker: str = None):
     Returns:
         dict or list: 수집 상태 정보
     """
-    param_placeholder = "%s" if USE_POSTGRES else "?"
-    
-    with get_db_connection() as cursor_or_conn:
-        if USE_POSTGRES:
-            cursor = cursor_or_conn
-        else:
-            conn = cursor_or_conn
-            cursor = conn.cursor()
+    param_placeholder = "?"
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
 
         if ticker:
             cursor.execute(f"""
@@ -894,6 +719,7 @@ def get_collection_status(ticker: str = None):
                 SELECT * FROM collection_status ORDER BY ticker
             """)
             return [dict(row) for row in cursor.fetchall()]
+
 
 if __name__ == "__main__":
     init_db()

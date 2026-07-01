@@ -1300,10 +1300,10 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
     - type=STOCK: stock_fundamentals (최근 1건)
     - type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)
     """
-    from app.database import get_db_connection, USE_POSTGRES
+    from app.database import get_db_connection
     ticker = etf.ticker
     etf_type = etf.type
-    param = '%s' if USE_POSTGRES else '?'
+    param = '?'
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1318,11 +1318,8 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
             row = cursor.fetchone()
             if not row:
                 return {'ticker': ticker, 'type': 'STOCK', 'data': None}
-            if USE_POSTGRES:
-                data = dict(row)
-            else:
-                cols = [d[0] for d in cursor.description]
-                data = dict(zip(cols, row))
+            cols = [d[0] for d in cursor.description]
+            data = dict(zip(cols, row))
             return {'ticker': ticker, 'type': 'STOCK', 'data': data}
         else:
             cursor.execute(f"""
@@ -1331,11 +1328,8 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                 ORDER BY date DESC LIMIT 10
             """, (ticker,))
             rows = cursor.fetchall()
-            if USE_POSTGRES:
-                fundamentals = [dict(r) for r in rows]
-            else:
-                cols = [d[0] for d in cursor.description]
-                fundamentals = [dict(zip(cols, r)) for r in rows]
+            cols = [d[0] for d in cursor.description]
+            fundamentals = [dict(zip(cols, r)) for r in rows]
 
             latest_date = fundamentals[0]['date'] if fundamentals else None
             holdings = []
@@ -1346,11 +1340,8 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                     ORDER BY weight DESC
                 """, (ticker, latest_date))
                 h_rows = cursor.fetchall()
-                if USE_POSTGRES:
-                    holdings = [dict(r) for r in h_rows]
-                else:
-                    h_cols = [d[0] for d in cursor.description]
-                    holdings = [dict(zip(h_cols, r)) for r in h_rows]
+                h_cols = [d[0] for d in cursor.description]
+                holdings = [dict(zip(h_cols, r)) for r in h_rows]
 
             return {
                 'ticker': ticker,

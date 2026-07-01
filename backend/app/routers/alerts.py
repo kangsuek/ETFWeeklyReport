@@ -8,14 +8,14 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List
 from pydantic import BaseModel
 from app.models import AlertRuleCreate, AlertRuleUpdate, AlertRuleResponse
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-PP = "%s" if USE_POSTGRES else "?"
+PP = "?"
 
 # 허용되는 alert_type / direction 조합
 VALID_ALERT_TYPES = {"buy", "sell", "price_change", "trading_signal"}
@@ -57,12 +57,8 @@ async def record_alert_trigger(req: AlertTriggerRequest):
     """프론트엔드에서 감지한 알림 트리거를 히스토리에 기록"""
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             cursor.execute(
                 f"""INSERT INTO alert_history (rule_id, ticker, alert_type, message)
@@ -113,12 +109,8 @@ async def create_alert_rule(rule: AlertRuleCreate):
 
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             cursor.execute(
                 f"""INSERT INTO alert_rules (ticker, alert_type, direction, target_price, memo)
@@ -127,11 +119,7 @@ async def create_alert_rule(rule: AlertRuleCreate):
             )
             conn.commit()
 
-            if USE_POSTGRES:
-                cursor.execute("SELECT lastval()")
-                new_id = cursor.fetchone()["lastval"]
-            else:
-                new_id = cursor.lastrowid
+            new_id = cursor.lastrowid
 
             cursor.execute(f"SELECT * FROM alert_rules WHERE id = {PP}", (new_id,))
             row = cursor.fetchone()
@@ -154,7 +142,7 @@ async def get_alert_rules(
             cursor = get_cursor(conn_or_cursor)
 
             if active_only:
-                is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+                is_active_cmp = "is_active = 1"
                 cursor.execute(
                     f"SELECT * FROM alert_rules WHERE ticker = {PP} AND {is_active_cmp} ORDER BY created_at DESC",
                     (ticker,),
@@ -177,12 +165,8 @@ async def update_alert_rule(rule_id: int, rule: AlertRuleUpdate):
     """알림 규칙 수정"""
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             cursor.execute(f"SELECT * FROM alert_rules WHERE id = {PP}", (rule_id,))
             existing = cursor.fetchone()
@@ -241,12 +225,8 @@ async def delete_alert_rule(rule_id: int):
     """알림 규칙 삭제"""
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             cursor.execute(f"SELECT id FROM alert_rules WHERE id = {PP}", (rule_id,))
             if not cursor.fetchone():

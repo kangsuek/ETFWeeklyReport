@@ -11,7 +11,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import math
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 from app.exceptions import ValidationException
 import logging
 
@@ -124,7 +124,7 @@ class ComparisonService:
             return {}
 
         # PostgreSQL과 SQLite의 플레이스홀더 차이
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        param_placeholder = "?"
 
         # IN 절 플레이스홀더 생성
         in_placeholders = ", ".join([param_placeholder] * len(tickers))
@@ -140,10 +140,7 @@ class ComparisonService:
         params = tuple(tickers) + (start_date, end_date)
 
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                conn = conn_or_cursor.connection
-            else:
-                conn = conn_or_cursor
+            conn = conn_or_cursor
 
             df_all = pd.read_sql_query(
                 query,

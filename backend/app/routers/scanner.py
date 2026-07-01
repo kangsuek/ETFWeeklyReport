@@ -6,7 +6,7 @@ ETF 조건 검색, 테마 탐색, 추천 프리셋 제공
 import logging
 from fastapi import APIRouter, Query, BackgroundTasks
 from typing import Optional, List
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 from app.models import ScreeningItem, ScreeningResponse, ThemeGroup, RecommendationPreset
 from app.utils.cache import get_cache, make_cache_key
 
@@ -40,11 +40,11 @@ def _get_registered_tickers(existing_cursor=None) -> set:
     """etfs 테이블에 등록된 종목 티커 set 반환"""
     if existing_cursor:
         existing_cursor.execute("SELECT ticker FROM etfs")
-        return {row['ticker'] if USE_POSTGRES else row[0] for row in existing_cursor.fetchall()}
+        return {row[0] for row in existing_cursor.fetchall()}
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
         cursor.execute("SELECT ticker FROM etfs")
-        return {row['ticker'] if USE_POSTGRES else row[0] for row in cursor.fetchall()}
+        return {row[0] for row in cursor.fetchall()}
 
 
 @router.get("", response_model=ScreeningResponse)
@@ -74,8 +74,8 @@ async def search_scanner(
     if cached:
         return cached
 
-    p = "%s" if USE_POSTGRES else "?"
-    is_active_where = "sc.is_active = true" if USE_POSTGRES else "sc.is_active = 1"
+    p = "?"
+    is_active_where = "sc.is_active = 1"
     where_clauses = [is_active_where]
     params = []
 
@@ -135,17 +135,14 @@ async def search_scanner(
         # 전체 건수
         cursor.execute(f"SELECT COUNT(*) as cnt FROM stock_catalog sc WHERE {where_sql}", params)
         row = cursor.fetchone()
-        total = row['cnt'] if USE_POSTGRES else row[0]
+        total = row[0]
 
         # 데이터 조회
         offset = (page - 1) * page_size
         query_params = params + [page_size, offset]
 
-        if USE_POSTGRES:
-            order_clause = f"{sort_column} {sort_dir_sql} NULLS LAST"
-        else:
-            # SQLite NULL 처리
-            order_clause = f"CASE WHEN {sort_column} IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_dir_sql}"
+        # SQLite NULL 처리
+        order_clause = f"CASE WHEN {sort_column} IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_dir_sql}"
 
         cursor.execute(f"""
             SELECT sc.ticker, sc.name, sc.type, sc.market, sc.sector,
@@ -181,14 +178,14 @@ async def get_themes():
     if cached:
         return cached
 
-    p = "%s" if USE_POSTGRES else "?"
+    p = "?"
 
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)
 
         # 섹터별 집계 (PostgreSQL: is_active boolean, SQLite: integer 1/0)
-        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+        is_active_cmp = "is_active = 1"
         cursor.execute(f"""
             SELECT sector, COUNT(*) as cnt,
                    AVG(weekly_return) as avg_wr
@@ -263,7 +260,7 @@ async def get_recommendations(
     if cached:
         return cached
 
-    p = "%s" if USE_POSTGRES else "?"
+    p = "?"
 
     presets_config = [
         {
@@ -309,13 +306,10 @@ async def get_recommendations(
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)
 
-        is_active_cmp = "is_active = true" if USE_POSTGRES else "is_active = 1"
+        is_active_cmp = "is_active = 1"
         for preset in presets_config:
             # NULLS LAST 처리
-            if USE_POSTGRES:
-                order_clause = f"{preset['order_by']} NULLS LAST"
-            else:
-                order_clause = preset['order_by']
+            order_clause = preset['order_by']
 
             cursor.execute(f"""
                 SELECT ticker, name, type, market, sector,

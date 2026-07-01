@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
-from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.database import get_db_connection, get_cursor
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
@@ -571,16 +571,12 @@ class TickerCatalogCollector:
         deactivated_count = 0
 
         # PostgreSQL과 SQLite의 플레이스홀더 차이
-        param_placeholder = "%s" if USE_POSTGRES else "?"
+        param_placeholder = "?"
 
         with get_db_connection() as conn_or_cursor:
             # PostgreSQL과 SQLite 처리 분기
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
             try:
                 # 현재 수집된 종목의 티커 코드 집합
@@ -603,7 +599,7 @@ class TickerCatalogCollector:
 
                         if existing:
                             # 기존 종목 업데이트 (종목명 변경 반영)
-                            existing_name = existing['name'] if USE_POSTGRES else existing[0]
+                            existing_name = existing[0]
                             if existing_name != stock["name"]:
                                 logger.debug(f"Updating stock name: {stock['ticker']} - {existing_name} -> {stock['name']}")
                             updated_count += 1
@@ -617,98 +613,45 @@ class TickerCatalogCollector:
                         # 가격 데이터가 있으면 catalog_updated_at 설정
                         has_price = close_price is not None
 
-                        if USE_POSTGRES:
-                            # PostgreSQL에서는 boolean 타입이므로 정수를 boolean으로 변환
-                            is_active_bool = bool(stock["is_active"]) if stock["is_active"] is not None else True
-
-                            # SAVEPOINT를 사용하여 개별 종목 저장 실패 시에도 전체 트랜잭션 유지
-                            # ticker를 식별자 안전 문자로 정규화 (특수문자/공백 → '_')
-                            safe_ticker = re.sub(r'[^a-zA-Z0-9_]', '_', stock['ticker'])
-                            savepoint_name = f"savepoint_{safe_ticker}"
-                            cursor.execute(f"SAVEPOINT {savepoint_name}")
-
-                            try:
-                                cursor.execute("""
-                                    INSERT INTO stock_catalog
-                                    (ticker, name, type, market, sector, listed_date, last_updated, is_active,
-                                     close_price, daily_change_pct, volume, catalog_updated_at)
-                                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s,
-                                            %s, %s, %s, CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END)
-                                    ON CONFLICT (ticker) DO UPDATE SET
-                                        name = EXCLUDED.name,
-                                        type = EXCLUDED.type,
-                                        market = EXCLUDED.market,
-                                        sector = EXCLUDED.sector,
-                                        listed_date = EXCLUDED.listed_date,
-                                        last_updated = CURRENT_TIMESTAMP,
-                                        is_active = EXCLUDED.is_active,
-                                        close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
-                                        daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
-                                        volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
-                                        catalog_updated_at = CASE WHEN EXCLUDED.catalog_updated_at IS NOT NULL
-                                                             THEN EXCLUDED.catalog_updated_at
-                                                             ELSE stock_catalog.catalog_updated_at END
-                                """, (
-                                    stock["ticker"],
-                                    stock["name"],
-                                    stock["type"],
-                                    stock["market"],
-                                    stock["sector"],
-                                    stock["listed_date"],
-                                    is_active_bool,
-                                    close_price,
-                                    daily_change_pct,
-                                    volume,
-                                    has_price,
-                                ))
-                                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
-                                saved_count += 1
-                            except Exception as save_error:
-                                # 개별 종목 저장 실패 시 해당 SAVEPOINT만 롤백
-                                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                                logger.error(f"Failed to save stock {stock.get('ticker')}: {save_error}", exc_info=True)
-                                failed_stocks.append(stock.get("ticker"))
-                        else:
-                            cursor.execute("""
-                                INSERT INTO stock_catalog
-                                (ticker, name, type, market, sector, listed_date, last_updated, is_active,
-                                 close_price, daily_change_pct, volume, catalog_updated_at)
-                                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?,
-                                        ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END)
-                                ON CONFLICT(ticker) DO UPDATE SET
-                                    name = EXCLUDED.name,
-                                    type = EXCLUDED.type,
-                                    market = EXCLUDED.market,
-                                    sector = EXCLUDED.sector,
-                                    listed_date = EXCLUDED.listed_date,
-                                    last_updated = CURRENT_TIMESTAMP,
-                                    is_active = EXCLUDED.is_active,
-                                    close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
-                                    daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
-                                    volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
-                                    catalog_updated_at = CASE WHEN EXCLUDED.catalog_updated_at IS NOT NULL
-                                                         THEN EXCLUDED.catalog_updated_at
-                                                         ELSE stock_catalog.catalog_updated_at END
-                            """, (
-                                stock["ticker"],
-                                stock["name"],
-                                stock["type"],
-                                stock["market"],
-                                stock["sector"],
-                                stock["listed_date"],
-                                stock["is_active"],
-                                close_price,
-                                daily_change_pct,
-                                volume,
-                                1 if has_price else 0,
-                            ))
-                            saved_count += 1
+                        cursor.execute("""
+                            INSERT INTO stock_catalog
+                            (ticker, name, type, market, sector, listed_date, last_updated, is_active,
+                             close_price, daily_change_pct, volume, catalog_updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?,
+                                    ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END)
+                            ON CONFLICT(ticker) DO UPDATE SET
+                                name = EXCLUDED.name,
+                                type = EXCLUDED.type,
+                                market = EXCLUDED.market,
+                                sector = EXCLUDED.sector,
+                                listed_date = EXCLUDED.listed_date,
+                                last_updated = CURRENT_TIMESTAMP,
+                                is_active = EXCLUDED.is_active,
+                                close_price = COALESCE(EXCLUDED.close_price, stock_catalog.close_price),
+                                daily_change_pct = COALESCE(EXCLUDED.daily_change_pct, stock_catalog.daily_change_pct),
+                                volume = COALESCE(EXCLUDED.volume, stock_catalog.volume),
+                                catalog_updated_at = CASE WHEN EXCLUDED.catalog_updated_at IS NOT NULL
+                                                     THEN EXCLUDED.catalog_updated_at
+                                                     ELSE stock_catalog.catalog_updated_at END
+                        """, (
+                            stock["ticker"],
+                            stock["name"],
+                            stock["type"],
+                            stock["market"],
+                            stock["sector"],
+                            stock["listed_date"],
+                            stock["is_active"],
+                            close_price,
+                            daily_change_pct,
+                            volume,
+                            1 if has_price else 0,
+                        ))
+                        saved_count += 1
                     except Exception as e:
                         logger.error(f"Failed to save stock {stock.get('ticker')}: {e}", exc_info=True)
                         failed_stocks.append(stock.get("ticker", "unknown"))
                         # SQLite는 continue로 계속 진행
-                        if not USE_POSTGRES:
-                            continue
+                        continue
                 
                 # 실패한 종목이 있는 경우 로그 출력
                 if failed_stocks:
@@ -717,27 +660,19 @@ class TickerCatalogCollector:
                 # 2단계: 수집된 종목 저장 후, 상장폐지 종목 찾기 및 비활성화
                 # 기존 데이터베이스의 모든 종목 조회 (수집 전 상태)
                 cursor.execute("SELECT ticker FROM stock_catalog")
-                all_existing_tickers = {row['ticker'] if USE_POSTGRES else row[0] for row in cursor.fetchall()}
+                all_existing_tickers = {row[0] for row in cursor.fetchall()}
 
                 # 상장폐지된 종목 찾기 (기존에는 있지만 수집된 목록에는 없음)
                 deactivated_tickers = all_existing_tickers - collected_tickers
 
                 # 상장폐지 종목 비활성화
                 if deactivated_tickers:
-                    if USE_POSTGRES:
-                        placeholders = ','.join(['%s'] * len(deactivated_tickers))
-                        cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET is_active = FALSE, last_updated = CURRENT_TIMESTAMP
-                            WHERE ticker IN ({placeholders})
-                        """, list(deactivated_tickers))
-                    else:
-                        placeholders = ','.join(['?'] * len(deactivated_tickers))
-                        cursor.execute(f"""
-                            UPDATE stock_catalog
-                            SET is_active = 0, last_updated = CURRENT_TIMESTAMP
-                            WHERE ticker IN ({placeholders})
-                        """, list(deactivated_tickers))
+                    placeholders = ','.join(['?'] * len(deactivated_tickers))
+                    cursor.execute(f"""
+                        UPDATE stock_catalog
+                        SET is_active = 0, last_updated = CURRENT_TIMESTAMP
+                        WHERE ticker IN ({placeholders})
+                    """, list(deactivated_tickers))
                     deactivated_count = cursor.rowcount
                     logger.info(f"Deactivated {deactivated_count} stocks (delisted)")
 
@@ -745,8 +680,6 @@ class TickerCatalogCollector:
             except Exception as e:
                 # 트랜잭션 에러 발생 시 rollback
                 logger.error(f"Database transaction error: {e}", exc_info=True)
-                if USE_POSTGRES:
-                    conn.rollback()
                 raise
 
         logger.info(
@@ -802,7 +735,7 @@ class TickerCatalogCollector:
         
         # 데이터베이스에서 검색
         # PostgreSQL과 SQLite의 플레이스홀더 차이
-        p = "%s" if USE_POSTGRES else "?"
+        p = "?"
 
         with get_db_connection() as conn_or_cursor:
             cursor = get_cursor(conn_or_cursor)

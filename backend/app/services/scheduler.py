@@ -16,7 +16,7 @@ from app.services.data_collector import ETFDataCollector
 from app.services.news_scraper import NewsScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
 from app.services.catalog_data_collector import CatalogDataCollector
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -275,14 +275,11 @@ class DataCollectionScheduler:
         try:
             # 종목 목록 조회
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                else:
-                    cursor = conn_or_cursor.cursor()
+                cursor = conn_or_cursor.cursor()
                 cursor.execute("SELECT ticker, type FROM etfs ORDER BY ticker")
                 rows = cursor.fetchall()
 
-            tickers = [(r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1]) for r in rows]
+            tickers = [(r[0], r[1]) for r in rows]
 
             etf_collector = ETFFundamentalsCollector()
             success_count = 0
@@ -334,12 +331,9 @@ class DataCollectionScheduler:
 
         try:
             today = date_type.today().isoformat()
-            param = '%s' if USE_POSTGRES else '?'
+            param = '?'
             with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                else:
-                    cursor = conn_or_cursor.cursor()
+                cursor = conn_or_cursor.cursor()
                 cursor.execute(
                     f"SELECT COUNT(*) FROM etf_holdings WHERE date = {param}", (today,)
                 )

@@ -19,7 +19,7 @@ import re
 from datetime import date
 from typing import Optional
 
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection
 from app.services.naver_finance_scraper import fetch_main_page
 
 logger = logging.getLogger(__name__)
@@ -196,66 +196,28 @@ def collect_stock_fundamentals(ticker: str) -> dict:
 
     try:
         with get_db_connection() as conn_or_cursor:
-            if USE_POSTGRES:
-                cursor = conn_or_cursor
-                conn = cursor.connection
-            else:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
+            conn = conn_or_cursor
+            cursor = conn.cursor()
 
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO stock_fundamentals
-                        (ticker, date, per, pbr, roe, roa, eps, bps,
-                         revenue, operating_profit, net_profit,
-                         operating_margin, net_margin,
-                         debt_ratio, current_ratio,
-                         dividend_yield, payout_ratio)
-                    VALUES
-                        (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (ticker, date) DO UPDATE SET
-                        per=EXCLUDED.per, pbr=EXCLUDED.pbr, roe=EXCLUDED.roe,
-                        roa=EXCLUDED.roa, eps=EXCLUDED.eps, bps=EXCLUDED.bps,
-                        revenue=EXCLUDED.revenue,
-                        operating_profit=EXCLUDED.operating_profit,
-                        net_profit=EXCLUDED.net_profit,
-                        operating_margin=EXCLUDED.operating_margin,
-                        net_margin=EXCLUDED.net_margin,
-                        debt_ratio=EXCLUDED.debt_ratio,
-                        current_ratio=EXCLUDED.current_ratio,
-                        dividend_yield=EXCLUDED.dividend_yield,
-                        payout_ratio=EXCLUDED.payout_ratio
-                """, (
-                    ticker, today,
-                    fundamentals.get('per'), fundamentals.get('pbr'),
-                    fundamentals.get('roe'), fundamentals.get('roa'),
-                    fundamentals.get('eps'), fundamentals.get('bps'),
-                    fundamentals.get('revenue'), fundamentals.get('operating_profit'),
-                    fundamentals.get('net_profit'), fundamentals.get('operating_margin'),
-                    fundamentals.get('net_margin'), fundamentals.get('debt_ratio'),
-                    fundamentals.get('current_ratio'), fundamentals.get('dividend_yield'),
-                    fundamentals.get('payout_ratio'),
-                ))
-            else:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO stock_fundamentals
-                        (ticker, date, per, pbr, roe, roa, eps, bps,
-                         revenue, operating_profit, net_profit,
-                         operating_margin, net_margin,
-                         debt_ratio, current_ratio,
-                         dividend_yield, payout_ratio)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    ticker, today,
-                    fundamentals.get('per'), fundamentals.get('pbr'),
-                    fundamentals.get('roe'), fundamentals.get('roa'),
-                    fundamentals.get('eps'), fundamentals.get('bps'),
-                    fundamentals.get('revenue'), fundamentals.get('operating_profit'),
-                    fundamentals.get('net_profit'), fundamentals.get('operating_margin'),
-                    fundamentals.get('net_margin'), fundamentals.get('debt_ratio'),
-                    fundamentals.get('current_ratio'), fundamentals.get('dividend_yield'),
-                    fundamentals.get('payout_ratio'),
-                ))
+            cursor.execute("""
+                INSERT OR REPLACE INTO stock_fundamentals
+                    (ticker, date, per, pbr, roe, roa, eps, bps,
+                     revenue, operating_profit, net_profit,
+                     operating_margin, net_margin,
+                     debt_ratio, current_ratio,
+                     dividend_yield, payout_ratio)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                ticker, today,
+                fundamentals.get('per'), fundamentals.get('pbr'),
+                fundamentals.get('roe'), fundamentals.get('roa'),
+                fundamentals.get('eps'), fundamentals.get('bps'),
+                fundamentals.get('revenue'), fundamentals.get('operating_profit'),
+                fundamentals.get('net_profit'), fundamentals.get('operating_margin'),
+                fundamentals.get('net_margin'), fundamentals.get('debt_ratio'),
+                fundamentals.get('current_ratio'), fundamentals.get('dividend_yield'),
+                fundamentals.get('payout_ratio'),
+            ))
 
             conn.commit()
             result['saved'] = True
@@ -264,21 +226,11 @@ def collect_stock_fundamentals(ticker: str) -> dict:
             # 6. 배당 이력 저장 (주당배당금이 있을 때만)
             if dividend_amount is not None:
                 dividend_yield = fundamentals.get('dividend_yield')
-                if USE_POSTGRES:
-                    cursor.execute("""
-                        INSERT INTO stock_distributions
-                            (ticker, record_date, amount_per_share, distribution_type, yield_pct)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (ticker, record_date) DO UPDATE SET
-                            amount_per_share=EXCLUDED.amount_per_share,
-                            yield_pct=EXCLUDED.yield_pct
-                    """, (ticker, today, dividend_amount, '현금배당', dividend_yield))
-                else:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO stock_distributions
-                            (ticker, record_date, amount_per_share, distribution_type, yield_pct)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (ticker, today, dividend_amount, '현금배당', dividend_yield))
+                cursor.execute("""
+                    INSERT OR REPLACE INTO stock_distributions
+                        (ticker, record_date, amount_per_share, distribution_type, yield_pct)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (ticker, today, dividend_amount, '현금배당', dividend_yield))
                 conn.commit()
                 result['dividend_saved'] = True
 
