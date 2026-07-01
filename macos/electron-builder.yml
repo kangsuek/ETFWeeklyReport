@@ -31,14 +31,25 @@ extraResources:
       - "**/*"
   - from: ../.env.example
     to: .env.example
+  # 번들된 uv 바이너리 (resources/bin/uv-<arch>) — build.sh가 다운로드.
+  # 사용자 머신에 uv 미설치여도 백엔드가 동작하도록 함.
+  - from: resources/bin
+    to: bin
+    filter:
+      - "uv-*"
 mac:
   category: public.app-category.finance
+  # arch는 build.sh가 CLI 플래그(--arm64 / --x64)로 지정 — 번들 uv 바이너리와 정합 유지
   target:
     - target: dmg
-      arch:
-        - arm64
-        - x64
   icon: icons/icon.icns
+  # ── 코드 서명·공증 (Hardened Runtime) ───────────────────────────────
+  # Developer ID 인증서/Apple 자격증명이 환경에 있을 때만 실제 서명·공증됨.
+  # 없으면 build.sh가 CSC_IDENTITY_AUTO_DISCOVERY=false로 미서명 빌드 진행.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
 dmg:
   title: "${productName}"
   contents:

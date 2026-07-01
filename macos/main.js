@@ -183,8 +183,25 @@ function registerAppProtocol() {
 }
 
 // ─── uv 경로 탐색 ───────────────────────────────────────────────────────
+/** 앱에 번들된 uv 바이너리 경로 (resources/bin/uv-<arch>). 없으면 null */
+function getBundledUvPath() {
+  // process.arch: 'arm64' | 'x64' → build.sh 네이밍과 일치
+  const binDir = isPackaged()
+    ? path.join(process.resourcesPath, 'bin')
+    : path.join(__dirname, 'resources', 'bin');
+  const bundled = path.join(binDir, `uv-${process.arch}`);
+  return fs.existsSync(bundled) ? bundled : null;
+}
+
 function findUvPath() {
-  // macOS GUI 앱은 셸 PATH를 상속받지 않으므로 직접 탐색
+  // 1순위: 앱에 번들된 uv (사용자 머신에 uv 미설치여도 동작)
+  const bundled = getBundledUvPath();
+  if (bundled) {
+    log('INFO', `Using bundled uv: ${bundled}`);
+    return bundled;
+  }
+
+  // 2순위: 시스템 설치 uv. macOS GUI 앱은 셸 PATH를 상속받지 않으므로 직접 탐색
   const commonPaths = [
     path.join(process.env.HOME, '.local', 'bin', 'uv'),
     path.join(process.env.HOME, '.cargo', 'bin', 'uv'),
@@ -338,17 +355,23 @@ async function setupBackendWorkspace(uvPath) {
     sendLoadingStatus('Python 가상환경 생성 중...');
     log('INFO', 'Creating Python virtual environment...');
     try {
-      execSync(`"${uvPath}" venv "${venvPath}"`, {
+      // --python 3.11: 시스템에 3.11이 없으면 uv가 직접 내려받아 사용
+      // (시스템 Python 설치 의존성 제거). 다운로드가 필요할 수 있어 타임아웃 확대.
+      execSync(`"${uvPath}" venv --python 3.11 "${venvPath}"`, {
         cwd: bundledBackend,
         encoding: 'utf-8',
-        timeout: 30000,
+        timeout: 180000,
+        env: {
+          ...process.env,
+          PATH: `${path.dirname(uvPath)}:${process.env.PATH || ''}`,
+        },
       });
       log('INFO', 'Virtual environment created');
     } catch (err) {
       log('ERROR', `Failed to create venv: ${err.message}`);
       dialog.showErrorBox(
         'Python 환경 생성 실패',
-        `가상환경을 만들 수 없습니다.\n\nPython 3.11 이상이 설치되어 있는지 확인해주세요.\n\n${err.message}`
+        `가상환경을 만들 수 없습니다.\n\n인터넷 연결을 확인해주세요. (Python 3.11 런타임을 내려받습니다)\n\n${err.message}`
       );
       return false;
     }
