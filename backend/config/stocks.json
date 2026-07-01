@@ -229,5 +229,31 @@
       "증권",
       "IT"
     ]
+  },
+  "004170": {
+    "name": "신세계",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "신세계",
+    "relevance_keywords": [
+      "신세계",
+      "미분류"
+    ]
+  },
+  "009150": {
+    "name": "삼성전기",
+    "type": "STOCK",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "삼성전기",
+    "relevance_keywords": [
+      "삼성전기",
+      "미분류"
+    ]
   }
 }
