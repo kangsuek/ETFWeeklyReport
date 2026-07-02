@@ -23,6 +23,19 @@ WINDOWS_APP_BRANCH="feature/windows-app"
 MACOS_APP_SOURCE_DIR="${MACOS_APP_SOURCE_DIR:-$PROJECT_ROOT/macos}"
 WINDOWS_APP_SOURCE_DIR="${WINDOWS_APP_SOURCE_DIR:-$PROJECT_ROOT/windows}"
 
+# 브랜치 참조 해석: 로컬 브랜치가 있으면 그대로, 없으면 origin/<branch>로 폴백.
+# (로컬에 브랜치를 체크아웃하지 않아도 원격 브랜치로 빌드할 수 있게 한다.)
+resolve_branch_ref() {
+  local br="$1"
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "refs/heads/$br" >/dev/null; then
+    echo "$br"
+  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet "refs/remotes/origin/$br" >/dev/null; then
+    echo "origin/$br"
+  else
+    echo ""
+  fi
+}
+
 # ─── 옵션 파싱 ───────────────────────────────────────────────────
 BUILD_MAC=false
 BUILD_WIN=false
@@ -100,21 +113,28 @@ if ! command -v git &> /dev/null; then
   exit 1
 fi
 
-# 브랜치 존재 확인
+# 브랜치 존재 확인 (로컬 우선, 없으면 origin/<branch> 사용)
+MACOS_APP_REF=""
+WINDOWS_APP_REF=""
+
 if $BUILD_MAC; then
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify "$MACOS_APP_BRANCH" &> /dev/null; then
-    echo "ERROR: '$MACOS_APP_BRANCH' 브랜치가 존재하지 않습니다."
+  MACOS_APP_REF="$(resolve_branch_ref "$MACOS_APP_BRANCH")"
+  if [ -z "$MACOS_APP_REF" ]; then
+    echo "ERROR: '$MACOS_APP_BRANCH' 브랜치를 로컬・원격에서 찾을 수 없습니다."
     echo "  git fetch origin $MACOS_APP_BRANCH 를 실행해주세요."
     exit 1
   fi
+  echo "  macOS 소스 브랜치: $MACOS_APP_REF"
 fi
 
 if $BUILD_WIN; then
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify "$WINDOWS_APP_BRANCH" &> /dev/null; then
-    echo "ERROR: '$WINDOWS_APP_BRANCH' 브랜치가 존재하지 않습니다."
+  WINDOWS_APP_REF="$(resolve_branch_ref "$WINDOWS_APP_BRANCH")"
+  if [ -z "$WINDOWS_APP_REF" ]; then
+    echo "ERROR: '$WINDOWS_APP_BRANCH' 브랜치를 로컬・원격에서 찾을 수 없습니다."
     echo "  git fetch origin $WINDOWS_APP_BRANCH 를 실행해주세요."
     exit 1
   fi
+  echo "  Windows 소스 브랜치: $WINDOWS_APP_REF"
 fi
 
 echo ""
@@ -125,8 +145,8 @@ echo ">>> [2] 앱 소스 체크아웃..."
 cd "$PROJECT_ROOT"
 
 if $BUILD_MAC; then
-  echo "  macOS 소스 ($MACOS_APP_BRANCH)..."
-  git checkout "$MACOS_APP_BRANCH" -- \
+  echo "  macOS 소스 ($MACOS_APP_REF)..."
+  git checkout "$MACOS_APP_REF" -- \
     macos/main.js \
     macos/preload.js \
     macos/loading.html \
@@ -145,8 +165,8 @@ if $BUILD_MAC; then
 fi
 
 if $BUILD_WIN; then
-  echo "  Windows 소스 ($WINDOWS_APP_BRANCH)..."
-  git checkout "$WINDOWS_APP_BRANCH" -- \
+  echo "  Windows 소스 ($WINDOWS_APP_REF)..."
+  git checkout "$WINDOWS_APP_REF" -- \
     windows/main.js \
     windows/preload.js \
     windows/loading.html \

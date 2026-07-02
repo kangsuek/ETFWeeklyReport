@@ -24,7 +24,6 @@ fi
 
 echo "📦 backend/.venv 사용 (uv)"
 PYTHON_CMD="backend/.venv/bin/python"
-PIP_CMD="backend/.venv/bin/pip"
 PRECOMMIT_CMD="backend/.venv/bin/pre-commit"
 echo "   ✅ Python: $PYTHON_CMD ($($PYTHON_CMD --version))"
 
