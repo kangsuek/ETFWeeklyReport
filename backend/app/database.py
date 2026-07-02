@@ -439,6 +439,22 @@ def init_db():
         ON etf_fundamentals(ticker, date DESC)
     """)
 
+    # etf_fundamentals 컬럼 마이그레이션 (네이버 etfAnalysis JSON 수집 항목)
+    etf_fundamentals_columns = [
+        ("base_index", text_type),          # 기초지수
+        ("dividend_yield", real_type),      # 분배율(TTM, %)
+        ("dividend_per_share", real_type),  # 주당 분배금(TTM)
+        ("sector_portfolio", text_type),    # 펀드 섹터 배분(JSON: [{code, weight}])
+        ("deviation_rate", real_type),      # 괴리율(부호 포함 %, 네이버 동시점 기준)
+    ]
+    for col_name, col_type in etf_fundamentals_columns:
+        try:
+            cursor.execute(f"ALTER TABLE etf_fundamentals ADD COLUMN {col_name} {col_type}")
+            logger.info(f"Added {col_name} column to etf_fundamentals table")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add {col_name} column to etf_fundamentals: {e}")
+
     # Create etf_rebalancing table for rebalancing history
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS etf_rebalancing (

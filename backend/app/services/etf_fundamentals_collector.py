@@ -1,385 +1,261 @@
 """
 ETF 펀더멘털 데이터 수집 서비스
 
-네이버 금융 종목 메인 페이지에서 실제 데이터를 수집합니다.
+네이버 증권 모바일 JSON API(m.stock.naver.com)의 etfAnalysis 엔드포인트에서 수집합니다.
+구형 finance.naver.com HTML 파싱보다 안정적이고 필드가 풍부합니다.
 
-수집 항목:
-- NAV 추이 (날짜, 종가, NAV, 괴리율) → etf_fundamentals
-- 펀드보수 → etf_fundamentals.expense_ratio
-- 구성종목 상위 10개 → etf_holdings
-
-1차 범위 외 (네이버 main에 미노출):
-- etf_distributions (분배금): no-op
-- etf_rebalancing (리밸런싱): no-op
+수집 항목 (→ etf_fundamentals):
+- NAV, NAV 일간등락률, 총보수(펀드보수), AUM(순자산총액), 추적오차, 기초지수, 분배(TTM)
+수집 항목 (→ etf_holdings):
+- 구성종목 상위 10 (섹터는 stock_catalog로 보강)
 """
 
+import json
 import logging
 import re
 from datetime import datetime, date
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
+
+import requests
 
 from app.database import get_db_connection
-from app.services.naver_finance_scraper import fetch_main_page
 
 logger = logging.getLogger(__name__)
 
+_API_BASE = "https://m.stock.naver.com/api/stock"
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+    ),
+    "Referer": "https://m.stock.naver.com/",
+}
 
-def _parse_number(text: str) -> Optional[float]:
-    """쉼표·%·+·공백 제거 후 float 변환. 변환 불가이면 None."""
-    if not text:
-        return None
-    cleaned = re.sub(r'[,+%\s]', '', text.strip())
-    if cleaned in ('', '-', 'N/A'):
+
+def _to_float(v) -> Optional[float]:
+    """쉼표·%·+ 제거 후 float. 실패 시 None."""
+    if v is None:
         return None
     try:
-        return float(cleaned)
+        return float(str(v).replace(',', '').replace('%', '').replace('+', '').strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(v) -> Optional[int]:
+    f = _to_float(v)
+    return int(f) if f is not None else None
+
+
+def _parse_korean_amount(text) -> Optional[float]:
+    """
+    '27조 9,110억' / '7,408억' → 억원 단위 float.
+
+    1조 = 10,000억으로 환산하여 억원 단위 숫자를 반환한다.
+    단위(조/억)가 없는 순수 숫자면 그대로 float 변환한다.
+    """
+    if text is None:
+        return None
+    s = str(text).replace(',', '').replace(' ', '')
+    if not s or s in ('-', 'N/A'):
+        return None
+    try:
+        m_jo = re.search(r'(\d+(?:\.\d+)?)조', s)
+        m_eok = re.search(r'(\d+(?:\.\d+)?)억', s)
+        if not m_jo and not m_eok:
+            return float(s)
+        total = 0.0
+        if m_jo:
+            total += float(m_jo.group(1)) * 10000
+        if m_eok:
+            total += float(m_eok.group(1))
+        return total
     except ValueError:
         return None
 
 
-def _parse_date(text: str) -> Optional[date]:
-    """YYYY.MM.DD 형식 → date. 실패 시 None."""
-    text = text.strip()
-    for fmt in ('%Y.%m.%d', '%Y-%m-%d', '%Y/%m/%d'):
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
+def _parse_ref_date(d: dict) -> date:
+    """etfAnalysis 응답의 기준일(YYYY.MM.DD)을 date로. 없으면 오늘."""
+    ref = d.get('returnPerformanceReferenceDate') or d.get('navPerformanceReferenceDate')
+    if ref:
+        for fmt in ('%Y.%m.%d', '%Y-%m-%d', '%Y/%m/%d'):
+            try:
+                return datetime.strptime(ref, fmt).date()
+            except ValueError:
+                continue
+    return date.today()
 
 
 class ETFFundamentalsCollector:
-    """ETF 펀더멘털 데이터 수집기 (네이버 금융 main 페이지 기반)"""
+    """ETF 펀더멘털 수집기 (네이버 증권 모바일 JSON API 기반)."""
 
-    def collect_nav_data(self, ticker: str) -> bool:
-        """
-        NAV 추이 테이블과 펀드보수를 수집하여 etf_fundamentals에 저장합니다.
-
-        Args:
-            ticker: ETF 종목 코드
-
-        Returns:
-            저장 성공 여부
-        """
-        logger.info(f"[ETFFundamentals] Collecting NAV data for {ticker}")
-
-        soup = fetch_main_page(ticker)
-        if not soup:
-            logger.error(f"[ETFFundamentals] Failed to fetch page for {ticker}")
-            return False
-
-        # 1. 펀드보수 파싱 (투자정보 섹션)
-        expense_ratio = self._parse_expense_ratio(soup)
-        logger.debug(f"[ETFFundamentals] Expense ratio for {ticker}: {expense_ratio}")
-
-        # 2. NAV 추이 테이블 파싱
-        nav_rows = self._parse_nav_table(soup)
-        if not nav_rows:
-            logger.warning(f"[ETFFundamentals] No NAV data found for {ticker}")
-            return False
-
-        # 3. DB 저장
-        param = '?'
+    def _fetch_analysis(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """etfAnalysis JSON 조회. 실패 시 None."""
+        url = f"{_API_BASE}/{ticker}/etfAnalysis"
         try:
-            with get_db_connection() as conn_or_cursor:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
-                saved = 0
-
-                for row in nav_rows:
-                    cursor.execute(f"""
-                        INSERT OR REPLACE INTO etf_fundamentals
-                            (ticker, date, nav, nav_change_pct, expense_ratio)
-                        VALUES ({param},{param},{param},{param},{param})
-                    """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    saved += 1
-
-                conn.commit()
-            logger.info(f"[ETFFundamentals] Saved {saved} NAV rows for {ticker}")
-            return True
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] DB error saving NAV for {ticker}: {e}")
-            return False
-
-    def _parse_expense_ratio(self, soup) -> Optional[float]:
-        """펀드보수 테이블에서 총보수(%) 파싱."""
-        try:
-            # summary="펀드보수 정보" 테이블 찾기
-            table = soup.find('table', summary=re.compile('펀드보수'))
-            if not table:
+            resp = requests.get(url, headers=_HEADERS, timeout=10)
+            if resp.status_code != 200:
+                logger.warning(
+                    f"[ETFFundamentals] {ticker} etfAnalysis HTTP {resp.status_code}"
+                )
                 return None
-            em = table.find('em')
-            if em:
-                return _parse_number(em.get_text(strip=True))
+            return resp.json()
         except Exception as e:
-            logger.debug(f"[ETFFundamentals] Expense ratio parse error: {e}")
-        return None
+            logger.error(f"[ETFFundamentals] {ticker} fetch error: {e}")
+            return None
 
-    def _parse_nav_table(self, soup) -> List[dict]:
-        """
-        NAV 추이 테이블 파싱.
+    def _extract_fundamentals(self, d: dict) -> dict:
+        """etfAnalysis → etf_fundamentals 컬럼 매핑."""
+        # NAV 일간 변동률: navPerformanceList의 D1
+        nav_change_pct = None
+        for p in d.get('navPerformanceList', []) or []:
+            if p.get('periodTypeCode') == 'D1':
+                nav_change_pct = _to_float(p.get('value'))
+                break
 
-        Returns:
-            [{'date': date, 'nav': float, 'nav_change_pct': float}, ...]
-        """
-        rows = []
-        try:
-            # "순자산가치 NAV 추이" 헤딩 탐색 — get_text()로 자식 요소 포함 검색
-            heading = soup.find(
-                lambda t: re.match(r'^h[2-5]$', t.name) and 'NAV 추이' in t.get_text()
-            )
-            if heading:
-                nav_table = heading.find_next('table')
-            else:
-                # fallback: 날짜 형식(YYYY.MM.DD) td를 포함하는 첫 번째 table
-                nav_table = None
-                date_pattern = re.compile(r'^\d{4}\.\d{2}\.\d{2}$')
-                for t in soup.find_all('table'):
-                    if t.find('td', string=date_pattern):
-                        nav_table = t
-                        break
+        div = d.get('dividend') or {}
 
-            if not nav_table:
-                return rows
+        # 괴리율(부호 포함): 네이버 동시점 기준. deviationRate는 크기, deviationSign이 부호.
+        # (프론트에서 "가격−NAV"를 날짜 불일치로 계산하면 허수가 나오므로 이 값을 저장·사용한다.)
+        deviation_rate = _to_float(d.get('deviationRate'))
+        if deviation_rate is not None and str(d.get('deviationSign', '')).strip() == '-':
+            deviation_rate = -deviation_rate
 
-            for tr in nav_table.find_all('tr'):
-                tds = tr.find_all('td')
-                if len(tds) < 3:
-                    continue
+        # 펀드 섹터 배분 (종목별 섹터는 API 미제공이라 펀드 단위 배분을 저장)
+        sector_portfolio = None
+        sectors = [
+            {'code': s.get('detailTypeCode'), 'weight': _to_float(s.get('weight'))}
+            for s in (d.get('sectorPortfolioList') or [])
+            if s.get('detailTypeCode')
+        ]
+        if sectors:
+            sector_portfolio = json.dumps(sectors, ensure_ascii=False)
 
-                row_date = _parse_date(tds[0].get_text(strip=True))
-                if not row_date:
-                    continue
+        return {
+            'date': _parse_ref_date(d),
+            'nav': _to_float(d.get('nav')),
+            'nav_change_pct': nav_change_pct,
+            'aum': _parse_korean_amount(d.get('totalNav')),          # 억원 단위
+            'tracking_error': _to_float(d.get('chaseErrorRate')),
+            'expense_ratio': _to_float(d.get('totalFee')),
+            'base_index': d.get('etfBaseIndex'),
+            'dividend_yield': _to_float(div.get('dividendYieldTtm')),
+            'dividend_per_share': _to_float(div.get('dividendPerShareTtm')),
+            'sector_portfolio': sector_portfolio,
+            'deviation_rate': deviation_rate,
+        }
 
-                # 컬럼: 날짜, 종가, NAV, 괴리율
-                nav = _parse_number(tds[2].get_text(strip=True))
-                nav_change_pct = _parse_number(tds[3].get_text(strip=True)) if len(tds) > 3 else None
-
-                if nav:
-                    rows.append({
-                        'date': row_date,
-                        'nav': nav,
-                        'nav_change_pct': nav_change_pct,
-                    })
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] NAV table parse error: {e}")
-        return rows
-
-    def collect_distributions(self, ticker: str) -> bool:
-        """
-        분배금 수집 — 네이버 main 페이지에 미노출.
-        1차 범위 외: no-op.
-        """
-        logger.debug(f"[ETFFundamentals] Distributions skipped (out of scope) for {ticker}")
-        return True
-
-    def collect_rebalancing(self, ticker: str) -> bool:
-        """
-        리밸런싱 수집 — 네이버 main 페이지에 미노출.
-        1차 범위 외: no-op.
-        """
-        logger.debug(f"[ETFFundamentals] Rebalancing skipped (out of scope) for {ticker}")
-        return True
-
-    def collect_holdings(self, ticker: str) -> bool:
-        """
-        구성종목 상위 10개를 수집하여 etf_holdings에 저장합니다.
-
-        Args:
-            ticker: ETF 종목 코드
-
-        Returns:
-            저장 성공 여부
-        """
-        logger.info(f"[ETFFundamentals] Collecting holdings for {ticker}")
-
-        soup = fetch_main_page(ticker)
-        if not soup:
-            return False
-
-        holdings = self._parse_holdings_table(soup)
-        if not holdings:
-            logger.warning(f"[ETFFundamentals] No holdings data found for {ticker}")
-            return False
-
-        today = date.today()
-        param = '?'
-        try:
-            with get_db_connection() as conn_or_cursor:
-                conn = conn_or_cursor
-                cursor = conn.cursor()
-                saved = 0
-
-                for h in holdings:
-                    cursor.execute(f"""
-                        INSERT OR REPLACE INTO etf_holdings
-                            (ticker, date, stock_code, stock_name, weight, shares)
-                        VALUES ({param},{param},{param},{param},{param},{param})
-                    """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
-                    saved += 1
-
-                conn.commit()
-            logger.info(f"[ETFFundamentals] Saved {saved} holdings for {ticker}")
-            return True
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] DB error saving holdings for {ticker}: {e}")
-            return False
-
-    def _parse_holdings_table(self, soup) -> List[dict]:
-        """
-        구성종목 테이블 파싱 (class="tb_type1 tb_type1_a").
-
-        Returns:
-            [{'stock_code': str, 'stock_name': str, 'weight': float, 'shares': int}, ...]
-        """
+    def _extract_holdings(self, d: dict) -> List[dict]:
+        """etfAnalysis → etf_holdings 상위 구성종목."""
         results = []
-        try:
-            # 1순위: class에 tb_type1_a 포함하는 table 탐색 (KODEX 등)
-            table = soup.find('table', class_=re.compile(r'tb_type1_a'))
-
-            # 2순위: summary에 '상위' + '종목' 또는 '구성' 포함
-            if not table:
-                for t in soup.find_all('table'):
-                    summ = t.get('summary', '')
-                    if ('상위' in summ or '구성' in summ) and ('종목' in summ or '10' in summ):
-                        table = t
-                        break
-
-            # 3순위: 헤더 행에 '구성종목' 또는 '구성비중' 텍스트 포함 (ACE 등)
-            if not table:
-                for t in soup.find_all('table'):
-                    first_row = t.find('tr')
-                    if first_row:
-                        header_text = first_row.get_text()
-                        if '구성종목' in header_text or '구성비중' in header_text:
-                            table = t
-                            break
-
-            if not table:
-                return results
-
-            for tr in table.find_all('tr'):
-                tds = tr.find_all('td')
-                if len(tds) < 3:
-                    continue
-
-                # 첫 번째 td: 종목 링크 → 종목코드·종목명
-                first_td = tds[0]
-                link = first_td.find('a')
-                if not link:
-                    continue
-
-                stock_name = link.get_text(strip=True)
-                href = link.get('href', '')
-                code_match = re.search(r'code=(\d+)', href)
-                if not code_match:
-                    continue
-                stock_code = code_match.group(1)
-
-                # 두 번째 td: 주식수
-                shares_str = tds[1].get_text(strip=True).replace(',', '')
-                try:
-                    shares = int(shares_str) if shares_str and shares_str != '-' else None
-                except ValueError:
-                    shares = None
-
-                # 세 번째 td: 구성비중 (21.52%)
-                weight = _parse_number(tds[2].get_text(strip=True))
-
-                if stock_code and stock_name and weight is not None:
-                    results.append({
-                        'stock_code': stock_code,
-                        'stock_name': stock_name,
-                        'weight': weight,
-                        'shares': shares,
-                    })
-
-                if len(results) >= 10:
-                    break
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] Holdings parse error: {e}")
+        for h in d.get('etfTop10MajorConstituentAssets', []) or []:
+            code = h.get('itemCode')
+            name = h.get('itemName')
+            if not code or not name:
+                continue
+            results.append({
+                'stock_code': code,
+                'stock_name': name,
+                'weight': _to_float(h.get('etfWeight')),
+                'shares': _to_int(h.get('stockCount')),
+            })
         return results
+
+    def _sector_map(self, cursor, codes: List[str]) -> Dict[str, str]:
+        """stock_catalog에서 종목코드→섹터 매핑 (구성종목 섹터 보강)."""
+        if not codes:
+            return {}
+        placeholders = ','.join(['?'] * len(codes))
+        cursor.execute(
+            f"SELECT ticker, sector FROM stock_catalog WHERE ticker IN ({placeholders})",
+            codes,
+        )
+        return {row[0]: row[1] for row in cursor.fetchall() if row[1]}
 
     def collect_all(self, ticker: str) -> Dict[str, bool]:
         """
-        모든 펀더멘털 데이터 수집 (단일 페이지 요청 최적화).
-
-        Args:
-            ticker: ETF 종목 코드
+        ETF 펀더멘털 + 구성종목을 한 번의 API 호출로 수집·저장.
 
         Returns:
             {'nav': bool, 'holdings': bool, 'distributions': bool, 'rebalancing': bool}
         """
         logger.info(f"[ETFFundamentals] collect_all started for {ticker}")
+        data = self._fetch_analysis(ticker)
+        if not data:
+            return {'nav': False, 'holdings': False,
+                    'distributions': True, 'rebalancing': True}
 
-        # 한 번만 페이지를 가져와서 NAV와 holdings를 모두 파싱
-        soup = fetch_main_page(ticker)
-        if not soup:
-            logger.error(f"[ETFFundamentals] Failed to fetch page for {ticker}")
-            return {'nav': False, 'holdings': False, 'distributions': True, 'rebalancing': True}
-
-        # NAV + 펀드보수
-        expense_ratio = self._parse_expense_ratio(soup)
-        nav_rows = self._parse_nav_table(soup)
-
+        f = self._extract_fundamentals(data)
+        holdings = self._extract_holdings(data)
+        param = '?'
         nav_ok = False
-        if nav_rows:
-            param = '?'
-            try:
-                with get_db_connection() as conn_or_cursor:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
-                    for row in nav_rows:
-                        cursor.execute(f"""
-                            INSERT OR REPLACE INTO etf_fundamentals
-                                (ticker, date, nav, nav_change_pct, expense_ratio)
-                            VALUES ({param},{param},{param},{param},{param})
-                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    conn.commit()
-                nav_ok = True
-                logger.info(f"[ETFFundamentals] Saved {len(nav_rows)} NAV rows for {ticker}")
-            except Exception as e:
-                logger.error(f"[ETFFundamentals] DB error (NAV) for {ticker}: {e}")
-
-        # 구성종목
-        holdings = self._parse_holdings_table(soup)
         holdings_ok = False
-        if holdings:
-            today = date.today()
-            param = '?'
-            try:
-                with get_db_connection() as conn_or_cursor:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
+
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                if f['nav'] is not None:
+                    cursor.execute(f"""
+                        INSERT OR REPLACE INTO etf_fundamentals
+                            (ticker, date, nav, nav_change_pct, aum, tracking_error,
+                             expense_ratio, base_index, dividend_yield, dividend_per_share,
+                             sector_portfolio, deviation_rate)
+                        VALUES ({param},{param},{param},{param},{param},
+                                {param},{param},{param},{param},{param},{param},{param})
+                    """, (
+                        ticker, f['date'], f['nav'], f['nav_change_pct'], f['aum'],
+                        f['tracking_error'], f['expense_ratio'], f['base_index'],
+                        f['dividend_yield'], f['dividend_per_share'], f['sector_portfolio'],
+                        f['deviation_rate'],
+                    ))
+                    nav_ok = True
+
+                if holdings:
+                    sectors = self._sector_map(
+                        cursor, [h['stock_code'] for h in holdings]
+                    )
                     for h in holdings:
                         cursor.execute(f"""
                             INSERT OR REPLACE INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares)
-                            VALUES ({param},{param},{param},{param},{param},{param})
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
-                    conn.commit()
-                holdings_ok = True
-                logger.info(f"[ETFFundamentals] Saved {len(holdings)} holdings for {ticker}")
-            except Exception as e:
-                logger.error(f"[ETFFundamentals] DB error (holdings) for {ticker}: {e}")
+                                (ticker, date, stock_code, stock_name, weight, shares, sector)
+                            VALUES ({param},{param},{param},{param},{param},{param},{param})
+                        """, (
+                            ticker, f['date'], h['stock_code'], h['stock_name'],
+                            h['weight'], h['shares'], sectors.get(h['stock_code']),
+                        ))
+                    holdings_ok = True
 
-        results = {
-            'nav': nav_ok,
-            'holdings': holdings_ok,
-            'distributions': True,   # no-op
-            'rebalancing': True,      # no-op
-        }
-        logger.info(f"[ETFFundamentals] collect_all completed for {ticker}: {results}")
-        return results
+                conn.commit()
+            logger.info(
+                f"[ETFFundamentals] {ticker}: nav={nav_ok}, holdings={len(holdings)}, "
+                f"base_index={f['base_index']}, aum={f['aum']}"
+            )
+        except Exception as e:
+            logger.error(
+                f"[ETFFundamentals] DB error for {ticker}: {e}", exc_info=True
+            )
+
+        return {'nav': nav_ok, 'holdings': holdings_ok,
+                'distributions': True, 'rebalancing': True}
+
+    # ── 하위 호환용 개별 메서드 ────────────────────────────────
+    def collect_nav_data(self, ticker: str) -> bool:
+        return self.collect_all(ticker).get('nav', False)
+
+    def collect_holdings(self, ticker: str) -> bool:
+        return self.collect_all(ticker).get('holdings', False)
+
+    def collect_distributions(self, ticker: str) -> bool:
+        """분배 정보는 collect_all에서 etf_fundamentals에 함께 저장됨."""
+        return True
+
+    def collect_rebalancing(self, ticker: str) -> bool:
+        """리밸런싱: 소스 미제공, no-op."""
+        return True
 
 
 if __name__ == "__main__":
-    import logging
     logging.basicConfig(level=logging.INFO)
     collector = ETFFundamentalsCollector()
-    results = collector.collect_all("487240")
-    print(f"\nCollection results: {results}")
+    print(collector.collect_all("069500"))
