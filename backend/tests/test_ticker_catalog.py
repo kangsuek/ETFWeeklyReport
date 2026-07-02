@@ -281,3 +281,63 @@ class TestDatabaseSchema:
             assert 'last_updated' in columns
             assert 'is_active' in columns
 
+
+
+class TestJsonCollection:
+    """네이버 JSON API 기반 수집 단위 테스트 (모킹)"""
+
+    def test_collect_etf_stocks_from_json(self):
+        """etfItemList JSON에서 ETF 목록을 수집한다 (중복 제거 포함)"""
+        from app.services.ticker_catalog_collector import TickerCatalogCollector
+
+        payload = {"result": {"etfItemList": [
+            {"itemcode": "069500", "itemname": "KODEX 200",
+             "nowVal": 123530, "changeRate": -8.17, "quant": 22689328},
+            {"itemcode": "0101N0", "itemname": "RISE AI전력인프라",
+             "nowVal": 22755, "changeRate": -5.07, "quant": 1983286},
+            {"itemcode": "069500", "itemname": "KODEX 200(중복)",
+             "nowVal": 1, "changeRate": 0, "quant": 1},
+        ]}}
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = payload
+        mock_resp.raise_for_status.return_value = None
+
+        collector = TickerCatalogCollector()
+        with patch('requests.get', return_value=mock_resp):
+            stocks = collector._collect_etf_stocks()
+
+        assert len(stocks) == 2  # 중복 티커 제거
+        first = stocks[0]
+        assert first['ticker'] == '069500'
+        assert first['type'] == 'ETF'
+        assert first['market'] == 'ETF'
+        assert first['close_price'] == 123530.0
+        assert first['daily_change_pct'] == -8.17
+        assert first['volume'] == 22689328
+        # 문자 포함 신형 코드도 그대로 수집
+        assert stocks[1]['ticker'] == '0101N0'
+
+    def test_parse_market_value_rows_filters_non_stock(self):
+        """marketValue 목록에서 stockEndType='stock'만 STOCK으로 취한다"""
+        from app.services.ticker_catalog_collector import TickerCatalogCollector
+
+        rows = [
+            {"itemCode": "005930", "stockName": "삼성전자", "stockEndType": "stock",
+             "closePrice": "286,000", "fluctuationsRatio": "-9.06",
+             "accumulatedTradingVolume": "37,658,279"},
+            {"itemCode": "069500", "stockName": "KODEX 200", "stockEndType": "etf",
+             "closePrice": "123,530", "fluctuationsRatio": "-8.17",
+             "accumulatedTradingVolume": "22,689,328"},
+            {"itemCode": "700028", "stockName": "하나 레버리지 반도체 ETN",
+             "stockEndType": "etn", "closePrice": "1,000",
+             "fluctuationsRatio": "0.0", "accumulatedTradingVolume": "1"},
+        ]
+
+        stocks = TickerCatalogCollector._parse_market_value_rows(rows, "KOSPI")
+
+        assert len(stocks) == 1  # ETF/ETN 제외
+        assert stocks[0]['ticker'] == '005930'
+        assert stocks[0]['market'] == 'KOSPI'
+        assert stocks[0]['close_price'] == 286000.0
+        assert stocks[0]['volume'] == 37658279

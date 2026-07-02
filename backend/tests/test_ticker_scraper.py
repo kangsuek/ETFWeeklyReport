@@ -20,9 +20,9 @@ def scraper():
 def check_network():
     """네트워크 연결 확인"""
     try:
-        response = requests.get("https://finance.naver.com", timeout=5)
+        response = requests.get("https://m.stock.naver.com", timeout=5)
         return response.status_code == 200
-    except:
+    except requests.exceptions.RequestException:
         return False
 
 
@@ -78,46 +78,67 @@ class TestTickerScraperReal:
 
 
 class TestTickerTypeDetection:
-    """종목 타입 감지 테스트 (모킹)"""
+    """종목 타입 감지 테스트 (basic JSON의 stockEndType 기반, 모킹)"""
 
-    def test_detect_type_etf(self, scraper):
-        """ETF 타입 감지"""
-        from bs4 import BeautifulSoup
+    def _mock_responses(self, monkeypatch, by_url):
+        """URL 부분 문자열 → 응답 dict 매핑으로 requests.get 모킹"""
+        from unittest.mock import MagicMock
 
-        html = """
-        <html>
-        <head><title>테스트 ETF</title></head>
-        <body>
-            <div class="wrap_company">
-                <h2><a>테스트 ETF</a></h2>
-            </div>
-            <div>운용보수: 0.45%</div>
-        </body>
-        </html>
-        """
-        soup = BeautifulSoup(html, 'html.parser')
+        def mock_get(url, *args, **kwargs):
+            for fragment, payload in by_url.items():
+                if fragment in url:
+                    resp = MagicMock(status_code=200)
+                    resp.json.return_value = payload
+                    resp.raise_for_status.return_value = None
+                    return resp
+            raise AssertionError(f"unexpected url: {url}")
 
-        stock_type = scraper._detect_type("테스트 ETF", "TEST01", soup)
-        assert stock_type == "ETF"
+        monkeypatch.setattr(requests, "get", mock_get)
 
-    def test_detect_type_stock(self, scraper):
-        """STOCK 타입 감지"""
-        from bs4 import BeautifulSoup
+    def test_detect_type_etf(self, scraper, monkeypatch):
+        """stockEndType='etf'이면 ETF"""
+        self._mock_responses(monkeypatch, {
+            "/basic": {"stockName": "테스트 ETF", "stockEndType": "etf"},
+            "/etfAnalysis": {"itemName": "테스트 ETF", "etfSummary": "AI 전력 인프라에 투자"},
+        })
 
-        html = """
-        <html>
-        <head><title>테스트 주식</title></head>
-        <body>
-            <div class="wrap_company">
-                <h2><a>테스트 주식</a></h2>
-            </div>
-        </body>
-        </html>
-        """
-        soup = BeautifulSoup(html, 'html.parser')
+        result = scraper.scrape_ticker_info("TEST01")
+        assert result["type"] == "ETF"
+        assert result["name"] == "테스트 ETF"
+        # etfSummary 키워드로 테마 생성
+        assert "AI" in result["theme"]
 
-        stock_type = scraper._detect_type("테스트 주식", "TEST02", soup)
-        assert stock_type == "STOCK"
+    def test_detect_type_stock(self, scraper, monkeypatch):
+        """stockEndType='stock'이면 STOCK + 업종명 테마"""
+        self._mock_responses(monkeypatch, {
+            "/basic": {"stockName": "테스트 주식", "stockEndType": "stock"},
+            "/integration": {"industryCode": 278},
+            "/stocks/industry/278": {"groupInfo": {"no": 278, "name": "반도체와반도체장비"}},
+        })
+
+        result = scraper.scrape_ticker_info("TEST02")
+        assert result["type"] == "STOCK"
+        assert result["theme"] == "반도체와반도체장비"
+
+    def test_invalid_ticker_raises(self, scraper, monkeypatch):
+        """stockName이 없으면 종목 없음 예외"""
+        self._mock_responses(monkeypatch, {
+            "/basic": {"stockName": None, "stockEndType": None},
+        })
+
+        with pytest.raises(ScraperException) as exc_info:
+            scraper.scrape_ticker_info("999998")
+        assert "찾을 수 없습니다" in str(exc_info.value)
+
+    def test_theme_fallback_when_industry_missing(self, scraper, monkeypatch):
+        """업종 조회 실패 시 '미분류'로 폴백"""
+        self._mock_responses(monkeypatch, {
+            "/basic": {"stockName": "테스트 주식", "stockEndType": "stock"},
+            "/integration": {"industryCode": None},
+        })
+
+        result = scraper.scrape_ticker_info("TEST03")
+        assert result["theme"] == "미분류"
 
 
 class TestKeywordGeneration:
@@ -194,41 +215,7 @@ class TestScraperSingleton:
 
 
 class TestExtractMethods:
-    """내부 추출 메서드 테스트 (모킹)"""
-
-    def test_extract_name(self, scraper):
-        """종목명 추출"""
-        from bs4 import BeautifulSoup
-
-        html = """
-        <html>
-        <head><title>테스트 종목 : 네이버 금융</title></head>
-        <body>
-            <div class="wrap_company">
-                <h2><a>테스트 종목</a></h2>
-            </div>
-        </body>
-        </html>
-        """
-        soup = BeautifulSoup(html, 'html.parser')
-
-        name = scraper._extract_name(soup, "TEST01")
-        assert name == "테스트 종목"
-
-    def test_extract_name_from_title(self, scraper):
-        """title 태그에서 종목명 추출"""
-        from bs4 import BeautifulSoup
-
-        html = """
-        <html>
-        <head><title>삼성전자 : 네이버 금융</title></head>
-        <body></body>
-        </html>
-        """
-        soup = BeautifulSoup(html, 'html.parser')
-
-        name = scraper._extract_name(soup, "005930")
-        assert name == "삼성전자"
+    """내부 추출 메서드 테스트"""
 
     def test_extract_keywords_from_text(self, scraper):
         """텍스트에서 키워드 추출"""

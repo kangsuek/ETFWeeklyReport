@@ -1,30 +1,42 @@
 """
-네이버 금융에서 종목 정보 스크래핑
+네이버 증권 JSON API에서 종목 정보 수집
 
 종목 코드를 입력하면 자동으로 종목 정보를 수집하여
-stocks.json 형식으로 반환합니다.
+stocks.json 형식으로 반환합니다. (종목 추가 전 검증용)
+
+- 종목명/타입: /api/stock/{code}/basic (stockName, stockEndType)
+- 주식 테마:  /api/stock/{code}/integration → industryCode
+              → /api/stocks/industry/{code} → groupInfo.name (업종명)
+- ETF 테마:   /api/stock/{code}/etfAnalysis → etfSummary 텍스트 키워드 추출
 """
 import re
 import logging
 import requests
-from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.exceptions import ScraperException
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
+from app.services.naver_stock_api import MOBILE_API_BASE, HEADERS
 
 logger = logging.getLogger(__name__)
 
 
 class TickerScraper:
-    """네이버 금융 종목 정보 스크래퍼"""
+    """네이버 증권 JSON API 기반 종목 정보 수집기"""
 
     def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
         self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
+
+    def _get_json(self, url: str) -> Optional[dict]:
+        """JSON GET. 비-JSON/비-dict 응답은 None (네트워크 예외는 전파 → retry)."""
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+        try:
+            data = response.json()
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) else None
 
     @retry_with_backoff(
         max_retries=3,
@@ -33,10 +45,10 @@ class TickerScraper:
     )
     def scrape_ticker_info(self, ticker: str) -> Dict[str, Any]:
         """
-        네이버 금융에서 종목 정보 스크래핑
+        네이버 증권 JSON API에서 종목 정보 수집
 
         Args:
-            ticker: 종목 코드 (예: "005930", "487240")
+            ticker: 종목 코드 (예: "005930", "487240", "0101N0")
 
         Returns:
             Dict[str, Any]: stocks.json 형식의 종목 정보
@@ -44,37 +56,33 @@ class TickerScraper:
                 "ticker": "005930",
                 "name": "삼성전자",
                 "type": "STOCK",
-                "theme": "반도체/전자",
+                "theme": "반도체와반도체장비",
                 "purchase_date": null,
                 "search_keyword": "삼성전자",
-                "relevance_keywords": ["삼성전자", "반도체", "전자"]
+                "relevance_keywords": ["삼성전자", "반도체", ...]
             }
 
         Raises:
-            ScraperException: 스크래핑 실패 (404, 네트워크 에러, 파싱 실패 등)
+            ScraperException: 수집 실패 (미존재 종목, 네트워크 에러 등)
         """
-        url = f"https://finance.naver.com/item/main.naver?code={ticker}"
-        logger.info(f"Scraping ticker info from {url}")
+        logger.info(f"Fetching ticker info for {ticker} from Naver JSON API")
 
         try:
+            # 1. 종목명 + 타입 (basic)
             with self.rate_limiter:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                basic = self._get_json(f"{MOBILE_API_BASE}/stock/{ticker}/basic")
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # 1. 종목명 추출
-            name = self._extract_name(soup, ticker)
+            name = (basic or {}).get('stockName')
             if not name:
                 raise ScraperException(f"종목을 찾을 수 없습니다: {ticker}")
 
-            # 2. 종목 타입 감지 (ETF or STOCK)
-            stock_type = self._detect_type(name, ticker, soup)
+            end_type = (basic or {}).get('stockEndType', '')
+            stock_type = "ETF" if end_type == 'etf' else "STOCK"
 
-            # 3. 테마/섹터 추출
-            theme = self._extract_theme(soup, stock_type)
+            # 2. 테마/섹터 추출
+            theme = self._fetch_theme(ticker, stock_type)
 
-            # 4. 키워드 생성
+            # 3. 키워드 생성
             search_keyword = self._generate_search_keyword(name, theme)
             relevance_keywords = self.generate_keywords(name, theme)
 
@@ -88,87 +96,59 @@ class TickerScraper:
                 "relevance_keywords": relevance_keywords
             }
 
-            logger.info(f"Successfully scraped info for {ticker}: {name} ({stock_type})")
+            logger.info(f"Successfully fetched info for {ticker}: {name} ({stock_type})")
             return stock_info
 
+        except ScraperException:
+            raise
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
+            # 미존재 종목은 404 외에 409(StockConflict) 등으로도 응답한다
+            status = e.response.status_code if e.response is not None else None
+            if status is not None and 400 <= status < 500:
                 raise ScraperException(f"종목을 찾을 수 없습니다: {ticker}")
-            logger.error(f"HTTP error scraping {ticker}: {e}")
+            logger.error(f"HTTP error fetching {ticker}: {e}")
             raise ScraperException(f"네트워크 오류: {e}")
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request error scraping {ticker}: {e}")
+            logger.error(f"Request error fetching {ticker}: {e}")
             raise ScraperException(f"네트워크 오류: {e}")
         except Exception as e:
-            logger.error(f"Unexpected error scraping {ticker}: {e}", exc_info=True)
-            raise ScraperException(f"스크래핑 실패: {e}")
+            logger.error(f"Unexpected error fetching {ticker}: {e}", exc_info=True)
+            raise ScraperException(f"수집 실패: {e}")
 
-    def _extract_name(self, soup: BeautifulSoup, ticker: str) -> Optional[str]:
-        """종목명 추출"""
-        # 방법 1: .wrap_company h2 a (가장 일반적)
-        company_h2 = soup.select_one('.wrap_company h2 a')
-        if company_h2:
-            return company_h2.get_text(strip=True)
+    def _fetch_theme(self, ticker: str, stock_type: str) -> str:
+        """
+        테마/섹터 조회. 실패해도 검증 자체는 계속되도록 '미분류'로 폴백한다.
 
-        # 방법 2: title 태그에서 추출 (예: "삼성전자 : 네이버 금융")
-        title_tag = soup.find('title')
-        if title_tag:
-            title_text = title_tag.get_text(strip=True)
-            match = re.match(r'^(.+?)\s*[:：]', title_text)
-            if match:
-                return match.group(1).strip()
-
-        # 방법 3: meta 태그
-        meta_title = soup.find('meta', property='og:title')
-        if meta_title:
-            content = meta_title.get('content', '')
-            match = re.match(r'^(.+?)\s*[:：]', content)
-            if match:
-                return match.group(1).strip()
-
-        logger.warning(f"Failed to extract name for {ticker}")
-        return None
-
-    def _detect_type(self, name: str, ticker: str, soup: BeautifulSoup) -> str:
-        """종목 타입 감지 (ETF or STOCK)"""
-        # 방법 1: 종목명에 "ETF" 포함 여부
-        if "ETF" in name.upper():
-            return "ETF"
-
-        # 방법 2: 종목코드 길이 (ETF는 6자리, 주식은 6자리)
-        # 이 방법은 신뢰성이 낮으므로 다른 방법과 조합
-
-        # 방법 3: 페이지 내용 확인
-        page_text = soup.get_text().upper()
-        if "ETF" in page_text and "운용보수" in page_text:
-            return "ETF"
-
-        # 기본값: STOCK
-        return "STOCK"
-
-    def _extract_theme(self, soup: BeautifulSoup, stock_type: str) -> str:
-        """테마/섹터 추출"""
-        # 방법 1: 업종 정보 (.wrap_company .description)
-        description = soup.select_one('.wrap_company .description')
-        if description:
-            text = description.get_text(strip=True)
-            # "업종: 반도체" 형태
-            match = re.search(r'업종\s*[:：]\s*(.+)', text)
-            if match:
-                return match.group(1).strip()
-
-        # 방법 2: 종목 설명에서 추출 (ETF인 경우 더 상세한 설명이 있음)
-        if stock_type == "ETF":
-            # ETF 상세 설명 영역 찾기
-            description_area = soup.find('div', class_='description')
-            if description_area:
-                text = description_area.get_text(strip=True)
-                # 간단한 키워드 추출 (예: "AI", "전력", "반도체" 등)
-                keywords = self._extract_keywords_from_text(text)
+        - STOCK: integration의 industryCode → 업종 목록 API의 groupInfo.name (업종명)
+        - ETF:   etfAnalysis의 etfSummary 텍스트에서 키워드 추출 (최대 3개)
+        """
+        try:
+            if stock_type == "ETF":
+                with self.rate_limiter:
+                    analysis = self._get_json(f"{MOBILE_API_BASE}/stock/{ticker}/etfAnalysis")
+                summary = (analysis or {}).get('etfSummary') or ''
+                item_name = (analysis or {}).get('itemName') or ''
+                keywords = self._extract_keywords_from_text(f"{item_name} {summary}")
                 if keywords:
-                    return "/".join(keywords[:3])  # 최대 3개
+                    return "/".join(keywords[:3])
+                return "미분류"
 
-        # 기본값: "미분류"
+            # STOCK: 업종명 조회
+            with self.rate_limiter:
+                integration = self._get_json(f"{MOBILE_API_BASE}/stock/{ticker}/integration")
+            industry_code = (integration or {}).get('industryCode')
+            if industry_code:
+                with self.rate_limiter:
+                    industry = self._get_json(
+                        f"{MOBILE_API_BASE}/stocks/industry/{industry_code}?page=1&pageSize=1"
+                    )
+                industry_name = ((industry or {}).get('groupInfo') or {}).get('name')
+                if industry_name:
+                    return industry_name
+
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Theme fetch failed for {ticker}: {e}")
+
         return "미분류"
 
     def _generate_search_keyword(self, name: str, theme: str) -> str:

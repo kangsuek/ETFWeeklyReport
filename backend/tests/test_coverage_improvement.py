@@ -185,25 +185,19 @@ class TestDataCollectorEdgeCases:
     """데이터 수집기 엣지 케이스 테스트"""
     
     def test_parse_number_empty_string(self):
-        """빈 문자열 파싱 테스트"""
-        from app.services.data_collector import ETFDataCollector
-        collector = ETFDataCollector()
-        
-        assert collector._parse_number("") is None
-        assert collector._parse_number("   ") is None
-    
-    def test_parse_change_edge_cases(self):
-        """변동률 파싱 엣지 케이스"""
-        from app.services.data_collector import ETFDataCollector
-        collector = ETFDataCollector()
-        
-        # 빈 문자열
-        change_pct = collector._parse_change("", 10000)
-        assert change_pct is None
-        
-        # None
-        change_pct = collector._parse_change(None, 10000)
-        assert change_pct is None
+        """빈 문자열 파싱 테스트 (공용 naver_stock_api.parse_number)"""
+        from app.services.naver_stock_api import parse_number
+
+        assert parse_number("") is None
+        assert parse_number("   ") is None
+
+    def test_parse_int_edge_cases(self):
+        """정수 파싱 엣지 케이스 (구 HTML 전일비 파싱은 JSON 전환으로 제거됨)"""
+        from app.services.naver_stock_api import parse_int
+
+        assert parse_int("") is None
+        assert parse_int(None) is None
+        assert parse_int("1,234") == 1234
     
     def test_fetch_prices_with_invalid_ticker(self):
         """잘못된 ticker로 가격 데이터 수집 테스트"""
