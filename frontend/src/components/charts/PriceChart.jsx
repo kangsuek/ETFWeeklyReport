@@ -322,19 +322,6 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
   }, [data])
 
   // 데이터 없음 상태 처리
-  if (!chartData || chartData.length === 0) {
-    return (
-      <div
-        className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors"
-        style={{ height: `${finalHeight}px` }}
-        role="img"
-        aria-label="가격 차트 - 데이터 없음"
-      >
-        <p className="text-gray-500 dark:text-gray-400">표시할 가격 데이터가 없습니다.</p>
-      </div>
-    )
-  }
-
   // Y축 도메인 계산 (가격)
   const prices = chartData.flatMap((d) => [
     d.open_price,
@@ -404,6 +391,20 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
       }
     }
   }, [is7Days, containerWidth, dataCount])
+
+  // 데이터 없음 상태 처리 (모든 훅 호출 이후에 early return — hooks 규칙 준수)
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors"
+        style={{ height: `${finalHeight}px` }}
+        role="img"
+        aria-label="가격 차트 - 데이터 없음"
+      >
+        <p className="text-gray-500 dark:text-gray-400">표시할 가격 데이터가 없습니다.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full">

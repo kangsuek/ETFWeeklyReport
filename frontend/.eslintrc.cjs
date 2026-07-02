@@ -30,9 +30,8 @@ module.exports = {
     // PropTypes: 코드베이스 전반 미비(약 200건). CLAUDE.md 원칙상 목표는 error이나
     // 점진 도입을 위해 우선 off. 컴포넌트별 PropTypes 정비 후 'warn'→'error'로 승격 권장.
     'react/prop-types': 'off',
-    // 기존 위반이 있어 baseline은 경고. (rules-of-hooks: 데이터 없을 때 early return 뒤
-    // useMemo 호출 6건 등 실제 수정 필요) 점진 수정 후 error로 승격 권장.
-    'react-hooks/rules-of-hooks': 'warn',
+    // 훅 호출 순서 규칙은 정합성 규칙이라 error 유지 (기존 위반 6건은 수정 완료).
+    'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
     'no-case-declarations': 'warn',
     'no-inner-declarations': 'warn',

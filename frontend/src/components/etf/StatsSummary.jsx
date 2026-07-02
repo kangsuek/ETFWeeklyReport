@@ -256,7 +256,12 @@ const getReturnColor = (value) => {
 export default function StatsSummary({ data = [], purchasePrice = null, purchaseDate = null }) {
   const stats = useMemo(() => calculateStats(data, purchasePrice, purchaseDate), [data, purchasePrice, purchaseDate])
 
-  // 데이터가 없거나 통계 계산 실패
+  // 연환산 수익률 계산 (3개월 미만은 표기 안 함)
+  const annualizedReturn = useMemo(() => {
+    return calculateAnnualizedReturn(data)
+  }, [data])
+
+  // 데이터가 없거나 통계 계산 실패 (모든 훅 호출 이후에 early return — hooks 규칙 준수)
   if (!stats) {
     return (
       <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -265,11 +270,6 @@ export default function StatsSummary({ data = [], purchasePrice = null, purchase
       </div>
     )
   }
-
-  // 연환산 수익률 계산 (3개월 미만은 표기 안 함)
-  const annualizedReturn = useMemo(() => {
-    return calculateAnnualizedReturn(data)
-  }, [data])
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
