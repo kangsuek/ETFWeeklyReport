@@ -118,6 +118,10 @@ export const etfApi = {
   // 종목 지표 조회 (일반 조회)
   getMetrics: (ticker) => api.get(`/etfs/${ticker}/metrics`, { timeout: NORMAL_API_TIMEOUT }),
 
+  // 펀더멘털 조회 (ETF: NAV/총보수/구성종목, STOCK: 재무지표)
+  getFundamentals: (ticker) =>
+    api.get(`/etfs/${ticker}/fundamentals`, { timeout: NORMAL_API_TIMEOUT }),
+
   // 종목 인사이트 조회 (일반 조회)
   getInsights: (ticker, period = '1m') =>
     api.get(`/etfs/${ticker}/insights`, {
