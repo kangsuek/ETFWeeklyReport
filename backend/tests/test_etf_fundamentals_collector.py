@@ -1,300 +1,229 @@
 """
-etf_fundamentals_collector.py 단위 테스트
+ETF 펀더멘털 수집기 테스트 (네이버 모바일 JSON API 기반)
 
-HTML fixture를 사용하여 실제 네트워크 없이 파싱 로직을 검증합니다.
+etfAnalysis JSON 응답 파싱(_extract_fundamentals/_extract_holdings)과
+DB 저장(collect_all)을 검증한다. 네트워크는 모두 mock 처리.
 """
 import pytest
 from datetime import date
 from unittest.mock import patch, MagicMock
-from bs4 import BeautifulSoup
 
 from app.services.etf_fundamentals_collector import (
     ETFFundamentalsCollector,
-    _parse_number,
-    _parse_date,
+    _parse_korean_amount,
 )
+from app.database import get_db_connection
 
 
 # ───────────────────────────────────────
-# HTML 픽스처 (KODEX 487240 구조 모방)
+# 샘플 etfAnalysis 응답 (실제 구조 축약)
 # ───────────────────────────────────────
 
-ETF_NAV_HTML = """
-<html><body>
-  <h4>순자산가치 NAV 추이</h4>
-  <table>
-    <thead>
-      <tr>
-        <th>날짜</th><th>종가</th><th>NAV</th><th>괴리율</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td></td><td></td></tr>
-      <tr><td>2026.02.13</td><td>29,835</td><td>29,726</td><td>+0.37%</td></tr>
-      <tr><td>2026.02.12</td><td>30,110</td><td>30,143</td><td>-0.11%</td></tr>
-      <tr><td>2026.02.11</td><td>29,825</td><td>29,894</td><td>-0.23%</td></tr>
-      <tr><td></td><td></td></tr>
-    </tbody>
-  </table>
-  <table summary="펀드보수 정보" class="tbl_type1">
-    <caption>펀드보수</caption>
-    <tbody>
-      <tr><th>펀드보수</th><td>연 <em>0.39</em>%</td></tr>
-    </tbody>
-  </table>
-</body></html>
-"""
-
-ETF_HOLDINGS_HTML = """
-<html><body>
-  <table class="tb_type1 tb_type1_a">
-    <thead>
-      <tr>
-        <th>구성종목(구성자산)</th>
-        <th>주식수(계약수)</th>
-        <th>구성비중</th>
-        <th>시세</th><th>전일비</th><th>등락률</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td></td><td></td></tr>
-      <tr>
-        <td><a href="/item/main.naver?code=010120">LS ELECTRIC</a></td>
-        <td>968</td><td>21.52%</td><td>661,000</td><td>10,000</td><td>-1.49%</td>
-      </tr>
-      <tr>
-        <td><a href="/item/main.naver?code=298040">효성중공업</a></td>
-        <td>243</td><td>19.49%</td><td>2,384,000</td><td>21,000</td><td>-0.87%</td>
-      </tr>
-      <tr>
-        <td><a href="/item/main.naver?code=267260">HD현대일렉트릭</a></td>
-        <td>569</td><td>18.16%</td><td>949,000</td><td>17,000</td><td>-1.76%</td>
-      </tr>
-      <tr><td></td><td></td></tr>
-    </tbody>
-  </table>
-</body></html>
-"""
-
-ETF_FULL_HTML = ETF_NAV_HTML.replace("</body></html>", "") + ETF_HOLDINGS_HTML.split("<body>")[1]
-
-NO_NAV_HTML = "<html><body><p>데이터 없음</p></body></html>"
+SAMPLE_ANALYSIS = {
+    "itemCode": "475300",
+    "itemName": "SOL 반도체전공정",
+    "etfBaseIndex": "FnGuide 반도체 전공정 지수(PR)",
+    "totalNav": "3,340억",
+    "nav": "29953.51",
+    "deviationSign": "+",
+    "deviationRate": 0.51,
+    "totalFee": 0.45,
+    "chaseErrorRate": 0.78,
+    "returnPerformanceReferenceDate": "2026.07.01",
+    "navPerformanceList": [
+        {"periodTypeCode": "D1", "value": 5.51},
+        {"periodTypeCode": "M1", "value": -3.2},
+    ],
+    "sectorPortfolioList": [
+        {"detailTypeCode": "IT", "weight": 86.94},
+        {"detailTypeCode": "MATERIALS", "weight": 12.64},
+        {"detailTypeCode": "UNCLASSIFIED", "weight": 0.36},
+    ],
+    "etfTop10MajorConstituentAssets": [
+        {"seq": 1, "itemCode": "036930", "itemName": "주성엔지니어링",
+         "stockCount": "1,234", "etfWeight": "19.49%"},
+        {"seq": 2, "itemCode": "240810", "itemName": "원익IPS",
+         "stockCount": "2,345", "etfWeight": "16.21%"},
+    ],
+    "dividend": {
+        "dividendYieldTtm": 0.13,
+        "dividendPerShareTtm": 40,
+        "dividendCountThisYear": 1,
+        "dividendMonthThisYear": "4",
+    },
+}
 
 
 # ───────────────────────────────────────
-# _parse_number / _parse_date 테스트
+# _parse_korean_amount (조/억 → 억원)
 # ───────────────────────────────────────
 
-class TestHelpers:
-    def test_parse_number_plain(self):
-        assert _parse_number("29726") == 29726.0
+class TestParseKoreanAmount:
+    def test_eok_only(self):
+        assert _parse_korean_amount("3,340억") == 3340.0
 
-    def test_parse_number_with_comma(self):
-        assert _parse_number("29,726") == 29726.0
+    def test_jo_and_eok(self):
+        assert _parse_korean_amount("27조 9,110억") == 279110.0
 
-    def test_parse_number_with_plus_sign(self):
-        assert _parse_number("+0.37") == pytest.approx(0.37)
+    def test_jo_only(self):
+        assert _parse_korean_amount("2조") == 20000.0
 
-    def test_parse_number_with_percent(self):
-        assert _parse_number("+0.37%") == pytest.approx(0.37)
+    def test_plain_number(self):
+        assert _parse_korean_amount("1234.5") == 1234.5
 
-    def test_parse_number_negative(self):
-        assert _parse_number("-0.11%") == pytest.approx(-0.11)
-
-    def test_parse_number_dash(self):
-        assert _parse_number("-") is None
-
-    def test_parse_number_empty(self):
-        assert _parse_number("") is None
-
-    def test_parse_date_dot_format(self):
-        assert _parse_date("2026.02.13") == date(2026, 2, 13)
-
-    def test_parse_date_dash_format(self):
-        assert _parse_date("2026-02-13") == date(2026, 2, 13)
-
-    def test_parse_date_invalid(self):
-        assert _parse_date("invalid") is None
-
-    def test_parse_date_empty(self):
-        assert _parse_date("") is None
+    def test_none_and_invalid(self):
+        assert _parse_korean_amount(None) is None
+        assert _parse_korean_amount("-") is None
+        assert _parse_korean_amount("N/A") is None
 
 
 # ───────────────────────────────────────
-# _parse_expense_ratio 테스트
+# _extract_fundamentals
 # ───────────────────────────────────────
 
-class TestParseExpenseRatio:
+class TestExtractFundamentals:
     def setup_method(self):
         self.collector = ETFFundamentalsCollector()
+        self.f = self.collector._extract_fundamentals(SAMPLE_ANALYSIS)
 
-    def test_parses_expense_ratio(self):
-        soup = BeautifulSoup(ETF_NAV_HTML, "html.parser")
-        ratio = self.collector._parse_expense_ratio(soup)
-        assert ratio == pytest.approx(0.39)
+    def test_nav_and_date(self):
+        assert self.f['nav'] == 29953.51
+        assert self.f['date'] == date(2026, 7, 1)
 
-    def test_returns_none_when_no_table(self):
-        soup = BeautifulSoup(NO_NAV_HTML, "html.parser")
-        ratio = self.collector._parse_expense_ratio(soup)
-        assert ratio is None
+    def test_nav_change_pct_from_d1(self):
+        assert self.f['nav_change_pct'] == 5.51
+
+    def test_aum_in_eok(self):
+        assert self.f['aum'] == 3340.0
+
+    def test_tracking_error_and_fee(self):
+        assert self.f['tracking_error'] == 0.78
+        assert self.f['expense_ratio'] == 0.45
+
+    def test_base_index(self):
+        assert self.f['base_index'] == "FnGuide 반도체 전공정 지수(PR)"
+
+    def test_dividend(self):
+        assert self.f['dividend_yield'] == 0.13
+        assert self.f['dividend_per_share'] == 40
+
+    def test_deviation_rate_positive(self):
+        assert self.f['deviation_rate'] == 0.51
+
+    def test_deviation_rate_negative_sign(self):
+        data = dict(SAMPLE_ANALYSIS, deviationSign="-", deviationRate=0.51)
+        f = self.collector._extract_fundamentals(data)
+        assert f['deviation_rate'] == -0.51
+
+    def test_sector_portfolio_json(self):
+        import json
+        sectors = json.loads(self.f['sector_portfolio'])
+        assert sectors[0] == {"code": "IT", "weight": 86.94}
+        assert len(sectors) == 3
 
 
 # ───────────────────────────────────────
-# _parse_nav_table 테스트
+# _extract_holdings
 # ───────────────────────────────────────
 
-class TestParseNavTable:
+class TestExtractHoldings:
     def setup_method(self):
         self.collector = ETFFundamentalsCollector()
+        self.holdings = self.collector._extract_holdings(SAMPLE_ANALYSIS)
 
-    def test_parses_nav_rows(self):
-        soup = BeautifulSoup(ETF_NAV_HTML, "html.parser")
-        rows = self.collector._parse_nav_table(soup)
+    def test_count(self):
+        assert len(self.holdings) == 2
 
-        assert len(rows) == 3
-        assert rows[0]["date"] == date(2026, 2, 13)
-        assert rows[0]["nav"] == pytest.approx(29726.0)
-        assert rows[0]["nav_change_pct"] == pytest.approx(0.37)
+    def test_fields(self):
+        h = self.holdings[0]
+        assert h['stock_code'] == "036930"
+        assert h['stock_name'] == "주성엔지니어링"
+        assert h['weight'] == 19.49
+        assert h['shares'] == 1234
 
-    def test_parses_negative_nav_change(self):
-        soup = BeautifulSoup(ETF_NAV_HTML, "html.parser")
-        rows = self.collector._parse_nav_table(soup)
+    def test_skips_rows_without_code(self):
+        data = dict(SAMPLE_ANALYSIS)
+        data['etfTop10MajorConstituentAssets'] = [
+            {"itemCode": None, "itemName": "무효"},
+            {"itemCode": "005930", "itemName": "삼성전자",
+             "stockCount": "10", "etfWeight": "5.0%"},
+        ]
+        holdings = self.collector._extract_holdings(data)
+        assert len(holdings) == 1
+        assert holdings[0]['stock_code'] == "005930"
 
-        assert rows[1]["date"] == date(2026, 2, 12)
-        assert rows[1]["nav_change_pct"] == pytest.approx(-0.11)
-
-    def test_skips_empty_rows(self):
-        """빈 tr 행은 파싱 결과에 포함되지 않는다."""
-        soup = BeautifulSoup(ETF_NAV_HTML, "html.parser")
-        rows = self.collector._parse_nav_table(soup)
-
-        dates = [r["date"] for r in rows]
-        assert None not in dates
-
-    def test_returns_empty_when_no_table(self):
-        soup = BeautifulSoup(NO_NAV_HTML, "html.parser")
-        rows = self.collector._parse_nav_table(soup)
-        assert rows == []
+    def test_empty_when_missing(self):
+        assert self.collector._extract_holdings({}) == []
 
 
 # ───────────────────────────────────────
-# _parse_holdings_table 테스트
-# ───────────────────────────────────────
-
-class TestParseHoldingsTable:
-    def setup_method(self):
-        self.collector = ETFFundamentalsCollector()
-
-    def test_parses_holdings(self):
-        soup = BeautifulSoup(ETF_HOLDINGS_HTML, "html.parser")
-        holdings = self.collector._parse_holdings_table(soup)
-
-        assert len(holdings) == 3
-        assert holdings[0]["stock_code"] == "010120"
-        assert holdings[0]["stock_name"] == "LS ELECTRIC"
-        assert holdings[0]["weight"] == pytest.approx(21.52)
-        assert holdings[0]["shares"] == 968
-
-    def test_parses_stock_code_from_link(self):
-        soup = BeautifulSoup(ETF_HOLDINGS_HTML, "html.parser")
-        holdings = self.collector._parse_holdings_table(soup)
-
-        codes = [h["stock_code"] for h in holdings]
-        assert "010120" in codes
-        assert "298040" in codes
-        assert "267260" in codes
-
-    def test_skips_empty_rows(self):
-        soup = BeautifulSoup(ETF_HOLDINGS_HTML, "html.parser")
-        holdings = self.collector._parse_holdings_table(soup)
-
-        assert all(h["stock_code"] for h in holdings)
-
-    def test_returns_empty_when_no_table(self):
-        soup = BeautifulSoup(NO_NAV_HTML, "html.parser")
-        holdings = self.collector._parse_holdings_table(soup)
-        assert holdings == []
-
-    def test_limit_to_10_holdings(self):
-        """구성종목은 최대 10개만 수집한다."""
-        rows_html = "\n".join(
-            f'<tr><td><a href="/item/main.naver?code=00{i:04d}">종목{i}</a></td>'
-            f'<td>{i * 100}</td><td>{i * 2}.0%</td>'
-            f'<td>10,000</td><td>100</td><td>+1.0%</td></tr>'
-            for i in range(1, 16)
-        )
-        html = f'<html><body><table class="tb_type1 tb_type1_a"><tbody>{rows_html}</tbody></table></body></html>'
-        soup = BeautifulSoup(html, "html.parser")
-        holdings = self.collector._parse_holdings_table(soup)
-        assert len(holdings) <= 10
-
-
-# ───────────────────────────────────────
-# collect_all (모킹)
+# collect_all (fetch mock + 격리 DB 저장)
 # ───────────────────────────────────────
 
 class TestCollectAll:
-    """fetch_main_page와 DB를 모킹하여 전체 흐름 검증."""
+    TICKER = "475300"
 
-    @patch("app.services.etf_fundamentals_collector.fetch_main_page")
-    @patch("app.services.etf_fundamentals_collector.get_db_connection")
-    def test_collect_all_success(self, mock_db, mock_fetch):
-        """정상 HTML이면 nav와 holdings 모두 True를 반환한다."""
-        soup = BeautifulSoup(ETF_FULL_HTML, "html.parser")
-        mock_fetch.return_value = soup
+    @pytest.fixture(autouse=True)
+    def _clean_tables(self):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM etf_fundamentals WHERE ticker = ?", (self.TICKER,))
+            cursor.execute("DELETE FROM etf_holdings WHERE ticker = ?", (self.TICKER,))
+            conn.commit()
+        yield
 
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value = mock_conn
-
+    def test_collect_all_saves_fundamentals_and_holdings(self):
         collector = ETFFundamentalsCollector()
-        result = collector.collect_all("487240")
+        with patch.object(collector, '_fetch_analysis', return_value=SAMPLE_ANALYSIS):
+            result = collector.collect_all(self.TICKER)
 
-        assert result["nav"] is True
-        assert result["holdings"] is True
-        assert result["distributions"] is True   # no-op
-        assert result["rebalancing"] is True      # no-op
+        assert result['nav'] is True
+        assert result['holdings'] is True
+        assert result['distributions'] is True   # no-op
+        assert result['rebalancing'] is True      # no-op
 
-    @patch("app.services.etf_fundamentals_collector.fetch_main_page")
-    def test_collect_all_returns_false_on_fetch_failure(self, mock_fetch):
-        """페이지 수집 실패 시 nav=False를 반환한다."""
-        mock_fetch.return_value = None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT nav, aum, tracking_error, base_index, deviation_rate "
+                "FROM etf_fundamentals WHERE ticker = ?", (self.TICKER,))
+            row = cursor.fetchone()
+            assert row is not None
+            assert row[0] == 29953.51
+            assert row[1] == 3340.0
+            assert row[2] == 0.78
+            assert row[3] == "FnGuide 반도체 전공정 지수(PR)"
+            assert row[4] == 0.51
 
+            cursor.execute(
+                "SELECT COUNT(*) FROM etf_holdings WHERE ticker = ?", (self.TICKER,))
+            assert cursor.fetchone()[0] == 2
+
+    def test_collect_all_returns_false_on_fetch_failure(self):
         collector = ETFFundamentalsCollector()
-        result = collector.collect_all("487240")
+        with patch.object(collector, '_fetch_analysis', return_value=None):
+            result = collector.collect_all(self.TICKER)
 
-        assert result["nav"] is False
-        assert result["holdings"] is False
+        assert result['nav'] is False
+        assert result['holdings'] is False
 
-    @patch("app.services.etf_fundamentals_collector.fetch_main_page")
-    @patch("app.services.etf_fundamentals_collector.get_db_connection")
-    def test_distributions_is_noop(self, mock_db, mock_fetch):
-        """collect_distributions는 항상 True를 반환한다 (no-op)."""
-        mock_fetch.return_value = MagicMock()
+    def test_distributions_is_noop(self):
         collector = ETFFundamentalsCollector()
         assert collector.collect_distributions("487240") is True
 
-    @patch("app.services.etf_fundamentals_collector.fetch_main_page")
-    @patch("app.services.etf_fundamentals_collector.get_db_connection")
-    def test_rebalancing_is_noop(self, mock_db, mock_fetch):
-        """collect_rebalancing는 항상 True를 반환한다 (no-op)."""
-        mock_fetch.return_value = MagicMock()
+    def test_rebalancing_is_noop(self):
         collector = ETFFundamentalsCollector()
         assert collector.collect_rebalancing("487240") is True
 
-    @patch("app.services.etf_fundamentals_collector.fetch_main_page")
-    @patch("app.services.etf_fundamentals_collector.get_db_connection")
-    def test_fetches_page_only_once(self, mock_db, mock_fetch):
-        """collect_all은 main 페이지를 한 번만 요청한다."""
-        soup = BeautifulSoup(ETF_FULL_HTML, "html.parser")
-        mock_fetch.return_value = soup
-
-        mock_conn = MagicMock()
-        mock_conn.cursor.return_value = MagicMock()
-        mock_db.return_value = mock_conn
-
+    def test_fetch_analysis_http_error(self):
         collector = ETFFundamentalsCollector()
-        collector.collect_all("487240")
+        with patch('requests.get') as mock_get:
+            mock_response = MagicMock()
+            mock_response.status_code = 500
+            mock_get.return_value = mock_response
+            assert collector._fetch_analysis(self.TICKER) is None
 
-        assert mock_fetch.call_count == 1
+    def test_fetch_analysis_network_error(self):
+        collector = ETFFundamentalsCollector()
+        with patch('requests.get', side_effect=Exception("boom")):
+            assert collector._fetch_analysis(self.TICKER) is None

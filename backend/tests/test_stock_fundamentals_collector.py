@@ -110,28 +110,30 @@ class TestParseNumber:
 
 
 # ───────────────────────────────────────
-# _parse_date 테스트 (stock_fundamentals_collector에 없으나
-#  etf_fundamentals_collector 공용 헬퍼와 동일한 로직 검증)
+# 날짜 파싱 테스트 (구 etf_fundamentals_collector._parse_date는
+#  JSON API 전환으로 제거됨 → 공용 naver_stock_api.parse_bizdate 검증)
 # ───────────────────────────────────────
 
 class TestParseDate:
     def test_dot_format(self):
-        from app.services.etf_fundamentals_collector import _parse_date as etf_parse_date
-        d = etf_parse_date("2026.02.13")
-        assert d == date(2026, 2, 13)
+        from app.services.naver_stock_api import parse_bizdate
+        assert parse_bizdate("2026.02.13") == date(2026, 2, 13)
 
     def test_dash_format(self):
-        from app.services.etf_fundamentals_collector import _parse_date as etf_parse_date
-        d = etf_parse_date("2026-02-13")
-        assert d == date(2026, 2, 13)
+        from app.services.naver_stock_api import parse_bizdate
+        assert parse_bizdate("2026-02-13") == date(2026, 2, 13)
+
+    def test_bizdate_format(self):
+        from app.services.naver_stock_api import parse_bizdate
+        assert parse_bizdate("20260213") == date(2026, 2, 13)
 
     def test_invalid(self):
-        from app.services.etf_fundamentals_collector import _parse_date as etf_parse_date
-        assert etf_parse_date("invalid") is None
+        from app.services.naver_stock_api import parse_bizdate
+        assert parse_bizdate("invalid") is None
 
     def test_empty(self):
-        from app.services.etf_fundamentals_collector import _parse_date as etf_parse_date
-        assert etf_parse_date("") is None
+        from app.services.naver_stock_api import parse_bizdate
+        assert parse_bizdate("") is None
 
 
 # ───────────────────────────────────────
