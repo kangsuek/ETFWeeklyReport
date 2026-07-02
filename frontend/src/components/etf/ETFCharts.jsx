@@ -191,7 +191,7 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
                 <span className="ml-2 font-normal">
                   {/* MACD 선 값(단기EMA−장기EMA): 중기 추세 위치일 뿐 모멘텀 지표가 아니므로 중립색 */}
                   <span className="text-gray-400 dark:text-gray-500">MACD선</span>{' '}
-                  <span className="font-semibold text-gray-700 dark:text-gray-200">{currentMACD.macd.toFixed(0)}</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">{Math.round(currentMACD.macd).toLocaleString('ko-KR')}</span>
                   {/* 히스토그램(=MACD−시그널): 실제 모멘텀 지표. 막대 색과 동일하게 표기 */}
                   {currentMACD.histogram != null && (
                     <>
@@ -200,7 +200,7 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
                         className="font-semibold"
                         style={{ color: currentMACD.histogram >= 0 ? COLORS.MACD_HIST_POS : COLORS.MACD_HIST_NEG }}
                       >
-                        {currentMACD.histogram >= 0 ? '+' : ''}{currentMACD.histogram.toFixed(0)}
+                        {currentMACD.histogram >= 0 ? '+' : ''}{Math.round(currentMACD.histogram).toLocaleString('ko-KR')}
                       </span>
                       <span className="text-gray-400 dark:text-gray-500">
                         {' '}({currentMACD.histogram >= 0 ? '상승 모멘텀' : '하락 모멘텀'})

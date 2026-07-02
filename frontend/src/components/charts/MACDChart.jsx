@@ -43,12 +43,18 @@ export default function MACDChart({ data }) {
         <YAxis
           tick={{ fontSize: 11, fill: COLORS.CHART_AXIS }}
           width={50}
-          tickFormatter={(v) => v.toFixed(0)}
+          tickFormatter={(v) => {
+            // MACD는 가격 단위라 고가주는 값이 크다 → 축은 만/억 단위로 축약
+            const abs = Math.abs(v)
+            if (abs >= 1e8) return `${(v / 1e8).toFixed(1)}억`
+            if (abs >= 1e4) return `${(v / 1e4).toFixed(1)}만`
+            return v.toFixed(0)
+          }}
         />
         <Tooltip
           formatter={(value, name) => {
             const labels = { macd: 'MACD', signal: 'Signal', histogram: 'Histogram' }
-            return [value.toFixed(2), labels[name] || name]
+            return [Math.round(value).toLocaleString('ko-KR'), labels[name] || name]
           }}
           labelFormatter={(label) => label}
           contentStyle={{
