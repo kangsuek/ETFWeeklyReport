@@ -12,10 +12,12 @@ import {
   ResponsiveContainer,
   Cell,
   ReferenceLine,
+  Customized,
 } from 'recharts'
 import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/format'
 import { useContainerWidth } from '../../hooks/useContainerWidth'
 import { COLORS } from '../../constants'
+import CandleLayer from './CandleLayer'
 
 /**
  * CustomTooltip 컴포넌트 - 분봉 차트 전용 툴팁
@@ -40,6 +42,25 @@ const CustomTooltip = ({ active, payload }) => {
           <span className="text-gray-600 dark:text-gray-400">체결가:</span>
           <span className="font-bold text-black dark:text-gray-100">{formatPrice(data.price)}</span>
         </div>
+        {/* 분당 OHLC (신규 수집분에만 존재) */}
+        {data.open_price != null && (
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">시가:</span>
+            <span className="font-semibold text-green-600 dark:text-green-400">{formatPrice(data.open_price)}</span>
+          </div>
+        )}
+        {data.high_price != null && (
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">고가:</span>
+            <span className="font-semibold text-red-600 dark:text-red-400">{formatPrice(data.high_price)}</span>
+          </div>
+        )}
+        {data.low_price != null && (
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">저가:</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400">{formatPrice(data.low_price)}</span>
+          </div>
+        )}
         {data.change_amount !== null && data.change_amount !== undefined && (
           <div className="flex justify-between gap-4">
             <span className="text-gray-600 dark:text-gray-400">전일비:</span>
@@ -102,6 +123,10 @@ const IntradayChart = memo(function IntradayChart({
 }) {
   // 컨테이너 너비 측정
   const { containerRef, width: containerWidth } = useContainerWidth()
+
+  // 차트 종류: 'candle'(분봉) | 'line'(라인). 기본은 캔들.
+  // 단, 과거 수집분(OHLC 없음)만 있으면 라인으로 강제 폴백한다.
+  const [chartType, setChartType] = useState('candle')
 
   // 데이터 전처리 및 메모이제이션
   const chartData = useMemo(() => {
@@ -167,10 +192,21 @@ const IntradayChart = memo(function IntradayChart({
     return priceTargets.filter(t => t.is_active && (t.alert_type === 'buy' || t.alert_type === 'sell'))
   }, [priceTargets])
 
-  // Y축 도메인 계산 (가격 + 피봇 레벨 + 목표가 포함)
+  // 분당 OHLC 존재 여부 (신규 수집분만 보유 — 없으면 캔들 모드 비활성)
+  const hasOHLC = useMemo(
+    () => chartData.some((d) => d.open_price != null && d.high_price != null && d.low_price != null),
+    [chartData],
+  )
+  const effectiveChartType = hasOHLC ? chartType : 'line'
+
+  // Y축 도메인 계산 (가격 + 피봇 레벨 + 목표가 포함, 캔들 고가/저가 포함)
   const prices = chartData.map((d) => d.price).filter((p) => p != null)
+  const highLows = hasOHLC
+    ? chartData.flatMap((d) => [d.high_price, d.low_price]).filter((v) => v != null)
+    : []
   const allPriceValues = [
     ...prices,
+    ...highLows,
     ...visiblePivotLevels.map(l => l.value),
     ...(previousClose != null ? [previousClose] : []),
     ...activePriceTargets.map(t => t.target_price),
@@ -261,6 +297,41 @@ const IntradayChart = memo(function IntradayChart({
       role="img"
       aria-label={`${ticker} 분봉 차트`}
     >
+      {/* 캔들/라인 토글 (OHLC 데이터가 있을 때만) */}
+      {hasOHLC && (
+        <div className="flex justify-end mb-2">
+          <div
+            className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden text-xs"
+            role="group"
+            aria-label="분봉 차트 종류 선택"
+          >
+            <button
+              type="button"
+              onClick={() => setChartType('candle')}
+              aria-pressed={effectiveChartType === 'candle'}
+              className={`px-2.5 py-1 transition-colors ${
+                effectiveChartType === 'candle'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              캔들
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartType('line')}
+              aria-pressed={effectiveChartType === 'line'}
+              className={`px-2.5 py-1 border-l border-gray-300 dark:border-gray-600 transition-colors ${
+                effectiveChartType === 'line'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              라인
+            </button>
+          </div>
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart
           data={chartData}
@@ -328,17 +399,33 @@ const IntradayChart = memo(function IntradayChart({
             </Bar>
           )}
 
-          {/* 가격 Line */}
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="price"
-            stroke={COLORS.CHART_PRIMARY}
-            strokeWidth={1.5}
-            dot={false}
-            name="체결가"
-            activeDot={{ r: 3 }}
-          />
+          {/* 가격: 라인 모드 - 체결가 선 */}
+          {effectiveChartType === 'line' && (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="price"
+              stroke={COLORS.CHART_PRIMARY}
+              strokeWidth={1.5}
+              dot={false}
+              name="체결가"
+              activeDot={{ r: 3 }}
+            />
+          )}
+
+          {/* 가격: 캔들 모드 - 분봉 (Customized 레이어, closeKey=price) */}
+          {effectiveChartType === 'candle' && (
+            <Customized
+              component={(props) => (
+                <CandleLayer
+                  {...props}
+                  candles={chartData}
+                  xKey="time"
+                  closeKey="price"
+                />
+              )}
+            />
+          )}
 
           {/* 전일 종가 기준선 */}
           {previousClose && (
@@ -411,6 +498,9 @@ IntradayChart.propTypes = {
       datetime: PropTypes.string.isRequired,
       price: PropTypes.number.isRequired,
       change_amount: PropTypes.number,
+      open_price: PropTypes.number,
+      high_price: PropTypes.number,
+      low_price: PropTypes.number,
       volume: PropTypes.number,
       bid_volume: PropTypes.number,
       ask_volume: PropTypes.number,
