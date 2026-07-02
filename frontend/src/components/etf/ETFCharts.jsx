@@ -19,14 +19,36 @@ function fmtPrice(val) {
 /**
  * RSI 값에 따른 해석 텍스트와 색상을 반환
  */
-function getRSIInterpretation(rsiValue) {
+function getRSIInterpretation(rsiValue, prevRsiValue = null) {
   if (rsiValue == null) return null
-  if (rsiValue >= 80) return { text: '극단적 과매수 — 강한 매도 시그널', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' }
-  if (rsiValue >= 70) return { text: '과매수 구간 — 매도 시그널, 조정 가능성', color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' }
-  if (rsiValue >= 50) return { text: '상승 추세 — 매수세가 우위', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900' }
-  if (rsiValue >= 30) return { text: '하락 추세 — 매도세가 우위', color: 'text-orange-600 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900' }
-  if (rsiValue >= 20) return { text: '과매도 구간 — 매수 시그널, 반등 가능성', color: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900' }
-  return { text: '극단적 과매도 — 강한 매수 시그널', color: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900' }
+
+  const red = { color: 'text-red-600 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' }
+  const green = { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900' }
+  const orange = { color: 'text-orange-600 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900' }
+  const blue = { color: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900' }
+  const gray = { color: 'text-gray-600 dark:text-gray-300', bg: 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700' }
+
+  // RSI 방향 (직전 대비 ±1 이상일 때만 유의미한 변화로 본다)
+  let dir = 0
+  if (prevRsiValue != null) {
+    if (rsiValue - prevRsiValue >= 1) dir = 1
+    else if (prevRsiValue - rsiValue >= 1) dir = -1
+  }
+
+  if (rsiValue >= 80) return { text: '극단적 과매수 — 강한 매도 시그널', ...red }
+  if (rsiValue >= 70) return { text: '과매수 구간 — 매도 시그널, 조정 가능성', ...red }
+  // 55~70: 상승 추세 (50 바로 위의 중립을 상승으로 오판하지 않도록 하한을 55로)
+  if (rsiValue >= 55) {
+    return { text: `상승 추세 — 매수세가 우위${dir < 0 ? ' (모멘텀 둔화)' : ''}`, ...green }
+  }
+  // 45~55: 중립 구간 (방향성 힌트만 표시)
+  if (rsiValue > 45) {
+    const tail = dir > 0 ? ' (상승 시도)' : dir < 0 ? ' (하락 압력)' : ''
+    return { text: `중립 구간 — 뚜렷한 방향성 없음${tail}`, ...gray }
+  }
+  if (rsiValue >= 30) return { text: '하락 추세 — 매도세가 우위', ...orange }
+  if (rsiValue >= 20) return { text: '과매도 구간 — 매수 시그널, 반등 가능성', ...blue }
+  return { text: '극단적 과매도 — 강한 매수 시그널', ...blue }
 }
 
 /**
@@ -66,7 +88,16 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
     return last?.rsi
   }, [rsiData])
 
-  const rsiInterpretation = useMemo(() => getRSIInterpretation(currentRSI), [currentRSI])
+  // 직전 RSI (방향성 판단용)
+  const prevRSI = useMemo(() => {
+    if (!rsiData || rsiData.length < 2) return null
+    return rsiData[rsiData.length - 2]?.rsi
+  }, [rsiData])
+
+  const rsiInterpretation = useMemo(
+    () => getRSIInterpretation(currentRSI, prevRSI),
+    [currentRSI, prevRSI],
+  )
 
   // MACD 현재 해석
   const macdInterpretation = useMemo(() => getMACDInterpretation(macdData), [macdData])
@@ -141,8 +172,9 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
               <p><span className="text-red-600 dark:text-red-300 font-medium">70 이상</span> = 과매수 (매도 고려)</p>
               <p><span className="text-blue-600 dark:text-blue-300 font-medium">30 이하</span> = 과매도 (매수 고려)</p>
-              <p><span className="text-green-600 dark:text-green-400 font-medium">50~70</span> = 상승 추세</p>
-              <p><span className="text-orange-600 dark:text-orange-300 font-medium">30~50</span> = 하락 추세</p>
+              <p><span className="text-green-600 dark:text-green-400 font-medium">55~70</span> = 상승 추세</p>
+              <p><span className="text-gray-600 dark:text-gray-300 font-medium">45~55</span> = 중립 구간</p>
+              <p><span className="text-orange-600 dark:text-orange-300 font-medium">30~45</span> = 하락 추세</p>
             </div>
             <p className="text-gray-500 dark:text-gray-400 mt-1">RSI는 14일간 상승폭과 하락폭의 비율로 0~100 사이의 값을 가집니다.</p>
           </div>
