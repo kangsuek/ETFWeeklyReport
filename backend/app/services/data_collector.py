@@ -659,16 +659,17 @@ class ETFDataCollector:
                     drawdown = ((price_series - cumulative_max) / cumulative_max * 100)
                     max_drawdown = round(drawdown.min(), 2)
 
-                # Calculate Sharpe Ratio (연환산 수익률 기준)
+                # Calculate Sharpe Ratio (표준 방식: 전체 일간수익률 기반 연환산)
+                # 변동성과 동일한 표본(일간수익률 전체)을 사용해 일관성을 유지한다.
+                # 분자를 단일 1개월 수익률로 만들면 표본 1개에 과민 반응(예: 월 +48% -> 샤프 폭등)하므로,
+                # 일평균 수익률 x 거래일수로 연환산한다.
                 sharpe_ratio = None
-                if volatility and volatility > 0:
-                    # 1개월 수익률을 연환산으로 변환 (참고용)
-                    monthly_return = returns.get("1m")
-                    if monthly_return is not None:
-                        # 간단한 연환산: (1 + 월간수익률)^12 - 1
-                        annualized_return = (pow(1 + monthly_return / 100, 12) - 1) * 100
-                        risk_free_rate = 3.0  # 무위험 수익률 3%
-                        sharpe_ratio = round((annualized_return - risk_free_rate) / volatility, 2)
+                if volatility and volatility > 0 and len(daily_changes) >= 10:
+                    # 일평균 수익률(%) x 연간 거래일수 = 연환산 수익률(%)
+                    mean_daily_return = sum(daily_changes) / len(daily_changes)
+                    annualized_return = mean_daily_return * TRADING_DAYS_PER_YEAR
+                    risk_free_rate = 3.0  # 무위험 수익률 3%
+                    sharpe_ratio = round((annualized_return - risk_free_rate) / volatility, 2)
 
                 return ETFMetrics(
                     ticker=ticker,
