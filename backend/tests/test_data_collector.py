@@ -21,32 +21,14 @@ class TestETFDataCollector:
         assert collector is not None
         assert 'User-Agent' in collector.headers
     
-    def test_parse_number(self, collector):
-        """Test number parsing"""
-        assert collector._parse_number("25,765") == 25765.0
-        assert collector._parse_number("1,234,567") == 1234567.0
-        assert collector._parse_number("") is None
-        assert collector._parse_number("invalid") is None
-    
-    def test_parse_change_positive(self, collector):
-        """Test positive change parsing"""
-        result = collector._parse_change("상승205", 25765.0)
-        assert result is not None
-        assert result > 0  # 상승
-        assert round(result, 2) == 0.8
-    
-    def test_parse_change_negative(self, collector):
-        """Test negative change parsing"""
-        result = collector._parse_change("하락1,375", 25560.0)
-        assert result is not None
-        assert result < 0  # 하락
-        assert abs(result) > 0
-    
-    def test_parse_change_zero(self, collector):
-        """Test zero change parsing"""
-        result = collector._parse_change("보합0", 25765.0)
-        assert result == 0.0
-    
+    def test_parse_number_via_api_helper(self):
+        """숫자 파싱은 공용 naver_stock_api.parse_number를 사용한다"""
+        from app.services.naver_stock_api import parse_number
+        assert parse_number("25,765") == 25765.0
+        assert parse_number("1,234,567") == 1234567.0
+        assert parse_number("") is None
+        assert parse_number("invalid") is None
+
     def test_fetch_naver_finance_prices(self, collector):
         """Test actual data fetching from Naver Finance"""
         ticker = "487240"  # 삼성 KODEX AI전력핵심설비 ETF
@@ -188,95 +170,61 @@ class TestErrorHandling:
             assert len(price_data) == 0
     
     def test_fetch_naver_finance_prices_parsing_error(self, collector):
-        """Test handling data parsing error"""
-        html = """
-        <html>
-        <body>
-            <table class="type2">
-                <tr><th>날짜</th><th>종가</th><th>전일비</th><th>시가</th><th>고가</th><th>저가</th><th>거래량</th></tr>
-                <tr><td>2025.11.07</td><td>invalid_price</td><td>상승205</td><td>25,700</td><td>25,765</td><td>25,000</td><td>1,036,539</td></tr>
-            </table>
-        </body>
-        </html>
-        """
-        
-        with patch('requests.get') as mock_get:
-            mock_get.return_value.status_code = 200
-            mock_get.return_value.text = html
-            
+        """종가가 유효하지 않은 행은 건너뛰고 유효한 행만 수집한다"""
+        mock_rows = [
+            {"localTradedAt": "2025-11-07", "closePrice": "invalid_price",
+             "openPrice": "25,700", "highPrice": "25,765", "lowPrice": "25,000",
+             "fluctuationsRatio": "0.80", "accumulatedTradingVolume": 1036539},
+            {"localTradedAt": "2025-11-06", "closePrice": "25,560",
+             "openPrice": "25,400", "highPrice": "25,600", "lowPrice": "25,300",
+             "fluctuationsRatio": "-0.50", "accumulatedTradingVolume": 900000},
+        ]
+
+        from unittest.mock import MagicMock
+
+        page1 = MagicMock(status_code=200)
+        page1.json.return_value = mock_rows
+        page2 = MagicMock(status_code=200)
+        page2.json.return_value = []  # 다음 페이지 없음
+
+        with patch('requests.get', side_effect=[page1, page2]):
             price_data = collector.fetch_naver_finance_prices("487240", days=5)
-            
-            # 파싱 실패 시 None이 포함된 행이 수집될 수 있음 (구현에 따라 행 수 상이)
-            assert len(price_data) >= 1
-            has_invalid = any(r.get('close_price') is None for r in price_data)
-            assert has_invalid, "invalid_price 행에서 close_price가 None이어야 함"
-            saved_count = collector.save_price_data(price_data)
-            assert saved_count == 0  # close_price가 None이면 검증 실패로 저장 0
+
+            # invalid 행은 스킵, 유효한 행만 수집
+            assert len(price_data) == 1
+            assert price_data[0]['close_price'] == 25560.0
+            assert price_data[0]['daily_change_pct'] == -0.50
     
     def test_fetch_naver_finance_prices_invalid_date_format(self, collector):
-        """Test handling invalid date format"""
-        html = """
-        <html>
-        <body>
-            <table class="type2">
-                <tr><th>날짜</th><th>종가</th><th>전일비</th><th>시가</th><th>고가</th><th>저가</th><th>거래량</th></tr>
-                <tr><td>invalid_date</td><td>25,050</td><td>상승205</td><td>25,700</td><td>25,765</td><td>25,000</td><td>1,036,539</td></tr>
-            </table>
-        </body>
-        </html>
-        """
-        
-        with patch('requests.get') as mock_get:
-            mock_get.return_value.status_code = 200
-            mock_get.return_value.text = html
-            
+        """날짜 형식이 잘못된 행은 건너뛴다"""
+        from unittest.mock import MagicMock
+
+        page1 = MagicMock(status_code=200)
+        page1.json.return_value = [
+            {"localTradedAt": "invalid_date", "closePrice": "25,050",
+             "openPrice": "25,700", "highPrice": "25,765", "lowPrice": "25,000",
+             "fluctuationsRatio": "0.80", "accumulatedTradingVolume": 1036539},
+        ]
+        page2 = MagicMock(status_code=200)
+        page2.json.return_value = []
+
+        with patch('requests.get', side_effect=[page1, page2]):
             price_data = collector.fetch_naver_finance_prices("487240", days=5)
-            
+
             # 날짜 형식이 잘못된 행은 건너뛰고 빈 리스트 반환
             assert len(price_data) == 0
     
-    def test_parse_change_edge_cases(self, collector):
-        """Test _parse_change with edge cases"""
-        # 빈 문자열
-        assert collector._parse_change("", 10000.0) is None
-        
-        # None 입력
-        assert collector._parse_change(None, 10000.0) is None
-        
-        # close_price가 0인 경우
-        assert collector._parse_change("상승100", 0.0) is None
-        
-        # close_price가 None인 경우
-        assert collector._parse_change("상승100", None) is None
-        
-        # 변화량을 파싱할 수 없는 경우
-        assert collector._parse_change("보합", 10000.0) == 0.0
-        
-        # 이전 가격이 0이 되는 경우 (change_amount == close_price)
-        result = collector._parse_change("상승10000", 10000.0)
-        # prev_price = 10000 - 10000 = 0, division by zero 방지
-        assert result is None
-    
-    def test_parse_number_edge_cases(self, collector):
-        """Test _parse_number with edge cases"""
-        # 빈 문자열
-        assert collector._parse_number("") is None
-        
-        # None
-        assert collector._parse_number(None) is None
-        
-        # 공백만 있는 문자열
-        assert collector._parse_number("   ") is None
-        
-        # 숫자가 아닌 문자
-        assert collector._parse_number("abc") is None
-        assert collector._parse_number("N/A") is None
-        
-        # 음수
-        assert collector._parse_number("-100") == -100.0
-        
-        # 소수점
-        assert collector._parse_number("1,234.56") == 1234.56
+    def test_api_parse_number_edge_cases(self):
+        """공용 parse_number 엣지 케이스 (구 HTML 전일비 파싱은 JSON 전환으로 제거됨)"""
+        from app.services.naver_stock_api import parse_number
+
+        assert parse_number("") is None
+        assert parse_number(None) is None
+        assert parse_number("   ") is None
+        assert parse_number("abc") is None
+        assert parse_number("N/A") is None
+        assert parse_number("-100") == -100.0
+        assert parse_number("1,234.56") == 1234.56
     
     def test_save_price_data_database_error(self, collector):
         """Test handling database error during save"""

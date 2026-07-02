@@ -68,6 +68,18 @@ def get_json(url: str, params: Optional[dict] = None, timeout: int = 10):
         return None
 
 
+def fetch_price_page(ticker: str, page: int = 1, page_size: int = 10) -> List[Dict[str, Any]]:
+    """
+    일별 시세(/stock/{code}/price) 1페이지 조회 (최신순, pageSize 최대 60).
+
+    각 행: localTradedAt('YYYY-MM-DD'), openPrice/highPrice/lowPrice/closePrice
+    (쉼표 포함 문자열), fluctuationsRatio(등락률 %), accumulatedTradingVolume(정수).
+    """
+    url = f"{MOBILE_API_BASE}/stock/{ticker}/price"
+    data = get_json(url, params={"pageSize": page_size, "page": page})
+    return data if isinstance(data, list) else []
+
+
 def fetch_trend_page(ticker: str, page: int = 1, page_size: int = 10) -> List[Dict[str, Any]]:
     """
     투자자별 매매동향(/stock/{code}/trend) 1페이지 조회.

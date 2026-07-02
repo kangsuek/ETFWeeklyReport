@@ -13,21 +13,17 @@ from app.services.data_collector import ETFDataCollector
 class TestTradingFlowScraping:
     """매매동향 스크래핑 테스트"""
     
-    def test_parse_trading_volume(self):
-        """거래량 파싱 테스트"""
-        collector = ETFDataCollector()
-        
-        # 정상 케이스
-        assert collector._parse_trading_volume("1,234") == 1234
-        assert collector._parse_trading_volume("-5,678") == -5678
-        assert collector._parse_trading_volume("0") == 0
-        
-        # 빈 값 케이스
-        assert collector._parse_trading_volume("") is None
-        assert collector._parse_trading_volume("   ") is None
-        assert collector._parse_trading_volume("-") is None
-        assert collector._parse_trading_volume(None) is None
-    
+    def test_parse_trading_volume_via_api_helper(self):
+        """거래량 파싱은 공용 naver_stock_api.parse_int를 사용한다"""
+        from app.services.naver_stock_api import parse_int
+
+        assert parse_int("1,234") == 1234
+        assert parse_int("-5,678") == -5678
+        assert parse_int("0") == 0
+        assert parse_int("") is None
+        assert parse_int("-") is None
+        assert parse_int(None) is None
+
     def test_fetch_naver_trading_flow_success(self):
         """네이버 모바일 JSON API(/trend) 매매동향 수집 성공 테스트"""
         collector = ETFDataCollector()
