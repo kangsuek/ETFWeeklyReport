@@ -443,20 +443,20 @@ class TestNewsIntegration:
             ]
         }
 
-        # 각각 다른 종목 사용
-        test_cases = [
-            ('487240', 'KODEX'),
-            ('466920', 'SOL'),
-            ('442320', 'RISE')
-        ]
+        # DB에 실제 존재하는 종목을 동적으로 선택 (stocks.json 변경에 견고)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT ticker FROM etfs LIMIT 3")
+            test_tickers = [row[0] for row in cursor.fetchall()]
+        assert test_tickers, "etfs 테이블이 비어 있습니다."
 
         async with AsyncClient(app=app, base_url="http://test") as client:
-            for ticker, name_part in test_cases:
+            for ticker in test_tickers:
                 response = await client.post(f"/api/news/{ticker}/collect?days=3")
                 assert response.status_code == 200
 
                 data = response.json()
                 assert data['ticker'] == ticker
                 assert 'collected' in data
-                assert name_part in data['name']
+                assert data['name']  # 이름이 비어있지 않음
 

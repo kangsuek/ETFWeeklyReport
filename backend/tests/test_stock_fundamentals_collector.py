@@ -202,7 +202,8 @@ class TestCollectStockFundamentals:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value = mock_conn
+        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
+        mock_db.return_value.__enter__.return_value = mock_conn
 
         result = collect_stock_fundamentals("005930")
 
@@ -242,7 +243,8 @@ class TestCollectStockFundamentals:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value = mock_conn
+        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
+        mock_db.return_value.__enter__.return_value = mock_conn
 
         collect_stock_fundamentals("005930")
 
@@ -278,7 +280,8 @@ class TestCollectStockFundamentals:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value = mock_conn
+        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
+        mock_db.return_value.__enter__.return_value = mock_conn
 
         result = collect_stock_fundamentals("005930")
 

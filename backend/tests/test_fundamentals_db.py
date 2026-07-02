@@ -277,9 +277,11 @@ class TestEtfFundamentalsDB:
         self._insert_nav_row(ticker, record_date="2026-02-12", nav=30143.0)
         self._insert_nav_row(ticker, record_date="2026-02-13", nav=29726.0)
 
+        # 삽입한 두 날짜로 스코프를 좁혀 사전 데이터와 무관하게 검증
         rows = _fetchall(
-            "SELECT date, nav FROM etf_fundamentals WHERE ticker = ? ORDER BY date DESC",
-            (ticker,),
+            "SELECT date, nav FROM etf_fundamentals "
+            "WHERE ticker = ? AND date IN (?, ?) ORDER BY date DESC",
+            (ticker, "2026-02-13", "2026-02-12"),
         )
         assert len(rows) == 2
         assert abs(rows[0]["nav"] - 29726.0) < 1e-3  # 최신 날짜

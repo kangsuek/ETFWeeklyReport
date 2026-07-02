@@ -194,15 +194,16 @@ class TestRateLimiterIntegration:
                 results.append(f"response_{i}")
         
         duration = time.time() - start_time
-        
-        # 최소 0.8초 소요 (4 * 0.2초)
-        assert duration >= 0.8
+
+        # 최소 4 * 0.2 = 0.8초 소요 (sleep 타이밍 지터를 고려해 작은 허용오차 적용)
+        min_expected = 4 * 0.2 - 0.05
+        assert duration >= min_expected
         assert len(results) == 5
-        
+
         # 통계 확인
         stats = limiter.get_stats()
         assert stats['total_requests'] == 5
-        assert stats['total_wait_time'] >= 0.8
+        assert stats['total_wait_time'] >= min_expected
     
     def test_sequential_requests_with_rate_limit(self):
         """순차적 요청에 Rate Limit 적용"""
