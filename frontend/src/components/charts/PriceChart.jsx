@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   Cell,
   ReferenceLine,
+  Customized,
 } from 'recharts'
 import { format } from 'date-fns'
 import { formatPrice, formatVolume, getPriceChangeColorHex } from '../../utils/format'
@@ -170,8 +171,77 @@ const CustomTooltip = ({ active, payload }) => {
 }
 
 /**
+ * CandleLayer 컴포넌트
+ * Recharts <Customized>로 캔들(봉)을 직접 그린다.
+ * 거래량 Bar와 그룹핑되어 어긋나는 문제를 피하려고 축 스케일을 이용해 SVG로 직접 렌더링한다.
+ * 한국식 색상: 상승(종가 >= 시가) 빨강, 하락 파랑.
+ */
+function CandleLayer({ xAxisMap, yAxisMap, candles }) {
+  if (!xAxisMap || !yAxisMap || !candles || candles.length === 0) return null
+
+  const xAxis = Object.values(xAxisMap)[0]
+  // 가격 축(왼쪽) 선택 (거래량은 오른쪽 축이므로 제외)
+  const yAxis =
+    yAxisMap.left ||
+    Object.values(yAxisMap).find((a) => a.orientation === 'left') ||
+    Object.values(yAxisMap)[0]
+
+  const xScale = xAxis?.scale
+  const yScale = yAxis?.scale
+  if (!xScale || !yScale) return null
+
+  const band = typeof xScale.bandwidth === 'function' ? xScale.bandwidth() : 12
+  const bodyW = Math.max(2, band * 0.6)
+
+  return (
+    <g>
+      {candles.map((d, i) => {
+        const { open_price: o, close_price: c, high_price: h, low_price: l, date } = d
+        if (o == null || c == null || h == null || l == null) return null
+
+        const baseX = xScale(date)
+        if (baseX == null || Number.isNaN(baseX)) return null
+
+        const cx = baseX + band / 2
+        const yHigh = yScale(h)
+        const yLow = yScale(l)
+        const yOpen = yScale(o)
+        const yClose = yScale(c)
+
+        const rising = c >= o
+        const color = rising ? COLORS.VOLUME_UP : COLORS.VOLUME_DOWN
+        const bodyTop = Math.min(yOpen, yClose)
+        const bodyHeight = Math.max(1, Math.abs(yClose - yOpen))
+
+        return (
+          <g key={`candle-${i}`}>
+            {/* 꼬리(고가~저가) */}
+            <line x1={cx} y1={yHigh} x2={cx} y2={yLow} stroke={color} strokeWidth={1} />
+            {/* 몸통(시가~종가) */}
+            <rect
+              x={cx - bodyW / 2}
+              y={bodyTop}
+              width={bodyW}
+              height={bodyHeight}
+              fill={color}
+              stroke={color}
+            />
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+CandleLayer.propTypes = {
+  xAxisMap: PropTypes.object,
+  yAxisMap: PropTypes.object,
+  candles: PropTypes.array,
+}
+
+/**
  * PriceChart 컴포넌트
- * 종목의 가격 변동을 시각화하는 LineChart + BarChart 조합
+ * 종목의 가격 변동을 시각화하는 캔들/라인 차트 + 거래량 Bar 조합
  *
  * @param {Array} data - 가격 데이터 배열
  * @param {string} ticker - 종목 코드
@@ -181,6 +251,9 @@ const CustomTooltip = ({ active, payload }) => {
  * @param {Function} onScroll - 스크롤 이벤트 핸들러 (차트 동기화용)
  */
 const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, dateRange = '7d', scrollRef, onScroll, purchasePrice = null }) {
+  // 차트 종류: 'candle'(봉) | 'line'(라인). 기본은 HTS 표준인 캔들.
+  const [chartType, setChartType] = useState('candle')
+
   // 이동평균선 표시 상태
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
@@ -333,18 +406,53 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
   }, [is7Days, containerWidth, dataCount])
 
   return (
-    <div
-      ref={(node) => {
-        containerRef.current = node
-        if (scrollRef) {
-          scrollRef.current = node
-        }
-      }}
-      className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
-      onScroll={onScroll}
-      role="img"
-      aria-label={`${ticker} 가격 차트`}
-    >
+    <div className="w-full">
+      {/* 캔들/라인 토글 */}
+      <div className="flex justify-end mb-2">
+        <div
+          className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden text-sm"
+          role="group"
+          aria-label="차트 종류 선택"
+        >
+          <button
+            type="button"
+            onClick={() => setChartType('candle')}
+            aria-pressed={chartType === 'candle'}
+            className={`px-3 py-1 transition-colors ${
+              chartType === 'candle'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            캔들
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartType('line')}
+            aria-pressed={chartType === 'line'}
+            className={`px-3 py-1 border-l border-gray-300 dark:border-gray-600 transition-colors ${
+              chartType === 'line'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            라인
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={(node) => {
+          containerRef.current = node
+          if (scrollRef) {
+            scrollRef.current = node
+          }
+        }}
+        className={`w-full ${shouldShowScroll ? 'overflow-x-auto' : ''}`}
+        onScroll={onScroll}
+        role="img"
+        aria-label={`${ticker} 가격 차트`}
+      >
       <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
         <ResponsiveContainer width="100%" height={finalHeight}>
           <ComposedChart
@@ -417,17 +525,26 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
             ))}
           </Bar>
 
-          {/* 가격 Lines */}
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="close_price"
-            stroke={COLORS.CHART_PRIMARY}
-            strokeWidth={2}
-            dot={false}
-            name="종가"
-            activeDot={{ r: 4 }}
-          />
+          {/* 가격: 라인 모드 - 종가 선 */}
+          {chartType === 'line' && (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="close_price"
+              stroke={COLORS.CHART_PRIMARY}
+              strokeWidth={2}
+              dot={false}
+              name="종가"
+              activeDot={{ r: 4 }}
+            />
+          )}
+
+          {/* 가격: 캔들 모드 - 봉차트 (Customized 레이어) */}
+          {chartType === 'candle' && (
+            <Customized
+              component={(props) => <CandleLayer {...props} candles={chartData} />}
+            />
+          )}
 
           {/* 이동평균선 - 체크박스 선택 시에만 표시 */}
           {showMA5 && (
@@ -486,6 +603,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
           )}
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
       </div>
     </div>
   )
