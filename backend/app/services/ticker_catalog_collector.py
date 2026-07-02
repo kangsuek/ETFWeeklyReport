@@ -2,14 +2,14 @@
 네이버 금융에서 전체 종목 목록 수집
 
 한국 주식/ETF 전체 목록을 수집하여 stock_catalog 테이블에 저장합니다.
+
+- 주식(코스피/코스닥): 네이버 모바일 JSON API(/api/stocks/marketValue/{시장})
+  구형 sise_market_sum HTML 190여 페이지 파싱을 대체 (페이지당 100건, stockEndType으로 주식만 필터)
+- ETF: finance.naver.com/api/sise/etfItemList.nhn JSON
+  Selenium 기반 동적 페이지 수집을 대체 (문자 포함 신형 코드 지원 확인됨)
 """
-import contextlib
 import logging
-import os
-import re
-import time
 import requests
-from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -18,55 +18,14 @@ from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
 from app.database import get_db_connection, get_cursor
 from app.exceptions import ScraperException
+from app.services.naver_stock_api import MOBILE_API_BASE, HEADERS, get_json, parse_number, parse_int
 
 logger = logging.getLogger(__name__)
 
-# sise_market_sum 페이지 병렬 수집 워커 수.
-# 페이지를 배치 단위로 동시 요청하되, 과도하면 네이버 차단(429) 위험이 있어 보수적으로 설정.
+# marketValue JSON 페이지 병렬 수집 워커 수 (총 ~45페이지라 부담 적음)
 SISE_PAGE_WORKERS = 8
-# 단일 페이지 요청 재시도 횟수. 병렬 요청 중 일시적 오류 한 건이 전체 목록을
-# 잘라내지 않도록 요청 예외에 한해 재시도한다.
-SISE_PAGE_RETRIES = 2
-
-# Selenium 선택적 사용 (설치되어 있으면 사용)
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    from webdriver_manager.chrome import ChromeDriverManager
-    # webdriver_manager의 로깅 레벨을 ERROR로 설정하여 WARNING 메시지 숨김
-    import logging
-    wdm_logger = logging.getLogger('WDM')
-    wdm_logger.setLevel(logging.ERROR)
-    SELENIUM_AVAILABLE = True
-except ImportError:
-    SELENIUM_AVAILABLE = False
-    logger.warning("Selenium not available. ETF collection will use fallback method.")
-
-# 서버(예: Render)처럼 Chrome이 없는 환경에서는 Selenium 비활성화 가능
-if SELENIUM_AVAILABLE and os.environ.get("DISABLE_SELENIUM", "").lower() in ("1", "true", "yes"):
-    SELENIUM_AVAILABLE = False
-    logger.info("Selenium disabled by DISABLE_SELENIUM env; using requests fallback for ETF collection.")
-
-
-@contextlib.contextmanager
-def _suppress_stderr():
-    """ChromeDriverManager가 google-chrome 등을 찾을 때 나오는 'not found' 메시지 억제."""
-    import sys
-    stderr_fd = sys.stderr.fileno()
-    with open(os.devnull, "w") as devnull:
-        save_fd = os.dup(stderr_fd)
-        try:
-            sys.stderr.flush()
-            os.dup2(devnull.fileno(), stderr_fd)
-            yield
-        finally:
-            sys.stderr.flush()
-            os.dup2(save_fd, stderr_fd)
-            os.close(save_fd)
+# marketValue API의 페이지당 최대 건수 (100 초과 시 서버가 에러 응답)
+MARKET_VALUE_PAGE_SIZE = 100
 
 # 검색 결과 캐시 (최대 128개 쿼리 캐싱, 5분 TTL)
 _search_cache: Dict[str, tuple[List[Dict[str, Any]], datetime]] = {}
@@ -183,143 +142,93 @@ class TickerCatalogCollector:
             logger.error(f"Error collecting ticker catalog: {e}", exc_info=True)
             raise ScraperException(f"종목 목록 수집 실패: {e}")
 
-    @staticmethod
-    def _parse_sise_price_row(cols) -> Dict[str, Any]:
+    def _fetch_market_value_page(self, market: str, page: int) -> Optional[Dict[str, Any]]:
         """
-        네이버 sise_market_sum 테이블 행에서 가격 데이터 파싱
-        컬럼 구조: [0]순위 [1]종목명 [2]현재가 [3]전일비 [4]등락률 [5]액면가
-                   [6]시가총액 [7]거래량 ...
-        """
-        result = {"close_price": None, "daily_change_pct": None, "volume": None}
-        try:
-            price_text = cols[2].get_text(strip=True).replace(',', '')
-            if price_text:
-                result["close_price"] = float(price_text)
-        except (IndexError, ValueError):
-            pass
-        try:
-            pct_text = cols[4].get_text(strip=True).replace('%', '').replace(',', '').replace('+', '')
-            if pct_text:
-                result["daily_change_pct"] = float(pct_text)
-        except (IndexError, ValueError):
-            pass
-        try:
-            vol_text = cols[7].get_text(strip=True).replace(',', '')
-            if vol_text:
-                result["volume"] = int(vol_text)
-        except (IndexError, ValueError):
-            pass
-        return result
-
-    def _fetch_sise_page(self, sosok: int, market: str, page: int) -> Optional[List[Dict[str, Any]]]:
-        """
-        sise_market_sum 단일 페이지에서 종목 목록 + 가격을 파싱한다.
+        marketValue JSON 단일 페이지 조회.
 
         Returns:
-            종목 리스트. 데이터가 없는 페이지(마지막 이후)는 빈 리스트,
-            요청/파싱 오류는 None을 반환한다.
+            응답 dict({'totalCount', 'stocks', ...}). 요청/파싱 오류는 None.
         """
-        url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
-
-        # 요청 예외에 한해 재시도 (병렬 중 일시적 오류로 목록이 잘리는 것을 방지)
-        response = None
-        for attempt in range(SISE_PAGE_RETRIES):
-            try:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
-                break
-            except requests.exceptions.RequestException as e:
-                if attempt + 1 >= SISE_PAGE_RETRIES:
-                    logger.error(f"Error collecting {market} page {page}: {e}")
-                    return None
-                time.sleep(0.5 * (attempt + 1))
-
-        try:
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            table = soup.find('table', {'class': 'type_2'})
-            if not table:
-                table = soup.find('table', {'class': 'type2'})
-            if not table:
-                for t in soup.find_all('table'):
-                    if len(t.find_all('a', href=True)) > 5:
-                        table = t
-                        break
-
-            if not table:
-                logger.warning(f"{market} table not found on page {page}")
-                return []
-
-            rows = table.find_all('tr')
-            if not rows:
-                return []
-
-            page_stocks = []
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 10:
-                    continue
-
-                for link in row.find_all('a', href=True):
-                    href = link.get('href', '')
-                    if '/item/main.naver?code=' in href:
-                        ticker = href.split('code=')[-1].split('&')[0]
-                        name = link.get_text(strip=True)
-
-                        if ticker and name and len(ticker) >= 5:
-                            price_data = self._parse_sise_price_row(cols)
-                            page_stocks.append({
-                                "ticker": ticker,
-                                "name": name,
-                                "type": "STOCK",
-                                "market": market,
-                                "sector": None,
-                                "listed_date": None,
-                                "is_active": 1,
-                                **price_data,
-                            })
-                            break
-
-            return page_stocks
-
-        except Exception as e:
-            logger.error(f"Error collecting {market} page {page}: {e}")
+        url = f"{MOBILE_API_BASE}/stocks/marketValue/{market}"
+        data = get_json(url, params={"page": page, "pageSize": MARKET_VALUE_PAGE_SIZE})
+        if not isinstance(data, dict):
             return None
+        return data
+
+    @staticmethod
+    def _parse_market_value_rows(rows: List[dict], market: str) -> List[Dict[str, Any]]:
+        """
+        marketValue 응답의 stocks 배열 → stock_catalog 저장 형식으로 변환.
+
+        목록에는 ETF/ETN도 섞여 있으므로 stockEndType == 'stock'만 취한다
+        (ETF는 etfItemList에서 별도 수집; ETN은 주식이 아니므로 제외).
+        """
+        stocks = []
+        for s in rows:
+            if s.get('stockEndType') != 'stock':
+                continue
+            ticker = s.get('itemCode')
+            name = s.get('stockName')
+            if not ticker or not name:
+                continue
+            volume = parse_int(s.get('accumulatedTradingVolume'))
+            stocks.append({
+                "ticker": ticker,
+                "name": name,
+                "type": "STOCK",
+                "market": market,
+                "sector": None,
+                "listed_date": None,
+                "is_active": 1,
+                "close_price": parse_number(s.get('closePrice')),
+                "daily_change_pct": parse_number(s.get('fluctuationsRatio')),
+                "volume": volume,
+            })
+        return stocks
 
     def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
         """
-        네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)
+        네이버 모바일 JSON API에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)
 
-        페이지를 SISE_PAGE_WORKERS 단위 배치로 병렬 요청하되, 시가총액 내림차순
-        순서를 보존하기 위해 배치 내 결과를 페이지 오름차순으로 처리한다.
-        빈 페이지(마지막 이후)나 오류 페이지를 만나면 그 이전까지만 취하고 종료한다.
+        1페이지로 totalCount를 얻어 전체 페이지 수를 확정한 뒤 나머지를 병렬 수집한다.
+        시가총액 내림차순 순서를 보존하기 위해 페이지 오름차순으로 합친다.
+
+        Args:
+            sosok: (하위 호환용, 무시됨 — market 문자열로 시장을 지정)
+            market: 'KOSPI' | 'KOSDAQ'
+            max_pages: 페이지 수 상한 (안전장치)
         """
-        stocks: List[Dict[str, Any]] = []
-        page = 1
-        stop = False
+        first = self._fetch_market_value_page(market, 1)
+        if not first:
+            logger.error(f"{market} marketValue page 1 fetch failed")
+            return []
 
-        while page <= max_pages and not stop:
-            batch = list(range(page, min(page + SISE_PAGE_WORKERS, max_pages + 1)))
+        total_count = first.get('totalCount') or 0
+        total_pages = min(max_pages, -(-total_count // MARKET_VALUE_PAGE_SIZE))
+        stocks = self._parse_market_value_rows(first.get('stocks') or [], market)
+        logger.debug(f"{market}: totalCount={total_count}, pages={total_pages}")
 
-            results: Dict[int, Optional[List[Dict[str, Any]]]] = {}
-            with ThreadPoolExecutor(max_workers=SISE_PAGE_WORKERS) as executor:
-                futures = {
-                    executor.submit(self._fetch_sise_page, sosok, market, p): p
-                    for p in batch
-                }
-                for future in as_completed(futures):
-                    results[futures[future]] = future.result()
+        if total_pages <= 1:
+            return stocks
 
-            # 페이지 오름차순으로 처리(순서 보존). 빈/오류 페이지에서 종료.
-            for p in batch:
-                page_stocks = results.get(p)
-                if not page_stocks:  # None(오류) 또는 []( 마지막 페이지 이후)
-                    stop = True
-                    break
-                stocks.extend(page_stocks)
-                logger.debug(f"{market} page {p}: collected {len(page_stocks)} stocks")
+        # 2페이지부터 병렬 수집 후 페이지 순서대로 병합
+        results: Dict[int, Optional[Dict[str, Any]]] = {}
+        with ThreadPoolExecutor(max_workers=SISE_PAGE_WORKERS) as executor:
+            futures = {
+                executor.submit(self._fetch_market_value_page, market, p): p
+                for p in range(2, total_pages + 1)
+            }
+            for future in as_completed(futures):
+                results[futures[future]] = future.result()
 
-            page += SISE_PAGE_WORKERS
+        for p in range(2, total_pages + 1):
+            data = results.get(p)
+            if not data:
+                logger.warning(f"{market} page {p} fetch failed — 해당 페이지 건너뜀")
+                continue
+            page_stocks = self._parse_market_value_rows(data.get('stocks') or [], market)
+            stocks.extend(page_stocks)
+            logger.debug(f"{market} page {p}: collected {len(page_stocks)} stocks")
 
         return stocks
 
@@ -341,267 +250,54 @@ class TickerCatalogCollector:
         """코스닥 종목 목록 + 가격 데이터 수집"""
         return self._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
 
-    def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
-        """
-        ETF 종목 목록 수집
-        
-        Selenium을 사용하여 JavaScript로 동적 로드되는 ETF 목록을 수집합니다.
-        Selenium이 없으면 기본 requests 방식으로 시도합니다.
-        """
-        if SELENIUM_AVAILABLE:
-            try:
-                return self._collect_etf_stocks_selenium()
-            except Exception as e:
-                logger.warning(f"Selenium ETF collection failed, falling back to requests: {e}")
-                return self._collect_etf_stocks_requests()
-        else:
-            return self._collect_etf_stocks_requests()
-    
-    def _collect_etf_stocks_selenium(self) -> List[Dict[str, Any]]:
-        """Selenium을 사용한 ETF 종목 목록 수집"""
-        stocks = []
-        driver = None
-        
-        try:
-            # Chrome 옵션 설정 (headless 모드)
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
-            chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-            
-            # WebDriver 초기화
-            try:
-                import stat
-                # ChromeDriverManager가 시스템에서 google-chrome 등을 찾을 때 stderr 노이즈 억제
-                with _suppress_stderr():
-                    driver_path = ChromeDriverManager().install()
-                
-                # chromedriver 실행 파일 찾기
-                if os.path.isdir(driver_path):
-                    # 디렉토리인 경우 chromedriver 실행 파일 찾기
-                    found_driver = None
-                    for root, dirs, files in os.walk(driver_path):
-                        for file in files:
-                            # 정확히 'chromedriver' 파일만 찾기 (확장자 없음)
-                            if file == 'chromedriver':
-                                candidate_path = os.path.join(root, file)
-                                # 실행 가능한 파일인지 확인
-                                if os.path.isfile(candidate_path) and os.access(candidate_path, os.X_OK):
-                                    found_driver = candidate_path
-                                    break
-                        if found_driver:
-                            break
-                    
-                    if found_driver:
-                        driver_path = found_driver
-                    else:
-                        raise FileNotFoundError("chromedriver executable not found in directory")
-                elif not os.path.isfile(driver_path):
-                    raise FileNotFoundError(f"chromedriver not found at {driver_path}")
-                
-                # 실행 권한 확인 및 설정
-                if not os.access(driver_path, os.X_OK):
-                    os.chmod(driver_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
-                
-                service = Service(driver_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception as e:
-                # ChromeDriverManager 실패 시 시스템 PATH에서 chromedriver 찾기
-                # 경고 메시지는 DEBUG 레벨로 변경 (정상적인 fallback 동작이므로)
-                logger.debug(f"ChromeDriverManager failed: {e}, trying system chromedriver")
-                try:
-                    driver = webdriver.Chrome(options=chrome_options)
-                    logger.debug("Successfully using system chromedriver")
-                except Exception as e2:
-                    logger.error(f"System chromedriver also failed: {e2}, falling back to requests method")
-                    raise
-            
-            driver.implicitly_wait(5)
-            
-            page = 1
-            max_pages = 20  # ETF는 약 300개 종목, 페이지당 20개
-            
-            while page <= max_pages:
-                url = f"https://finance.naver.com/sise/etf.naver?&page={page}"
-                logger.debug(f"Loading ETF page {page}: {url}")
-                
-                driver.get(url)
-                
-                # 테이블이 로드될 때까지 대기
-                try:
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "table"))
-                    )
-                except Exception:
-                    logger.warning(f"Table not found on ETF page {page}")
-                    break
-                
-                # 페이지 소스 가져오기
-                soup = BeautifulSoup(driver.page_source, 'html.parser')
-                
-                # 테이블 찾기
-                table = soup.find('table', {'class': 'type_2'})
-                if not table:
-                    table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    # 모든 테이블 중 종목 링크가 많은 테이블 찾기
-                    tables = soup.find_all('table')
-                    for t in tables:
-                        links = t.find_all('a', href=True)
-                        if len(links) > 5:
-                            table = t
-                            break
-                
-                if not table:
-                    logger.warning(f"ETF table not found on page {page}")
-                    break
-                
-                rows = table.find_all('tr')
-                page_stocks = []
-                
-                for row in rows:
-                    cols = row.find_all('td')
-                    if len(cols) < 5:
-                        continue
-                    
-                    # 종목 링크 찾기
-                    links = row.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        if '/item/main.naver?code=' in href:
-                            ticker = href.split('code=')[-1].split('&')[0]
-                            name = link.get_text(strip=True)
-                            
-                            if ticker and name and len(ticker) >= 5:
-                                page_stocks.append({
-                                    "ticker": ticker,
-                                    "name": name,
-                                    "type": "ETF",
-                                    "market": "ETF",
-                                    "sector": None,
-                                    "listed_date": None,
-                                    "is_active": 1
-                                })
-                                break
-                
-                if not page_stocks:
-                    break
-                
-                stocks.extend(page_stocks)
-                logger.debug(f"ETF page {page}: collected {len(page_stocks)} stocks")
-                page += 1
-                
-                # 페이지 간 대기 (Rate limiting)
-                import time
-                time.sleep(0.5)
-            
-            # 중복 제거 (티커 코드 기준)
-            seen_tickers = set()
-            unique_stocks = []
-            for stock in stocks:
-                ticker = stock["ticker"]
-                if ticker not in seen_tickers:
-                    seen_tickers.add(ticker)
-                    unique_stocks.append(stock)
-            
-            logger.info(f"Collected {len(unique_stocks)} unique ETF stocks using Selenium (total: {len(stocks)}, duplicates removed: {len(stocks) - len(unique_stocks)})")
-            return unique_stocks
-            
-        except Exception as e:
-            logger.error(f"Error collecting ETF stocks with Selenium: {e}", exc_info=True)
-            raise
-        finally:
-            if driver:
-                driver.quit()
-    
     @retry_with_backoff(
         max_retries=3,
         base_delay=1.0,
         exceptions=(requests.exceptions.RequestException, requests.exceptions.Timeout)
     )
-    def _collect_etf_stocks_requests(self) -> List[Dict[str, Any]]:
-        """requests를 사용한 ETF 종목 목록 수집 (fallback)"""
-        stocks = []
-        page = 1
-        max_pages = 20
-        
-        while page <= max_pages:
-            url = f"https://finance.naver.com/sise/etf.naver?&page={page}"
-            
-            try:
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # 여러 가능한 테이블 클래스 시도
-                table = soup.find('table', {'class': 'type_2'})
-                if not table:
-                    table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    # 모든 테이블 찾기
-                    tables = soup.find_all('table')
-                    if tables:
-                        # 종목 목록이 있는 테이블 찾기 (a 태그가 많은 테이블)
-                        for t in tables:
-                            links = t.find_all('a', href=True)
-                            if len(links) > 5:  # 종목 링크가 여러 개 있는 테이블
-                                table = t
-                                break
-                
-                if not table:
-                    logger.warning(f"ETF table not found on page {page}, URL: {url}")
-                    break
-                
-                rows = table.find_all('tr')
-                
-                if not rows:
-                    break
-                
-                page_stocks = []
-                for row in rows:
-                    cols = row.find_all('td')
-                    # 데이터 행은 td가 여러 개 있어야 함
-                    if len(cols) < 5:  # ETF는 컬럼이 적을 수 있음
-                        continue
-                    
-                    # 모든 링크 찾기 (종목 링크는 /item/main.naver?code= 형태)
-                    links = row.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        if '/item/main.naver?code=' in href:
-                            ticker = href.split('code=')[-1].split('&')[0]  # code= 뒤의 값, & 이전까지
-                            name = link.get_text(strip=True)
-                            
-                            if ticker and name and len(ticker) >= 5:  # 티커는 최소 5자리
-                                page_stocks.append({
-                                    "ticker": ticker,
-                                    "name": name,
-                                    "type": "ETF",
-                                    "market": "ETF",
-                                    "sector": None,
-                                    "listed_date": None,
-                                    "is_active": 1
-                                })
-                                break  # 한 행에서 하나의 종목만 수집
-                
-                if not page_stocks:
-                    break
-                
-                stocks.extend(page_stocks)
-                logger.debug(f"ETF page {page}: collected {len(page_stocks)} stocks")
-                page += 1
-                
-            except Exception as e:
-                logger.error(f"Error collecting ETF page {page}: {e}")
-                break
-        
-        return stocks
+    def _collect_etf_stocks(self) -> List[Dict[str, Any]]:
+        """
+        ETF 종목 목록 수집 (etfItemList JSON — 전체 ETF를 1회 호출로 반환)
 
+        구형 sise/etf.naver는 JavaScript 동적 로딩이라 Selenium이 필요했으나,
+        JSON 엔드포인트는 문자 포함 신형 코드까지 전체 목록을 그대로 제공한다.
+        """
+        url = "https://finance.naver.com/api/sise/etfItemList.nhn"
+
+        with self.rate_limiter:
+            response = requests.get(url, headers=HEADERS, timeout=10)
+            response.raise_for_status()
+
+        try:
+            items = response.json().get('result', {}).get('etfItemList', []) or []
+        except ValueError as e:
+            logger.error(f"ETF list JSON parse error: {e}")
+            return []
+
+        stocks = []
+        seen_tickers = set()
+        for item in items:
+            ticker = item.get('itemcode')
+            name = item.get('itemname')
+            if not ticker or not name or ticker in seen_tickers:
+                continue
+            seen_tickers.add(ticker)
+            stocks.append({
+                "ticker": ticker,
+                "name": name,
+                "type": "ETF",
+                "market": "ETF",
+                "sector": None,
+                "listed_date": None,
+                "is_active": 1,
+                "close_price": parse_number(item.get('nowVal')),
+                "daily_change_pct": parse_number(item.get('changeRate')),
+                "volume": parse_int(item.get('quant')),
+            })
+
+        logger.info(f"Collected {len(stocks)} ETF stocks from etfItemList JSON")
+        return stocks
+    
     def _save_to_database(self, stocks: List[Dict[str, Any]]) -> int:
         """
         수집한 종목 목록을 데이터베이스에 저장
