@@ -1300,28 +1300,31 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
     - type=STOCK: stock_fundamentals (최근 1건)
     - type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)
     """
+    # get_db_connection()은 컨텍스트 매니저이므로 반드시 with 로 사용한다.
+    # (직접 호출하면 _GeneratorContextManager가 반환되어 .cursor() 접근 시 에러가 나고,
+    #  conn.close()는 풀링된 연결을 닫아버리므로 사용하지 않는다.)
     from app.database import get_db_connection
     ticker = etf.ticker
     etf_type = etf.type
     param = '?'
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-        if etf_type == 'STOCK':
-            cursor.execute(f"""
-                SELECT * FROM stock_fundamentals
-                WHERE ticker = {param}
-                ORDER BY date DESC LIMIT 1
-            """, (ticker,))
-            row = cursor.fetchone()
-            if not row:
-                return {'ticker': ticker, 'type': 'STOCK', 'data': None}
-            cols = [d[0] for d in cursor.description]
-            data = dict(zip(cols, row))
-            return {'ticker': ticker, 'type': 'STOCK', 'data': data}
-        else:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            if etf_type == 'STOCK':
+                cursor.execute(f"""
+                    SELECT * FROM stock_fundamentals
+                    WHERE ticker = {param}
+                    ORDER BY date DESC LIMIT 1
+                """, (ticker,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'ticker': ticker, 'type': 'STOCK', 'data': None}
+                cols = [d[0] for d in cursor.description]
+                data = dict(zip(cols, row))
+                return {'ticker': ticker, 'type': 'STOCK', 'data': data}
+
             cursor.execute(f"""
                 SELECT * FROM etf_fundamentals
                 WHERE ticker = {param}
@@ -1331,17 +1334,17 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
             cols = [d[0] for d in cursor.description]
             fundamentals = [dict(zip(cols, r)) for r in rows]
 
-            latest_date = fundamentals[0]['date'] if fundamentals else None
-            holdings = []
-            if latest_date:
-                cursor.execute(f"""
-                    SELECT * FROM etf_holdings
-                    WHERE ticker = {param} AND date = {param}
-                    ORDER BY weight DESC
-                """, (ticker, latest_date))
-                h_rows = cursor.fetchall()
-                h_cols = [d[0] for d in cursor.description]
-                holdings = [dict(zip(h_cols, r)) for r in h_rows]
+            # 구성종목은 fundamentals(NAV) 최신일과 수집일이 다를 수 있으므로
+            # holdings 테이블의 자체 최신일 기준으로 조회한다.
+            cursor.execute(f"""
+                SELECT * FROM etf_holdings
+                WHERE ticker = {param}
+                  AND date = (SELECT MAX(date) FROM etf_holdings WHERE ticker = {param})
+                ORDER BY weight DESC
+            """, (ticker, ticker))
+            h_rows = cursor.fetchall()
+            h_cols = [d[0] for d in cursor.description]
+            holdings = [dict(zip(h_cols, r)) for r in h_rows]
 
             return {
                 'ticker': ticker,
@@ -1349,6 +1352,6 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                 'fundamentals': fundamentals,
                 'holdings': holdings,
             }
-    finally:
-        cursor.close()
-        conn.close()
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching fundamentals for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=ERROR_DATABASE)
