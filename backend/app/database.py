@@ -218,6 +218,14 @@ def init_db():
         )
     """)
 
+    # trading_flow 컬럼 마이그레이션 (네이버 /trend JSON 수집 항목)
+    try:
+        cursor.execute(f"ALTER TABLE trading_flow ADD COLUMN foreign_hold_ratio {real_type}")
+        logger.info("Added foreign_hold_ratio column to trading_flow table")
+    except Exception as e:
+        if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+            logger.warning(f"Could not add foreign_hold_ratio column to trading_flow: {e}")
+
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS news (
             id {id_type},

@@ -9,7 +9,6 @@ import time
 import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from app.utils.retry import retry_with_backoff
@@ -516,64 +515,32 @@ class CatalogDataCollector:
         Returns:
             {foreign_net, institutional_net, weekly_return} or None
         """
-        url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
+        # 네이버 모바일 JSON API(/stock/{code}/trend):
+        # 한 번의 호출(최근 6거래일)로 최신 수급 + 종가 기반 주간수익률을 계산한다.
+        from app.services.naver_stock_api import fetch_trend_page, parse_int, parse_number
 
         try:
             if use_rate_limiter:
                 with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                    rows = fetch_trend_page(ticker, page=1, page_size=6)
             else:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                rows = fetch_trend_page(ticker, page=1, page_size=6)
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            tables = soup.find_all('table', {'class': 'type2'})
-            if len(tables) < 2:
+            if not rows:
                 return None
 
-            table = tables[1]
-            rows = table.find_all('tr')
+            # 최근 1일 수급 (첫 행 = 최신)
+            latest = rows[0]
+            institutional_net = parse_int(latest.get('organPureBuyQuant'))
+            foreign_net = parse_int(latest.get('foreignerPureBuyQuant'))
 
-            foreign_net = None
-            institutional_net = None
-            prices_for_weekly = []
-
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 7:
-                    continue
-
-                date_text = cols[0].get_text(strip=True)
-                if not date_text or '.' not in date_text:
-                    continue
-
-                try:
-                    # 종가 (1번째 컬럼)
-                    close_text = cols[1].get_text(strip=True).replace(',', '')
-                    if close_text:
-                        prices_for_weekly.append(float(close_text))
-
-                    # 최근 1일 수급만 (첫 번째 데이터 행)
-                    if foreign_net is None:
-                        inst_text = cols[5].get_text(strip=True).replace(',', '')
-                        frgn_text = cols[6].get_text(strip=True).replace(',', '')
-                        institutional_net = self._parse_int(inst_text)
-                        foreign_net = self._parse_int(frgn_text)
-
-                    # 주간수익률 계산을 위해 최대 6일치 수집
-                    if len(prices_for_weekly) >= 6:
-                        break
-
-                except (ValueError, IndexError):
-                    continue
-
-            # 주간수익률 계산 (현재가 vs 5일 전)
+            # 주간수익률 계산 (현재가 vs 5거래일 전 종가)
+            prices_for_weekly = [
+                p for p in (parse_number(r.get('closePrice')) for r in rows) if p
+            ]
             weekly_return = None
             if len(prices_for_weekly) >= 2:
                 current = prices_for_weekly[0]
-                # 5일 전 (또는 가능한 가장 오래된 가격)
                 past = prices_for_weekly[min(5, len(prices_for_weekly) - 1)]
                 if past > 0:
                     weekly_return = round((current - past) / past * 100, 2)

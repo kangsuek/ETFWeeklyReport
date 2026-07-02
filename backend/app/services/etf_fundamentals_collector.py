@@ -19,32 +19,16 @@ from typing import Optional, List, Dict, Any
 import requests
 
 from app.database import get_db_connection
+from app.services.naver_stock_api import (
+    MOBILE_API_BASE,
+    HEADERS as _HEADERS,
+    parse_number as _to_float,
+    parse_int as _to_int,
+)
 
 logger = logging.getLogger(__name__)
 
-_API_BASE = "https://m.stock.naver.com/api/stock"
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
-    ),
-    "Referer": "https://m.stock.naver.com/",
-}
-
-
-def _to_float(v) -> Optional[float]:
-    """쉼표·%·+ 제거 후 float. 실패 시 None."""
-    if v is None:
-        return None
-    try:
-        return float(str(v).replace(',', '').replace('%', '').replace('+', '').strip())
-    except (ValueError, TypeError):
-        return None
-
-
-def _to_int(v) -> Optional[int]:
-    f = _to_float(v)
-    return int(f) if f is not None else None
+_API_BASE = f"{MOBILE_API_BASE}/stock"
 
 
 def _parse_korean_amount(text) -> Optional[float]:

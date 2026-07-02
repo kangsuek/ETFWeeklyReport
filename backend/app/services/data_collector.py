@@ -11,10 +11,15 @@ from app.constants import (
     PERCENT_MULTIPLIER,
     DEFAULT_RATE_LIMITER_INTERVAL
 )
+from app.services.naver_stock_api import (
+    fetch_trend_page,
+    parse_bizdate,
+    parse_int as api_parse_int,
+    parse_number as api_parse_number,
+)
 import logging
 import requests
 from bs4 import BeautifulSoup
-import time
 import re
 
 logger = logging.getLogger(__name__)
@@ -1028,7 +1033,11 @@ class ETFDataCollector:
     )
     def fetch_naver_trading_flow(self, ticker: str, days: int = 10, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[dict]:
         """
-        Naver Finance에서 투자자별 매매동향 데이터 수집 (다중 페이지 지원)
+        네이버 모바일 JSON API(/stock/{code}/trend)에서 투자자별 매매동향 수집
+
+        HTML(frgn.naver) 파싱 대비 장점:
+        - 개인 순매수 실측값 제공 (기존에는 -(기관+외국인) 근사치)
+        - 외국인 보유율(foreignerHoldRatio) 추가 제공
 
         Args:
             ticker: 종목 코드
@@ -1041,8 +1050,9 @@ class ETFDataCollector:
         """
         trading_data = []
         page = 1
-        # 페이지당 약 10개 데이터, 여유있게 2페이지 추가
-        max_pages = (days // 10) + 2
+        # JSON API pageSize 최대 60 — 필요 일수만큼 페이지 계산 (여유 +2)
+        page_size = min(max(days, 10), 60)
+        max_pages = (days // page_size) + 2
         
         # 날짜 범위가 지정된 경우, 실제 필요한 최대 데이터 수 계산
         # (주말 제외를 고려하여 days보다 작을 수 있음)
@@ -1058,27 +1068,16 @@ class ETFDataCollector:
 
         while len(trading_data) < target_count and page <= max_pages and not should_stop:
             try:
-                # Naver Finance 투자자별 매매동향 페이지 (페이지 파라미터 포함)
-                url = f"https://finance.naver.com/item/frgn.naver?code={ticker}&page={page}"
+                # 네이버 모바일 JSON API 호출 (페이지 단위)
                 logger.debug(f"Fetching trading flow page {page} for {ticker}")
 
                 with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                    rows = fetch_trend_page(ticker, page=page, page_size=page_size)
 
-                soup = BeautifulSoup(response.text, 'html.parser')
-
-                # 매매동향 테이블 찾기 (두 번째 type2 테이블)
-                # 첫 번째는 증권사별 매매, 두 번째가 투자자별 매매동향
-                tables = soup.find_all('table', {'class': 'type2'})
-                if len(tables) < 2:
-                    logger.warning(f"Trading flow table not found for {ticker} on page {page}")
+                if not rows:
+                    logger.info(f"No trend data on page {page} for {ticker}, stopping pagination")
                     break
 
-                table = tables[1]  # 두 번째 테이블 선택
-
-                # 데이터 행 추출
-                rows = table.find_all('tr')
                 page_data_count = 0
 
                 for row in rows:
@@ -1086,20 +1085,11 @@ class ETFDataCollector:
                     if len(trading_data) >= target_count:
                         break
 
-                    cols = row.find_all('td')
-                    # 실제 데이터 행은 7개 이상의 컬럼을 가짐
-                    # [0]날짜 [1]종가 [2]전일비 [3]등락률 [4]거래량 [5]기관 [6]외국인 [7]외국인보유 [8]지분율
-                    if len(cols) < 7:
-                        continue
-
                     try:
-                        # 날짜 추출
-                        date_text = cols[0].get_text(strip=True)
-                        if not date_text or date_text == '날짜' or '.' not in date_text:
+                        # 날짜 파싱 (bizdate: YYYYMMDD)
+                        trade_date = parse_bizdate(row.get('bizdate'))
+                        if not trade_date:
                             continue
-
-                        # 날짜 파싱 (YYYY.MM.DD 형식)
-                        trade_date = datetime.strptime(date_text, '%Y.%m.%d').date()
 
                         # 날짜 범위 필터링 (지정된 경우)
                         if start_date and trade_date < start_date:
@@ -1113,28 +1103,21 @@ class ETFDataCollector:
                         if end_date and trade_date > end_date:
                             continue  # 종료 날짜 이후 데이터는 건너뜀 (더 오래된 데이터가 나올 수 있으므로 계속 진행)
 
-                        # 투자자별 순매수 추출 (천주 단위)
-                        # 기관 (5번 컬럼)
-                        institutional_text = cols[5].get_text(strip=True)
-                        institutional_net = self._parse_trading_volume(institutional_text)
-
-                        # 외국인 (6번 컬럼)
-                        foreign_text = cols[6].get_text(strip=True)
-                        foreign_net = self._parse_trading_volume(foreign_text)
-
-                        # 개인 = -(기관 + 외국인)
-                        # None 처리: 기관이나 외국인이 None이면 개인도 None
-                        if institutional_net is not None and foreign_net is not None:
-                            individual_net = -(institutional_net + foreign_net)
-                        else:
-                            individual_net = None
+                        # 투자자별 순매수 (주 단위) — API 실측값
+                        institutional_net = api_parse_int(row.get('organPureBuyQuant'))
+                        foreign_net = api_parse_int(row.get('foreignerPureBuyQuant'))
+                        # 개인: 기존 -(기관+외국인) 근사치 대신 실측값 사용
+                        individual_net = api_parse_int(row.get('individualPureBuyQuant'))
+                        # 외국인 보유율 (%)
+                        foreign_hold_ratio = api_parse_number(row.get('foreignerHoldRatio'))
 
                         trading_data.append({
                             'ticker': ticker,
                             'date': trade_date,
                             'individual_net': individual_net,
                             'institutional_net': institutional_net,
-                            'foreign_net': foreign_net
+                            'foreign_net': foreign_net,
+                            'foreign_hold_ratio': foreign_hold_ratio
                         })
 
                         page_data_count += 1
@@ -1258,15 +1241,17 @@ class ETFDataCollector:
             try:
                 cursor.executemany("""
                     INSERT OR REPLACE INTO trading_flow
-                    (ticker, date, individual_net, institutional_net, foreign_net)
-                    VALUES (?, ?, ?, ?, ?)
+                    (ticker, date, individual_net, institutional_net, foreign_net,
+                     foreign_hold_ratio)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 """, [
                     (
                         data['ticker'],
                         data['date'],
                         data.get('individual_net'),
                         data.get('institutional_net'),
-                        data.get('foreign_net')
+                        data.get('foreign_net'),
+                        data.get('foreign_hold_ratio')
                     )
                     for data in valid_data
                 ])

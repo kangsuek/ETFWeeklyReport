@@ -29,84 +29,68 @@ class TestTradingFlowScraping:
         assert collector._parse_trading_volume(None) is None
     
     def test_fetch_naver_trading_flow_success(self):
-        """Naver Finance 매매동향 수집 성공 테스트"""
+        """네이버 모바일 JSON API(/trend) 매매동향 수집 성공 테스트"""
         collector = ETFDataCollector()
-        
-        # Mock HTML response (실제 Naver Finance 구조: 두 개의 type2 테이블)
-        mock_html = """
-        <html>
-            <table class="type2">
-                <!-- 첫 번째 테이블: 증권사별 매매 (건너뜀) -->
-                <tr><th>매도상위</th><th>거래량</th></tr>
-            </table>
-            <table class="type2">
-                <!-- 두 번째 테이블: 투자자별 매매동향 -->
-                <tr>
-                    <th>날짜</th><th>종가</th><th>전일비</th><th>등락률</th>
-                    <th>거래량</th><th>기관</th><th>외국인</th><th>보유</th><th>비율</th>
-                </tr>
-                <tr>
-                    <td>2025.11.07</td>
-                    <td>10,000</td>
-                    <td>상승100</td>
-                    <td>+1.0%</td>
-                    <td>1,000,000</td>
-                    <td>-567</td>
-                    <td>890</td>
-                    <td>10,000,000</td>
-                    <td>10.5%</td>
-                </tr>
-                <tr>
-                    <td>2025.11.06</td>
-                    <td>9,900</td>
-                    <td>상승50</td>
-                    <td>+0.5%</td>
-                    <td>900,000</td>
-                    <td>789</td>
-                    <td>-333</td>
-                    <td>9,950,000</td>
-                    <td>10.3%</td>
-                </tr>
-            </table>
-        </html>
-        """
-        
+
+        # Mock JSON response (실제 /stock/{code}/trend 응답 구조)
+        mock_rows = [
+            {
+                "itemCode": "487240",
+                "bizdate": "20251107",
+                "foreignerPureBuyQuant": "890",
+                "foreignerHoldRatio": "10.5%",
+                "organPureBuyQuant": "-567",
+                "individualPureBuyQuant": "-300",
+                "closePrice": "10,000",
+                "accumulatedTradingVolume": "1,000,000",
+            },
+            {
+                "itemCode": "487240",
+                "bizdate": "20251106",
+                "foreignerPureBuyQuant": "-333",
+                "foreignerHoldRatio": "10.3%",
+                "organPureBuyQuant": "789",
+                "individualPureBuyQuant": "-470",
+                "closePrice": "9,900",
+                "accumulatedTradingVolume": "900,000",
+            },
+        ]
+
         with patch('requests.get') as mock_get:
             mock_response = MagicMock()
-            mock_response.text = mock_html
             mock_response.status_code = 200
+            mock_response.json.return_value = mock_rows
             mock_get.return_value = mock_response
-            
+
             result = collector.fetch_naver_trading_flow("487240", days=2)
-            
+
             assert len(result) == 2
             assert result[0]['ticker'] == "487240"
             assert result[0]['date'] == date(2025, 11, 7)
-            # 개인 = -(기관 + 외국인) = -(-567 + 890) = -323
-            assert result[0]['individual_net'] == -323
+            # 개인 순매수는 API 실측값 사용 (기존 -(기관+외국인) 근사 아님)
+            assert result[0]['individual_net'] == -300
             assert result[0]['institutional_net'] == -567
             assert result[0]['foreign_net'] == 890
-            
+            assert result[0]['foreign_hold_ratio'] == 10.5
+
             assert result[1]['date'] == date(2025, 11, 6)
-            # 개인 = -(기관 + 외국인) = -(789 + (-333)) = -456
-            assert result[1]['individual_net'] == -456
+            assert result[1]['individual_net'] == -470
             assert result[1]['institutional_net'] == 789
             assert result[1]['foreign_net'] == -333
-    
-    def test_fetch_naver_trading_flow_table_not_found(self):
-        """매매동향 테이블 없음 테스트"""
+            assert result[1]['foreign_hold_ratio'] == 10.3
+
+    def test_fetch_naver_trading_flow_empty_response(self):
+        """매매동향 응답 없음(빈 목록) 테스트"""
         collector = ETFDataCollector()
-        
-        mock_html = "<html><body>No table here</body></html>"
-        
+
         with patch('requests.get') as mock_get:
             mock_response = MagicMock()
-            mock_response.text = mock_html
             mock_response.status_code = 200
+            mock_response.json.return_value = []
             mock_get.return_value = mock_response
-            
+
             result = collector.fetch_naver_trading_flow("487240")
-            
+
             assert result == []
     
     def test_fetch_naver_trading_flow_network_error(self):
