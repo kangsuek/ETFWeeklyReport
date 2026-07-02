@@ -366,7 +366,6 @@ async def get_data_stats(request: Request):
         from app.database import get_db_connection, DB_PATH
 
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             cursor = conn_or_cursor.cursor()
 
             # 각 테이블의 레코드 수 조회
@@ -386,8 +385,7 @@ async def get_data_stats(request: Request):
             result = cursor.fetchone()
             trading_flow_count = result[0]
 
-            # stock_catalog 테이블의 종목 목록 수 조회
-            # PostgreSQL: is_active는 BOOLEAN, SQLite: INTEGER (1/0)
+            # stock_catalog 테이블의 종목 목록 수 조회 (is_active: INTEGER 1/0)
             cursor.execute("SELECT COUNT(*) as cnt FROM stock_catalog WHERE is_active = 1")
             result = cursor.fetchone()
             stock_catalog_count = result[0]
@@ -418,7 +416,7 @@ async def get_data_stats(request: Request):
                     # 날짜를 datetime으로 변환
                     from datetime import datetime
                     try:
-                        # PostgreSQL은 date 객체를 반환할 수 있음
+                        # 날짜가 date 객체/문자열 어느 쪽이든 안전하게 처리
                         if hasattr(last_price_date, 'isoformat'):
                             last_collection = last_price_date.isoformat()
                         else:
@@ -590,7 +588,6 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
         logger.info("Database reset started")
         
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             conn = conn_or_cursor
             cursor = conn.cursor()
 

@@ -123,7 +123,7 @@ class ComparisonService:
         if not tickers:
             return {}
 
-        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        # SQLite 파라미터 플레이스홀더
         param_placeholder = "?"
 
         # IN 절 플레이스홀더 생성

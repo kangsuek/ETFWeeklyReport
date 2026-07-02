@@ -308,12 +308,10 @@ class ETFDataCollector:
 
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             conn = conn_or_cursor
             cursor = conn.cursor()
 
             try:
-                # PostgreSQL과 SQLite의 문법 차이
                 cursor.executemany("""
                     INSERT OR REPLACE INTO prices
                     (ticker, date, open_price, high_price, low_price, close_price, volume, daily_change_pct)
@@ -626,7 +624,7 @@ class ETFDataCollector:
 
                 # Year-to-date return
                 year_start = date(today.year, 1, 1)
-                # Handle both date objects (PostgreSQL) and strings (SQLite)
+                # 날짜가 date 객체/문자열 어느 쪽이든 안전하게 처리
                 def get_date(d):
                     return d if isinstance(d, date) else date.fromisoformat(d)
                 ytd_prices = [p for p in prices if get_date(p['date']) >= year_start]
@@ -1253,12 +1251,10 @@ class ETFDataCollector:
 
         # 벌크 insert 수행
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             conn = conn_or_cursor
             cursor = conn.cursor()
 
             try:
-                # PostgreSQL과 SQLite의 문법 차이
                 cursor.executemany("""
                     INSERT OR REPLACE INTO trading_flow
                     (ticker, date, individual_net, institutional_net, foreign_net)
@@ -1546,7 +1542,7 @@ class ETFDataCollector:
             logger.info(f"[{ticker}] 수집 이력 없음 → {requested_days}일 수집 필요")
             return requested_days
 
-        # Handle both date objects (PostgreSQL) and strings (SQLite)
+        # 날짜가 date 객체/문자열 어느 쪽이든 안전하게 처리
         last_price_date = status['last_price_date']
         last_date = last_price_date if isinstance(last_price_date, date) else date.fromisoformat(last_price_date)
         today = date.today()
@@ -1633,7 +1629,7 @@ class ETFDataCollector:
         status = get_collection_status(ticker)
 
         if status and status.get('last_trading_flow_date'):
-            # Handle both date objects (PostgreSQL) and strings (SQLite)
+            # 날짜가 date 객체/문자열 어느 쪽이든 안전하게 처리
             last_flow_date = status['last_trading_flow_date']
             last_date = last_flow_date if isinstance(last_flow_date, date) else date.fromisoformat(last_flow_date)
             today = date.today()

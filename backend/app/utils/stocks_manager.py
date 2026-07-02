@@ -132,7 +132,6 @@ def sync_stocks_to_db() -> int:
     stocks = load_stocks()
 
     with get_db_connection() as conn_or_cursor:
-        # PostgreSQL과 SQLite 처리 분기
         conn = conn_or_cursor
         cursor = conn.cursor()
 
@@ -275,11 +274,10 @@ def delete_stock(ticker: str) -> Dict[str, int]:
     # CASCADE delete from database
     deleted_counts = {}
 
-    # PostgreSQL과 SQLite의 플레이스홀더 차이
+    # SQLite 파라미터 플레이스홀더
     param_placeholder = "?"
 
     with get_db_connection() as conn_or_cursor:
-        # PostgreSQL과 SQLite 처리 분기
         conn = conn_or_cursor
         cursor = conn.cursor()
 

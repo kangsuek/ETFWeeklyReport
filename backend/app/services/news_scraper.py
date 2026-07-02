@@ -436,7 +436,7 @@ class NewsScraper:
         """
         logger.debug(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
-        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        # SQLite 파라미터 플레이스홀더
         param_placeholder = "?"
 
         with get_db_connection() as conn_or_cursor:

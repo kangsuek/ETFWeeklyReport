@@ -184,7 +184,7 @@ async def get_themes():
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)
 
-        # 섹터별 집계 (PostgreSQL: is_active boolean, SQLite: integer 1/0)
+        # 섹터별 집계 (is_active: INTEGER 1/0)
         is_active_cmp = "is_active = 1"
         cursor.execute(f"""
             SELECT sector, COUNT(*) as cnt,

@@ -570,11 +570,10 @@ class TickerCatalogCollector:
         updated_count = 0
         deactivated_count = 0
 
-        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        # SQLite 파라미터 플레이스홀더
         param_placeholder = "?"
 
         with get_db_connection() as conn_or_cursor:
-            # PostgreSQL과 SQLite 처리 분기
             conn = conn_or_cursor
             cursor = conn.cursor()
 
@@ -734,7 +733,7 @@ class TickerCatalogCollector:
             del _search_cache[oldest_key]
         
         # 데이터베이스에서 검색
-        # PostgreSQL과 SQLite의 플레이스홀더 차이
+        # SQLite 파라미터 플레이스홀더
         p = "?"
 
         with get_db_connection() as conn_or_cursor:
