@@ -159,7 +159,7 @@ export default function PortfolioAnalysisReport({
                   <th className="text-left py-2 pr-3 font-medium text-gray-500 dark:text-gray-400">종목명</th>
                   <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-gray-400">일간</th>
                   <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-gray-400">주간</th>
-                  <th className="text-center py-2 px-2 font-medium text-gray-500 dark:text-gray-400">수급</th>
+                  <th className="text-center py-2 px-2 font-medium text-gray-500 dark:text-gray-400">순매수</th>
                   <th className="text-left py-2 pl-3 font-medium text-gray-500 dark:text-gray-400">평가</th>
                 </tr>
               </thead>
@@ -219,7 +219,7 @@ export default function PortfolioAnalysisReport({
                 <th className="text-left py-2 pr-3 font-medium text-gray-500 dark:text-gray-400">종목명</th>
                 <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-gray-400">수익률</th>
                 <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-gray-400">기여도</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-500 dark:text-gray-400">수급</th>
+                <th className="text-center py-2 px-2 font-medium text-gray-500 dark:text-gray-400">순매수</th>
                 <th className="text-center py-2 px-2 font-medium text-gray-500 dark:text-gray-400">상태</th>
                 <th className="text-left py-2 pl-3 font-medium text-gray-500 dark:text-gray-400">비고</th>
               </tr>

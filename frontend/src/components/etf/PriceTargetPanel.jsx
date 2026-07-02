@@ -354,7 +354,7 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">메모 (선택)</label>
             <input type="text" value={form.memo}
               onChange={(e) => setForm(prev => ({ ...prev, memo: e.target.value }))}
-              placeholder={activeTab === 'target' ? '예: 분할 매수 1차' : activeTab === 'change' ? '예: 급락 시 추가 매수 검토' : '예: 기관 수급 확인'}
+              placeholder={activeTab === 'target' ? '예: 분할 매수 1차' : activeTab === 'change' ? '예: 급락 시 추가 매수 검토' : '예: 기관 순매수 확인'}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" maxLength={100} />
           </div>
 
