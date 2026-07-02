@@ -1,117 +1,109 @@
 """
-stock_fundamentals_collector.py 단위 테스트
+stock_fundamentals_collector.py 단위 테스트 (네이버 모바일 JSON API 기반)
 
-HTML fixture를 사용하여 실제 네트워크 없이 파싱 로직을 검증합니다.
+finance/annual·quarter JSON 파싱과 결산기 기준 다년치 저장을 검증합니다.
+네트워크는 모두 mock 처리, DB는 conftest의 격리 DB를 사용합니다.
 """
 import pytest
 from datetime import date
-from unittest.mock import patch, MagicMock
-from bs4 import BeautifulSoup
+from unittest.mock import patch
 
 from app.services.stock_fundamentals_collector import (
-    _parse_number,
-    _find_fundamentals_table,
-    _get_latest_annual_idx,
+    _period_key_to_date,
+    _extract_period_rows,
     collect_stock_fundamentals,
 )
+from app.database import get_db_connection
 
 
 # ───────────────────────────────────────
-# HTML 픽스처 (삼성전자 구조 모방)
+# JSON 픽스처 (finance/annual 축약 — 삼성전자 구조 모방)
 # ───────────────────────────────────────
 
-STOCK_MAIN_HTML = """
-<html><body>
-<table class="tb_type1 tb_num tb_type1_ifrs" summary="기업실적분석에 관한표">
-  <thead>
-    <tr>
-      <th>주요재무정보</th>
-      <th colspan="4">최근 연간 실적</th>
-      <th colspan="4">최근 분기 실적</th>
-    </tr>
-    <tr>
-      <th>2022.12</th><th>2023.12</th><th>2024.12</th><th>2025.12(E)</th>
-      <th>2024.09</th><th>2024.12</th><th>2025.03</th><th>2025.06(E)</th>
-    </tr>
-    <tr>
-      <th>IFRS연결</th><th>IFRS연결</th><th>IFRS연결</th><th>IFRS연결</th>
-      <th>IFRS연결</th><th>IFRS연결</th><th>IFRS연결</th><th>IFRS연결</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr><th>매출액</th><td>3,022,314</td><td>2,589,355</td><td>3,008,709</td><td>3,291,027</td><td>790,987</td><td>757,883</td><td>791,405</td><td>745,663</td></tr>
-    <tr><th>영업이익</th><td>433,766</td><td>65,670</td><td>327,260</td><td>401,605</td><td>91,834</td><td>64,927</td><td>66,853</td><td>46,761</td></tr>
-    <tr><th>당기순이익</th><td>556,541</td><td>154,871</td><td>344,514</td><td>398,255</td><td>101,009</td><td>77,544</td><td>82,229</td><td>51,164</td></tr>
-    <tr><th>영업이익률</th><td>14.35</td><td>2.54</td><td>10.88</td><td>12.20</td><td>11.61</td><td>8.57</td><td>8.45</td><td>6.27</td></tr>
-    <tr><th>순이익률</th><td>18.41</td><td>5.98</td><td>11.45</td><td>12.10</td><td>12.77</td><td>10.23</td><td>10.39</td><td>6.86</td></tr>
-    <tr><th>ROE(지배주주)</th><td>17.07</td><td>4.15</td><td>9.03</td><td>9.53</td><td>8.79</td><td>9.03</td><td>9.24</td><td>7.95</td></tr>
-    <tr><th>부채비율</th><td>26.41</td><td>25.36</td><td>27.93</td><td>-</td><td>27.19</td><td>27.93</td><td>26.99</td><td>26.36</td></tr>
-    <tr><th>당좌비율</th><td>211.68</td><td>189.46</td><td>187.80</td><td>-</td><td>190.56</td><td>187.80</td><td>187.68</td><td>190.87</td></tr>
-    <tr><th>EPS(원)</th><td>8,057</td><td>2,131</td><td>4,950</td><td>5,727</td><td>1,440</td><td>1,115</td><td>1,186</td><td>733</td></tr>
-    <tr><th>PER(배)</th><td>6.86</td><td>36.84</td><td>10.75</td><td>22.44</td><td>13.03</td><td>10.75</td><td>11.20</td><td>13.36</td></tr>
-    <tr><th>BPS(원)</th><td>50,817</td><td>52,002</td><td>57,981</td><td>63,204</td><td>55,376</td><td>57,981</td><td>59,059</td><td>58,135</td></tr>
-    <tr><th>PBR(배)</th><td>1.09</td><td>1.51</td><td>0.92</td><td>2.03</td><td>1.11</td><td>0.92</td><td>0.98</td><td>1.03</td></tr>
-    <tr><th>주당배당금(원)</th><td>1,444</td><td>1,444</td><td>1,446</td><td>1,527</td><td>361</td><td>363</td><td>365</td><td>367</td></tr>
-    <tr><th>시가배당률(%)</th><td>2.61</td><td>1.84</td><td>2.72</td><td>-</td><td>0.59</td><td>0.68</td><td>0.63</td><td>0.61</td></tr>
-    <tr><th>배당성향(%)</th><td>17.92</td><td>67.78</td><td>29.18</td><td>-</td><td>25.07</td><td>32.40</td><td>30.48</td><td>49.73</td></tr>
-  </tbody>
-</table>
-</body></html>
-"""
-
-# 모든 열이 (E) 추정치인 극단적 케이스
-ALL_ESTIMATE_HTML = """
-<html><body>
-<table class="tb_type1 tb_num tb_type1_ifrs">
-  <thead>
-    <tr>
-      <th>주요재무정보</th>
-      <th colspan="2">최근 연간 실적</th>
-    </tr>
-    <tr>
-      <th>2025.12(E)</th><th>2026.12(E)</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr><th>매출액</th><td>3,000,000</td><td>3,200,000</td></tr>
-  </tbody>
-</table>
-</body></html>
-"""
+def _col(value):
+    return {"value": value, "cx": None}
 
 
-# ───────────────────────────────────────
-# _parse_number 테스트
-# ───────────────────────────────────────
+ANNUAL_FINANCE_INFO = {
+    "itemCode": "005930",
+    "trTitleList": [
+        {"key": "202312", "title": "2023.12.", "isConsensus": "N"},
+        {"key": "202412", "title": "2024.12.", "isConsensus": "N"},
+        {"key": "202512", "title": "2025.12.", "isConsensus": "Y"},  # 추정치 → 제외
+    ],
+    "rowList": [
+        {"title": "매출액", "columns": {
+            "202312": _col("2,589,355"), "202412": _col("3,008,709"), "202512": _col("3,291,027")}},
+        {"title": "영업이익", "columns": {
+            "202312": _col("65,670"), "202412": _col("327,260"), "202512": _col("401,605")}},
+        {"title": "당기순이익", "columns": {
+            "202312": _col("154,871"), "202412": _col("344,514"), "202512": _col("398,255")}},
+        {"title": "영업이익률", "columns": {
+            "202312": _col("2.54"), "202412": _col("10.88"), "202512": _col("12.20")}},
+        {"title": "순이익률", "columns": {
+            "202312": _col("5.98"), "202412": _col("11.45"), "202512": _col("12.10")}},
+        {"title": "ROE", "columns": {
+            "202312": _col("4.15"), "202412": _col("9.03"), "202512": _col("9.53")}},
+        {"title": "부채비율", "columns": {
+            "202312": _col("25.36"), "202412": _col("27.93"), "202512": _col("-")}},
+        {"title": "당좌비율", "columns": {
+            "202312": _col("189.46"), "202412": _col("187.80"), "202512": _col("-")}},
+        {"title": "EPS", "columns": {
+            "202312": _col("2,131"), "202412": _col("4,950"), "202512": _col("5,727")}},
+        {"title": "PER", "columns": {
+            "202312": _col("36.84"), "202412": _col("10.75"), "202512": _col("22.44")}},
+        {"title": "BPS", "columns": {
+            "202312": _col("52,002"), "202412": _col("57,981"), "202512": _col("63,204")}},
+        {"title": "PBR", "columns": {
+            "202312": _col("1.51"), "202412": _col("0.92"), "202512": _col("2.03")}},
+        {"title": "주당배당금", "columns": {
+            "202312": _col("1,444"), "202412": _col("1,446"), "202512": _col("1,527")}},
+    ],
+}
 
-class TestParseNumber:
-    def test_comma_separated(self):
-        assert _parse_number("3,022,314") == 3022314.0
-
-    def test_plain_float(self):
-        assert _parse_number("10.88") == 10.88
-
-    def test_empty_string(self):
-        assert _parse_number("") is None
-
-    def test_dash(self):
-        assert _parse_number("-") is None
-
-    def test_invalid_text(self):
-        assert _parse_number("N/A") is None
-
-    def test_positive_with_plus(self):
-        assert _parse_number("+0.37") == 0.37
-
-    def test_percent_value(self):
-        # stock_fundamentals_collector._parse_number은 % 기호를 처리하지 않는다.
-        # 실제 테이블 값은 이미 숫자("10.88")로 노출되므로 None이 올바른 동작.
-        assert _parse_number("10.88%") is None
+QUARTER_FINANCE_INFO = {
+    "itemCode": "005930",
+    "trTitleList": [
+        {"key": "202412", "title": "2024.12.", "isConsensus": "N"},  # 연간과 결산기 중복
+        {"key": "202503", "title": "2025.03.", "isConsensus": "N"},
+        {"key": "202506", "title": "2025.06.", "isConsensus": "Y"},  # 추정치 → 제외
+    ],
+    "rowList": [
+        {"title": "매출액", "columns": {
+            "202412": _col("757,883"), "202503": _col("791,405"), "202506": _col("745,663")}},
+        {"title": "EPS", "columns": {
+            "202412": _col("1,115"), "202503": _col("1,186"), "202506": _col("733")}},
+        {"title": "PER", "columns": {
+            "202412": _col("10.75"), "202503": _col("11.20"), "202506": _col("13.36")}},
+    ],
+}
 
 
 # ───────────────────────────────────────
-# 날짜 파싱 테스트 (구 etf_fundamentals_collector._parse_date는
-#  JSON API 전환으로 제거됨 → 공용 naver_stock_api.parse_bizdate 검증)
+# _period_key_to_date
+# ───────────────────────────────────────
+
+class TestPeriodKeyToDate:
+    def test_december(self):
+        assert _period_key_to_date("202412") == date(2024, 12, 31)
+
+    def test_march_end(self):
+        assert _period_key_to_date("202503") == date(2025, 3, 31)
+
+    def test_june_end(self):
+        assert _period_key_to_date("202506") == date(2025, 6, 30)
+
+    def test_february_leap(self):
+        assert _period_key_to_date("202402") == date(2024, 2, 29)
+
+    def test_invalid(self):
+        assert _period_key_to_date("abc") is None
+        assert _period_key_to_date("") is None
+        assert _period_key_to_date(None) is None
+
+
+# ───────────────────────────────────────
+# TestParseDate — 공용 naver_stock_api.parse_bizdate 검증
 # ───────────────────────────────────────
 
 class TestParseDate:
@@ -137,156 +129,145 @@ class TestParseDate:
 
 
 # ───────────────────────────────────────
-# _find_fundamentals_table 테스트
+# _extract_period_rows
 # ───────────────────────────────────────
 
-class TestFindFundamentalsTable:
-    def test_finds_ifrs_table(self):
-        soup = BeautifulSoup(STOCK_MAIN_HTML, "html.parser")
-        table = _find_fundamentals_table(soup)
-        assert table is not None
+class TestExtractPeriodRows:
+    def test_excludes_consensus_periods(self):
+        rows = _extract_period_rows(ANNUAL_FINANCE_INFO)
+        dates = [r['date'] for r in rows]
+        assert dates == [date(2023, 12, 31), date(2024, 12, 31)]  # 2025.12(E) 제외
 
-    def test_returns_none_when_no_table(self):
-        soup = BeautifulSoup("<html><body></body></html>", "html.parser")
-        table = _find_fundamentals_table(soup)
-        assert table is None
+    def test_maps_fields(self):
+        rows = _extract_period_rows(ANNUAL_FINANCE_INFO)
+        latest = rows[-1]  # 2024.12
+        assert latest['revenue'] == 3008709
+        assert latest['operating_profit'] == 327260
+        assert latest['net_profit'] == 344514
+        assert latest['roe'] == 9.03
+        assert latest['eps'] == 4950
+        assert latest['per'] == 10.75
+        assert latest['bps'] == 57981
+        assert latest['pbr'] == 0.92
+        assert latest['current_ratio'] == 187.80
 
-    def test_fallback_summary_attribute(self):
-        html = """
-        <html><body>
-        <table summary="기업실적분석 테이블">
-          <thead><tr><th>x</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        </body></html>
-        """
-        soup = BeautifulSoup(html, "html.parser")
-        table = _find_fundamentals_table(soup)
-        assert table is not None
+    def test_dash_becomes_none(self):
+        rows = _extract_period_rows(ANNUAL_FINANCE_INFO)
+        # 202512는 컨센서스라 제외됐고, 확정분에는 '-' 없음 → 2023년 값으로 확인
+        assert rows[0]['debt_ratio'] == 25.36
 
+    def test_payout_ratio_computed(self):
+        rows = _extract_period_rows(ANNUAL_FINANCE_INFO)
+        latest = rows[-1]
+        # 배당성향 = 1,446 / 4,950 × 100 ≈ 29.21%
+        assert latest['dividend_per_share'] == 1446
+        assert latest['payout_ratio'] == pytest.approx(29.21, abs=0.01)
 
-# ───────────────────────────────────────
-# _get_latest_annual_idx 테스트
-# ───────────────────────────────────────
-
-class TestGetLatestAnnualIdx:
-    def test_returns_non_estimate_column(self):
-        """(E) 없는 가장 최신 연간 열을 반환한다."""
-        soup = BeautifulSoup(STOCK_MAIN_HTML, "html.parser")
-        table = _find_fundamentals_table(soup)
-        idx = _get_latest_annual_idx(table)
-        # 연간 4개 중 3번째(index 2) = 2024.12 (마지막 실제 데이터)
-        assert idx == 2
-
-    def test_all_estimate_returns_fallback(self):
-        """모두 (E)이면 마지막-1 인덱스(또는 None)를 반환한다."""
-        soup = BeautifulSoup(ALL_ESTIMATE_HTML, "html.parser")
-        table = _find_fundamentals_table(soup)
-        idx = _get_latest_annual_idx(table)
-        # 실제 데이터가 없으면 None
-        assert idx is None
+    def test_empty_input(self):
+        assert _extract_period_rows(None) == []
+        assert _extract_period_rows({}) == []
+        assert _extract_period_rows({"trTitleList": [], "rowList": []}) == []
 
 
 # ───────────────────────────────────────
-# collect_stock_fundamentals (모킹)
+# collect_stock_fundamentals (fetch mock + 격리 DB)
 # ───────────────────────────────────────
+
+_MOD = 'app.services.stock_fundamentals_collector'
+
 
 class TestCollectStockFundamentals:
-    """fetch_main_page와 DB를 모킹하여 전체 흐름 검증."""
+    TICKER = "005930"
 
-    @patch("app.services.stock_fundamentals_collector.fetch_main_page")
-    @patch("app.services.stock_fundamentals_collector.get_db_connection")
-    def test_success_flow(self, mock_db, mock_fetch):
-        """정상 HTML이 주어지면 성공 결과를 반환한다."""
-        soup = BeautifulSoup(STOCK_MAIN_HTML, "html.parser")
-        mock_fetch.return_value = soup
+    @pytest.fixture(autouse=True)
+    def _clean_tables(self):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM stock_fundamentals WHERE ticker = ?", (self.TICKER,))
+            cursor.execute("DELETE FROM stock_distributions WHERE ticker = ?", (self.TICKER,))
+            conn.commit()
+        yield
 
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
-        mock_db.return_value.__enter__.return_value = mock_conn
+    def _collect(self, annual=ANNUAL_FINANCE_INFO, quarter=QUARTER_FINANCE_INFO, yield_pct=0.58):
+        def fake_fetch(ticker, period_type):
+            return annual if period_type == 'annual' else quarter
 
-        result = collect_stock_fundamentals("005930")
+        with patch(f'{_MOD}._fetch_finance', side_effect=fake_fetch), \
+             patch(f'{_MOD}._fetch_current_dividend_yield', return_value=yield_pct):
+            return collect_stock_fundamentals(self.TICKER)
 
-        assert result["success"] is True
-        assert result["ticker"] == "005930"
-        assert result["saved"] is True
-        # INSERT가 호출됐는지 확인
-        assert mock_cursor.execute.called
+    def test_success_flow(self):
+        result = self._collect()
+        assert result['success'] is True
+        assert result['saved'] is True
+        assert result['dividend_saved'] is True
+        assert result['error'] is None
 
-    @patch("app.services.stock_fundamentals_collector.fetch_main_page")
-    def test_returns_error_when_fetch_fails(self, mock_fetch):
-        """페이지 수집 실패 시 success=False를 반환한다."""
-        mock_fetch.return_value = None
+    def test_saves_multi_period_rows(self):
+        self._collect()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT date FROM stock_fundamentals WHERE ticker = ? ORDER BY date",
+                (self.TICKER,))
+            dates = [row[0] for row in cursor.fetchall()]
+        # 연간 2 (2023-12, 2024-12) + 분기 1 (2025-03; 2024-12는 연간과 중복 병합)
+        assert dates == ['2023-12-31', '2024-12-31', '2025-03-31']
 
-        result = collect_stock_fundamentals("005930")
+    def test_annual_overrides_duplicate_quarter(self):
+        self._collect()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT revenue FROM stock_fundamentals WHERE ticker = ? AND date = ?",
+                (self.TICKER, '2024-12-31'))
+            # 연간 매출(3,008,709)이 분기 매출(757,883)을 덮어써야 함
+            assert cursor.fetchone()[0] == 3008709
 
-        assert result["success"] is False
-        assert "error" in result
+    def test_latest_row_gets_current_dividend_yield(self):
+        self._collect(yield_pct=0.58)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT date, dividend_yield FROM stock_fundamentals "
+                "WHERE ticker = ? ORDER BY date DESC",
+                (self.TICKER,))
+            rows = cursor.fetchall()
+        assert rows[0][1] == 0.58            # 최신 행에만
+        assert all(r[1] is None for r in rows[1:])
 
-    @patch("app.services.stock_fundamentals_collector.fetch_main_page")
-    def test_returns_error_when_no_table(self, mock_fetch):
-        """기업실적분석 테이블이 없는 HTML이면 error를 반환한다."""
-        soup = BeautifulSoup("<html><body></body></html>", "html.parser")
-        mock_fetch.return_value = soup
+    def test_replaces_legacy_today_dated_rows(self):
+        # 구 수집기가 남긴 date=오늘 행이 새 결산기 행으로 교체되는지
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO stock_fundamentals (ticker, date, per) VALUES (?, ?, ?)",
+                (self.TICKER, str(date.today()), 99.9))
+            conn.commit()
 
-        result = collect_stock_fundamentals("005930")
+        self._collect()
 
-        assert result["success"] is False
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM stock_fundamentals WHERE ticker = ? AND per = 99.9",
+                (self.TICKER,))
+            assert cursor.fetchone()[0] == 0
 
-    @patch("app.services.stock_fundamentals_collector.fetch_main_page")
-    @patch("app.services.stock_fundamentals_collector.get_db_connection")
-    def test_parses_correct_annual_values(self, mock_db, mock_fetch):
-        """최신 연간 열(2024.12 기준)의 값이 올바르게 파싱된다."""
-        soup = BeautifulSoup(STOCK_MAIN_HTML, "html.parser")
-        mock_fetch.return_value = soup
+    def test_saves_dividend_distributions_per_year(self):
+        self._collect()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT record_date, amount_per_share FROM stock_distributions "
+                "WHERE ticker = ? ORDER BY record_date",
+                (self.TICKER,))
+            rows = cursor.fetchall()
+        assert ('2023-12-31', 1444.0) in [(r[0], r[1]) for r in rows]
+        assert ('2024-12-31', 1446.0) in [(r[0], r[1]) for r in rows]
 
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
-        mock_db.return_value.__enter__.return_value = mock_conn
-
-        collect_stock_fundamentals("005930")
-
-        # INSERT 호출 인수 확인
-        call_args = mock_cursor.execute.call_args_list[0]
-        params = call_args[0][1]  # (sql, params) 중 params
-
-        ticker = params[0]
-        assert ticker == "005930"
-
-        # 2024.12 기준 per=10.75, pbr=0.92, roe=9.03, eps=4950, bps=57981
-        per_idx = 2   # ticker, date, per, pbr, roe, roa, eps, bps, revenue, ...
-        pbr_idx = 3
-        roe_idx = 4
-        eps_idx = 6
-        bps_idx = 7
-        revenue_idx = 8
-
-        assert params[per_idx] == pytest.approx(10.75)
-        assert params[pbr_idx] == pytest.approx(0.92)
-        assert params[roe_idx] == pytest.approx(9.03)
-        assert params[eps_idx] == pytest.approx(4950.0)
-        assert params[bps_idx] == pytest.approx(57981.0)
-        assert params[revenue_idx] == pytest.approx(3008709.0)
-
-    @patch("app.services.stock_fundamentals_collector.fetch_main_page")
-    @patch("app.services.stock_fundamentals_collector.get_db_connection")
-    def test_saves_dividend_distribution(self, mock_db, mock_fetch):
-        """주당배당금이 있으면 stock_distributions에도 저장한다."""
-        soup = BeautifulSoup(STOCK_MAIN_HTML, "html.parser")
-        mock_fetch.return_value = soup
-
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        # get_db_connection()은 컨텍스트 매니저이므로 __enter__ 반환값에 연결
-        mock_db.return_value.__enter__.return_value = mock_conn
-
-        result = collect_stock_fundamentals("005930")
-
-        assert result["dividend_saved"] is True
-        # execute 호출 횟수: fundamentals + distributions = 2
-        assert mock_cursor.execute.call_count == 2
+    def test_error_when_no_data(self):
+        result = self._collect(annual=None, quarter=None)
+        assert result['success'] is False
+        assert result['saved'] is False
+        assert 'No fundamental data' in result['error']
