@@ -251,10 +251,44 @@ class TestAdditionalDataCollectorCoverage:
         """ETF 메트릭스 조회 테스트"""
         from app.services.data_collector import ETFDataCollector
         collector = ETFDataCollector()
-        
+
         metrics = collector.get_etf_metrics("487240")
         assert metrics is not None
         assert metrics.ticker == "487240"
+
+    def test_max_drawdown_uses_chronological_order(self):
+        """
+        MDD는 시간순(오름차순)으로 계산돼야 한다.
+
+        가격이 저점(100)에서 시작해 고점(200)까지 오른 뒤 150으로 내려온
+        시계열의 실제 MDD는 (150-200)/200 = -25%이다. prices가 DESC로
+        저장/조회돼도 낙폭 계산 전에 뒤집으므로 -25%가 나와야 하며,
+        뒤집지 않으면 "최근 고점 대비 과거 저점"으로 -50%가 잡힌다.
+        """
+        from datetime import date, timedelta
+        from app.services.data_collector import ETFDataCollector
+        from app.database import get_db_connection
+
+        ticker = "487240"
+        # 오름차순 종가: 100 → 200(고점) → 150
+        closes = [100.0, 120.0, 160.0, 200.0, 180.0, 150.0]
+        base = date.today() - timedelta(days=len(closes))
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM prices WHERE ticker = ?", (ticker,))
+            for i, c in enumerate(closes):
+                cursor.execute(
+                    "INSERT INTO prices (ticker, date, open_price, high_price, "
+                    "low_price, close_price, volume, daily_change_pct) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (ticker, base + timedelta(days=i), c, c, c, c, 1000, 0.0),
+                )
+            conn.commit()
+
+        metrics = ETFDataCollector().get_etf_metrics(ticker)
+        # 시간순 MDD = (150-200)/200 = -25% (뒤집기 버그면 -50%)
+        assert metrics.max_drawdown == -25.0
     
     def test_get_trading_flow_empty_result(self):
         """매매동향 조회 - 빈 결과 테스트"""

@@ -578,10 +578,13 @@ class ETFDataCollector:
                     volatility = std_dev * math.sqrt(TRADING_DAYS_PER_YEAR)
 
                 # Calculate Max Drawdown
+                # prices는 ORDER BY date DESC(최신→과거)이므로, 낙폭은 반드시
+                # 시간순(오름차순)으로 계산해야 한다. 뒤집지 않으면 cummax가
+                # "최근 고점 → 과거 저점"을 낙폭으로 잡아 값이 크게 왜곡된다.
                 max_drawdown = None
                 if len(prices) >= 2:
                     import pandas as pd
-                    price_series = pd.Series([p['close_price'] for p in prices])
+                    price_series = pd.Series([p['close_price'] for p in reversed(prices)])
                     cumulative_max = price_series.cummax()
                     drawdown = ((price_series - cumulative_max) / cumulative_max * 100)
                     max_drawdown = round(drawdown.min(), 2)
