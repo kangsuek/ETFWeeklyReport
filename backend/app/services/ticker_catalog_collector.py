@@ -7,8 +7,10 @@ import contextlib
 import logging
 import os
 import re
+import time
 import requests
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from app.utils.retry import retry_with_backoff
@@ -18,6 +20,13 @@ from app.database import get_db_connection, get_cursor
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
+
+# sise_market_sum 페이지 병렬 수집 워커 수.
+# 페이지를 배치 단위로 동시 요청하되, 과도하면 네이버 차단(429) 위험이 있어 보수적으로 설정.
+SISE_PAGE_WORKERS = 8
+# 단일 페이지 요청 재시도 횟수. 병렬 요청 중 일시적 오류 한 건이 전체 목록을
+# 잘라내지 않도록 요청 예외에 한해 재시도한다.
+SISE_PAGE_RETRIES = 2
 
 # Selenium 선택적 사용 (설치되어 있으면 사용)
 try:
@@ -202,76 +211,115 @@ class TickerCatalogCollector:
             pass
         return result
 
-    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
-        """네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)"""
-        stocks = []
-        page = 1
+    def _fetch_sise_page(self, sosok: int, market: str, page: int) -> Optional[List[Dict[str, Any]]]:
+        """
+        sise_market_sum 단일 페이지에서 종목 목록 + 가격을 파싱한다.
 
-        while page <= max_pages:
-            url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
+        Returns:
+            종목 리스트. 데이터가 없는 페이지(마지막 이후)는 빈 리스트,
+            요청/파싱 오류는 None을 반환한다.
+        """
+        url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
 
+        # 요청 예외에 한해 재시도 (병렬 중 일시적 오류로 목록이 잘리는 것을 방지)
+        response = None
+        for attempt in range(SISE_PAGE_RETRIES):
             try:
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                response = requests.get(url, headers=self.headers, timeout=10)
+                response.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                if attempt + 1 >= SISE_PAGE_RETRIES:
+                    logger.error(f"Error collecting {market} page {page}: {e}")
+                    return None
+                time.sleep(0.5 * (attempt + 1))
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+        try:
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-                table = soup.find('table', {'class': 'type_2'})
-                if not table:
-                    table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    tables = soup.find_all('table')
-                    for t in tables:
-                        if len(t.find_all('a', href=True)) > 5:
-                            table = t
+            table = soup.find('table', {'class': 'type_2'})
+            if not table:
+                table = soup.find('table', {'class': 'type2'})
+            if not table:
+                for t in soup.find_all('table'):
+                    if len(t.find_all('a', href=True)) > 5:
+                        table = t
+                        break
+
+            if not table:
+                logger.warning(f"{market} table not found on page {page}")
+                return []
+
+            rows = table.find_all('tr')
+            if not rows:
+                return []
+
+            page_stocks = []
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) < 10:
+                    continue
+
+                for link in row.find_all('a', href=True):
+                    href = link.get('href', '')
+                    if '/item/main.naver?code=' in href:
+                        ticker = href.split('code=')[-1].split('&')[0]
+                        name = link.get_text(strip=True)
+
+                        if ticker and name and len(ticker) >= 5:
+                            price_data = self._parse_sise_price_row(cols)
+                            page_stocks.append({
+                                "ticker": ticker,
+                                "name": name,
+                                "type": "STOCK",
+                                "market": market,
+                                "sector": None,
+                                "listed_date": None,
+                                "is_active": 1,
+                                **price_data,
+                            })
                             break
 
-                if not table:
-                    logger.warning(f"{market} table not found on page {page}")
+            return page_stocks
+
+        except Exception as e:
+            logger.error(f"Error collecting {market} page {page}: {e}")
+            return None
+
+    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
+        """
+        네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)
+
+        페이지를 SISE_PAGE_WORKERS 단위 배치로 병렬 요청하되, 시가총액 내림차순
+        순서를 보존하기 위해 배치 내 결과를 페이지 오름차순으로 처리한다.
+        빈 페이지(마지막 이후)나 오류 페이지를 만나면 그 이전까지만 취하고 종료한다.
+        """
+        stocks: List[Dict[str, Any]] = []
+        page = 1
+        stop = False
+
+        while page <= max_pages and not stop:
+            batch = list(range(page, min(page + SISE_PAGE_WORKERS, max_pages + 1)))
+
+            results: Dict[int, Optional[List[Dict[str, Any]]]] = {}
+            with ThreadPoolExecutor(max_workers=SISE_PAGE_WORKERS) as executor:
+                futures = {
+                    executor.submit(self._fetch_sise_page, sosok, market, p): p
+                    for p in batch
+                }
+                for future in as_completed(futures):
+                    results[futures[future]] = future.result()
+
+            # 페이지 오름차순으로 처리(순서 보존). 빈/오류 페이지에서 종료.
+            for p in batch:
+                page_stocks = results.get(p)
+                if not page_stocks:  # None(오류) 또는 []( 마지막 페이지 이후)
+                    stop = True
                     break
-
-                rows = table.find_all('tr')
-                if not rows:
-                    break
-
-                page_stocks = []
-                for row in rows:
-                    cols = row.find_all('td')
-                    if len(cols) < 10:
-                        continue
-
-                    links = row.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        if '/item/main.naver?code=' in href:
-                            ticker = href.split('code=')[-1].split('&')[0]
-                            name = link.get_text(strip=True)
-
-                            if ticker and name and len(ticker) >= 5:
-                                price_data = self._parse_sise_price_row(cols)
-                                page_stocks.append({
-                                    "ticker": ticker,
-                                    "name": name,
-                                    "type": "STOCK",
-                                    "market": market,
-                                    "sector": None,
-                                    "listed_date": None,
-                                    "is_active": 1,
-                                    **price_data,
-                                })
-                                break
-
-                if not page_stocks:
-                    break
-
                 stocks.extend(page_stocks)
-                logger.debug(f"{market} page {page}: collected {len(page_stocks)} stocks")
-                page += 1
+                logger.debug(f"{market} page {p}: collected {len(page_stocks)} stocks")
 
-            except Exception as e:
-                logger.error(f"Error collecting {market} page {page}: {e}")
-                break
+            page += SISE_PAGE_WORKERS
 
         return stocks
 
