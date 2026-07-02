@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 KOSPI_TOP_N_SUPPLY = 200    # 시가총액 상위 200개 - frgn.naver 수급 수집
 KOSDAQ_TOP_N_SUPPLY = 300   # 시가총액 상위 300개 - frgn.naver 수급 수집
 STOCK_SUPPLY_WORKERS = 10   # 병렬 수급 수집 워커 수
+# ETF 수급은 거래량 상위 N개만 개별 수집한다.
+# 전체(~900개)를 매번 긁으면 시간·네이버 부하가 크고, 거래량 하위 ETF는
+# 발굴 대상으로서 의미가 낮다. 가격/거래량은 여전히 전체 ETF를 저장한다.
+ETF_TOP_N_SUPPLY = 250
 
 
 class CatalogDataCollector:
@@ -68,17 +72,23 @@ class CatalogDataCollector:
                 logger.info("Catalog data collection cancelled after Phase 1")
                 return {"cancelled": True}
 
-            # Phase 2: 개별 종목 수급 데이터 수집
+            # Phase 2: 개별 종목 수급 데이터 수집 (거래량 상위 N개 ETF만)
+            supply_targets = sorted(
+                price_data.keys(),
+                key=lambda t: price_data[t].get("volume") or 0,
+                reverse=True,
+            )[:ETF_TOP_N_SUPPLY]
+
             update_progress(TASK_ID, {
                 "status": "in_progress",
                 "step": "supply_demand",
                 "step_index": 1,
                 "total_steps": 4,
                 "items_collected": len(price_data),
-                "message": f"수급 데이터 수집 중... ({len(price_data):,}개 ETF)"
+                "message": f"외국인·기관 순매수 수집 중... (거래량 상위 {len(supply_targets):,}개 ETF)"
             })
 
-            supply_data = self._collect_supply_demand(list(price_data.keys()))
+            supply_data = self._collect_supply_demand(supply_targets)
 
             if is_cancelled(TASK_ID):
                 # 이미 수집된 데이터는 저장
@@ -142,9 +152,11 @@ class CatalogDataCollector:
                 "step_index": 4,
                 "total_steps": 4,
                 "items_collected": saved_count + stock_result["updated"],
+                # 신선도 가드용 완료 시각 (KST). 최근 수집 여부 판정에 사용
+                "completed_at": datetime.now().isoformat(),
                 "message": (
                     f"수집 완료! ETF {saved_count:,}개 + "
-                    f"주식 {stock_result['updated']:,}개 (수급 {stock_result['supply_updated']:,}개) "
+                    f"주식 {stock_result['updated']:,}개 (순매수 {stock_result['supply_updated']:,}개) "
                     f"업데이트 ({duration:.0f}초)"
                 )
             })

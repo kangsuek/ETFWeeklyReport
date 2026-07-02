@@ -39,6 +39,10 @@ const DEFAULT_FILTERS = {
   page_size: 20,
 }
 
+// 수집 시작 직후, 서버가 in_progress를 노출하기 전의 짧은 순간 동안
+// idle 응답을 무시해 폴링이 조기 중단되지 않도록 하는 유예 시간(ms)
+const START_GRACE_MS = 4000
+
 export default function Screening() {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -48,6 +52,11 @@ export default function Screening() {
   const [isCollecting, setIsCollecting] = useState(false)
   const [progress, setProgress] = useState(null)
   const pollingRef = useRef(null)
+  // 수집 시작 시각 — 시작 직후 서버가 아직 in_progress를 노출하기 전의
+  // 짧은 순간에 idle이 반환되어 폴링이 조기 중단되는 것을 막는 유예 구간에 사용
+  const collectStartRef = useRef(null)
+  // 신선도 가드로 'fresh' 응답을 받으면 다음 클릭에서 강제 재수집하도록 표시
+  const forceNextRef = useRef(false)
 
   // 히트맵 모드에서는 50개씩, 테이블은 기존 page_size
   const effectivePageSize = viewMode === 'heatmap' ? 50 : filters.page_size
@@ -115,6 +124,11 @@ export default function Screening() {
           setProgress(null)
           toast.error(p.message || '수집 중 오류 발생', 3000)
         } else if (p.status === 'idle') {
+          // 시작 직후 유예 구간에는 idle을 무시한다.
+          // (백그라운드 작업이 in_progress를 설정하기 전 순간일 수 있음)
+          if (collectStartRef.current && Date.now() - collectStartRef.current < START_GRACE_MS) {
+            return
+          }
           // 서버에 진행 정보가 없으면 중지
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
@@ -186,12 +200,26 @@ export default function Screening() {
 
   const handleCollectData = async () => {
     if (isCollecting) return
+    const force = forceNextRef.current
+    collectStartRef.current = Date.now()
     setIsCollecting(true)
     setProgress({ status: 'in_progress', message: '수집 시작 중...' })
     try {
-      await scannerApi.collectData()
+      const res = await scannerApi.collectData(force)
+      // 신선도 가드: 최근 수집됨 → 폴링 없이 안내하고, 다음 클릭에서 강제 수집
+      if (res?.data?.status === 'fresh') {
+        forceNextRef.current = true
+        collectStartRef.current = null
+        setIsCollecting(false)
+        setProgress(null)
+        toast.info(res.data.message || '최근에 수집한 데이터가 있습니다. 다시 누르면 강제 수집합니다.', 5000)
+        return
+      }
+      forceNextRef.current = false
     } catch (err) {
       toast.error(`수집 실패: ${err.message}`, 3000)
+      forceNextRef.current = false
+      collectStartRef.current = null
       setIsCollecting(false)
       setProgress(null)
     }

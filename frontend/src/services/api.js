@@ -358,8 +358,9 @@ export const scannerApi = {
   getRecommendations: (limit = 5) =>
     api.get('/scanner/recommendations', { params: { limit }, timeout: NORMAL_API_TIMEOUT }),
 
-  // 데이터 수집 트리거 (긴 작업)
-  collectData: () => api.post('/scanner/collect-data', null, { timeout: FAST_API_TIMEOUT }),
+  // 데이터 수집 트리거 (긴 작업). force=true면 신선도 가드를 무시하고 강제 재수집
+  collectData: (force = false) =>
+    api.post('/scanner/collect-data', null, { params: { force }, timeout: FAST_API_TIMEOUT }),
 
   // 데이터 수집 진행률 조회 (빠른 조회)
   getCollectProgress: () => api.get('/scanner/collect-progress', { timeout: FAST_API_TIMEOUT }),

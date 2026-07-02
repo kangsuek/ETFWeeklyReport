@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SCANNER_CACHE_TTL = 60  # 60초
+CATALOG_FRESHNESS_MINUTES = 10  # 최근 이 시간 이내 수집됐으면 재수집 건너뜀(강제 시 무시)
 
 
 def _row_to_screening_item(row, registered_tickers: set) -> ScreeningItem:
@@ -352,18 +353,54 @@ async def get_collect_progress():
 
 
 @router.post("/collect-data")
-async def trigger_collect_data(background_tasks: BackgroundTasks):
+async def trigger_collect_data(
+    background_tasks: BackgroundTasks,
+    force: bool = Query(False, description="최근 수집 여부와 무관하게 강제로 다시 수집"),
+):
     """카탈로그 데이터 수동 수집 트리거"""
+    from datetime import datetime
     from app.services.catalog_data_collector import CatalogDataCollector
-    from app.services.progress import clear_progress, get_progress
+    from app.services.progress import clear_progress, get_progress, update_progress
 
     # 이미 수집 중인지 확인
     current = get_progress("catalog-data")
     if current and current.get("status") == "in_progress":
         return {"message": "이미 데이터 수집이 진행 중입니다", "status": "already_running"}
 
+    # 신선도 가드: 최근 CATALOG_FRESHNESS_MINUTES 이내에 수집을 완료했다면
+    # force가 아닐 때 재수집을 건너뛴다(중복 전체 재수집 방지).
+    if not force and current and current.get("status") == "completed":
+        completed_at = current.get("completed_at")
+        if completed_at:
+            try:
+                elapsed = datetime.now() - datetime.fromisoformat(completed_at)
+                minutes_ago = int(elapsed.total_seconds() // 60)
+                if elapsed.total_seconds() < CATALOG_FRESHNESS_MINUTES * 60:
+                    return {
+                        "status": "fresh",
+                        "minutes_ago": minutes_ago,
+                        "message": (
+                            f"{minutes_ago}분 전에 수집한 최신 데이터가 있습니다. "
+                            "다시 수집하려면 한 번 더 눌러주세요."
+                        ),
+                    }
+            except (ValueError, TypeError):
+                pass
+
     # 이전 취소 플래그 초기화
     clear_progress("catalog-data")
+
+    # 응답을 보내기 전에 진행 상태를 즉시 in_progress로 설정한다.
+    # BackgroundTasks는 응답 이후에 실행되므로, 이 초기화가 없으면
+    # 프론트엔드의 첫 폴링이 idle을 만나 수집을 중단해버린다(첫 클릭 무효 버그).
+    update_progress("catalog-data", {
+        "status": "in_progress",
+        "step": "prices",
+        "step_index": 0,
+        "total_steps": 4,
+        "items_collected": 0,
+        "message": "데이터 수집을 시작합니다...",
+    })
 
     collector = CatalogDataCollector()
 
