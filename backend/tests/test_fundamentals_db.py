@@ -5,9 +5,6 @@ DB INSERT・UPDATE・조회 단위 테스트
 init_db()로 초기화된 SQLite DB에 직접 SQL을 실행하여
 스키마・제약・Upsert 동작을 검증합니다.
 """
-import sqlite3
-from datetime import date
-
 import pytest
 
 from app.database import init_db, get_db_connection
@@ -19,8 +16,18 @@ from app.database import init_db, get_db_connection
 
 @pytest.fixture(autouse=True)
 def fresh_db():
-    """각 테스트마다 DB를 초기화한다."""
+    """각 테스트마다 대상 테이블을 비운다.
+
+    init_db()는 CREATE TABLE IF NOT EXISTS라 기존 행을 지우지 않으므로,
+    세션 공유 DB에서 다른 테스트가 남긴 행이 count 단언을 깨뜨린다.
+    이 파일이 쓰는 테이블을 명시적으로 비워 테스트 간 격리를 보장한다.
+    """
     init_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM stock_fundamentals")
+        cursor.execute("DELETE FROM stock_distributions")
+        conn.commit()
     yield
 
 
