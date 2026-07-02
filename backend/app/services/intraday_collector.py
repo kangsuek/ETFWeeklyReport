@@ -1,7 +1,19 @@
 """
 분봉(Intraday) 데이터 수집 서비스
 
-네이버 금융에서 시간별 체결 데이터를 수집하여 분봉 차트를 위한 데이터를 제공합니다.
+네이버 차트 JSON API(api.stock.naver.com/chart/domestic/item/{code}/minute)에서
+하루 세션 전체(09:00~15:30, 381분)를 한 번의 호출로 수집합니다.
+
+구형 sise_time.naver HTML 파싱(하루치 = 40+ 페이지 요청) 대비:
+- 요청 수 수십 → 1
+- 분당 OHLC(시가/고가/저가/종가) 제공 → 분봉 캔들차트 가능
+- 문자 포함 신형 코드(예: 0101N0)도 동작 (startDateTime/endDateTime 명시 필수)
+
+주의:
+- API의 accumulatedTradingVolume은 이름과 달리 '분당' 거래량 →
+  기존 스키마/차트와의 호환을 위해 누적합으로 변환해 volume에 저장
+- change_amount(전일비)는 API 미제공 → 전일 종가(prices 테이블) 기준으로 계산
+- bid/ask 호가 잔량은 API 미제공 → NULL 저장 (프론트 툴팁은 옵셔널 처리됨)
 """
 
 from typing import List, Optional, Dict
@@ -10,9 +22,9 @@ from app.database import get_db_connection, get_cursor
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
+from app.services.naver_stock_api import CHART_API_BASE, HEADERS
 import logging
 import requests
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +33,6 @@ class IntradayDataCollector:
     """분봉(시간별) 데이터 수집 서비스"""
 
     def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
         self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
 
     def get_last_trading_date(self, ticker: str) -> Optional[date]:
@@ -54,6 +63,23 @@ class IntradayDataCollector:
                 return last_date
             return None
 
+    def _get_previous_close(self, ticker: str, target_date: date) -> Optional[float]:
+        """전일비(change_amount) 계산용: target_date 이전 마지막 종가 조회."""
+        p = "?"
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            cursor.execute(f"""
+                SELECT close_price
+                FROM prices
+                WHERE ticker = {p} AND date < {p}
+                ORDER BY date DESC
+                LIMIT 1
+            """, (ticker, target_date))
+            row = cursor.fetchone()
+            if row and row['close_price'] is not None:
+                return float(row['close_price'])
+            return None
+
     @retry_with_backoff(
         max_retries=3,
         base_delay=1.0,
@@ -61,156 +87,85 @@ class IntradayDataCollector:
     )
     def fetch_intraday_data(self, ticker: str, pages: int = 10, target_date: Optional[date] = None) -> List[dict]:
         """
-        네이버 금융에서 분봉(시간별 체결) 데이터 수집
+        네이버 차트 JSON API에서 분봉 데이터 수집 (세션 전체를 1회 호출)
 
         Args:
             ticker: 종목 코드
-            pages: 수집할 페이지 수 (페이지당 약 10개 데이터)
-            target_date: 조회할 날짜 (None이면 오늘, 오늘 데이터가 없으면 마지막 거래일)
+            pages: (하위 호환용, 무시됨 — JSON API는 세션 전체를 한 번에 반환)
+            target_date: 조회할 날짜 (None이면 오늘)
 
         Returns:
-            시간별 체결 데이터 리스트
+            시간순(오름차순) 분봉 데이터 리스트
         """
-        intraday_data = []
-
         # 대상 날짜 결정
         if target_date is None:
             target_date = date.today()
 
-        # thistime 파라미터 생성 (마지막 거래일 데이터 조회용)
-        # 형식: YYYYMMDDHHMMSS (장 마감 시간으로 설정)
-        thistime = target_date.strftime('%Y%m%d') + '153000'
+        # 날짜를 명시하지 않으면 '오늘' 세션만 반환되어 자정 이후/휴장일에 비게 되므로
+        # 항상 startDateTime/endDateTime을 명시한다 (신형 문자코드 종목도 이 방식만 동작).
+        day = target_date.strftime('%Y%m%d')
+        url = (
+            f"{CHART_API_BASE}/chart/domestic/item/{ticker}/minute"
+            f"?startDateTime={day}090000&endDateTime={day}153000"
+        )
 
-        logger.info(f"[분봉 수집] {ticker} - {pages} 페이지 수집 시작 (날짜: {target_date})")
+        logger.info(f"[분봉 수집] {ticker} - 세션 조회 (날짜: {target_date})")
 
-        for page in range(1, pages + 1):
+        with self.rate_limiter:
+            response = requests.get(url, headers=HEADERS, timeout=10)
+            response.raise_for_status()
+
+        try:
+            rows = response.json()
+        except ValueError as e:
+            logger.error(f"[분봉 수집] {ticker} - JSON 파싱 실패: {e}")
+            return []
+
+        if not isinstance(rows, list) or not rows:
+            logger.info(f"[분봉 수집] {ticker} - 데이터 없음 (휴장일 또는 미개장)")
+            return []
+
+        # 전일 종가 (change_amount 계산용, 없으면 None 저장)
+        prev_close = self._get_previous_close(ticker, target_date)
+
+        intraday_data = []
+        cumulative_volume = 0
+
+        for r in rows:
             try:
-                # thistime 파라미터를 추가하여 특정 날짜 데이터 조회
-                url = f"https://finance.naver.com/item/sise_time.naver?code={ticker}&thistime={thistime}&page={page}"
-                logger.debug(f"[분봉 수집] {ticker} - 페이지 {page} 요청")
+                dt_text = r.get('localDateTime')  # 'YYYYMMDDHHMMSS'
+                price = r.get('currentPrice')
+                if not dt_text or price is None:
+                    continue
 
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                dt = datetime.strptime(str(dt_text), '%Y%m%d%H%M%S')
+                price = float(price)
 
-                # EUC-KR 인코딩 처리
-                response.encoding = 'euc-kr'
-                soup = BeautifulSoup(response.text, 'html.parser')
+                # API의 accumulatedTradingVolume은 분당 거래량 → 누적합으로 변환
+                minute_volume = r.get('accumulatedTradingVolume') or 0
+                cumulative_volume += int(minute_volume)
 
-                # 시간별 체결 테이블 찾기
-                table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    logger.warning(f"[분봉 수집] {ticker} - 페이지 {page}에서 테이블을 찾을 수 없음")
-                    break
+                intraday_data.append({
+                    'ticker': ticker,
+                    'datetime': dt,
+                    'price': price,
+                    'open_price': float(r['openPrice']) if r.get('openPrice') is not None else None,
+                    'high_price': float(r['highPrice']) if r.get('highPrice') is not None else None,
+                    'low_price': float(r['lowPrice']) if r.get('lowPrice') is not None else None,
+                    'change_amount': round(price - prev_close, 2) if prev_close else None,
+                    'volume': cumulative_volume,
+                    'bid_volume': None,   # JSON API 미제공
+                    'ask_volume': None,   # JSON API 미제공
+                })
+            except (ValueError, TypeError, KeyError) as e:
+                logger.debug(f"[분봉 수집] 행 파싱 실패: {e}")
+                continue
 
-                rows = table.find_all('tr')
-                page_data_count = 0
-
-                for row in rows:
-                    cols = row.find_all('td')
-                    # 데이터 행: 체결시간, 체결가, 전일비, 매도, 매수, 거래량, 변동량
-                    if len(cols) >= 7:
-                        try:
-                            time_text = cols[0].get_text(strip=True)
-                            if not time_text or ':' not in time_text:
-                                continue
-
-                            # 체결가
-                            price_text = cols[1].get_text(strip=True).replace(',', '')
-                            if not price_text:
-                                continue
-                            price = float(price_text)
-
-                            # 전일비 (등락)
-                            change_text = cols[2].get_text(strip=True).replace(',', '')
-                            change_amount = self._parse_change_amount(change_text, cols[2])
-
-                            # 매도호가 잔량
-                            ask_text = cols[3].get_text(strip=True).replace(',', '')
-                            ask_volume = int(ask_text) if ask_text else None
-
-                            # 매수호가 잔량
-                            bid_text = cols[4].get_text(strip=True).replace(',', '')
-                            bid_volume = int(bid_text) if bid_text else None
-
-                            # 거래량
-                            volume_text = cols[5].get_text(strip=True).replace(',', '')
-                            volume = int(volume_text) if volume_text else None
-
-                            # datetime 생성 (대상 날짜 + 시간)
-                            hour, minute = map(int, time_text.split(':'))
-                            dt = datetime.combine(target_date, datetime.min.time().replace(hour=hour, minute=minute))
-
-                            intraday_data.append({
-                                'ticker': ticker,
-                                'datetime': dt,
-                                'price': price,
-                                'change_amount': change_amount,
-                                'volume': volume,
-                                'bid_volume': bid_volume,
-                                'ask_volume': ask_volume
-                            })
-                            page_data_count += 1
-
-                        except (ValueError, AttributeError, IndexError) as e:
-                            logger.debug(f"[분봉 수집] 행 파싱 실패: {e}")
-                            continue
-
-                logger.debug(f"[분봉 수집] {ticker} - 페이지 {page}: {page_data_count}건")
-
-                # 데이터가 없으면 더 이상 페이지가 없는 것
-                if page_data_count == 0:
-                    break
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"[분봉 수집] {ticker} - 페이지 {page} 요청 실패: {e}")
-                break
-            except Exception as e:
-                logger.error(f"[분봉 수집] {ticker} - 페이지 {page} 처리 실패: {e}")
-                break
-
-        # 시간순 정렬 (오래된 시간 → 최신 시간)
+        # 시간순 정렬 (API가 오름차순이지만 방어적으로 보장)
         intraday_data.sort(key=lambda x: x['datetime'])
 
         logger.info(f"[분봉 수집] {ticker} - 총 {len(intraday_data)}건 수집 완료")
         return intraday_data
-
-    def _parse_change_amount(self, text: str, cell) -> Optional[float]:
-        """
-        전일비 파싱 (상승/하락 구분)
-
-        Args:
-            text: 전일비 텍스트
-            cell: BeautifulSoup td 셀 (이미지로 상승/하락 구분)
-
-        Returns:
-            전일비 금액 (하락 시 음수)
-        """
-        try:
-            if not text:
-                return None
-
-            # 숫자만 추출
-            import re
-            num_text = re.sub(r'[^0-9]', '', text)
-            if not num_text:
-                return 0.0
-
-            amount = float(num_text)
-
-            # 이미지 alt 속성 또는 클래스로 상승/하락 구분
-            img = cell.find('img')
-            if img:
-                alt = img.get('alt', '')
-                if '하락' in alt or 'down' in alt.lower():
-                    amount = -amount
-            elif 'nv01' in str(cell):  # 하락 클래스
-                amount = -amount
-
-            return amount
-
-        except Exception:
-            return None
 
     def save_intraday_data(self, intraday_data: List[dict]) -> int:
         """
@@ -232,8 +187,9 @@ class IntradayDataCollector:
             try:
                 cursor.executemany("""
                     INSERT OR REPLACE INTO intraday_prices
-                    (ticker, datetime, price, change_amount, volume, bid_volume, ask_volume)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (ticker, datetime, price, change_amount, volume, bid_volume, ask_volume,
+                     open_price, high_price, low_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [
                     (
                         d['ticker'],
@@ -242,7 +198,10 @@ class IntradayDataCollector:
                         d.get('change_amount'),
                         d.get('volume'),
                         d.get('bid_volume'),
-                        d.get('ask_volume')
+                        d.get('ask_volume'),
+                        d.get('open_price'),
+                        d.get('high_price'),
+                        d.get('low_price')
                     )
                     for d in intraday_data
                 ])
@@ -263,47 +222,19 @@ class IntradayDataCollector:
 
         Args:
             ticker: 종목 코드
-            pages: 수집할 페이지 수 (기본값: 10, 장 시작부터 수집하려면 최소 40 이상 권장)
-            target_date: 수집할 날짜 (None이면 자동 감지)
+            pages: (하위 호환용, 무시됨)
+            target_date: 수집할 날짜 (None이면 오늘 → 없으면 마지막 거래일 폴백)
 
         Returns:
             수집 결과 딕셔너리
         """
-        logger.info(f"[분봉] {ticker} - 수집 시작 (pages={pages})")
+        logger.info(f"[분봉] {ticker} - 수집 시작")
 
         # 대상 날짜 결정
         actual_date = target_date or date.today()
 
-        # 장 시작부터 수집하려면 충분한 페이지 수 필요
-        # 장 시작(09:00) ~ 장 종료(15:30) = 6시간 30분 = 390분 = 약 390개 분봉
-        # 페이지당 약 10개 데이터이므로, 최소 40페이지 필요
-        # 기본값이 10이면 장 시작 데이터를 놓칠 수 있으므로, 자동으로 증가
-        if pages < 40:
-            logger.warning(f"[분봉] {ticker} - pages={pages}는 장 시작(09:00) 데이터 수집에 부족할 수 있습니다. 40으로 증가합니다.")
-            pages = 40
-
-        # 오늘 데이터 먼저 시도
-        intraday_data = self.fetch_intraday_data(ticker, pages, actual_date)
-        
-        # 장 시작 시간(09:00) 데이터가 있는지 확인
-        if intraday_data:
-            first_datetime = intraday_data[0]['datetime']
-            first_hour = first_datetime.hour
-            first_minute = first_datetime.minute
-            
-            # 장 시작 시간(09:00) 이전 데이터가 있으면 더 많은 페이지 필요
-            if first_hour > 9 or (first_hour == 9 and first_minute > 0):
-                logger.info(f"[분봉] {ticker} - 첫 데이터 시간: {first_hour:02d}:{first_minute:02d}, 장 시작(09:00) 데이터를 위해 추가 수집 시도")
-                # 추가로 20페이지 더 수집
-                additional_data = self.fetch_intraday_data(ticker, pages + 20, actual_date)
-                if additional_data:
-                    # 기존 데이터와 병합 (중복 제거)
-                    existing_datetimes = {d['datetime'] for d in intraday_data}
-                    new_data = [d for d in additional_data if d['datetime'] not in existing_datetimes]
-                    intraday_data.extend(new_data)
-                    # 시간순 정렬
-                    intraday_data.sort(key=lambda x: x['datetime'])
-                    logger.info(f"[분봉] {ticker} - 추가 수집: {len(new_data)}건, 총 {len(intraday_data)}건")
+        # 오늘 데이터 먼저 시도 (JSON API는 세션 전체를 한 번에 반환)
+        intraday_data = self.fetch_intraday_data(ticker, target_date=actual_date)
 
         # 오늘 데이터가 없으면 마지막 거래일 데이터 시도
         if not intraday_data and target_date is None:
@@ -311,23 +242,7 @@ class IntradayDataCollector:
             if last_trading_date and last_trading_date != date.today():
                 logger.info(f"[분봉] {ticker} - 오늘 데이터 없음, 마지막 거래일({last_trading_date}) 데이터 수집")
                 actual_date = last_trading_date
-                intraday_data = self.fetch_intraday_data(ticker, pages, last_trading_date)
-                
-                # 마지막 거래일 데이터도 장 시작 시간 확인
-                if intraday_data:
-                    first_datetime = intraday_data[0]['datetime']
-                    first_hour = first_datetime.hour
-                    first_minute = first_datetime.minute
-                    
-                    if first_hour > 9 or (first_hour == 9 and first_minute > 0):
-                        logger.info(f"[분봉] {ticker} - 마지막 거래일 첫 데이터 시간: {first_hour:02d}:{first_minute:02d}, 추가 수집 시도")
-                        additional_data = self.fetch_intraday_data(ticker, pages + 20, last_trading_date)
-                        if additional_data:
-                            existing_datetimes = {d['datetime'] for d in intraday_data}
-                            new_data = [d for d in additional_data if d['datetime'] not in existing_datetimes]
-                            intraday_data.extend(new_data)
-                            intraday_data.sort(key=lambda x: x['datetime'])
-                            logger.info(f"[분봉] {ticker} - 마지막 거래일 추가 수집: {len(new_data)}건, 총 {len(intraday_data)}건")
+                intraday_data = self.fetch_intraday_data(ticker, target_date=last_trading_date)
 
         if not intraday_data:
             return {
@@ -384,11 +299,11 @@ class IntradayDataCollector:
 
     def incremental_collect_and_save(self, ticker: str, target_date: Optional[date] = None) -> Dict:
         """
-        증분 수집: DB의 마지막 시간 이후 데이터만 수집하여 빠르게 갱신
+        증분 수집: DB의 마지막 시간 이후 데이터만 저장하여 빠르게 갱신
 
-        네이버 금융 페이지 1(최신)부터 수집을 시작하고,
-        DB에 이미 있는 시간에 도달하면 즉시 중단합니다.
-        기존 데이터가 없으면 전체 수집으로 폴백합니다.
+        JSON API는 세션 전체를 1회 호출로 반환하므로, 전체를 받아
+        누적 거래량을 정확히 계산한 뒤 신규 분만 저장한다.
+        기존 데이터가 없으면 전체 수집으로 폴백한다.
 
         Args:
             ticker: 종목 코드
@@ -403,91 +318,14 @@ class IntradayDataCollector:
         if last_collected is None:
             # 기존 데이터 없음 → 전체 수집
             logger.info(f"[분봉 증분] {ticker} - 기존 데이터 없음, 전체 수집으로 전환")
-            return self.collect_and_save_intraday(ticker, pages=40, target_date=target_date)
+            return self.collect_and_save_intraday(ticker, target_date=target_date)
 
-        logger.info(f"[분봉 증분] {ticker} - 마지막 수집 시간: {last_collected.strftime('%H:%M')}, 이후 데이터만 수집")
+        logger.info(f"[분봉 증분] {ticker} - 마지막 수집 시간: {last_collected.strftime('%H:%M')}, 이후 데이터만 저장")
 
-        # 페이지 1(최신)부터 수집, 이미 있는 시간에 도달하면 중단
-        new_data = []
-        max_pages = 10  # 증분 수집은 최대 10페이지 (최근 ~100건)
-        thistime = actual_date.strftime('%Y%m%d') + '153000'
-        reached_existing = False
-
-        for page in range(1, max_pages + 1):
-            try:
-                url = f"https://finance.naver.com/item/sise_time.naver?code={ticker}&thistime={thistime}&page={page}"
-                logger.debug(f"[분봉 증분] {ticker} - 페이지 {page} 요청")
-
-                with self.rate_limiter:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-
-                response.encoding = 'euc-kr'
-                soup = BeautifulSoup(response.text, 'html.parser')
-                table = soup.find('table', {'class': 'type2'})
-                if not table:
-                    break
-
-                rows = table.find_all('tr')
-                page_new_count = 0
-
-                for row in rows:
-                    cols = row.find_all('td')
-                    if len(cols) >= 7:
-                        try:
-                            time_text = cols[0].get_text(strip=True)
-                            if not time_text or ':' not in time_text:
-                                continue
-
-                            hour, minute = map(int, time_text.split(':'))
-                            dt = datetime.combine(actual_date, datetime.min.time().replace(hour=hour, minute=minute))
-
-                            # 이미 수집된 시간 이하이면 중단
-                            if dt <= last_collected:
-                                reached_existing = True
-                                break
-
-                            price_text = cols[1].get_text(strip=True).replace(',', '')
-                            if not price_text:
-                                continue
-                            price = float(price_text)
-
-                            change_text = cols[2].get_text(strip=True).replace(',', '')
-                            change_amount = self._parse_change_amount(change_text, cols[2])
-
-                            ask_text = cols[3].get_text(strip=True).replace(',', '')
-                            ask_volume = int(ask_text) if ask_text else None
-
-                            bid_text = cols[4].get_text(strip=True).replace(',', '')
-                            bid_volume = int(bid_text) if bid_text else None
-
-                            volume_text = cols[5].get_text(strip=True).replace(',', '')
-                            volume = int(volume_text) if volume_text else None
-
-                            new_data.append({
-                                'ticker': ticker,
-                                'datetime': dt,
-                                'price': price,
-                                'change_amount': change_amount,
-                                'volume': volume,
-                                'bid_volume': bid_volume,
-                                'ask_volume': ask_volume,
-                            })
-                            page_new_count += 1
-
-                        except (ValueError, AttributeError, IndexError) as e:
-                            logger.debug(f"[분봉 증분] 행 파싱 실패: {e}")
-                            continue
-
-                if reached_existing or page_new_count == 0:
-                    break
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"[분봉 증분] {ticker} - 페이지 {page} 요청 실패: {e}")
-                break
-            except Exception as e:
-                logger.error(f"[분봉 증분] {ticker} - 페이지 {page} 처리 실패: {e}")
-                break
+        # 세션 전체 조회 (1회 호출) 후 신규 분만 필터
+        # 누적 거래량은 세션 전체 기준으로 계산되므로 신규 분에도 정확하다.
+        session_data = self.fetch_intraday_data(ticker, target_date=actual_date)
+        new_data = [d for d in session_data if d['datetime'] > last_collected]
 
         if not new_data:
             logger.info(f"[분봉 증분] {ticker} - 새로운 데이터 없음")
@@ -498,12 +336,10 @@ class IntradayDataCollector:
                 'message': '새로운 데이터 없음 (최신 상태)',
             }
 
-        # 시간순 정렬 후 저장
-        new_data.sort(key=lambda x: x['datetime'])
         saved_count = self.save_intraday_data(new_data)
 
         logger.info(f"[분봉 증분] {ticker} - {saved_count}건 증분 수집 완료 "
-                     f"({new_data[0]['datetime'].strftime('%H:%M')} ~ {new_data[-1]['datetime'].strftime('%H:%M')})")
+                    f"({new_data[0]['datetime'].strftime('%H:%M')} ~ {new_data[-1]['datetime'].strftime('%H:%M')})")
 
         return {
             'ticker': ticker,
@@ -544,7 +380,8 @@ class IntradayDataCollector:
             cursor = get_cursor(conn_or_cursor)
 
             query = f"""
-                SELECT datetime, price, change_amount, volume, bid_volume, ask_volume
+                SELECT datetime, price, change_amount, volume, bid_volume, ask_volume,
+                       open_price, high_price, low_price
                 FROM intraday_prices
                 WHERE ticker = {p} AND datetime BETWEEN {p} AND {p}
                 ORDER BY datetime ASC

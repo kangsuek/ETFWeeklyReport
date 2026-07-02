@@ -387,6 +387,15 @@ def init_db():
         ON intraday_prices(ticker, datetime DESC)
     """)
 
+    # intraday_prices 컬럼 마이그레이션 (네이버 차트 JSON API의 분당 OHLC)
+    for col_name in ("open_price", "high_price", "low_price"):
+        try:
+            cursor.execute(f"ALTER TABLE intraday_prices ADD COLUMN {col_name} {real_type}")
+            logger.info(f"Added {col_name} column to intraday_prices table")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                logger.warning(f"Could not add {col_name} column to intraday_prices: {e}")
+
     # Create alert_rules table for price alerts
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS alert_rules (
