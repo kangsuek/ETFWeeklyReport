@@ -6,6 +6,7 @@ import RSIChart from '../charts/RSIChart'
 import MACDChart from '../charts/MACDChart'
 import LoadingIndicator from '../common/LoadingIndicator'
 import ErrorFallback from '../common/ErrorFallback'
+import { COLORS } from '../../constants'
 
 /**
  * 가격을 포맷팅 (천 단위 콤마)
@@ -155,8 +156,25 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">
               MACD (12, 26, 9)
               {currentMACD && (
-                <span className={`ml-2 font-semibold ${currentMACD.macd >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-300'}`}>
-                  {currentMACD.macd.toFixed(0)}
+                <span className="ml-2 font-normal">
+                  {/* MACD 선 값(단기EMA−장기EMA): 중기 추세 위치일 뿐 모멘텀 지표가 아니므로 중립색 */}
+                  <span className="text-gray-400 dark:text-gray-500">MACD선</span>{' '}
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">{currentMACD.macd.toFixed(0)}</span>
+                  {/* 히스토그램(=MACD−시그널): 실제 모멘텀 지표. 막대 색과 동일하게 표기 */}
+                  {currentMACD.histogram != null && (
+                    <>
+                      <span className="text-gray-400 dark:text-gray-500"> · 히스토그램</span>{' '}
+                      <span
+                        className="font-semibold"
+                        style={{ color: currentMACD.histogram >= 0 ? COLORS.MACD_HIST_POS : COLORS.MACD_HIST_NEG }}
+                      >
+                        {currentMACD.histogram >= 0 ? '+' : ''}{currentMACD.histogram.toFixed(0)}
+                      </span>
+                      <span className="text-gray-400 dark:text-gray-500">
+                        {' '}({currentMACD.histogram >= 0 ? '상승 모멘텀' : '하락 모멘텀'})
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
             </h4>
@@ -180,8 +198,8 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
               <p><span className="text-green-600 dark:text-green-400 font-medium">골든크로스</span> = MACD가 시그널 상향 돌파 (매수)</p>
               <p><span className="text-red-600 dark:text-red-300 font-medium">데드크로스</span> = MACD가 시그널 하향 돌파 (매도)</p>
-              <p><span className="text-green-600 dark:text-green-400 font-medium">히스토그램 양수(+)</span> = 상승 모멘텀</p>
-              <p><span className="text-red-600 dark:text-red-300 font-medium">히스토그램 음수(−)</span> = 하락 모멘텀</p>
+              <p><span className="font-medium" style={{ color: COLORS.MACD_HIST_POS }}>히스토그램 양수(+)</span> = 상승 모멘텀</p>
+              <p><span className="font-medium" style={{ color: COLORS.MACD_HIST_NEG }}>히스토그램 음수(−)</span> = 하락 모멘텀</p>
             </div>
             <p className="text-gray-500 dark:text-gray-400 mt-1">MACD는 단기(12일) EMA와 장기(26일) EMA의 차이를 나타내며, 시그널선(9일)과의 교차를 매매 시그널로 사용합니다.</p>
           </div>
