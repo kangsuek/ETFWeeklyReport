@@ -229,8 +229,13 @@ const IntradayChart = memo(function IntradayChart({
     return tickItem
   }
 
-  // X축 틱 간격 계산 (약 6-8개 틱)
-  const tickInterval = Math.floor(chartData.length / 7)
+  // 가로 스크롤: 분당 최소 간격을 확보해 하루치(약 381분)를 넓게 펼친다.
+  // 데이터가 적어 컨테이너보다 좁으면 컨테이너 폭까지 채운다(minWidth 100%와 병행).
+  const POINT_SPACING = 7
+  const chartPixelWidth = Math.max(chartData.length * POINT_SPACING, containerWidth || 0)
+
+  // X축 틱 간격: 약 140px마다 시간 라벨 1개 (스크롤해도 라벨 밀도 일정)
+  const tickInterval = Math.max(1, Math.round(140 / POINT_SPACING))
 
   // X축 틱 배열 생성 (첫 번째와 마지막 시간 포함, 중복 제거)
   const xAxisTicks = useMemo(() => {
@@ -332,6 +337,8 @@ const IntradayChart = memo(function IntradayChart({
           </div>
         </div>
       )}
+      <div className="overflow-x-auto">
+        <div style={{ width: `${chartPixelWidth}px`, minWidth: '100%' }}>
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart
           data={chartData}
@@ -488,6 +495,8 @@ const IntradayChart = memo(function IntradayChart({
           })}
         </ComposedChart>
       </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   )
 })
