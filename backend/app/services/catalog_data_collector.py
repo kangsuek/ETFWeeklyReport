@@ -125,7 +125,7 @@ class CatalogDataCollector:
                 "step_index": 3,
                 "total_steps": 4,
                 "items_collected": saved_count,
-                "message": "KOSPI/KOSDAQ 가격+수급 업데이트 중..."
+                "message": "코스피·코스닥 시세·순매수 수집 중..."
             })
 
             stock_result = self._update_stock_prices()
@@ -184,6 +184,7 @@ class CatalogDataCollector:
             {updated, supply_updated, weekly_calc_count}
         """
         from app.services.ticker_catalog_collector import TickerCatalogCollector
+        from app.services.progress import update_progress
 
         catalog_collector = TickerCatalogCollector()
         updated = 0
@@ -191,8 +192,19 @@ class CatalogDataCollector:
         weekly_calc_count = 0
         today_str = datetime.now().strftime("%Y-%m-%d")
 
+        def _stock_progress(percent: int, message: str):
+            update_progress("catalog-data", {
+                "status": "in_progress",
+                "step": "stock_prices",
+                "step_index": 3,
+                "total_steps": 4,
+                "percent": percent,
+                "message": message,
+            })
+
         try:
             # Step 1: sise_market_sum에서 전체 가격 수집 (시가총액 내림차순)
+            _stock_progress(0, "코스피·코스닥 시세 수집 중...")
             kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
             kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
             logger.info(f"sise 수집: KOSPI {len(kospi_stocks)}개, KOSDAQ {len(kosdaq_stocks)}개")
@@ -233,6 +245,8 @@ class CatalogDataCollector:
 
             supply_map: Dict[str, Dict[str, Any]] = {}
             lock = threading.Lock()
+            supply_total = len(top_tickers)
+            supply_done = 0
 
             def fetch_supply(ticker: str):
                 data = self._fetch_supply_data(ticker, use_rate_limiter=False)
@@ -245,6 +259,12 @@ class CatalogDataCollector:
                     with lock:
                         if data:
                             supply_map[ticker] = data
+                        supply_done += 1
+                        if supply_total and (supply_done % 20 == 0 or supply_done == supply_total):
+                            _stock_progress(
+                                round(supply_done / supply_total * 100),
+                                f"코스피·코스닥 순매수 수집 중... ({supply_done:,}/{supply_total:,}개)",
+                            )
 
             logger.info(f"수급 수집 완료: {len(supply_map)}/{len(top_tickers)}개")
 
@@ -467,11 +487,11 @@ class CatalogDataCollector:
                             "status": "in_progress",
                             "step": "supply_demand",
                             "step_index": 1,
-                            "total_steps": 3,
+                            "total_steps": 4,
                             "items_collected": completed_count,
                             "items_total": total,
                             "percent": pct,
-                            "message": f"수급 데이터 수집 중... ({completed_count:,}/{total:,})"
+                            "message": f"외국인·기관 순매수 수집 중... ({completed_count:,}/{total:,}개)"
                         })
 
                     if completed_count % 50 == 0:

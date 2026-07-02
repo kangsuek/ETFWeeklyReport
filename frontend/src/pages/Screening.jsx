@@ -43,6 +43,16 @@ const DEFAULT_FILTERS = {
 // idle 응답을 무시해 폴링이 조기 중단되지 않도록 하는 유예 시간(ms)
 const START_GRACE_MS = 4000
 
+// 수집 단계 표시 라벨 (백엔드 progress.step ↔ 사용자용 단계명)
+const STEP_LABELS = {
+  prices: 'ETF 가격·거래량',
+  supply_demand: '외국인·기관 순매수',
+  saving: 'ETF 데이터 저장',
+  stock_prices: '코스피·코스닥 시세·순매수',
+  done: '완료',
+}
+const TOTAL_STEP_COUNT = 4
+
 export default function Screening() {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -240,6 +250,16 @@ export default function Screening() {
     return !latest || item.catalog_updated_at > latest ? item.catalog_updated_at : latest
   }, null)
 
+  // 진행률 표시용 파생값: 단계 정보 + 전체 진행률(단계 진행도 + 단계 내 세부 %)
+  const totalSteps = progress?.total_steps ?? TOTAL_STEP_COUNT
+  const stepIndex = progress?.step_index ?? 0
+  const stepLabel = STEP_LABELS[progress?.step] ?? '준비 중'
+  const isDone = progress?.step === 'done'
+  const subFraction = progress?.percent != null ? progress.percent / 100 : 0
+  const overallPercent = isDone
+    ? 100
+    : Math.min(99, Math.round(((stepIndex + subFraction) / totalSteps) * 100))
+
   return (
     <div className="animate-fadeIn">
       <PageHeader
@@ -269,7 +289,7 @@ export default function Screening() {
           onClick={handleCollectData}
           disabled={isCollecting}
           className="btn btn-outline btn-sm"
-          title="ETF 가격/수급 데이터를 네이버 금융에서 수집합니다"
+          title="ETF·종목의 가격과 외국인·기관 순매수 데이터를 네이버 금융에서 수집합니다"
         >
           <svg className={`w-4 h-4 mr-1 ${isCollecting ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -281,29 +301,29 @@ export default function Screening() {
       {/* 수집 진행률 배너 */}
       {isCollecting && progress && (
         <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 transition-colors">
+          {/* 상단: 현재 단계 · 전체 진행률 · 중지 */}
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 flex-shrink-0 tabular-nums">
+                  {isDone ? '완료' : `단계 ${Math.min(stepIndex + 1, totalSteps)}/${totalSteps}`}
+                </span>
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-200 truncate">
+                  {stepLabel}
+                </span>
+              </div>
+              {/* 상세 메시지 (예: 순매수 120/250개) */}
+              <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-300 truncate">
                 {progress.message || '데이터 수집 중...'}
               </p>
-              {progress.percent != null && (
-                <div className="mt-1.5 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progress.percent}%` }}
-                  />
-                </div>
-              )}
             </div>
-            {progress.percent != null && (
-              <span className="text-sm font-semibold text-blue-600 dark:text-blue-300 flex-shrink-0 tabular-nums">
-                {progress.percent}%
-              </span>
-            )}
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-300 flex-shrink-0 tabular-nums">
+              {overallPercent}%
+            </span>
             <button
               onClick={handleCancelCollect}
               className="flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
@@ -311,6 +331,20 @@ export default function Screening() {
             >
               중지
             </button>
+          </div>
+          {/* 전체 진행 바 */}
+          <div className="mt-2 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${overallPercent}%` }}
+            />
+          </div>
+          {/* 단계 눈금 */}
+          <div className="mt-1 flex justify-between text-[10px] text-blue-500/70 dark:text-blue-400/70">
+            <span>가격</span>
+            <span>순매수</span>
+            <span>저장</span>
+            <span>코스피·코스닥</span>
           </div>
         </div>
       )}
