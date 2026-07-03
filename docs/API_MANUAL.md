@@ -305,7 +305,8 @@ Host: localhost:8000
 
 **응답**
 
-- `ETFMetrics`: `ticker`, `aum`, `returns`(1w/1m/ytd 등), `volatility`, `max_drawdown`, `sharpe_ratio`
+- `ETFMetrics`: `ticker`, `aum`, `returns`(1w/1m/ytd 등), `volatility`, `max_drawdown`, `sharpe_ratio`, `ytd_start_date`
+  - `ytd_start_date`: YTD 수익률의 실제 기준일(YYYY-MM-DD). 연중 상장/수집 시작 종목은 1월 1일이 아니라 데이터 시작일이 기준이 된다.
 
 **응답 예시**
 
@@ -322,7 +323,8 @@ Host: localhost:8000
   },
   "volatility": 18.5,
   "max_drawdown": -8.2,
-  "sharpe_ratio": 1.25
+  "sharpe_ratio": 1.25,
+  "ytd_start_date": "2026-01-02"
 }
 ```
 

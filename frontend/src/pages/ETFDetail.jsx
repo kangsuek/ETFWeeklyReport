@@ -328,6 +328,17 @@ export default function ETFDetail() {
     retry: 1,
   })
 
+  // YTD 라벨 보정: 연중 상장/수집 시작 종목은 기준일이 1월 초가 아니므로
+  // "YTD 수익률"이 오해를 부른다. 이 경우 실제 기간(M/D~)을 라벨에 명시한다.
+  const ytdLabel = useMemo(() => {
+    const start = metricsData?.ytd_start_date
+    if (!start) return 'YTD 수익률'
+    const [, m, d] = start.split('-').map(Number)
+    // 연초 첫 거래일 근방(1월 초)이면 진짜 YTD로 간주
+    if (m === 1 && d <= 10) return 'YTD 수익률'
+    return `기간 수익률 (${m}/${d}~)`
+  }, [metricsData?.ytd_start_date])
+
   // ETF 펀더멘털 (NAV·총보수·구성종목) - ETF 타입만 조회
   const { data: fundamentalsData } = useQuery({
     queryKey: ['fundamentals', ticker],
@@ -694,7 +705,7 @@ export default function ETFDetail() {
             {[
               { label: '1주 수익률', value: metricsData.returns?.['1w'], mode: 'signed' },
               { label: '1개월 수익률', value: metricsData.returns?.['1m'], mode: 'signed' },
-              { label: 'YTD 수익률', value: metricsData.returns?.ytd, mode: 'signed' },
+              { label: ytdLabel, value: metricsData.returns?.ytd, mode: 'signed' },
               { label: '연환산 변동성', value: metricsData.volatility, mode: 'neutralpct' },
               { label: '최대낙폭(MDD)', value: metricsData.max_drawdown, mode: 'signed' },
               { label: '샤프지수', value: metricsData.sharpe_ratio, mode: 'ratio' },

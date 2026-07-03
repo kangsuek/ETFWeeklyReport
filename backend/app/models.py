@@ -53,6 +53,9 @@ class ETFMetrics(BaseModel):
     volatility: Optional[float] = None
     max_drawdown: Optional[float] = None  # 최대 낙폭 (%)
     sharpe_ratio: Optional[float] = None  # 샤프 비율
+    # YTD 수익률의 실제 기준일(YYYY-MM-DD). 연중 상장/수집 시작 종목은
+    # 1월 1일이 아니라 데이터 시작일이 기준이 되므로 프론트에서 라벨을 보정한다.
+    ytd_start_date: Optional[str] = None
 
 class ETFDetailResponse(BaseModel):
     etf: ETF

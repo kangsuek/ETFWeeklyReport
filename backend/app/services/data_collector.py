@@ -555,9 +555,13 @@ class ETFDataCollector:
                 def get_date(d):
                     return d if isinstance(d, date) else date.fromisoformat(d)
                 ytd_prices = [p for p in prices if get_date(p['date']) >= year_start]
+                ytd_start_date = None
                 if len(ytd_prices) >= 2:
                     ytd_start_price = ytd_prices[-1]['close_price']
                     current_price = ytd_prices[0]['close_price']
+                    # 실제 YTD 기준일(가장 오래된 올해 데이터의 날짜)을 함께 노출한다.
+                    # 연중 상장/수집 시작 종목은 이 값이 1월 초가 아니므로 프론트에서 라벨을 보정한다.
+                    ytd_start_date = str(ytd_prices[-1]['date'])
                     if ytd_start_price and current_price:
                         returns['ytd'] = ((current_price - ytd_start_price) / ytd_start_price) * PERCENT_MULTIPLIER
                     else:
@@ -607,7 +611,8 @@ class ETFDataCollector:
                     returns=returns,
                     volatility=volatility,
                     max_drawdown=max_drawdown,
-                    sharpe_ratio=sharpe_ratio
+                    sharpe_ratio=sharpe_ratio,
+                    ytd_start_date=ytd_start_date
                 )
 
         except Exception as e:
