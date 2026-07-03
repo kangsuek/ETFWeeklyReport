@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional, Dict
 from datetime import date
+from app.config import Config
 from app.models import NewsListResponse, NewsWithAnalysis, ETF
 from app.services.news_scraper import NewsScraper
 from app.services.news_analyzer import NewsAnalyzer
@@ -20,15 +21,13 @@ from app.constants import (
 )
 import asyncio
 import logging
-import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 scraper = NewsScraper()
 
 # 캐시 설정
-CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
-cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
+cache = get_cache(ttl_seconds=Config.CACHE_TTL_SECONDS)
 
 @router.get("/{ticker}", response_model=NewsListResponse)
 async def get_news(

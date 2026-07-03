@@ -7,6 +7,7 @@ from app.models import (
     ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse,
     ETFInsights
 )
+from app.config import Config
 from app.services.data_collector import ETFDataCollector
 from app.services.comparison_service import ComparisonService
 from app.exceptions import DatabaseException, ValidationException, ScraperException
@@ -35,7 +36,6 @@ from app.constants import (
 )
 import asyncio
 import logging
-import os
 
 # 분봉 백그라운드 수집 중인 티커 (중복 수집 방지)
 _intraday_collecting = set()
@@ -44,8 +44,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # 캐시 설정 (환경 변수에서 TTL 가져오기, 기본값 30초)
-CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)  # 분을 초로 변환
-cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
+cache = get_cache(ttl_seconds=Config.CACHE_TTL_SECONDS)
 
 @router.get("/", response_model=List[ETF])
 async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):

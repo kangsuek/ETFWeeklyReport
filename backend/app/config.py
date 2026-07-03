@@ -30,8 +30,9 @@ class Config:
     # Scheduler Settings
     SCRAPING_INTERVAL_MINUTES = int(os.getenv("SCRAPING_INTERVAL_MINUTES", "3"))
 
-    # Cache Settings (메모리 캐시 구현됨)
-    CACHE_TTL_MINUTES = float(os.getenv("CACHE_TTL_MINUTES", "3"))
+    # Cache Settings (메모리 캐시 기본 TTL — 라우터 공용)
+    CACHE_TTL_MINUTES = float(os.getenv("CACHE_TTL_MINUTES", "0.5"))
+    CACHE_TTL_SECONDS = int(CACHE_TTL_MINUTES * 60)
     
     # Stock Configuration File Path
     STOCK_CONFIG_PATH = os.getenv(

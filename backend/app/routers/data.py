@@ -3,6 +3,7 @@
 """
 
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from app.config import Config
 from app.services.data_collector import ETFDataCollector
 from app.services.scheduler import get_scheduler
 from app.exceptions import DatabaseException, ValidationException, ScraperException
@@ -36,8 +37,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # 캐시 설정
-CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
-cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
+cache = get_cache(ttl_seconds=Config.CACHE_TTL_SECONDS)
 
 @router.get("/collect-progress")
 async def get_collect_progress(request: Request):
