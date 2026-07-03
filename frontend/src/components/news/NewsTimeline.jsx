@@ -3,7 +3,34 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import PropTypes from 'prop-types'
 import { newsApi } from '../../services/api'
-import { analyzeNewsList, getSentimentStyle } from '../../utils/newsAnalyzer'
+
+/**
+ * 센티먼트별 표시 스타일 (분석은 백엔드 news_analyzer가 담당, 여기는 표시만)
+ * @param {string} sentiment - 'positive' | 'negative' | 'neutral'
+ * @returns {Object} { icon, color, label, bgColor }
+ */
+const SENTIMENT_STYLES = {
+  positive: {
+    icon: '📈',
+    color: 'text-green-600 dark:text-green-400',
+    bgColor: 'bg-green-50 dark:bg-green-900/20',
+    label: '호재'
+  },
+  negative: {
+    icon: '📉',
+    color: 'text-red-600 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-900/20',
+    label: '악재'
+  },
+  neutral: {
+    icon: '➖',
+    color: 'text-gray-500 dark:text-gray-400',
+    bgColor: 'bg-gray-50 dark:bg-gray-800',
+    label: '중립'
+  }
+}
+
+const getSentimentStyle = (sentiment) => SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral
 
 /**
  * 센티먼트 아이콘 컴포넌트
@@ -67,27 +94,16 @@ const NewsTimeline = ({ ticker, newsData, isLoading, error }) => {
   const finalIsLoading = isLoading !== undefined ? isLoading : fallbackLoading
   const finalError = error || fallbackError
 
-  // 백엔드 분석 결과 사용 (또는 프론트엔드 분석 fallback)
+  // 백엔드 분석 결과 사용 (감성/토픽/요약 계산의 정본은 백엔드 news_analyzer)
   const newsAnalysis = useMemo(() => {
-    if (!data) return null
-    
-    // 백엔드 응답 형식: { news: [...], analysis: {...} }
-    if (data.news && Array.isArray(data.news)) {
-      // 백엔드에서 분석된 뉴스 사용
-      return {
-        analyzedNews: data.news,
-        sentiment: data.analysis?.sentiment || 'neutral',
-        topics: data.analysis?.topics || [],
-        summary: data.analysis?.summary || null
-      }
+    if (!data?.news || !Array.isArray(data.news)) return null
+
+    return {
+      analyzedNews: data.news,
+      sentiment: data.analysis?.sentiment || 'neutral',
+      topics: data.analysis?.topics || [],
+      summary: data.analysis?.summary || null
     }
-    
-    // 기존 형식 (배열)인 경우 프론트엔드 분석 사용 (하위 호환성)
-    if (Array.isArray(data) && data.length > 0) {
-      return analyzeNewsList(data)
-    }
-    
-    return null
   }, [data])
 
   // 날짜별로 그룹핑 (분석된 뉴스 사용)
@@ -166,9 +182,8 @@ const NewsTimeline = ({ ticker, newsData, isLoading, error }) => {
     )
   }
 
-  // 데이터 확인 (백엔드 응답 형식 또는 기존 형식)
-  const newsList = data?.news || (Array.isArray(data) ? data : [])
-  
+  const newsList = data?.news || []
+
   if (!newsList || newsList.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500 dark:text-gray-400">

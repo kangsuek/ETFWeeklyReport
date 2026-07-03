@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { renderWithProviders } from '../../test/utils'
 import NewsTimeline from './NewsTimeline'
 import * as api from '../../services/api'
@@ -43,20 +43,23 @@ describe('NewsTimeline', () => {
   })
 
   it('뉴스 목록을 타임라인 형태로 표시한다', async () => {
-    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: { news: mockNews, analysis: null } })
 
     renderWithProviders(<NewsTimeline ticker="411060" />)
 
+    // 최신 날짜(01-03) 그룹은 기본 펼침
     await waitFor(() => {
-      expect(screen.getByText('2차전지 ETF 투자자 관심 집중')).toBeInTheDocument()
+      expect(screen.getByText('3일 뉴스')).toBeInTheDocument()
     })
 
+    // 이전 날짜(01-01) 그룹은 접혀 있으므로 펼친 후 확인
+    fireEvent.click(screen.getByText('2024년 01월 01일'))
+    expect(screen.getByText('2차전지 ETF 투자자 관심 집중')).toBeInTheDocument()
     expect(screen.getByText('2차전지 시장 전망 긍정적')).toBeInTheDocument()
-    expect(screen.getByText('3일 뉴스')).toBeInTheDocument()
   })
 
   it('날짜별로 그룹핑하여 표시한다', async () => {
-    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: { news: mockNews, analysis: null } })
 
     renderWithProviders(<NewsTimeline ticker="411060" />)
 
@@ -89,7 +92,7 @@ describe('NewsTimeline', () => {
   })
 
   it('뉴스가 없을 때 빈 상태 메시지를 표시한다', async () => {
-    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: [] })
+    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: { news: [], analysis: null } })
 
     renderWithProviders(<NewsTimeline ticker="411060" />)
 
@@ -99,27 +102,35 @@ describe('NewsTimeline', () => {
   })
 
   it('관련도 점수를 시각적으로 표시한다', async () => {
-    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: { news: mockNews, analysis: null } })
 
     renderWithProviders(<NewsTimeline ticker="411060" />)
 
+    // 해당 뉴스(01-01 그룹)는 접혀 있으므로 펼친 후 확인
     await waitFor(() => {
-      expect(screen.getByText('85%')).toBeInTheDocument()
-      expect(screen.getByText('75%')).toBeInTheDocument()
+      expect(screen.getByText('2024년 01월 01일')).toBeInTheDocument()
     })
+    fireEvent.click(screen.getByText('2024년 01월 01일'))
+
+    expect(screen.getByText('85%')).toBeInTheDocument()
+    expect(screen.getByText('75%')).toBeInTheDocument()
   })
 
   it('뉴스 링크가 올바르게 설정된다', async () => {
-    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: mockNews })
+    vi.spyOn(api.newsApi, 'getByTicker').mockResolvedValue({ data: { news: mockNews, analysis: null } })
 
     renderWithProviders(<NewsTimeline ticker="411060" />)
 
+    // 해당 뉴스(01-01 그룹)는 접혀 있으므로 펼친 후 확인
     await waitFor(() => {
-      const link = screen.getByText('2차전지 ETF 투자자 관심 집중').closest('a')
-      expect(link).toHaveAttribute('href', 'https://example.com/news/1')
-      expect(link).toHaveAttribute('target', '_blank')
-      expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(screen.getByText('2024년 01월 01일')).toBeInTheDocument()
     })
+    fireEvent.click(screen.getByText('2024년 01월 01일'))
+
+    const link = screen.getByText('2차전지 ETF 투자자 관심 집중').closest('a')
+    expect(link).toHaveAttribute('href', 'https://example.com/news/1')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })
 })
 
