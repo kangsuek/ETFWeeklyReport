@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import etfs, news, data, settings, alerts, scanner, simulation
+from app.routers import etfs, news, data, settings, alerts, scanner, simulation, api_keys
 from app.database import init_db, run_migrations, close_connection_pool
 from app.services.scheduler import get_scheduler
 from app.config import Config
@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     # --- startup ---
     # 저장된 API 키 로드 (api-keys.json → os.environ)
-    from app.routers.settings import load_api_keys_to_env
+    from app.routers.api_keys import load_api_keys_to_env
     load_api_keys_to_env()
 
     logger.info(message="initializing_database", phase="app_startup")
@@ -154,6 +154,7 @@ app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
 app.include_router(data.router, prefix="/api/data", tags=["Data Collection"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
+app.include_router(api_keys.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(scanner.router, prefix="/api/scanner", tags=["Scanner"])
 app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
