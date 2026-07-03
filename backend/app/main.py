@@ -18,6 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import logging
 import os
+import re
 import time
 
 # uvicorn access 로그에서 폴링 경로(collect-progress 등) 제외
@@ -115,12 +116,21 @@ async def http_middleware(request: Request, call_next):
     start_time = time.time()
     client_host = request.client.host if request.client else "unknown"
 
-    # X-No-Cache 헤더가 있으면 백엔드 캐시 클리어 (프론트엔드 새로고침 용도)
+    # X-No-Cache 헤더가 있으면 백엔드 캐시 무효화 (프론트엔드 새로고침 용도)
+    # 전체 삭제 대신 요청 경로/쿼리의 티커(6자리 코드) 범위로 축소해
+    # 한 클라이언트의 새로고침이 다른 캐시까지 날리지 않도록 한다
     if request.headers.get("X-No-Cache") == "true":
         from app.utils.cache import get_cache
         cache = get_cache()
-        cache.clear()
-        logger.info("Cache cleared via X-No-Cache header")
+        tickers = set(re.findall(r"\b\d{6}\b", f"{request.url.path}?{request.url.query}"))
+        if tickers:
+            for ticker in tickers:
+                cache.invalidate_pattern(ticker)
+            logger.info(f"Cache invalidated via X-No-Cache header: {sorted(tickers)}")
+        else:
+            # 티커가 없는 경로(목록·배치 요약 등)는 전체 삭제로 폴백
+            cache.clear()
+            logger.info("Cache cleared via X-No-Cache header (no ticker in path)")
 
     try:
         response = await call_next(request)
