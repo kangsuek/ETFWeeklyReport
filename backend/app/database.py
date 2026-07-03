@@ -109,6 +109,15 @@ def get_connection_pool() -> ConnectionPool:
     return _connection_pool
 
 
+def close_connection_pool():
+    """앱 종료 시 전역 커넥션 풀을 닫는다 (미초기화 상태면 아무것도 안 함)"""
+    global _connection_pool
+    with _pool_lock:
+        if _connection_pool is not None:
+            _connection_pool.close_all()
+            _connection_pool = None
+
+
 @contextmanager
 def get_db_connection():
     """

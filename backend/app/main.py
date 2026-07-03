@@ -1,7 +1,9 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import etfs, news, data, settings, alerts, scanner, simulation
-from app.database import init_db, run_migrations
+from app.database import init_db, run_migrations, close_connection_pool
 from app.services.scheduler import get_scheduler
 from app.config import Config
 from app.utils import stocks_manager
@@ -51,10 +53,45 @@ logging.getLogger("uvicorn.access").addFilter(SuppressPollingAccessLog())
 
 logger = get_logger(__name__)
 
+# 앱 시작/종료 수명주기 (구 @app.on_event startup/shutdown 대체)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- startup ---
+    # 저장된 API 키 로드 (api-keys.json → os.environ)
+    from app.routers.settings import load_api_keys_to_env
+    load_api_keys_to_env()
+
+    logger.info(message="initializing_database", phase="app_startup")
+    init_db()
+    run_migrations()
+    logger.info(message="database_initialized", phase="app_startup", status="success")
+
+    # stocks.json → DB 자동 동기화
+    logger.info(message="syncing_stocks", phase="app_startup")
+    try:
+        synced_count = stocks_manager.sync_stocks_to_db()
+        logger.info(message="stocks_synced", phase="app_startup", count=synced_count)
+    except Exception as e:
+        log_error(logger, error=e, context={"phase": "stocks_sync_failed"})
+
+    # 스케줄러 시작
+    logger.info(message="starting_scheduler", phase="app_startup")
+    scheduler = get_scheduler()
+    scheduler.start()
+
+    yield
+
+    # --- shutdown ---
+    scheduler = get_scheduler()
+    scheduler.stop()
+    close_connection_pool()
+
+
 app = FastAPI(
     title="ETF Weekly Report API",
     description="API for Korean ETF analysis and reporting",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Rate Limiter 설정
@@ -101,37 +138,6 @@ async def http_middleware(request: Request, call_next):
             },
         )
         raise
-
-# Initialize database and scheduler on startup
-@app.on_event("startup")
-async def startup_event():
-    # 저장된 API 키 로드 (api-keys.json → os.environ)
-    from app.routers.settings import load_api_keys_to_env
-    load_api_keys_to_env()
-
-    logger.info(message="initializing_database", phase="app_startup")
-    init_db()
-    run_migrations()
-    logger.info(message="database_initialized", phase="app_startup", status="success")
-
-    # stocks.json → DB 자동 동기화
-    logger.info(message="syncing_stocks", phase="app_startup")
-    try:
-        synced_count = stocks_manager.sync_stocks_to_db()
-        logger.info(message="stocks_synced", phase="app_startup", count=synced_count)
-    except Exception as e:
-        log_error(logger, error=e, context={"phase": "stocks_sync_failed"})
-
-    # 스케줄러 시작
-    logger.info(message="starting_scheduler", phase="app_startup")
-    scheduler = get_scheduler()
-    scheduler.start()
-
-# Graceful shutdown on application shutdown
-@app.on_event("shutdown")
-async def shutdown_event():
-    scheduler = get_scheduler()
-    scheduler.stop()
 
 # Include routers
 app.include_router(etfs.router, prefix="/api/etfs", tags=["ETFs"])
