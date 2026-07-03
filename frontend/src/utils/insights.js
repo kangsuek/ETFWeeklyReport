@@ -222,14 +222,14 @@ export function generatePriceInsights(pricesData) {
         type: 'warning',
         category: 'volatility',
         priority: 2,
-        text: `변동성 확대 구간 (일간 ${volatility.toFixed(1)}%)`
+        text: `변동성 확대 구간 (최근 ${pricesData.length}일 일간 ${volatility.toFixed(1)}%)`
       })
     } else if (volatility < 1) {
       insights.push({
         type: 'neutral',
         category: 'volatility',
         priority: 3,
-        text: `낮은 변동성 유지 (일간 ${volatility.toFixed(1)}%)`
+        text: `낮은 변동성 유지 (최근 ${pricesData.length}일 일간 ${volatility.toFixed(1)}%)`
       })
     }
   }
@@ -332,7 +332,7 @@ export function generateRiskInsights(pricesData, tradingFlowData) {
   if (volatility !== null && volatility > 4) {
     risks.push({
       type: 'risk',
-      text: `높은 변동성 주의 (일간 ${volatility.toFixed(1)}%)`
+      text: `높은 변동성 주의 (최근 ${pricesData.length}일 일간 ${volatility.toFixed(1)}%)`
     })
   }
 
