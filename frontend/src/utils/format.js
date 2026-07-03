@@ -51,6 +51,41 @@ export const formatPercent = (value) => {
 }
 
 /**
+ * 등락률을 화살표(▲/▼)와 부호를 붙여 포맷팅 (스크리닝, 테마, 추천 카드용)
+ * @param {number} value - 등락률 (%)
+ * @returns {string} - 포맷팅된 문자열 (예: "▲ +1.23%")
+ */
+export const formatPercentArrow = (value) => {
+  if (value == null) return '-'
+  const arrow = value > 0 ? '▲' : value < 0 ? '▼' : ''
+  const sign = value > 0 ? '+' : ''
+  return `${arrow} ${sign}${value.toFixed(2)}%`
+}
+
+/**
+ * 부호를 유지한 천 단위 콤마 포맷팅
+ * @param {number} value - 포맷팅할 숫자
+ * @returns {string} - 포맷팅된 문자열 (예: "+1,234")
+ */
+export const formatSignedNumber = (value) => {
+  if (value == null) return '-'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toLocaleString('ko-KR')}`
+}
+
+/**
+ * 등락률 색상 클래스 반환 (다크모드 대응)
+ * @param {number} value - 등락률
+ * @returns {string} - Tailwind CSS 색상 클래스
+ */
+export const getChangeColor = (value) => {
+  if (value == null) return 'text-gray-500 dark:text-gray-400'
+  if (value > 0) return 'text-red-600 dark:text-red-400'
+  if (value < 0) return 'text-blue-600 dark:text-blue-400'
+  return 'text-gray-500 dark:text-gray-400'
+}
+
+/**
  * 등락률 색상 클래스 반환
  * @param {number} value - 등락률
  * @returns {string} - Tailwind CSS 색상 클래스

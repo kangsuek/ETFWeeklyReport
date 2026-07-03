@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { formatNumber, formatSignedNumber, formatPercent, getChangeColor } from '../../utils/formatters'
+import { formatNumber, formatSignedNumber, formatPercentArrow as formatPercent, getChangeColor } from '../../utils/format'
 
 const COLUMNS = [
   { key: 'name', label: '종목명', sortable: true },

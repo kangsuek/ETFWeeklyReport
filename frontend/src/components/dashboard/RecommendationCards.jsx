@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { scannerApi } from '../../services/api'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
-import { formatNumber, formatPercent, getChangeColor } from '../../utils/formatters'
+import { formatNumber, formatPercentArrow as formatPercent, getChangeColor } from '../../utils/format'
 
 const PRESET_ICONS = {
   weekly_top_return: (

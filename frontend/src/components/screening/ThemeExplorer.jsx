@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { scannerApi } from '../../services/api'
 import LoadingIndicator from '../common/LoadingIndicator'
 import { CACHE_STALE_TIME_STATIC } from '../../constants'
-import { formatPercent, getChangeColor } from '../../utils/formatters'
+import { formatPercentArrow as formatPercent, getChangeColor } from '../../utils/format'
 
 export default function ThemeExplorer({ onSectorClick, onCollectData, isCollecting }) {
   const { data: themes, isLoading, error } = useQuery({
