@@ -13,10 +13,12 @@ from app.constants import (
     ERROR_VALIDATION_DATE_RANGE,
     ERROR_SCRAPER_NEWS,
     ERROR_VALIDATION_COLLECTION_PARAMS,
+    ERROR_DATABASE_COLLECTION,
     ERROR_INTERNAL_FETCH_NEWS,
     ERROR_INTERNAL_COLLECTION,
     CACHE_TTL_SLOW_CHANGING,
 )
+import asyncio
 import sqlite3
 import logging
 import os
@@ -70,7 +72,10 @@ async def get_news(
             days_requested = (end_date - start_date).days + 1
             days_to_collect = max(1, min(30, days_requested if days_requested > 0 else 7))
             try:
-                collect_result = scraper.collect_and_save_news(etf.ticker, days=days_to_collect)
+                # 블로킹 스크레이핑을 워커 스레드로 넘겨 이벤트 루프 정지 방지
+                collect_result = await asyncio.to_thread(
+                    scraper.collect_and_save_news, etf.ticker, days=days_to_collect
+                )
                 logger.info(
                     "On-demand news collection completed for %s: %s",
                     etf.ticker,
@@ -181,7 +186,8 @@ async def collect_news(
     """
     try:
         logger.debug(f"Starting news collection for {etf.ticker}, days={days}")
-        result = scraper.collect_and_save_news(etf.ticker, days)
+        # 블로킹 스크레이핑을 워커 스레드로 넘겨 이벤트 루프 정지 방지
+        result = await asyncio.to_thread(scraper.collect_and_save_news, etf.ticker, days)
 
         # 수집 후 해당 티커의 뉴스 캐시 무효화
         cache.invalidate_pattern(f"news:{etf.ticker}")

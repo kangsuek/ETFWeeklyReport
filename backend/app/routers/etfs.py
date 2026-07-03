@@ -446,7 +446,10 @@ async def collect_prices(
     logger.info(f"Starting data collection for {etf.ticker} (days={days})")
 
     try:
-        saved_count = collector.collect_and_save_prices(etf.ticker, days=days)
+        # 블로킹 스크레이핑을 워커 스레드로 넘겨 이벤트 루프 정지 방지
+        saved_count = await asyncio.to_thread(
+            collector.collect_and_save_prices, etf.ticker, days=days
+        )
 
         # 수집 후 해당 티커의 캐시 무효화
         cache.invalidate_pattern(f"prices:{etf.ticker}")
@@ -563,7 +566,10 @@ async def collect_trading_flow(
     """
     try:
         logger.debug(f"Starting trading flow collection for {etf.ticker}, days={days}")
-        saved_count = collector.collect_and_save_trading_flow(etf.ticker, days)
+        # 블로킹 스크레이핑을 워커 스레드로 넘겨 이벤트 루프 정지 방지
+        saved_count = await asyncio.to_thread(
+            collector.collect_and_save_trading_flow, etf.ticker, days
+        )
 
         # 수집 후 해당 티커의 캐시 무효화
         cache.invalidate_pattern(f"trading_flow:{etf.ticker}")
