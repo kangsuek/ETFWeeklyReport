@@ -10,7 +10,13 @@
 - closes_asc: 날짜 오름차순 종가 리스트 (RSI/MACD 계산용)
 """
 import logging
+import math
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
+
+from app.constants import DAYS_IN_YEAR, PERCENT_MULTIPLIER
+from app.database import get_db_connection, get_cursor
+from app.models import ETFMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -222,4 +228,143 @@ def macd_series(
 
     return result
 
+
+# ---------------------------------------------------------------------------
+# 종목 주요 지표 (GET /api/etfs/{ticker}/metrics)
+# ---------------------------------------------------------------------------
+
+def get_etf_metrics(ticker: str) -> ETFMetrics:
+    """
+    Calculate key metrics for ETF
+
+    Calculates:
+    - Returns: 1 week, 1 month, year-to-date
+    - Volatility: Standard deviation of daily returns (annualized)
+
+    Args:
+        ticker: Stock/ETF ticker code
+
+    Returns:
+        ETFMetrics with calculated values
+    """
+    logger.debug(f"Calculating metrics for {ticker}")
+    try:
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+
+            # Get price data for calculations
+            today = date.today()
+            one_year_ago = today - timedelta(days=DAYS_IN_YEAR)
+
+            cursor.execute("""
+                SELECT date, close_price, daily_change_pct
+                FROM prices
+                WHERE ticker = ? AND date >= ?
+                ORDER BY date DESC
+            """, (ticker, one_year_ago))
+
+            rows = cursor.fetchall()
+
+            if not rows:
+                logger.warning(f"No price data available for {ticker}")
+                return ETFMetrics(
+                    ticker=ticker,
+                    aum=None,
+                    returns={"1w": None, "1m": None, "ytd": None},
+                    volatility=None
+                )
+
+            # Convert to list for easier indexing
+            prices = [dict(row) for row in rows]
+
+            # Calculate returns
+            returns = {}
+
+            # 1 week return
+            if len(prices) >= 7:
+                week_ago_price = prices[min(6, len(prices)-1)]['close_price']
+                current_price = prices[0]['close_price']
+                if week_ago_price and current_price:
+                    returns['1w'] = ((current_price - week_ago_price) / week_ago_price) * PERCENT_MULTIPLIER
+                else:
+                    returns['1w'] = None
+            else:
+                returns['1w'] = None
+
+            # 1 month return
+            if len(prices) >= 30:
+                month_ago_price = prices[min(29, len(prices)-1)]['close_price']
+                current_price = prices[0]['close_price']
+                if month_ago_price and current_price:
+                    returns['1m'] = ((current_price - month_ago_price) / month_ago_price) * PERCENT_MULTIPLIER
+                else:
+                    returns['1m'] = None
+            else:
+                returns['1m'] = None
+
+            # Year-to-date return
+            year_start = date(today.year, 1, 1)
+            # 날짜가 date 객체/문자열 어느 쪽이든 안전하게 처리
+            def get_date(d):
+                return d if isinstance(d, date) else date.fromisoformat(d)
+            ytd_prices = [p for p in prices if get_date(p['date']) >= year_start]
+            ytd_start_date = None
+            if len(ytd_prices) >= 2:
+                ytd_start_price = ytd_prices[-1]['close_price']
+                current_price = ytd_prices[0]['close_price']
+                # 실제 YTD 기준일(가장 오래된 올해 데이터의 날짜)을 함께 노출한다.
+                # 연중 상장/수집 시작 종목은 이 값이 1월 초가 아니므로 프론트에서 라벨을 보정한다.
+                ytd_start_date = str(ytd_prices[-1]['date'])
+                if ytd_start_price and current_price:
+                    returns['ytd'] = ((current_price - ytd_start_price) / ytd_start_price) * PERCENT_MULTIPLIER
+                else:
+                    returns['ytd'] = None
+            else:
+                returns['ytd'] = None
+
+            # Calculate volatility (annualized standard deviation of daily returns)
+            daily_changes = [p['daily_change_pct'] for p in prices if p['daily_change_pct'] is not None]
+            volatility = None
+
+            if len(daily_changes) >= 10:  # Need at least 10 data points for meaningful volatility
+                mean_change = sum(daily_changes) / len(daily_changes)
+                variance = sum((x - mean_change) ** 2 for x in daily_changes) / len(daily_changes)
+                std_dev = math.sqrt(variance)
+                # Annualize: daily std * sqrt(trading days per year)
+                volatility = std_dev * math.sqrt(TRADING_DAYS_PER_YEAR)
+
+            # Calculate Max Drawdown (음수 표기 유지 — 기존 API 호환)
+            mdd = max_drawdown(prices)
+            max_drawdown_pct = round(-mdd["value"], 2) if mdd else None
+
+            # Calculate Sharpe Ratio (표준 방식: 전체 일간수익률 기반 연환산)
+            # 변동성과 동일한 표본(일간수익률 전체)을 사용해 일관성을 유지한다.
+            # 분자를 단일 1개월 수익률로 만들면 표본 1개에 과민 반응(예: 월 +48% -> 샤프 폭등)하므로,
+            # 일평균 수익률 x 거래일수로 연환산한다.
+            sharpe_ratio = None
+            if volatility and volatility > 0 and len(daily_changes) >= 10:
+                # 일평균 수익률(%) x 연간 거래일수 = 연환산 수익률(%)
+                mean_daily_return = sum(daily_changes) / len(daily_changes)
+                annualized_return = mean_daily_return * TRADING_DAYS_PER_YEAR
+                risk_free_rate = 3.0  # 무위험 수익률 3%
+                sharpe_ratio = round((annualized_return - risk_free_rate) / volatility, 2)
+
+            return ETFMetrics(
+                ticker=ticker,
+                aum=None,  # AUM data not available from scraping
+                returns=returns,
+                volatility=volatility,
+                max_drawdown=max_drawdown_pct,
+                sharpe_ratio=sharpe_ratio,
+                ytd_start_date=ytd_start_date
+            )
+
+    except Exception as e:
+        logger.error(f"Error calculating metrics for {ticker}: {e}", exc_info=True)
+        return ETFMetrics(
+            ticker=ticker,
+            aum=None,
+            returns={"1w": None, "1m": None, "ytd": None},
+            volatility=None
+        )
 

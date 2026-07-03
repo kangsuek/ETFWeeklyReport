@@ -29,6 +29,11 @@ class TestETFRouterErrorCases:
     @pytest.mark.asyncio
     async def test_get_all_etfs_exception(self):
         """전체 ETF 조회 시 예외 테스트"""
+        # 다른 테스트(test_api 등)가 캐싱한 /etfs 응답이 남아 있으면
+        # 예외 대신 캐시가 반환되어 순서 의존적으로 실패하므로 비운다
+        from app.utils.cache import get_cache
+        get_cache().clear()
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             with patch('app.services.data_collector.ETFDataCollector.get_all_etfs',
                       side_effect=Exception("Database error")):

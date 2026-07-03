@@ -20,8 +20,9 @@ class TestAutoCollection:
 
     @pytest.fixture
     def mock_db_connection(self):
-        """Mock DB 연결"""
-        with patch('app.services.data_collector.get_db_connection') as mock:
+        """Mock DB 연결 (가격은 data_collector, 매매동향은 trading_flow_collector 모듈)"""
+        with patch('app.services.data_collector.get_db_connection') as mock, \
+                patch('app.services.trading_flow_collector.get_db_connection', mock):
             conn = MagicMock()
             cursor = MagicMock()
             conn.cursor.return_value = cursor
