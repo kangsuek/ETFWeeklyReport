@@ -545,11 +545,8 @@ export default function ETFDetail() {
       {/* 기본 보기: 누구나 이해할 수 있는 핵심 정보   */}
       {/* ========================================== */}
 
-      {/* 1. 투자 인사이트 요약 (한눈에 보는 핵심 포인트) */}
-      <InsightSummary
-        pricesData={pricesData}
-        tradingFlowData={tradingFlowData}
-      />
+      {/* 1. 투자 인사이트 요약 (한눈에 보는 핵심 포인트 — 계산은 백엔드 /insights) */}
+      <InsightSummary insights={insightsData} />
 
       {/* 2. 투자 전략 (단기/중기/장기 방향) */}
       <div className="mb-6">

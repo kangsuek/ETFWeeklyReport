@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
 import PropTypes from 'prop-types'
-import { generateAllInsights } from '../../utils/insights'
 
 /**
  * InsightSummary 컴포넌트
  * 투자 인사이트 요약을 페이지 상단에 표시
  *
+ * 계산은 백엔드 InsightsService(GET /api/etfs/{ticker}/insights)가 담당하고,
+ * 이 컴포넌트는 응답의 points/point_risks를 표시만 한다.
+ *
  * 기능:
- * - 핵심 포인트 (최대 4개): 매매동향, 추세, 변동성 분석
+ * - 핵심 포인트 (최대 4개): 추세, 매매동향, 변동성, 기술지표 분석
  * - 리스크 요약 (최대 3개): 위험 요소 알림
  */
 // 인사이트 타입별 스타일 - 순수 함수로 컴포넌트 외부 정의
@@ -40,14 +41,12 @@ const getInsightStyle = (type) => {
   }
 }
 
-export default function InsightSummary({ pricesData = [], tradingFlowData = [] }) {
-  const { insights, risks } = useMemo(
-    () => generateAllInsights(pricesData, tradingFlowData),
-    [pricesData, tradingFlowData]
-  )
+export default function InsightSummary({ insights: insightsData }) {
+  const points = insightsData?.points || []
+  const risks = insightsData?.point_risks || []
 
   // 데이터가 없거나 인사이트가 없으면 렌더링하지 않음
-  if ((!insights || insights.length === 0) && (!risks || risks.length === 0)) {
+  if (points.length === 0 && risks.length === 0) {
     return null
   }
 
@@ -61,7 +60,7 @@ export default function InsightSummary({ pricesData = [], tradingFlowData = [] }
       </div>
 
       {/* 핵심 포인트 */}
-      {insights && insights.length > 0 && (
+      {points.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm">💡</span>
@@ -70,7 +69,7 @@ export default function InsightSummary({ pricesData = [], tradingFlowData = [] }
             </h4>
           </div>
           <ul className="space-y-2 ml-1">
-            {insights.map((insight, index) => {
+            {points.map((insight, index) => {
               const style = getInsightStyle(insight.type)
               return (
                 <li key={index} className="flex items-start gap-2">
@@ -88,7 +87,7 @@ export default function InsightSummary({ pricesData = [], tradingFlowData = [] }
       )}
 
       {/* 리스크 요약 */}
-      {risks && risks.length > 0 && (
+      {risks.length > 0 && (
         <div className="pt-3 border-t border-blue-100 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm">⚠️</span>
@@ -103,38 +102,25 @@ export default function InsightSummary({ pricesData = [], tradingFlowData = [] }
                 className="flex items-start gap-2 text-sm text-orange-600 dark:text-orange-400"
               >
                 <span className="inline-block w-2 h-2 rounded-full mt-1.5 bg-orange-500" />
-                <span>{risk.text}</span>
+                <span>{risk}</span>
               </li>
             ))}
           </ul>
         </div>
-      )}
-
-      {/* 데이터 부족 시 안내 */}
-      {insights.length === 0 && risks.length === 0 && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          충분한 데이터가 수집되면 인사이트가 표시됩니다.
-        </p>
       )}
     </div>
   )
 }
 
 InsightSummary.propTypes = {
-  pricesData: PropTypes.arrayOf(
-    PropTypes.shape({
-      date: PropTypes.string.isRequired,
-      close_price: PropTypes.number.isRequired,
-      daily_change_pct: PropTypes.number
-    })
-  ),
-  tradingFlowData: PropTypes.arrayOf(
-    PropTypes.shape({
-      date: PropTypes.string.isRequired,
-      foreign_net: PropTypes.number,
-      institutional_net: PropTypes.number,
-      individual_net: PropTypes.number
-    })
-  )
+  insights: PropTypes.shape({
+    points: PropTypes.arrayOf(
+      PropTypes.shape({
+        type: PropTypes.string.isRequired,
+        category: PropTypes.string,
+        text: PropTypes.string.isRequired
+      })
+    ),
+    point_risks: PropTypes.arrayOf(PropTypes.string)
+  })
 }
-

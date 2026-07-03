@@ -124,11 +124,20 @@ class StrategyInsights(BaseModel):
     recommendation: str  # 종합 추천
     comment: str  # 코멘트
 
+class InsightPoint(BaseModel):
+    """typed 인사이트 포인트 (표시 색상은 type으로 결정)"""
+    type: str  # "positive" | "warning" | "neutral"
+    category: Optional[str] = None  # "trend" | "trading" | "volatility" | "technical" 등
+    text: str
+
+
 class ETFInsights(BaseModel):
     """종목 인사이트"""
     strategy: StrategyInsights
-    key_points: List[str]  # 핵심 포인트 (최대 3개)
-    risks: List[str]  # 리스크 요약 (최대 3개)
+    key_points: List[str]  # 핵심 포인트 (최대 3개, StrategySummary 표시용)
+    risks: List[str]  # 리스크 요약 (최대 3개, 전략 분석 기반)
+    points: List[InsightPoint] = []  # typed 포인트 (최대 4개, InsightSummary 표시용)
+    point_risks: List[str] = []  # 리스크 요약 (최대 3개, InsightSummary 표시용)
 
 
 # Alert Models
