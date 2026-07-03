@@ -100,21 +100,6 @@ class TestBatchQueries:
         for ticker in test_tickers:
             assert len(result[ticker]) <= limit
 
-    def test_get_latest_prices_batch_basic(self, collector, test_tickers):
-        """배치 최신 가격 조회 기본 기능 테스트"""
-        # 배치 조회
-        result = collector.get_latest_prices_batch(test_tickers)
-
-        # 검증
-        assert isinstance(result, dict)
-        assert len(result) == len(test_tickers)
-
-        for ticker in test_tickers:
-            assert ticker in result
-            # 데이터가 있으면 PriceData, 없으면 None
-            if result[ticker] is not None:
-                assert isinstance(result[ticker], PriceData)
-
     def test_batch_vs_single_query_consistency(self, collector, test_tickers, date_range):
         """배치 쿼리와 단일 쿼리 결과 일관성 테스트"""
         start_date, end_date = date_range

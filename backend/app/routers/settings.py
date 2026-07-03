@@ -573,9 +573,6 @@ async def reorder_stocks(
         # 현재 종목 목록 로드
         stocks = stocks_manager.load_stocks()
         
-        # 티커 검증: stocks.json에 있는 종목만 사용, 없는 종목은 무시
-        current_tickers = set(stocks.keys())
-        
         # 새로운 순서로 재정렬 (stocks.json에 존재하는 종목만)
         reordered_stocks = {}
         for ticker in tickers:

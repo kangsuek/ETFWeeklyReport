@@ -186,7 +186,7 @@ class TickerCatalogCollector:
             })
         return stocks
 
-    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int) -> List[Dict[str, Any]]:
+    def _collect_sise_stocks(self, market: str, max_pages: int) -> List[Dict[str, Any]]:
         """
         네이버 모바일 JSON API에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)
 
@@ -194,7 +194,6 @@ class TickerCatalogCollector:
         시가총액 내림차순 순서를 보존하기 위해 페이지 오름차순으로 합친다.
 
         Args:
-            sosok: (하위 호환용, 무시됨 — market 문자열로 시장을 지정)
             market: 'KOSPI' | 'KOSDAQ'
             max_pages: 페이지 수 상한 (안전장치)
         """
@@ -239,7 +238,7 @@ class TickerCatalogCollector:
     )
     def _collect_kospi_stocks(self) -> List[Dict[str, Any]]:
         """코스피 종목 목록 + 가격 데이터 수집"""
-        return self._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80)
+        return self._collect_sise_stocks(market="KOSPI", max_pages=80)
 
     @retry_with_backoff(
         max_retries=3,
@@ -248,7 +247,7 @@ class TickerCatalogCollector:
     )
     def _collect_kosdaq_stocks(self) -> List[Dict[str, Any]]:
         """코스닥 종목 목록 + 가격 데이터 수집"""
-        return self._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110)
+        return self._collect_sise_stocks(market="KOSDAQ", max_pages=110)
 
     @retry_with_backoff(
         max_retries=3,

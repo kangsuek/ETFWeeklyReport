@@ -57,13 +57,6 @@ class ETFMetrics(BaseModel):
     # 1월 1일이 아니라 데이터 시작일이 기준이 되므로 프론트에서 라벨을 보정한다.
     ytd_start_date: Optional[str] = None
 
-class ETFDetailResponse(BaseModel):
-    etf: ETF
-    prices: List[PriceData]
-    trading_flow: List[TradingFlow]
-    news: List[News]
-    metrics: ETFMetrics
-
 # Settings API Models
 class StockCreate(BaseModel):
     """종목 추가 요청"""

@@ -735,7 +735,7 @@ class ETFDataCollector:
         Returns:
             수집 결과 딕셔너리
         """
-        from app.services.progress import update_progress, clear_progress
+        from app.services.progress import update_progress
 
         start_time = datetime.now()
         logger.info(f"[일괄 수집] 시작: {days}일치 데이터 (병렬 {max_workers} workers)")
@@ -1359,57 +1359,6 @@ class ETFDataCollector:
             logger.debug(f"Batch fetched {sum(len(v) for v in result.values())} total trading flow records")
             return result
 
-    def get_latest_prices_batch(
-        self,
-        tickers: List[str]
-    ) -> Dict[str, Optional[PriceData]]:
-        """
-        배치 쿼리로 여러 종목의 최신 가격을 한 번에 조회
-
-        Args:
-            tickers: 종목 코드 리스트
-
-        Returns:
-            종목별 최신 가격 딕셔너리 {ticker: PriceData or None}
-        """
-        if not tickers:
-            return {}
-
-        logger.info(f"Batch fetching latest prices for {len(tickers)} tickers")
-        p = "?"
-
-        with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
-
-            # IN 절을 위한 플레이스홀더 생성
-            placeholders = ','.join([p] * len(tickers))
-
-            # 각 종목의 최신 날짜만 조회하는 서브쿼리 사용
-            query = f"""
-                SELECT p.ticker, p.date, p.open_price, p.high_price, p.low_price,
-                       p.close_price, p.volume, p.daily_change_pct
-                FROM prices p
-                INNER JOIN (
-                    SELECT ticker, MAX(date) as max_date
-                    FROM prices
-                    WHERE ticker IN ({placeholders})
-                    GROUP BY ticker
-                ) latest ON p.ticker = latest.ticker AND p.date = latest.max_date
-            """
-
-            cursor.execute(query, tickers)
-            rows = cursor.fetchall()
-
-            # 종목별로 매핑
-            result = {ticker: None for ticker in tickers}
-            for row in rows:
-                row_dict = dict(row)
-                ticker = row_dict.pop('ticker')
-                result[ticker] = PriceData(**row_dict)
-
-            logger.debug(f"Batch fetched latest prices for {len([v for v in result.values() if v])} tickers")
-            return result
-
     def calculate_missing_days(self, ticker: str, requested_days: int) -> int:
         """
         실제로 수집해야 할 일수 계산 (중복 방지 최적화)
@@ -1421,7 +1370,7 @@ class ETFDataCollector:
         Returns:
             실제로 수집해야 할 일수 (0이면 수집 불필요)
         """
-        from datetime import date, timedelta
+        from datetime import date
         from app.database import get_collection_status
 
         # collection_status에서 마지막 수집 날짜 확인
@@ -1466,7 +1415,6 @@ class ETFDataCollector:
         Returns:
             저장된 레코드 수
         """
-        from datetime import date
         from app.database import update_collection_status
 
         # 실제로 수집해야 할 일수 계산
@@ -1512,7 +1460,7 @@ class ETFDataCollector:
         Returns:
             저장된 레코드 수
         """
-        from datetime import date, timedelta
+        from datetime import date
         from app.database import update_collection_status, get_collection_status
 
         # collection_status에서 마지막 수집 날짜 확인

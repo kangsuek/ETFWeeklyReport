@@ -116,7 +116,6 @@ async def collect_all_data(
         from datetime import datetime
         import pytz
         import asyncio
-        from app.services.progress import clear_progress
         from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
         from app.services.stock_fundamentals_collector import collect_stock_fundamentals
 

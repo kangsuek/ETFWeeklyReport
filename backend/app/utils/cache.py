@@ -7,8 +7,7 @@ TTL(Time To Live) 기반의 스레드 안전한 메모리 캐시 구현
 
 import threading
 import time
-from typing import Any, Optional, Dict, Callable
-from datetime import datetime, timedelta
+from typing import Any, Optional, Dict
 import logging
 import hashlib
 import json
@@ -189,32 +188,6 @@ class MemoryCache:
                 "max_size": self._max_size,
                 "default_ttl_seconds": self._default_ttl,
             }
-
-    def get_or_set(
-        self,
-        key: str,
-        factory: Callable[[], Any],
-        ttl_seconds: Optional[int] = None
-    ) -> Any:
-        """
-        캐시에서 값을 가져오거나, 없으면 factory 함수를 호출하여 설정
-
-        Args:
-            key: 캐시 키
-            factory: 캐시 미스 시 호출할 함수
-            ttl_seconds: TTL (초)
-
-        Returns:
-            캐시된 값 또는 factory 함수 결과
-        """
-        value = self.get(key)
-        if value is not None:
-            return value
-
-        # 캐시 미스: factory 함수 호출
-        value = factory()
-        self.set(key, value, ttl_seconds)
-        return value
 
 
 def make_cache_key(endpoint: str, **kwargs) -> str:

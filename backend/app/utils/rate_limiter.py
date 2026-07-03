@@ -7,7 +7,6 @@ API 요청 빈도를 제어하여 서버 부하를 방지합니다.
 import logging
 import time
 from typing import Optional
-from datetime import datetime, timedelta
 from threading import Lock
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { etfApi, newsApi, alertApi } from '../services/api'
 import { useSettings } from '../contexts/SettingsContext'
@@ -124,8 +124,7 @@ const TONE_STYLE = {
 export default function ETFDetail() {
   const { ticker } = useParams()
   const { settings } = useSettings()
-  const queryClient = useQueryClient()
-  
+
   // 설정에서 기본 날짜 범위 가져오기 (변환 필요: '7D' -> '7d')
   const defaultRangeFromSettings = useMemo(
     () => convertDateRangeFormat(settings.defaultDateRange),

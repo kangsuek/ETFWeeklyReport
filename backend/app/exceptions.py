@@ -21,13 +21,3 @@ class ValidationException(ETFAppException):
 class ScraperException(ETFAppException):
     """Exception raised for web scraping errors"""
     pass
-
-
-class DataNotFoundException(ETFAppException):
-    """Exception raised when requested data is not found"""
-    pass
-
-
-class ExternalServiceException(ETFAppException):
-    """Exception raised for external service/API errors"""
-    pass

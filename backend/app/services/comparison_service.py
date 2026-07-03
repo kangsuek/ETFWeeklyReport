@@ -6,7 +6,7 @@
 - 수익률, 변동성, 상관관계 등 통계 지표 계산
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import date
 import numpy as np
 import pandas as pd

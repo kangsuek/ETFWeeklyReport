@@ -1,14 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 from datetime import date
-from app.models import News, NewsListResponse, NewsWithAnalysis, ETF
+from app.models import NewsListResponse, NewsWithAnalysis, ETF
 from app.services.news_scraper import NewsScraper
 from app.services.news_analyzer import NewsAnalyzer
-from app.services.data_collector import ETFDataCollector
 from app.exceptions import ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.utils.cache import get_cache, make_cache_key
-from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
+from app.dependencies import get_etf_or_404, verify_api_key_dependency
 from app.constants import (
     ERROR_DATABASE,
     ERROR_VALIDATION_DATE_RANGE,

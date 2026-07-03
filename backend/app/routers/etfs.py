@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date, datetime, timedelta, time as dtime
 from app.models import (
-    ETF, PriceData, TradingFlow, ETFDetailResponse, ETFMetrics,
+    ETF, PriceData, ETFMetrics,
     ETFCardSummary, BatchSummaryRequest, BatchSummaryResponse,
     ETFInsights
 )
@@ -14,7 +14,6 @@ from app.utils.date_utils import apply_default_dates
 from app.utils.data_collection import auto_collect_if_needed
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
-from app.middleware.rate_limit import limiter, RateLimitConfig
 from app.constants import (
     ERROR_DATABASE,
     ERROR_DATABASE_COLLECTION,

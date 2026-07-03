@@ -6,7 +6,7 @@
 
 import calendar
 import logging
-from datetime import date, timedelta
+from datetime import date
 from typing import List, Optional
 
 from app.models import (

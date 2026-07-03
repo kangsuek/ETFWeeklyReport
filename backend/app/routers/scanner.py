@@ -179,8 +179,6 @@ async def get_themes():
     if cached:
         return cached
 
-    p = "?"
-
     with get_db_connection() as conn_or_cursor:
         cursor = get_cursor(conn_or_cursor)
         registered_tickers = _get_registered_tickers(cursor)

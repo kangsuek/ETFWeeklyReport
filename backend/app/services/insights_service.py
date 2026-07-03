@@ -5,11 +5,9 @@
 """
 from typing import Dict, List, Optional
 from datetime import date, timedelta
-from app.database import get_db_connection, get_cursor
 from app.services.data_collector import ETFDataCollector
 from app.services.news_scraper import NewsScraper
 import logging
-import math
 
 logger = logging.getLogger(__name__)
 
