@@ -1,16 +1,14 @@
 """
-Perplexity AI API service for stock/ETF analysis reports.
+AI 분석 프롬프트 빌더 (구 Perplexity API 서비스).
 
-Uses the Perplexity sonar model with online search to generate
-comprehensive investment analysis reports.
+DB 데이터를 RAG context로 포함한 투자 분석 프롬프트를 생성한다.
+API 호출 없이 프롬프트만 반환하며, 사용자가 Perplexity/Gemini/ChatGPT 등
+외부 AI 서비스에 붙여넣어 사용한다.
 """
 
-import os
 import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
-
-import requests
 
 from app.database import get_db_connection
 
@@ -19,14 +17,9 @@ logger = logging.getLogger(__name__)
 # Prompt template path (project root / prompt / perplexity.md)
 PROMPT_TEMPLATE_PATH = Path(__file__).resolve().parents[3] / "prompt" / "perplexity.md"
 
-PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
-PERPLEXITY_MODEL = "sonar"
-PERPLEXITY_TIMEOUT = 60
-PERPLEXITY_TEMPERATURE = 0.2
-
 
 class PerplexityService:
-    """Perplexity AI investment analysis service."""
+    """AI 투자 분석 프롬프트 생성 서비스."""
 
     def __init__(self):
         self._template: str | None = None
@@ -43,7 +36,6 @@ class PerplexityService:
         Returns:
             구조화된 DB 데이터 텍스트
         """
-        param_placeholder = "?"
         context_parts = []
 
         # 헤더
@@ -62,21 +54,21 @@ class PerplexityService:
                 cursor = conn.cursor()
 
                 # 종목 타입 확인 (ETF vs STOCK)
-                cursor.execute(f"""
-                    SELECT type FROM etfs WHERE ticker = {param_placeholder}
+                cursor.execute("""
+                    SELECT type FROM etfs WHERE ticker = ?
                 """, (ticker,))
                 type_row = cursor.fetchone()
                 ticker_type = ((type_row[0]) or 'ETF').upper() if type_row else 'ETF'
                 is_etf = (ticker_type == 'ETF')
 
                 # 1. 최근 N거래일 가격 데이터
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT date, open_price, high_price, low_price, close_price,
                            volume, daily_change_pct
                     FROM prices
-                    WHERE ticker = {param_placeholder}
+                    WHERE ticker = ?
                     ORDER BY date DESC
-                    LIMIT {param_placeholder}
+                    LIMIT ?
                 """, (ticker, days))
 
                 prices = cursor.fetchall()
@@ -94,9 +86,6 @@ class PerplexityService:
                         close_p = row[4]
                         volume = row[5]
                         change_pct = row[6]
-
-                        # 거래대금 계산 (억원)
-                        trading_value = (close_p * volume / 100_000_000) if close_p and volume else 0
 
                         context_parts.append(
                             f"| {price_date} | "
@@ -116,13 +105,13 @@ class PerplexityService:
                     context_parts.append("")
 
                 # 2. 매매동향 (투자자별 순매수) - 가격과 조인하여 금액 계산
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT tf.date, tf.individual_net, tf.institutional_net, tf.foreign_net, p.close_price
                     FROM trading_flow tf
                     LEFT JOIN prices p ON tf.ticker = p.ticker AND tf.date = p.date
-                    WHERE tf.ticker = {param_placeholder}
+                    WHERE tf.ticker = ?
                     ORDER BY tf.date DESC
-                    LIMIT {param_placeholder}
+                    LIMIT ?
                 """, (ticker, days))
 
                 flows = cursor.fetchall()
@@ -158,10 +147,10 @@ class PerplexityService:
                     context_parts.append("")
 
                 # 3. 최근 뉴스 (최대 10개)
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT date, title, url, source, relevance_score
                     FROM news
-                    WHERE ticker = {param_placeholder}
+                    WHERE ticker = ?
                     ORDER BY date DESC
                     LIMIT 10
                 """, (ticker,))
@@ -184,13 +173,13 @@ class PerplexityService:
 
                 # 4. 52주 최고/최저가 (최근 1년 데이터 기준)
                 one_year_ago = (datetime.now() - timedelta(days=365)).date()
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT
                         MAX(high_price) as max_high,
                         MIN(low_price) as min_low
                     FROM prices
-                    WHERE ticker = {param_placeholder}
-                      AND date >= {param_placeholder}
+                    WHERE ticker = ?
+                      AND date >= ?
                 """, (ticker, one_year_ago))
 
                 yearly_range = cursor.fetchone()
@@ -213,10 +202,10 @@ class PerplexityService:
 
                 # 5. 기술적 분석 지표 (이동평균선, RSI, MACD)
                 # 충분한 데이터 조회 (MA60 계산을 위해 최소 60일 + 여유분)
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT date, close_price, volume
                     FROM prices
-                    WHERE ticker = {param_placeholder}
+                    WHERE ticker = ?
                     ORDER BY date DESC
                     LIMIT 100
                 """, (ticker,))
@@ -253,11 +242,11 @@ class PerplexityService:
                     # 정배열/역배열 판단
                     if ma5 and ma20 and ma60:
                         if ma5 > ma20 > ma60:
-                            context_parts.append(f"- **추세**: 정배열 (상승 추세)")
+                            context_parts.append("- **추세**: 정배열 (상승 추세)")
                         elif ma5 < ma20 < ma60:
-                            context_parts.append(f"- **추세**: 역배열 (하락 추세)")
+                            context_parts.append("- **추세**: 역배열 (하락 추세)")
                         else:
-                            context_parts.append(f"- **추세**: 혼조 (횡보)")
+                            context_parts.append("- **추세**: 혼조 (횡보)")
 
                     context_parts.append("")
 
@@ -287,11 +276,11 @@ class PerplexityService:
                         context_parts.append("**RSI(14)**:")
                         context_parts.append(f"- RSI: {rsi:.1f}")
                         if rsi >= 70:
-                            context_parts.append(f"- **신호**: 과매수 구간 (≥70)")
+                            context_parts.append("- **신호**: 과매수 구간 (≥70)")
                         elif rsi <= 30:
-                            context_parts.append(f"- **신호**: 과매도 구간 (≤30)")
+                            context_parts.append("- **신호**: 과매도 구간 (≤30)")
                         else:
-                            context_parts.append(f"- **신호**: 중립")
+                            context_parts.append("- **신호**: 중립")
                         context_parts.append("")
 
                     # MACD 계산 (12일, 26일 지수이동평균)
@@ -314,14 +303,14 @@ class PerplexityService:
                         context_parts.append(f"- EMA12: {ema12:,.0f}원")
                         context_parts.append(f"- EMA26: {ema26:,.0f}원")
                         if macd_line > 0:
-                            context_parts.append(f"- **신호**: 상승 모멘텀 (MACD > 0)")
+                            context_parts.append("- **신호**: 상승 모멘텀 (MACD > 0)")
                         else:
-                            context_parts.append(f"- **신호**: 하락 모멘텀 (MACD < 0)")
+                            context_parts.append("- **신호**: 하락 모멘텀 (MACD < 0)")
                         context_parts.append("")
 
                 # 6. 동일 섹터 비교 ETF 수익률 (etfs 테이블에서 theme 기준)
-                cursor.execute(f"""
-                    SELECT theme FROM etfs WHERE ticker = {param_placeholder}
+                cursor.execute("""
+                    SELECT theme FROM etfs WHERE ticker = ?
                 """, (ticker,))
                 theme_row = cursor.fetchone()
 
@@ -330,10 +319,10 @@ class PerplexityService:
 
                     if theme:
                         # 동일 theme를 가진 다른 종목들 찾기
-                        cursor.execute(f"""
+                        cursor.execute("""
                             SELECT ticker, name, type
                             FROM etfs
-                            WHERE theme = {param_placeholder} AND ticker != {param_placeholder}
+                            WHERE theme = ? AND ticker != ?
                             LIMIT 5
                         """, (theme, ticker))
 
@@ -350,9 +339,9 @@ class PerplexityService:
                                 comp_name = etf_row[1]
 
                                 # 최근 가격 조회
-                                cursor.execute(f"""
+                                cursor.execute("""
                                     SELECT close_price FROM prices
-                                    WHERE ticker = {param_placeholder}
+                                    WHERE ticker = ?
                                     ORDER BY date DESC LIMIT 1
                                 """, (comp_ticker,))
                                 latest = cursor.fetchone()
@@ -361,17 +350,17 @@ class PerplexityService:
                                     latest_price = latest[0]
 
                                     # 1주일 전 가격
-                                    cursor.execute(f"""
+                                    cursor.execute("""
                                         SELECT close_price FROM prices
-                                        WHERE ticker = {param_placeholder}
+                                        WHERE ticker = ?
                                         ORDER BY date DESC LIMIT 1 OFFSET 5
                                     """, (comp_ticker,))
                                     week_ago = cursor.fetchone()
 
                                     # 1개월 전 가격
-                                    cursor.execute(f"""
+                                    cursor.execute("""
                                         SELECT close_price FROM prices
-                                        WHERE ticker = {param_placeholder}
+                                        WHERE ticker = ?
                                         ORDER BY date DESC LIMIT 1 OFFSET 20
                                     """, (comp_ticker,))
                                     month_ago = cursor.fetchone()
@@ -404,10 +393,10 @@ class PerplexityService:
                     context_parts.append("")
 
                     # 7-1. NAV 추이 및 총보수 (최근 30일)
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT date, nav, nav_change_pct, aum, tracking_error, expense_ratio
                         FROM etf_fundamentals
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                         ORDER BY date DESC
                         LIMIT 30
                     """, (ticker,))
@@ -462,10 +451,10 @@ class PerplexityService:
                         context_parts.append("")
 
                     # 7-2. 최근 분배금 지급 내역
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT record_date, payment_date, amount_per_share, distribution_type, yield_pct
                         FROM etf_distributions
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                         ORDER BY record_date DESC
                         LIMIT 5
                     """, (ticker,))
@@ -500,11 +489,11 @@ class PerplexityService:
                         context_parts.append("")
 
                     # 7-3. 최근 리밸런싱 내역
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT rebalance_date, action, stock_code, stock_name,
                                weight_before, weight_after, shares_change
                         FROM etf_rebalancing
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                         ORDER BY rebalance_date DESC
                         LIMIT 10
                     """, (ticker,))
@@ -539,12 +528,12 @@ class PerplexityService:
                         context_parts.append("")
 
                     # 7-4. 구성종목 상위 10개
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT stock_code, stock_name, weight, shares, market_value, sector
                         FROM etf_holdings
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                           AND date = (
-                              SELECT MAX(date) FROM etf_holdings WHERE ticker = {param_placeholder}
+                              SELECT MAX(date) FROM etf_holdings WHERE ticker = ?
                           )
                         ORDER BY weight DESC
                         LIMIT 10
@@ -588,9 +577,9 @@ class PerplexityService:
 
                 # 8. 주식 펀더멘털 데이터 (STOCK 종목만)
                 if not is_etf:
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT * FROM stock_fundamentals
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                         ORDER BY date DESC
                         LIMIT 1
                     """, (ticker,))
@@ -637,10 +626,10 @@ class PerplexityService:
                     context_parts.append("")
 
                     # 8-2. 배당 이력
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT record_date, amount_per_share, distribution_type, yield_pct
                         FROM stock_distributions
-                        WHERE ticker = {param_placeholder}
+                        WHERE ticker = ?
                         ORDER BY record_date DESC
                         LIMIT 5
                     """, (ticker,))
@@ -670,12 +659,6 @@ class PerplexityService:
             context_parts.append("")
 
         return "\n".join(context_parts)
-
-    def _get_api_key(self) -> str:
-        key = os.getenv("PERPLEXITY_API_KEY", "")
-        if not key or key.startswith("your_"):
-            raise ValueError("PERPLEXITY_API_KEY가 설정되지 않았습니다. Settings 페이지에서 API 키를 입력해주세요.")
-        return key
 
     def _load_template(self) -> str:
         if self._template is None:
@@ -846,182 +829,3 @@ class PerplexityService:
 ---
 
 위 템플릿 전체를 반영하여, 실제 투자 의사결정에 바로 활용 가능한 **고품질 통합 비교 리포트**를 작성하세요."""
-
-    def analyze(self, ticker: str, name: str, use_db_data: bool = True) -> dict:
-        """
-        Call Perplexity API to generate an investment analysis report.
-
-        Args:
-            ticker: Stock/ETF ticker code
-            name: Stock/ETF name
-            use_db_data: DB 데이터를 context로 사용할지 여부 (기본: True)
-
-        Returns:
-            dict with 'content' (Markdown report) and 'citations' (list of source URLs)
-
-        Raises:
-            ValueError: If API key is not configured
-            RuntimeError: If API call fails
-        """
-        api_key = self._get_api_key()
-
-        # DB 데이터를 context로 추가
-        db_context = None
-        if use_db_data:
-            logger.info(f"Fetching DB data for {ticker} to enhance prompt with RAG context")
-            db_context = self._fetch_db_context(ticker, name)
-            logger.info(f"DB context length: {len(db_context)} characters")
-
-        prompt = self._build_prompt(name, ticker, db_context)
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": PERPLEXITY_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            "temperature": PERPLEXITY_TEMPERATURE,
-        }
-
-        logger.info(f"Calling Perplexity API for {name}({ticker})")
-
-        try:
-            response = requests.post(
-                PERPLEXITY_API_URL,
-                json=payload,
-                headers=headers,
-                timeout=PERPLEXITY_TIMEOUT,
-            )
-            response.raise_for_status()
-        except requests.exceptions.Timeout:
-            logger.error(f"Perplexity API timeout for {ticker}")
-            raise RuntimeError("Perplexity API 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response is not None else "unknown"
-            logger.error(f"Perplexity API HTTP error {status} for {ticker}: {e}")
-            if status == 401:
-                raise RuntimeError("Perplexity API 키가 유효하지 않습니다. Settings에서 확인해주세요.")
-            elif status == 429:
-                raise RuntimeError("Perplexity API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.")
-            raise RuntimeError(f"Perplexity API 호출 실패 (HTTP {status})")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Perplexity API request error for {ticker}: {e}")
-            raise RuntimeError("Perplexity API 연결에 실패했습니다.")
-
-        data = response.json()
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected Perplexity API response format: {e}")
-            raise RuntimeError("Perplexity API 응답 형식이 올바르지 않습니다.")
-
-        # Extract citations from Perplexity response
-        citations = data.get("citations", [])
-
-        # Replace [1], [2], ... with markdown links to citations
-        if citations:
-            import re
-            def replace_citation(match):
-                idx = int(match.group(1))
-                if 1 <= idx <= len(citations):
-                    url = citations[idx - 1]
-                    return f"[[{idx}]]({url})"
-                return match.group(0)
-            content = re.sub(r'\[(\d+)\]', replace_citation, content)
-
-        logger.info(f"Perplexity analysis completed for {name}({ticker}), length={len(content)}, citations={len(citations)}")
-        return {"content": content, "citations": citations, "prompt": prompt}
-
-    def analyze_multi(self, stocks: list[dict]) -> dict:
-        """
-        Call Perplexity API to generate a combined investment analysis report for multiple stocks.
-
-        Args:
-            stocks: List of dicts with 'ticker' and 'name' keys
-
-        Returns:
-            dict with 'content' (Markdown report) and 'citations' (list of source URLs)
-        """
-        api_key = self._get_api_key()
-
-        # 각 종목의 DB 컨텍스트 수집 (RAG)
-        logger.info(f"Fetching DB data for multi-stock analysis: {len(stocks)} stocks")
-        db_contexts = []
-        for stock in stocks:
-            ctx = self._fetch_db_context(stock['ticker'], stock['name'])
-            db_contexts.append(ctx)
-        combined_context = "\n\n".join(db_contexts)
-
-        base_prompt = self._build_multi_prompt(stocks)
-        prompt = f"{combined_context}\n\n---\n\n{base_prompt}"
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": PERPLEXITY_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            "temperature": PERPLEXITY_TEMPERATURE,
-        }
-
-        names = ", ".join(f"{s['name']}({s['ticker']})" for s in stocks)
-        logger.info(f"Calling Perplexity API for multi-stock analysis: {names}")
-
-        try:
-            response = requests.post(
-                PERPLEXITY_API_URL,
-                json=payload,
-                headers=headers,
-                timeout=PERPLEXITY_TIMEOUT * 2,
-            )
-            response.raise_for_status()
-        except requests.exceptions.Timeout:
-            logger.error(f"Perplexity API timeout for multi-stock: {names}")
-            raise RuntimeError("Perplexity API 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response is not None else "unknown"
-            logger.error(f"Perplexity API HTTP error {status} for multi-stock: {e}")
-            if status == 401:
-                raise RuntimeError("Perplexity API 키가 유효하지 않습니다. Settings에서 확인해주세요.")
-            elif status == 429:
-                raise RuntimeError("Perplexity API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.")
-            raise RuntimeError(f"Perplexity API 호출 실패 (HTTP {status})")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Perplexity API request error for multi-stock: {e}")
-            raise RuntimeError("Perplexity API 연결에 실패했습니다.")
-
-        data = response.json()
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected Perplexity API response format: {e}")
-            raise RuntimeError("Perplexity API 응답 형식이 올바르지 않습니다.")
-
-        citations = data.get("citations", [])
-
-        if citations:
-            import re
-            def replace_citation(match):
-                idx = int(match.group(1))
-                if 1 <= idx <= len(citations):
-                    url = citations[idx - 1]
-                    return f"[[{idx}]]({url})"
-                return match.group(0)
-            content = re.sub(r'\[(\d+)\]', replace_citation, content)
-
-        logger.info(f"Perplexity multi-stock analysis completed for {names}, length={len(content)}, citations={len(citations)}")
-        return {"content": content, "citations": citations, "prompt": prompt}

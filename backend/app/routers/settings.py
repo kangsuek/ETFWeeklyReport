@@ -70,7 +70,6 @@ def load_api_keys_to_env():
             Config.NAVER_CLIENT_ID = keys["NAVER_CLIENT_ID"]
         if "NAVER_CLIENT_SECRET" in keys:
             Config.NAVER_CLIENT_SECRET = keys["NAVER_CLIENT_SECRET"]
-        # PERPLEXITY_API_KEY는 os.environ으로만 관리 (Config 속성 불필요)
 
 # Initialize ticker scraper
 ticker_scraper = TickerScraper()
@@ -621,7 +620,6 @@ class ApiKeysUpdate(BaseModel):
     """API 키 업데이트 요청 모델"""
     NAVER_CLIENT_ID: Optional[str] = None
     NAVER_CLIENT_SECRET: Optional[str] = None
-    PERPLEXITY_API_KEY: Optional[str] = None
 
 
 @router.get("/api-keys")
@@ -666,7 +664,6 @@ async def update_api_keys(
     **Request Body:**
     - NAVER_CLIENT_ID: 네이버 API Client ID
     - NAVER_CLIENT_SECRET: 네이버 API Client Secret
-    - PERPLEXITY_API_KEY: Perplexity AI API Key
 
     **Status Codes:**
     - 200: Successfully saved
