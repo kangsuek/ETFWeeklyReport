@@ -34,7 +34,6 @@ from app.constants import (
     CACHE_TTL_SLOW_CHANGING,
 )
 import asyncio
-import sqlite3
 import logging
 import os
 
@@ -100,7 +99,7 @@ async def get_etfs(collector: ETFDataCollector = Depends(get_collector)):
         result = collector.get_all_etfs()
         cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATIC)  # 5분 캐싱 (정적 데이터)
         return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching ETFs: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -240,7 +239,7 @@ async def compare_etfs(
     except ValidationException as e:
         logger.error(f"Validation error in compare_etfs: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error in compare_etfs: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
@@ -292,7 +291,7 @@ async def get_etf(etf: ETF = Depends(get_etf_or_404)):
         return etf
     except HTTPException:
         raise
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching ETF {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -408,7 +407,7 @@ async def get_prices(
         cache.set(cache_key, prices, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (가격 데이터)
         return prices
 
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching prices for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -470,7 +469,7 @@ async def collect_prices(
             "collected": saved_count,
             "message": f"Successfully collected {saved_count} price records"
         }
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error collecting data for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
@@ -534,7 +533,7 @@ async def get_trading_flow(
         cache.set(cache_key, trading_data, ttl_seconds=CACHE_TTL_FAST_CHANGING)  # 30초 캐싱 (매매동향)
         return trading_data
 
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -582,7 +581,7 @@ async def collect_trading_flow(
             "message": f"Successfully collected {saved_count} trading flow records"
         }
 
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error collecting trading flow for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
@@ -662,7 +661,7 @@ async def get_metrics(
         result = collector.get_etf_metrics(etf.ticker)
         cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (지표)
         return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching metrics for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -740,7 +739,7 @@ async def get_insights(
         result = insights_service.get_insights(etf.ticker, period)
         cache.set(cache_key, result, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱
         return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching insights for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
@@ -1357,6 +1356,6 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                 'fundamentals': fundamentals,
                 'holdings': holdings,
             }
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching fundamentals for {ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)

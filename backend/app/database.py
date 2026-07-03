@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from threading import Lock
 from queue import Queue, Empty
 from app.config import Config
+from app.exceptions import DatabaseException
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,9 @@ def get_db_connection():
     try:
         # SQLite connection already has row_factory set to sqlite3.Row
         yield conn
+    except sqlite3.Error as e:
+        # DB 구현 세부(sqlite3)를 상위 계층에 노출하지 않도록 앱 예외로 변환
+        raise DatabaseException(str(e)) from e
     finally:
         pool.return_connection(conn)
 

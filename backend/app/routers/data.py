@@ -29,7 +29,6 @@ from app.constants import (
     CACHE_TTL_STATUS,
     CACHE_TTL_STATS,
 )
-import sqlite3
 import logging
 import os
 
@@ -189,7 +188,7 @@ async def collect_all_data(
             "message": f"Data collection completed for {result['total_tickers']} tickers",
             "result": result
         }
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error during batch collection: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
@@ -230,7 +229,7 @@ async def backfill_data(
             "message": f"Backfill completed for {result['total_tickers']} tickers ({days} days)",
             "result": result
         }
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error during backfill: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_BACKFILL)
     except ScraperException as e:
@@ -287,7 +286,7 @@ async def get_collection_status(request: Request):
         }
         cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATUS)  # 10초 캐싱 (상태 정보)
         return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error getting collection status: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
@@ -321,7 +320,7 @@ async def get_scheduler_status(request: Request):
         }
         cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATUS)  # 10초 캐싱 (상태 정보)
         return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error getting scheduler status: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
@@ -439,7 +438,7 @@ async def get_data_stats(request: Request):
             }
             cache.set(cache_key, result, ttl_seconds=CACHE_TTL_STATS)  # 1분 캐싱 (통계 정보)
             return result
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error getting stats: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except Exception as e:
@@ -679,7 +678,7 @@ async def reset_database(request: Request, api_key: str = Depends(verify_api_key
                     "intraday_prices": intraday_prices_count
                 }
             }
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error during reset: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_RESET)
     except Exception as e:

@@ -4,7 +4,7 @@ from datetime import date
 from app.models import NewsListResponse, NewsWithAnalysis, ETF
 from app.services.news_scraper import NewsScraper
 from app.services.news_analyzer import NewsAnalyzer
-from app.exceptions import ValidationException, ScraperException
+from app.exceptions import DatabaseException, ValidationException, ScraperException
 from app.utils.date_utils import apply_default_dates
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, verify_api_key_dependency
@@ -19,7 +19,6 @@ from app.constants import (
     CACHE_TTL_SLOW_CHANGING,
 )
 import asyncio
-import sqlite3
 import logging
 import os
 
@@ -159,7 +158,7 @@ async def get_news(
         cache.set(cache_key, response, ttl_seconds=CACHE_TTL_SLOW_CHANGING)  # 1분 캐싱 (뉴스)
         return response
 
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error fetching news for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE)
     except ValidationException as e:
@@ -195,7 +194,7 @@ async def collect_news(
         result['name'] = etf.name
         return result
 
-    except sqlite3.Error as e:
+    except DatabaseException as e:
         logger.error(f"Database error collecting news for {etf.ticker}: {e}")
         raise HTTPException(status_code=500, detail=ERROR_DATABASE_COLLECTION)
     except ScraperException as e:
