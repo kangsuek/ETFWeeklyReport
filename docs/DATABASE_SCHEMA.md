@@ -1,9 +1,8 @@
 # 데이터베이스 스키마
 
 ## 개요
-- **개발 환경**: SQLite (`backend/data/etf_data.db` 또는 `DATABASE_URL` 지정 경로)
-- **프로덕션**: PostgreSQL 권장
-- **ORM**: 없음 (직접 SQL 사용)
+- **DB**: SQLite 전용 (`backend/data/etf_data.db`, `DATABASE_URL=sqlite:///...`로 경로만 변경 가능)
+- **ORM**: 없음 (직접 SQL 사용, `get_db_connection()` + `get_cursor()` 경유)
 - **종목 마스터**: `backend/config/stocks.json` + DB `etfs` 테이블 동기화
 
 ## 테이블 목록
@@ -424,11 +423,6 @@ CREATE INDEX idx_stock_distributions_ticker_date ON stock_distributions(ticker, 
 
 ## 쿼리 예제
 
-### 전체 종목 목록
-```sql
-SELECT * FROM etfs;
-```
-
 ### 특정 종목 최근 7일 가격
 ```sql
 SELECT date, open_price, high_price, low_price, close_price, volume, daily_change_pct
@@ -457,5 +451,4 @@ FROM collection_status;
 ---
 
 ## 참고
-- PostgreSQL 사용 시 `init_db()`에서 SERIAL, ON CONFLICT 등으로 스키마가 동일하게 생성됨.
 - 초기 종목 데이터는 `Config.get_stock_config()`(stocks.json)에서 읽어 `etfs`에 INSERT.

@@ -11,22 +11,16 @@
 | **pydantic-settings** | 2.1.0 | Environment variable-based configuration |
 | **pandas** | 2.1.3 | Data analysis and processing |
 | **numpy** | 1.26.2 | Numerical computation |
-| **requests** | 2.31.0 | HTTP requests (synchronous) |
-| **BeautifulSoup4** | 4.12.2 | HTML parsing |
-| **lxml** | 4.9.3 | Accelerated XML/HTML parsing |
-| **finance-datareader** | 0.9.96 | Financial data collection helper |
+| **requests** | 2.31.0 | HTTP requests (Naver Finance scraping) |
 | **aiofiles** | 23.2.1 | Asynchronous file I/O |
 | **APScheduler** | 3.10.4 | Scheduled tasks (daily data collection) |
+| **pytz / python-dateutil** | 2023.3 / 2.8.2 | Timezone (KST) and date handling |
 | **slowapi** | 0.1.9 | Rate limiting |
 | **limits** | 4.2 | Rate limit backend |
 | **python-dotenv** | 1.0.0 | Load root `.env` |
 | **python-multipart** | 0.0.6 | Multipart form parsing |
 | **structlog** | 23.2.0 | Structured logging |
-| **Selenium** | 4.15.2 | Browser automation (candlestick charts, etc.) |
-| **webdriver-manager** | 4.0.1 | WebDriver automated management |
-| **psycopg2-binary** | 2.9.9 | PostgreSQL driver (production) |
-| **SQLite** | - | Development/Basic DB |
-| **PostgreSQL** | - | Production DB (Optional) |
+| **SQLite** | - | Database (this branch is SQLite-only) |
 
 **Primary Data Sources**: Naver Finance (prices, trading trends, tick data), Naver Search API (News)
 
@@ -68,7 +62,7 @@
 |------|------|
 | **Frontend** | Vite build → `dist/` static hosting (Render Static Site, Vercel, Netlify, etc.) |
 | **Backend** | Uvicorn-based (Render Web Service, Railway, Fly.io, etc.). `render.yaml` Blueprint support. |
-| **Database** | SQLite (local·default) or PostgreSQL (production on Render etc.) |
+| **Database** | SQLite (`DATABASE_URL`로 파일 경로만 변경 가능) |
 
 Version locking: Backend refer to `requirements.txt` / `requirements-dev.txt`, Frontend refer to `package.json` (^ scope).
 

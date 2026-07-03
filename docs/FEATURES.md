@@ -69,7 +69,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 #### 1.7 종목 비교
 - **GET `/api/etfs/compare`** - 여러 종목 비교
-  - 쿼리: `tickers` (2–6개, 쉼표 구분), `start_date`, `end_date`
+  - 쿼리: `tickers` (2–20개, 쉼표 구분), `start_date`, `end_date`
   - 정규화 가격(시작일=100), 종목별 통계, 상관관계 행렬
   - 캐시: 1분
 
@@ -78,6 +78,11 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
   - Body: `tickers`, `price_days`, `news_limit`
   - 종목별 최신 가격, 차트용 가격, 매매동향, 뉴스 반환 (N+1 최적화)
   - 캐시: 30초
+
+#### 1.9 펀더멘털 · AI 프롬프트
+- **GET `/api/etfs/{ticker}/fundamentals`** - DB 저장 펀더멘털 조회 (STOCK/ETF 구분)
+- **GET `/api/etfs/{ticker}/ai-prompt`** - 단일 종목 AI 분석 프롬프트 생성
+- **POST `/api/etfs/ai-prompt-multi`** - 복수 종목 통합 비교 프롬프트 생성
 
 ### 2. 뉴스 (`/api/news`)
 
@@ -117,7 +122,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 #### 3.3 캐시 관리
 - **GET `/api/data/cache/stats`** - 캐시 통계 (히트율, 미스율, 크기)
-- **DELETE `/api/data/cache/clear`** - 캐시 전체 삭제 (API Key 필요)
+- 요청 헤더 `X-No-Cache: true` — 해당 티커의 캐시 무효화 (프론트 새로고침 용도)
 
 #### 3.4 데이터베이스 관리
 - **DELETE `/api/data/reset`** - DB 초기화 (위험)
@@ -278,7 +283,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - 설정에서 기본값(7D/1M/3M) 변경 가능
 
 #### 통계·차트
-- **StatsSummary**: 기간 수익률, 연환산 수익률, 최대/최소 가격, 평균 거래량, 변동성, MDD, 샤프 비율
+- **ETFKeyMetrics**: 핵심 지표 (1주/1개월/YTD 수익률, 연환산 변동성, MDD, 샤프 비율 — 백엔드 metrics API 표시)
+- **ETFFundamentalInfo**: 펀더멘털 (STOCK: PER/PBR/ROE 등, ETF: NAV/AUM 등)
 - **PriceChart**: 캔들스틱(시고저종), 거래량 토글, 반응형, 스크롤 동기화
 - **TradingFlowChart**: 개인/기관/외국인 순매수 막대 차트, 가격 차트와 스크롤 동기화
 - **IntradayChart**: 분봉 차트(당일/지정일)
@@ -293,7 +299,7 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 
 ### 3. 종목 비교 (`/compare`)
 
-- **TickerSelector**: 드롭다운 멀티 셀렉트, 2–6개, 종목별 색상
+- **TickerSelector**: 드롭다운 멀티 셀렉트, 2–20개, 종목별 색상
 - 날짜 범위: 프리셋(7일/1개월/3개월), 커스텀
 - **NormalizedPriceChart**: 시작일=100 정규화 라인 차트, 툴팁
 - **ComparisonTable**: 수익률, 연환산 수익률, 변동성, MDD, 샤프, 데이터 개수, 색상 코딩
@@ -362,8 +368,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - 종목 카탈로그 수집 버튼
 
 #### 데이터 관리 (DataManagementPanel)
-- 전체 수집, 백필 버튼
-- DB 통계, 캐시 통계, 캐시 클리어, DB 초기화(위험)
+- 데이터 통계, 전체 수집·종목 목록 수집 버튼
+- DB 초기화(위험 작업, 확인 모달)
 
 #### 저장
 - 설정은 LocalStorage 저장, 실시간 반영
@@ -423,10 +429,8 @@ Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(
 ## 데이터 수집
 
 ### 자동 수집(스케줄러)
-- **실행**: 평일 15:30 (KST) 장 마감 후
-- **대상**: 등록된 모든 종목
-- **내용**: 당일 가격, 매매동향
-- **재시도**: 실패 시 5분 후 재시도(최대 3회)
+- **주기 수집**: N분 간격(설정값) — 가격·매매동향·뉴스
+- **일일 수집**: 평일 15:30 (KST) 장 마감 후, 등록된 모든 종목의 당일 가격·매매동향
 
 ### 수동 수집
 - **POST `/api/data/collect-all`**: 1–365일(기본 1일), API Key 필요
@@ -477,7 +481,7 @@ Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(
 
 ## 배포
 
-- **백엔드**: FastAPI, Uvicorn, SQLite(개발)/PostgreSQL(프로덕션), APScheduler
+- **백엔드**: FastAPI, Uvicorn, SQLite, APScheduler
 - **프론트엔드**: Vite 빌드, 정적 파일 서빙, `.env` 환경 변수
 
 ---
@@ -494,5 +498,5 @@ Claude Code·Claude Desktop 등 MCP 호환 앱에서 ETF 데이터를 AI 도구(
 - [SDK_MCP_SETUP_GUIDE.md](./SDK_MCP_SETUP_GUIDE.md) - SDK/MCP 서버 설정
 - [TECH_STACK.md](./TECH_STACK.md) - 기술 스택
 - [BRANCHES.md](./BRANCHES.md) - Git 브랜치 전략
-- [../frontend/DEPLOYMENT.md](../frontend/DEPLOYMENT.md) - Render.com 배포
-- [detail_features/3-7.IntradayChart.md](./detail_features/3-7.IntradayChart.md) - 분봉 조회·수집
+- [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) - Render.com 배포
+- [detail_features/](./detail_features/) - 화면·컴포넌트별 상세 문서
