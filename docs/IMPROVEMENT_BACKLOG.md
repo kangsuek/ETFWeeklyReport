@@ -16,9 +16,9 @@
 | P2-2.1 (Perplexity 데드코드) | **완료** | 호출부 삭제 + settings 키 플러밍 제거 |
 | P2-2.2~2.4 (데드코드/상수) | **완료** | |
 | P2-2.5 (미소비 엔드포인트) | **완료** | 3개 제거, 문서·SDK 재생성 |
-| P3-3.1 (지표 계산 일원화) | 미착수 | 대규모 — 별도 세션 권장 |
+| P3-3.1 (지표 계산 일원화) | **완료** | 뉴스 감성·인사이트 계산 백엔드 이식, metrics_service 신설(정본), 데드코드 StatsSummary/returns.js 삭제, docs/METRICS_SPEC.md 명세. 차트 RSI/MACD 라인만 시각화용 프론트 계산 유지 |
 | P3-3.2 (포맷터 이중화) | **완료** | formatters.js → format.js 흡수 |
-| P3-3.3 (거대 파일 분리) | 미착수 | 대규모 — 별도 세션 권장 |
+| P3-3.3 (거대 파일 분리) | **완료** | data_collector 3분할(903/490/370줄), etfs 라우터 서비스 위임(1,112줄), ETFDetail 섹션 추출(631줄), settings에서 api_keys 분리. Playwright로 전 화면 동작 확인 |
 | P3-3.4 (소소한 중복) | **완료** | CACHE_TTL → config.py, 배포 문서에 단일 프로세스 제약 명시 |
 | P4 (문서 불일치) | **완료** | CLAUDE.md·BRANCHES.md·API 문서 현행화 |
 
