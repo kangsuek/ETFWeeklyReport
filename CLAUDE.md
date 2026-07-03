@@ -83,4 +83,5 @@ New endpoints: update [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md).
 - [AGENTS.md](./AGENTS.md) — commands, code style, testing conventions
 - [docs/FEATURES.md](./docs/FEATURES.md) · [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) · [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) · [docs/API_MANUAL.md](./docs/API_MANUAL.md) · [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) · [docs/TECH_STACK.md](./docs/TECH_STACK.md)
+- [docs/METRICS_SPEC.md](./docs/METRICS_SPEC.md) — 지표 산식 명세 (계산은 백엔드가 정본, 프론트는 표시만)
 - [docs/SDK_MCP_SETUP_GUIDE.md](./docs/SDK_MCP_SETUP_GUIDE.md) · [docs/BRANCHES.md](./docs/BRANCHES.md) · [docs/RENDER_DEPLOYMENT.md](./docs/RENDER_DEPLOYMENT.md)
