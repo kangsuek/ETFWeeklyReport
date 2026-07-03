@@ -166,7 +166,6 @@ def init_db():
     integer_type = "INTEGER"
     timestamp_default = "DEFAULT CURRENT_TIMESTAMP"
     insert_ignore = "OR IGNORE"
-    param_placeholder = "?"
 
     # Create tables
     cursor.execute(f"""
@@ -630,7 +629,7 @@ def init_db():
 
     cursor.executemany(f"""
         INSERT {insert_ignore} INTO etfs (ticker, name, type, theme, purchase_date, purchase_price, quantity, search_keyword, relevance_keywords)
-        VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, etfs_data)
 
     conn.commit()
@@ -664,14 +663,12 @@ def update_collection_status(ticker: str,
     """
     from datetime import datetime
 
-    param_placeholder = "?"
-
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
         # 현재 상태 조회
-        cursor.execute(f"""
-            SELECT * FROM collection_status WHERE ticker = {param_placeholder}
+        cursor.execute("""
+            SELECT * FROM collection_status WHERE ticker = ?
         """, (ticker,))
         current = cursor.fetchone()
 
@@ -683,28 +680,28 @@ def update_collection_status(ticker: str,
             params = []
 
             if price_date:
-                updates.append(f"last_price_date = {param_placeholder}")
+                updates.append("last_price_date = ?")
                 params.append(price_date)
 
             if trading_flow_date:
-                updates.append(f"last_trading_flow_date = {param_placeholder}")
+                updates.append("last_trading_flow_date = ?")
                 params.append(trading_flow_date)
 
             if news_collected:
-                updates.append(f"last_news_collected_at = {param_placeholder}")
+                updates.append("last_news_collected_at = ?")
                 params.append(now)
 
-            updates.append(f"last_collection_attempt = {param_placeholder}")
+            updates.append("last_collection_attempt = ?")
             params.append(now)
 
             if success:
-                updates.append(f"last_successful_collection = {param_placeholder}")
+                updates.append("last_successful_collection = ?")
                 updates.append("consecutive_failures = 0")
                 params.append(now)
             else:
                 updates.append("consecutive_failures = consecutive_failures + 1")
 
-            updates.append(f"updated_at = {param_placeholder}")
+            updates.append("updated_at = ?")
             params.append(now)
 
             params.append(ticker)
@@ -712,16 +709,16 @@ def update_collection_status(ticker: str,
             cursor.execute(f"""
                 UPDATE collection_status
                 SET {', '.join(updates)}
-                WHERE ticker = {param_placeholder}
+                WHERE ticker = ?
             """, params)
         else:
             # 새 레코드 삽입
-            cursor.execute(f"""
+            cursor.execute("""
                 INSERT INTO collection_status
                 (ticker, last_price_date, last_trading_flow_date,
                  last_news_collected_at, last_collection_attempt,
                  last_successful_collection, consecutive_failures)
-                VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 ticker,
                 price_date,
@@ -745,14 +742,12 @@ def get_collection_status(ticker: str = None):
     Returns:
         dict or list: 수집 상태 정보
     """
-    param_placeholder = "?"
-
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
         if ticker:
-            cursor.execute(f"""
-                SELECT * FROM collection_status WHERE ticker = {param_placeholder}
+            cursor.execute("""
+                SELECT * FROM collection_status WHERE ticker = ?
             """, (ticker,))
             result = cursor.fetchone()
             return dict(result) if result else None
