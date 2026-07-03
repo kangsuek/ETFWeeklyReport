@@ -843,47 +843,6 @@
         }
       }
     },
-    "/api/etfs/{ticker}/collect-fundamentals": {
-      "post": {
-        "tags": [
-          "ETFs"
-        ],
-        "summary": "Collect Fundamentals",
-        "description": "종목 펀더멘털 데이터를 수집하여 DB에 저장합니다.\n- type=STOCK: 네이버 기업실적분석 테이블에서 PER/PBR/ROE/EPS 등 수집\n- type=ETF:   네이버 NAV 추이, 펀드보수, 구성종목 수집",
-        "operationId": "collect_fundamentals_api_etfs__ticker__collect_fundamentals_post",
-        "parameters": [
-          {
-            "name": "ticker",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Ticker"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/etfs/{ticker}/fundamentals": {
       "get": {
         "tags": [
@@ -1125,56 +1084,6 @@
             }
           }
         }
-      }
-    },
-    "/api/data/collect-fundamentals": {
-      "post": {
-        "tags": [
-          "Data Collection"
-        ],
-        "summary": "Collect All Fundamentals",
-        "description": "전체 종목 펀더멘털 수집 (배치)\n\netfs 테이블의 모든 종목에 대해 type별로 펀더멘털 데이터를 수집합니다.\n- STOCK: 네이버 기업실적분석 테이블 → stock_fundamentals\n- ETF: 네이버 NAV 추이 + 구성종목 → etf_fundamentals, etf_holdings",
-        "operationId": "collect_all_fundamentals_api_data_collect_fundamentals_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ]
-      }
-    },
-    "/api/data/cache/clear": {
-      "delete": {
-        "tags": [
-          "Data Collection"
-        ],
-        "summary": "Clear Cache",
-        "description": "캐시 전체 삭제\n\n모든 캐시 데이터를 삭제합니다.\n\n**Status Codes:**\n- 200: 성공",
-        "operationId": "clear_cache_api_data_cache_clear_delete",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ]
       }
     },
     "/api/data/reset": {
@@ -1805,7 +1714,7 @@
           "Settings"
         ],
         "summary": "Update Api Keys",
-        "description": "API 키 저장 및 즉시 적용\n\n**Request Body:**\n- NAVER_CLIENT_ID: 네이버 API Client ID\n- NAVER_CLIENT_SECRET: 네이버 API Client Secret\n- PERPLEXITY_API_KEY: Perplexity AI API Key\n\n**Status Codes:**\n- 200: Successfully saved\n- 500: Server error",
+        "description": "API 키 저장 및 즉시 적용\n\n**Request Body:**\n- NAVER_CLIENT_ID: 네이버 API Client ID\n- NAVER_CLIENT_SECRET: 네이버 API Client Secret\n\n**Status Codes:**\n- 200: Successfully saved\n- 500: Server error",
         "operationId": "update_api_keys_api_settings_api_keys_put",
         "security": [
           {
@@ -2173,6 +2082,24 @@
             "description": "ETF / STOCK / ALL"
           },
           {
+            "name": "market",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시장 필터: ETF / KOSPI / KOSDAQ",
+              "title": "Market"
+            },
+            "description": "시장 필터: ETF / KOSPI / KOSDAQ"
+          },
+          {
             "name": "sector",
             "in": "query",
             "required": false,
@@ -2444,12 +2371,36 @@
         "summary": "Trigger Collect Data",
         "description": "카탈로그 데이터 수동 수집 트리거",
         "operationId": "trigger_collect_data_api_scanner_collect_data_post",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "최근 수집 여부와 무관하게 강제로 다시 수집",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "최근 수집 여부와 무관하게 강제로 다시 수집"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -2863,17 +2814,6 @@
               }
             ],
             "title": "Naver Client Secret"
-          },
-          "PERPLEXITY_API_KEY": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Perplexity Api Key"
           }
         },
         "type": "object",
@@ -3234,6 +3174,17 @@
               }
             ],
             "title": "Sharpe Ratio"
+          },
+          "ytd_start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ytd Start Date"
           }
         },
         "type": "object",
@@ -3413,6 +3364,18 @@
             "type": "string",
             "format": "date",
             "title": "Date"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
           },
           "title": {
             "type": "string",

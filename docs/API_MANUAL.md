@@ -720,28 +720,6 @@ X-API-Key: your-api-key
 
 ---
 
-### POST /api/etfs/{ticker}/collect-fundamentals
-
-해당 종목의 펀더멘털 데이터를 수집하여 DB에 저장합니다.
-
-- **STOCK**: 네이버 기업실적분석 → `stock_fundamentals`
-- **ETF**: 네이버 NAV 추이, 펀드보수, 구성종목 → `etf_fundamentals`, `etf_holdings`
-
-**요청 예시**
-
-```http
-POST /api/etfs/487240/collect-fundamentals HTTP/1.1
-Host: localhost:8000
-```
-
-**응답**
-
-- `ticker`, `type`, 수집 결과 객체
-
-**상태 코드**: 200, 404, 500
-
----
-
 ### POST /api/etfs/batch-summary
 
 대시보드용 배치 요약(종목별 요약 정보)을 반환합니다.
@@ -1156,78 +1134,6 @@ Host: localhost:8000
 ```
 
 **상태 코드**: 200, 500
-
----
-
-### POST /api/data/collect-fundamentals
-
-전체 종목(etfs 테이블 기준)에 대해 펀더멘털을 일괄 수집합니다. (API Key 필요)
-
-**요청 예시**
-
-```http
-POST /api/data/collect-fundamentals HTTP/1.1
-Host: localhost:8000
-X-API-Key: your-api-key
-```
-
-**응답**
-
-- `total`, `success`, `failed`, `results` (종목별 성공/실패)
-
-**응답 예시**
-
-```json
-{
-  "total": 6,
-  "success": 5,
-  "failed": 1,
-  "results": [
-    {
-      "ticker": "487240",
-      "type": "ETF",
-      "success": true,
-      "result": {}
-    },
-    {
-      "ticker": "042660",
-      "type": "STOCK",
-      "success": false,
-      "error": "Scraper timeout"
-    }
-  ]
-}
-```
-
-**상태 코드**: 200, 401, 500
-
----
-
-### DELETE /api/data/cache/clear
-
-메모리 캐시를 전체 삭제합니다. (API Key 필요)
-
-**요청 예시**
-
-```http
-DELETE /api/data/cache/clear HTTP/1.1
-Host: localhost:8000
-X-API-Key: your-api-key
-```
-
-**응답**
-
-- `message`: "Cache cleared successfully"
-
-**응답 예시**
-
-```json
-{
-  "message": "Cache cleared successfully"
-}
-```
-
-**상태 코드**: 200, 401, 500
 
 ---
 

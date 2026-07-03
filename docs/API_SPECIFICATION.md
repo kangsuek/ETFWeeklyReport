@@ -38,7 +38,6 @@
 | POST | `/api/etfs/{ticker}/collect` | 가격·매매동향 수집. Query: `days`. API Key 권장 |
 | POST | `/api/etfs/{ticker}/collect-trading-flow` | 매매동향 수집. Query: `days`. API Key 권장 |
 | POST | `/api/etfs/{ticker}/collect-intraday` | 분봉 수집. Query: `pages`. API Key 권장 |
-| POST | `/api/etfs/{ticker}/collect-fundamentals` | 펀더멘털 수집 (STOCK: 실적, ETF: NAV/구성종목) |
 | POST | `/api/etfs/batch-summary` | 배치 요약(대시보드용). Body: `tickers`, `price_days`, `news_limit` |
 
 ---
@@ -59,12 +58,10 @@
 | GET | `/api/data/collect-progress` | 전체 수집 진행률 (idle/in_progress/completed) |
 | POST | `/api/data/collect-all` | 전체 종목 일괄 수집(가격·매매동향·뉴스·**펀더멘털** 포함). Query: `days` (1~365). API Key 필요 |
 | POST | `/api/data/backfill` | 히스토리 백필. Query: `days`. API Key 필요 |
-| POST | `/api/data/collect-fundamentals` | 전체 종목 펀더멘털 단독 일괄 수집. API Key 필요 |
 | GET | `/api/data/status` | 종목별 수집 상태 |
 | GET | `/api/data/scheduler-status` | 스케줄러 상태(마지막 수집 시각 등) |
 | GET | `/api/data/stats` | DB 통계(테이블별 건수, DB 크기 등) |
 | GET | `/api/data/cache/stats` | 캐시 통계 |
-| DELETE | `/api/data/cache/clear` | 캐시 전체 삭제. API Key 필요 |
 | DELETE | `/api/data/reset` | DB 초기화(가격·뉴스·매매동향·분봉 삭제). API Key 필요 |
 
 ---

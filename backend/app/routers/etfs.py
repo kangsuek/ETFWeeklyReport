@@ -1024,7 +1024,7 @@ async def get_intraday_prices(
                 bg_collect_triggered = True
                 # 기존 데이터가 있으면 증분 수집 (빠름), 없으면 전체 수집
                 use_incremental = bool(intraday_data)
-                log_msg = f"incremental re-collect" if use_incremental else "full collect (no data)"
+                log_msg = "incremental re-collect" if use_incremental else "full collect (no data)"
                 logger.debug(f"Intraday {log_msg} for {etf.ticker}, starting background collection")
 
                 def _run_intraday_collect(ticker: str, incremental: bool) -> None:
@@ -1258,43 +1258,6 @@ async def get_ai_prompt_multi(
     except Exception as e:
         logger.error(f"Multi-prompt generation error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/{ticker}/collect-fundamentals")
-async def collect_fundamentals(etf: ETF = Depends(get_etf_or_404)):
-    """
-    종목 펀더멘털 데이터를 수집하여 DB에 저장합니다.
-    - type=STOCK: 네이버 기업실적분석 테이블에서 PER/PBR/ROE/EPS 등 수집
-    - type=ETF:   네이버 NAV 추이, 펀드보수, 구성종목 수집
-    """
-    ticker = etf.ticker
-    etf_type = etf.type
-
-    try:
-        if etf_type == 'STOCK':
-            result = await asyncio.to_thread(
-                _collect_stock_fundamentals_sync, ticker
-            )
-        else:
-            result = await asyncio.to_thread(
-                _collect_etf_fundamentals_sync, ticker
-            )
-        return result
-    except Exception as e:
-        logger.error(f"collect_fundamentals error for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"펀더멘털 수집 중 오류가 발생했습니다: {str(e)}")
-
-
-def _collect_stock_fundamentals_sync(ticker: str) -> dict:
-    from app.services.stock_fundamentals_collector import collect_stock_fundamentals
-    return collect_stock_fundamentals(ticker)
-
-
-def _collect_etf_fundamentals_sync(ticker: str) -> dict:
-    from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
-    collector = ETFFundamentalsCollector()
-    result = collector.collect_all(ticker)
-    return {'ticker': ticker, 'type': 'ETF', 'result': result}
 
 
 @router.get("/{ticker}/fundamentals")
