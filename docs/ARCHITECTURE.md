@@ -57,7 +57,7 @@ backend/app/
 │   ├── data.py          # /api/data — 일괄 수집, 백필, 상태, 스케줄러 상태, 캐시, DB 초기화
 │   ├── settings.py      # /api/settings — 종목 CRUD, 검색, 검증, 순서 변경, 종목 목록 수집
 │   ├── api_keys.py      # /api/settings/api-keys — API 키 조회·저장
-│   ├── alerts.py        # /api/alerts — 알림 규칙 CRUD, 트리거 기록, 이력 조회
+│   ├── alerts.py        # /api/alerts — 알림 규칙 CRUD, 트리거 기록, 이력 조회, 상승흐름 신호/이력/읽음
 │   ├── scanner.py       # /api/scanner — 조건 검색, 테마 탐색, 추천, 데이터 수집
 │   └── simulation.py    # /api/simulation — 일시투자, 적립식(DCA), 포트폴리오 시뮬레이션
 ├── services/
@@ -76,7 +76,8 @@ backend/app/
 │   ├── perplexity_service.py     # AI 분석 프롬프트 생성
 │   ├── catalog_data_collector.py # 스크리닝용 카탈로그 데이터 수집 (가격·수급)
 │   ├── progress.py               # 백그라운드 작업 진행률 관리
-│   ├── scheduler.py              # 주기/일일/백필/종목목록 수집 스케줄
+│   ├── signal_detector.py        # 상승흐름 신호 판정(순수 함수)·소급 재생 scan_all·알림 발신
+│   ├── scheduler.py              # 주기/일일/백필/종목목록 수집 + 신호 스캔(16:40)·앱시작 따라잡기
 │   ├── ticker_scraper.py         # 티커 검증 (네이버 스크래핑)
 │   └── ticker_catalog_collector.py # 코스피/코스닥/ETF 종목 목록 수집
 ├── middleware/
@@ -144,9 +145,10 @@ frontend/src/
 │   ├── simulation/      # LumpSumSimulation, DCASimulation, PortfolioSimulation
 │   ├── settings/        # TickerManagementPanel, TickerForm, GeneralSettingsPanel, DataManagementPanel, TickerDeleteConfirm
 │   ├── news/            # NewsTimeline
+│   ├── alerts/          # UptrendHistorySection (상승흐름 신호 이력)
 │   └── common/          # PageHeader, Spinner, LoadingIndicator, ErrorBoundary, Toast, ETFCardSkeleton
 ├── contexts/             # SettingsContext, ToastContext, AlertContext
-├── hooks/                # useAlertChecker, useContainerWidth, useWindowSize
+├── hooks/                # useAlertChecker, useUptrendAlerts, useContainerWidth, useWindowSize
 ├── services/             # api.js (etfApi, newsApi, dataApi, settingsApi, alertApi, scannerApi, simulationApi)
 ├── utils/                # format, chartUtils, dateRange, portfolio, portfolioAnalysis, technicalIndicators, validation
 ├── styles/               # index.css (Tailwind)
