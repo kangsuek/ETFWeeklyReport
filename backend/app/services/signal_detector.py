@@ -553,3 +553,105 @@ def scan_all(since=None, until=None) -> dict:
         "failed": len(rules) - scanned,
         "marker": marker,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 관심종목 일괄 점검(읽기 전용) · 단일 종목 즉시 스캔
+#
+# A. evaluate_watchlist: 등록 종목 전체를 저장된 데이터로 순수 재생해 현재 상태를
+#    리포트한다. signal_events/alert_history를 건드리지 않는다(부작용 없음).
+# B. scan_ticker: 단일 종목만 DB 기록·알림 발신 스캔(토글 ON 직후 즉시 확인용).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _event_dict(sig: BreakoutSignal, status: str, path: Optional[str],
+                resolved_date: Optional[date_type]) -> dict:
+    """재생 이벤트를 직렬화 가능한 dict로."""
+    return {
+        "breakout_date": sig.breakout_date.isoformat(),
+        "breakout_level": sig.breakout_level,
+        "volume_ratio": round(sig.volume_ratio, 2),
+        "status": status,
+        "confirm_path": path,
+        "confirmed_date": (
+            resolved_date.isoformat()
+            if (status == "confirmed" and resolved_date) else None
+        ),
+    }
+
+
+def replay_events(prices: List[PriceBar], flows: Dict[date_type, int],
+                  start_idx: int = 0) -> List[dict]:
+    """DB 없이 순수하게 재생해 신호 이벤트 목록을 시간순으로 반환한다.
+
+    scan_all과 동일한 상태 전이 규칙을 쓰되 DB에 기록하지 않는다. 종목당 활성
+    pending은 1개(이중 pending 차단)라는 불변식도 동일하게 유지된다.
+    """
+    events: List[dict] = []
+    active: Optional[BreakoutSignal] = None
+
+    for i in range(start_idx, len(prices)):
+        if active is not None:
+            status, path = update_pending(active, prices, flows, i)
+            if status != "pending":
+                events.append(_event_dict(active, status, path, prices[i].date))
+                active = None
+        if active is None:
+            sig = detect_breakout(prices, flows, i)
+            if sig is not None:
+                active = sig
+
+    if active is not None:  # 끝까지 미종결 → 대기 상태로 보고
+        events.append(_event_dict(active, "pending", None, None))
+    return events
+
+
+def evaluate_watchlist() -> List[dict]:
+    """등록 종목 전체의 현재 상승흐름 상태를 리포트한다 (읽기 전용, DB 미변경).
+
+    저장된 가격·수급으로 재생하며, 각 종목의 **가장 최근 신호 이벤트**를 요약한다.
+    데이터 부족 종목은 status='insufficient_data'로 표시한다.
+    """
+    from app.services.data_collector import ETFDataCollector
+
+    collector = ETFDataCollector()
+    results: List[dict] = []
+    for etf in collector.get_all_etfs():
+        prices = _load_price_bars(etf.ticker)
+        if len(prices) < SIGNAL_MIN_DATA_DAYS:
+            results.append({
+                "ticker": etf.ticker, "name": etf.name,
+                "status": "insufficient_data", "latest": None,
+            })
+            continue
+        flows = _load_flows(etf.ticker)
+        events = replay_events(prices, flows)
+        latest = events[-1] if events else None
+        results.append({
+            "ticker": etf.ticker, "name": etf.name,
+            "status": latest["status"] if latest else "none",
+            "latest": latest,
+        })
+    return results
+
+
+def scan_ticker(ticker: str, since=None) -> dict:
+    """단일 종목만 스캔한다 (DB 기록·알림 발신). 토글 ON 직후 즉시 확인용.
+
+    전역 마커(last_signal_scan_date)는 건드리지 않는다 — 전체 스캔 전용이다.
+    """
+    from app.services.data_collector import ETFDataCollector
+
+    rule = next(
+        (r for r in _get_active_uptrend_rules() if r["ticker"] == ticker), None
+    )
+    if rule is None:
+        return {"scanned": False, "reason": "no_active_rule"}
+
+    collector = ETFDataCollector()
+    try:
+        _scan_ticker(collector, rule["id"], ticker, _as_date(since), date_type.today())
+        return {"scanned": True}
+    except Exception as e:
+        logger.error(f"[신호] {ticker} 단일 스캔 실패: {e}", exc_info=True)
+        return {"scanned": False, "reason": str(e)}

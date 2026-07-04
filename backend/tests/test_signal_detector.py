@@ -12,6 +12,7 @@ from app.services.signal_detector import (
     BreakoutSignal,
     detect_breakout,
     update_pending,
+    replay_events,
 )
 
 BASE = date(2026, 1, 5)
@@ -197,3 +198,35 @@ class TestUpdatePending:
         prices = _base_flat(30) + [_bar(30, 101, 105, 101, 104.0, 2500)] + list(self._HOLD_FWD)
         flows = {b.date: 500 for b in prices if b.date < prices[30].date}
         assert update_pending(self._event(prices), prices, flows, 32) == ("pending", None)
+
+
+class TestReplayEvents:
+    """DB 없는 순수 재생 (관심종목 일괄 점검용)"""
+
+    def test_replay_reports_confirmed_hold(self):
+        """Given 확정 시리즈 When replay Then 마지막 이벤트가 confirmed/hold"""
+        prices = _base_flat(30) + [
+            _bar(30, 101, 105, 101, 104.0, 2500),
+            _bar(31, 103, 104, 102.5, 103.0, 1200),
+            _bar(32, 103, 104, 102.5, 103.0, 1200),
+        ]
+        flows = _pos_flows(prices)
+
+        events = replay_events(prices, flows)
+
+        assert len(events) >= 1
+        assert events[-1]["status"] == "confirmed"
+        assert events[-1]["confirm_path"] == "hold"
+        assert events[-1]["breakout_date"] == prices[30].date.isoformat()
+
+    def test_replay_no_breakout_empty(self):
+        """Given 평탄한 시리즈 When replay Then 이벤트 없음"""
+        prices = _base_flat(35)
+        assert replay_events(prices, _pos_flows(prices)) == []
+
+    def test_replay_trailing_pending(self):
+        """Given 돌파 직후 종료 When replay Then 마지막이 pending"""
+        prices = _base_flat(30) + [_bar(30, 101, 105, 101, 104.0, 2500)]
+        events = replay_events(prices, _pos_flows(prices))
+        assert events[-1]["status"] == "pending"
+        assert events[-1]["confirmed_date"] is None

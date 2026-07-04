@@ -13,7 +13,7 @@ from app.database import (
     init_db, get_db_connection, get_app_state, set_app_state,
 )
 from app.services.signal_detector import (
-    PriceBar, scan_all, _emit_uptrend_alert,
+    PriceBar, scan_all, _emit_uptrend_alert, evaluate_watchlist, scan_ticker,
 )
 
 BASE = date(2026, 1, 1)
@@ -224,3 +224,61 @@ class TestCooldownGate:
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
             assert cur.fetchone()["c"] == 1
+
+
+class TestWatchlistAndSingleScan:
+    """A: 관심종목 일괄 점검(읽기 전용) · B: 단일 종목 즉시 스캔"""
+
+    def test_evaluate_watchlist_reports_without_writing(self):
+        """Given 확정 시리즈 When 일괄 점검 Then 상태 리포트·signal_events 미기록"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+
+        results = evaluate_watchlist()
+
+        entry = next((r for r in results if r["ticker"] == ticker), None)
+        assert entry is not None
+        assert entry["status"] == "confirmed"
+        assert entry["latest"]["confirm_path"] == "hold"
+        # 읽기 전용 — signal_events 미기록
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) c FROM signal_events")
+            assert cur.fetchone()["c"] == 0
+
+    def test_evaluate_watchlist_insufficient_data(self):
+        """Given 데이터 부족 종목 When 일괄 점검 Then insufficient_data"""
+        ticker = _valid_ticker()
+        results = evaluate_watchlist()
+        entry = next((r for r in results if r["ticker"] == ticker), None)
+        assert entry is not None
+        assert entry["status"] == "insufficient_data"
+
+    def test_scan_ticker_writes_when_rule_active(self):
+        """Given 활성 규칙+확정 시리즈 When 단일 스캔 Then signal_events 기록"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+        _create_uptrend_rule(ticker)
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            result = scan_ticker(ticker)
+
+        assert result["scanned"] is True
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT status FROM signal_events WHERE ticker=?", (ticker,))
+            row = cur.fetchone()
+            assert row is not None and row["status"] == "confirmed"
+
+    def test_scan_ticker_noop_without_rule(self):
+        """Given 활성 규칙 없음 When 단일 스캔 Then scanned=False"""
+        ticker = _valid_ticker()
+        result = scan_ticker(ticker)
+        assert result == {"scanned": False, "reason": "no_active_rule"}

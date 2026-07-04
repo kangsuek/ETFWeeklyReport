@@ -123,11 +123,44 @@ async def get_signal_events(
         raise HTTPException(status_code=500, detail="신호 이벤트 조회 실패")
 
 
+@router.post("/signals/{ticker}/scan")
+async def scan_ticker_now(ticker: str):
+    """단일 종목 즉시 스캔 (B — 토글 ON 직후 결과 바로 확인).
+
+    해당 종목에 활성 uptrend 규칙이 있어야 하며, signal_events·alert_history를
+    기록한다. 블로킹 수집을 스레드로 오프로드.
+    """
+    import asyncio
+    from app.services.signal_detector import scan_ticker
+    try:
+        result = await asyncio.to_thread(scan_ticker, ticker)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to scan ticker {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="종목 스캔 실패")
+
+
 # ──────────── 상승흐름(uptrend) 알림 이력·읽음 (마커 방식) ────────────
 # ⚠️ 아래 고정 경로들은 반드시 매개변수 경로(/{ticker}, /{rule_id})보다 먼저 등록.
 # uptrend 알림만 서버 이력·미읽음 관리(기존 3종 상태성 알림과 분리 — 설계 §3-5).
 
 UPTREND_READ_KEY = "uptrend_last_read_at"
+
+
+@router.get("/uptrend/watchlist")
+async def scan_watchlist():
+    """관심종목(등록 종목) 전체의 현재 상승흐름 상태를 일괄 점검 (A — 읽기 전용).
+
+    저장된 데이터로 순수 재생만 하며 signal_events/alert_history를 변경하지 않는다.
+    """
+    import asyncio
+    from app.services.signal_detector import evaluate_watchlist
+    try:
+        items = await asyncio.to_thread(evaluate_watchlist)
+        return {"items": items}
+    except Exception as e:
+        logger.error(f"Failed to scan watchlist: {e}")
+        raise HTTPException(status_code=500, detail="관심종목 점검 실패")
 
 
 @router.get("/uptrend")

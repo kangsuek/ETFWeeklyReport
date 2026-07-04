@@ -211,3 +211,24 @@ class TestUptrendHistory:
         assert resp.status_code == 200
         # 규칙 리스트가 아니라 {items, unread_count} 형태여야 함
         assert "unread_count" in resp.json()
+
+
+class TestWatchlistAndScanEndpoints:
+    """A: GET /uptrend/watchlist · B: POST /signals/{ticker}/scan"""
+
+    def test_watchlist_returns_items(self):
+        """Given 등록 종목 When 일괄 점검 Then items 리스트(각 ticker·status)"""
+        resp = client.get("/api/alerts/uptrend/watchlist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data and isinstance(data["items"], list)
+        if data["items"]:
+            assert "ticker" in data["items"][0]
+            assert "status" in data["items"][0]
+
+    def test_scan_ticker_noop_without_rule(self):
+        """Given 활성 규칙 없음 When 단일 스캔 Then scanned=False"""
+        ticker = _valid_ticker()
+        resp = client.post(f"/api/alerts/signals/{ticker}/scan")
+        assert resp.status_code == 200
+        assert resp.json() == {"scanned": False, "reason": "no_active_rule"}
