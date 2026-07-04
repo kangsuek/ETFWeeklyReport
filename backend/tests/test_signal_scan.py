@@ -1,0 +1,226 @@
+"""scan_all 통합 테스트 (Phase 2.3) — 소급 재생·상태 관리·알림 발신.
+
+합성 가격/수급을 DB에 넣고 scan_all을 실행해 signal_events·alert_history·
+마커(app_state)·쿨다운 게이트를 검증한다. ensure_recent_history(네트워크)는
+모킹한다. Given-When-Then.
+"""
+from datetime import date, timedelta
+from unittest.mock import patch
+
+import pytest
+
+from app.database import (
+    init_db, get_db_connection, get_app_state, set_app_state,
+)
+from app.services.signal_detector import (
+    PriceBar, scan_all, _emit_uptrend_alert,
+)
+
+BASE = date(2026, 1, 1)
+
+
+def _valid_ticker():
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT ticker FROM etfs LIMIT 1")
+        row = cur.fetchone()
+        return row[0]
+
+
+@pytest.fixture(autouse=True)
+def clean(request):
+    """테스트 대상 테이블을 비운다 (세션 공유 DB 격리)."""
+    init_db()
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        for t in ("signal_events", "alert_history", "alert_rules",
+                  "prices", "trading_flow", "app_state"):
+            cur.execute(f"DELETE FROM {t}")
+        conn.commit()
+    yield
+
+
+def _insert_prices(ticker, bars):
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        for d, o, h, low, c, v in bars:
+            cur.execute(
+                """INSERT OR REPLACE INTO prices
+                   (ticker, date, open_price, high_price, low_price,
+                    close_price, volume, daily_change_pct)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0.0)""",
+                (ticker, d.isoformat(), o, h, low, c, v),
+            )
+        conn.commit()
+
+
+def _insert_flows(ticker, dates, net=500):
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        for d in dates:
+            cur.execute(
+                """INSERT OR REPLACE INTO trading_flow
+                   (ticker, date, individual_net, institutional_net, foreign_net)
+                   VALUES (?, ?, 0, ?, ?)""",
+                (ticker, d.isoformat(), net // 2, net - net // 2),
+            )
+        conn.commit()
+
+
+def _create_uptrend_rule(ticker):
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO alert_rules (ticker, alert_type, direction, target_price, is_active)
+               VALUES (?, 'uptrend', 'up', 0, 1)""",
+            (ticker,),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def _confirm_series():
+    """C2(연속 유지)로 day30 돌파 → day32 확정되는 33거래일 시리즈."""
+    bars = [(BASE + timedelta(days=i), 100, 100, 100, 100, 1000) for i in range(30)]
+    bars.append((BASE + timedelta(days=30), 101, 105, 101, 104, 2500))  # 돌파
+    bars.append((BASE + timedelta(days=31), 103, 104, 102.5, 103, 1200))
+    bars.append((BASE + timedelta(days=32), 103, 104, 102.5, 103, 1200))  # 확정
+    return bars
+
+
+def _all_dates(bars):
+    return [b[0] for b in bars]
+
+
+class TestScanAllIntegration:
+
+    def test_replay_creates_confirmed_and_alert(self):
+        """Given 확정 시리즈 When scan_all Then confirmed 이벤트·uptrend 알림·마커 갱신"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+        rule_id = _create_uptrend_rule(ticker)
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            result = scan_all(since=None)
+
+        assert result["scanned"] == 1
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT status, confirm_path, confirmed_date FROM signal_events WHERE ticker=?",
+                (ticker,),
+            )
+            ev = cur.fetchone()
+            assert ev["status"] == "confirmed"
+            assert ev["confirm_path"] == "hold"
+            assert str(ev["confirmed_date"])[:10] == (BASE + timedelta(days=32)).isoformat()
+
+            cur.execute(
+                "SELECT alert_type, message, triggered_at FROM alert_history WHERE rule_id=?",
+                (rule_id,),
+            )
+            alerts = cur.fetchall()
+            assert len(alerts) == 1
+            assert alerts[0]["alert_type"] == "uptrend"
+            assert "연속 유지" in alerts[0]["message"]
+
+            cur.execute("SELECT last_triggered_at FROM alert_rules WHERE id=?", (rule_id,))
+            assert cur.fetchone()["last_triggered_at"] is not None
+
+        assert get_app_state("last_signal_scan_date") == (BASE + timedelta(days=32)).isoformat()
+
+    def test_idempotent_rerun(self):
+        """Given 1회 스캔 후 재실행 When scan_all Then 이벤트·알림 중복 없음"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+        rule_id = _create_uptrend_rule(ticker)
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            scan_all(since=None)
+            scan_all(since=None)  # 재실행
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) c FROM signal_events WHERE ticker=?", (ticker,))
+            assert cur.fetchone()["c"] == 1
+            cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
+            assert cur.fetchone()["c"] == 1
+
+    def test_partial_failure_keeps_marker(self):
+        """Given 스캔 중 예외 When scan_all Then 마커 미갱신(다음 기동 재따라잡기)"""
+        ticker = _valid_ticker()
+        _create_uptrend_rule(ticker)
+        set_app_state("last_signal_scan_date", "2026-01-01")
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            side_effect=Exception("boom"),
+        ):
+            result = scan_all(since=None)
+
+        assert result["failed"] == 1
+        assert get_app_state("last_signal_scan_date") == "2026-01-01"  # 불변
+
+
+class TestCooldownGate:
+    """LV2 확정 알림의 쿨다운 게이트 (§3-4)"""
+
+    def _prices(self, n=40):
+        return [PriceBar(date=BASE + timedelta(days=i), open=100, high=100,
+                         low=100, close=100, volume=1000) for i in range(n)]
+
+    def test_suppressed_within_cooldown(self):
+        """Given 직전 확정이 쿨다운(20거래일) 이내 When 발신 Then 억제(False)"""
+        ticker = _valid_ticker()
+        rule_id = _create_uptrend_rule(ticker)
+        prices = self._prices()
+        # 직전 확정일 = index 10
+        set_last = prices[10].date.isoformat()
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("UPDATE alert_rules SET last_triggered_at=? WHERE id=?",
+                        (set_last, rule_id))
+            conn.commit()
+
+        # 새 확정 index 20 → 거리 10 < 20 → 억제
+        emitted = _emit_uptrend_alert(rule_id, ticker, "종목", 100.0, "hold",
+                                      prices[20].date, prices, 20)
+
+        assert emitted is False
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
+            assert cur.fetchone()["c"] == 0
+            cur.execute("SELECT last_triggered_at t FROM alert_rules WHERE id=?", (rule_id,))
+            assert str(cur.fetchone()["t"])[:10] == prices[10].date.isoformat()  # 불변
+
+    def test_allowed_after_cooldown(self):
+        """Given 직전 확정이 쿨다운 밖 When 발신 Then 기록(True)"""
+        ticker = _valid_ticker()
+        rule_id = _create_uptrend_rule(ticker)
+        prices = self._prices()
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("UPDATE alert_rules SET last_triggered_at=? WHERE id=?",
+                        (prices[10].date.isoformat(), rule_id))
+            conn.commit()
+
+        # 새 확정 index 31 → 거리 21 ≥ 20 → 허용
+        emitted = _emit_uptrend_alert(rule_id, ticker, "종목", 100.0, "hold",
+                                      prices[31].date, prices, 31)
+
+        assert emitted is True
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
+            assert cur.fetchone()["c"] == 1

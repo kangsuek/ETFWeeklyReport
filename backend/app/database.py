@@ -800,5 +800,27 @@ def get_collection_status(ticker: str = None):
             return [dict(row) for row in cursor.fetchall()]
 
 
+def get_app_state(key: str):
+    """app_state 키-값 조회. 없으면 None."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM app_state WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row["value"] if row else None
+
+
+def set_app_state(key: str, value: str):
+    """app_state 키-값 저장 (upsert)."""
+    from datetime import datetime
+    now = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES (?, ?, ?)",
+            (key, value, now),
+        )
+        conn.commit()
+
+
 if __name__ == "__main__":
     init_db()

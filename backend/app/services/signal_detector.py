@@ -7,6 +7,7 @@ DB 연동·소급 재생·알림 발신은 scan_all(Phase 2.3)이 담당한다.
 용어·조건은 설계 §2-1~§2-4를 그대로 옮긴 것이며, 파라미터는 constants.py의
 SIGNAL_* 상수를 참조한다.
 """
+import logging
 from dataclasses import dataclass
 from datetime import date as date_type
 from typing import Dict, List, Optional, Tuple
@@ -21,7 +22,10 @@ from app.constants import (
     SIGNAL_RETEST_NEAR,
     SIGNAL_FAIL_FLOOR,
     SIGNAL_HOLD_DAYS,
+    SIGNAL_COOLDOWN_DAYS,
 )
+
+logger = logging.getLogger(__name__)
 
 # 과열 판정 기준일 수 (§2-2 B5: 당일 포함 최근 5거래일 수익률)
 OVERHEAT_LOOKBACK = 5
@@ -231,3 +235,321 @@ def update_pending(
             return ("expired", None)
 
     return ("pending", None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DB 연동 · 소급 재생 · 알림 발신 (Phase 2.3, docs/UPTREND_SIGNAL_DESIGN.md §3)
+#
+# 위 순수 함수를 DB와 엮어, 놓친 거래일을 오래된 순서로 하루씩 재생(replay)한다.
+# UNIQUE(ticker, breakout_date) + INSERT OR IGNORE로 멱등 재실행을 보장하고,
+# LV2 확정 시에만 쿨다운 게이트를 통과한 건을 alert_history에 기록한다.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _as_date(value) -> Optional[date_type]:
+    """date/문자열/None을 date 또는 None으로 정규화."""
+    if value is None:
+        return None
+    if isinstance(value, date_type):
+        return value
+    return date_type.fromisoformat(str(value))
+
+
+def _load_price_bars(ticker: str) -> List[PriceBar]:
+    """prices 테이블을 오래된→최신 순 PriceBar 리스트로 로드 (결측 OHLC는 종가로 보정)."""
+    from app.database import get_db_connection, get_cursor
+
+    bars: List[PriceBar] = []
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            """SELECT date, open_price, high_price, low_price, close_price, volume
+               FROM prices WHERE ticker = ? ORDER BY date ASC""",
+            (ticker,),
+        )
+        for r in cur.fetchall():
+            close = r["close_price"]
+            if close is None:
+                continue
+            d = _as_date(r["date"])
+            bars.append(PriceBar(
+                date=d,
+                open=r["open_price"] if r["open_price"] is not None else close,
+                high=r["high_price"] if r["high_price"] is not None else close,
+                low=r["low_price"] if r["low_price"] is not None else close,
+                close=close,
+                volume=r["volume"] or 0,
+            ))
+    return bars
+
+
+def _load_flows(ticker: str) -> Dict[date_type, int]:
+    """trading_flow를 날짜→수급 순매수(외국인+기관) 매핑으로 로드."""
+    from app.database import get_db_connection, get_cursor
+
+    flows: Dict[date_type, int] = {}
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT date, foreign_net, institutional_net FROM trading_flow WHERE ticker = ?",
+            (ticker,),
+        )
+        for r in cur.fetchall():
+            fn, inn = r["foreign_net"], r["institutional_net"]
+            if fn is None and inn is None:
+                continue
+            flows[_as_date(r["date"])] = (fn or 0) + (inn or 0)
+    return flows
+
+
+def _get_active_uptrend_rules() -> List[dict]:
+    """활성 uptrend 알림 규칙 목록 (id, ticker)."""
+    from app.database import get_db_connection, get_cursor
+
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT id, ticker FROM alert_rules WHERE alert_type = 'uptrend' AND is_active = 1"
+        )
+        return [{"id": r["id"], "ticker": r["ticker"]} for r in cur.fetchall()]
+
+
+def _get_active_pending(ticker: str) -> Optional[dict]:
+    """종목의 활성 pending 이벤트 1개 (최신 돌파일). 없으면 None."""
+    from app.database import get_db_connection, get_cursor
+
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            """SELECT id, breakout_date, breakout_level FROM signal_events
+               WHERE ticker = ? AND status = 'pending'
+               ORDER BY breakout_date DESC LIMIT 1""",
+            (ticker,),
+        )
+        r = cur.fetchone()
+        if not r:
+            return None
+        sig = BreakoutSignal(
+            breakout_date=_as_date(r["breakout_date"]),
+            breakout_level=r["breakout_level"],
+            volume_ratio=0.0, candle_pos=0.0, flow_net_3d=0,
+        )
+        return {"id": r["id"], "signal": sig}
+
+
+def _create_pending(rule_id: int, ticker: str, sig: BreakoutSignal) -> Optional[int]:
+    """pending 이벤트 생성 (멱등: 동일 (ticker, breakout_date) 있으면 무시).
+
+    Returns:
+        새로 만든 event id, 또는 기존 행이 여전히 pending이면 그 id, 아니면 None.
+    """
+    from app.database import get_db_connection, get_cursor
+
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            """INSERT OR IGNORE INTO signal_events
+               (ticker, rule_id, breakout_date, breakout_level, volume_ratio,
+                candle_pos, flow_net_3d, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
+            (ticker, rule_id, sig.breakout_date.isoformat(), sig.breakout_level,
+             sig.volume_ratio, sig.candle_pos, sig.flow_net_3d),
+        )
+        conn.commit()
+        if cur.rowcount and cur.lastrowid:
+            return cur.lastrowid
+        # 이미 존재 — 여전히 pending이면 그 id 반환(재생 중 이어받기)
+        cur.execute(
+            "SELECT id, status FROM signal_events WHERE ticker = ? AND breakout_date = ?",
+            (ticker, sig.breakout_date.isoformat()),
+        )
+        row = cur.fetchone()
+        if row and row["status"] == "pending":
+            return row["id"]
+        return None
+
+
+def _resolve_event(event_id: int, status: str, path: Optional[str],
+                   confirmed_date: date_type) -> None:
+    """이벤트를 종결 상태로 전이 (confirmed면 확정일·경로 기록)."""
+    from app.database import get_db_connection, get_cursor
+
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        if status == "confirmed":
+            cur.execute(
+                """UPDATE signal_events
+                   SET status = ?, confirmed_date = ?, confirm_path = ?,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ?""",
+                (status, confirmed_date.isoformat(), path, event_id),
+            )
+        else:
+            cur.execute(
+                "UPDATE signal_events SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status, event_id),
+            )
+        conn.commit()
+
+
+def _index_on_or_before(prices: List[PriceBar], target: date_type) -> Optional[int]:
+    """target 날짜 이하인 마지막 인덱스 (쿨다운 거래일 거리 계산용)."""
+    result = None
+    for i, bar in enumerate(prices):
+        if bar.date <= target:
+            result = i
+        else:
+            break
+    return result
+
+
+def _build_alert_message(name: str, path: Optional[str], level: float) -> str:
+    """LV2 확정 알림 문구 (§3-3, 천 단위 콤마)."""
+    if path == "retest":
+        return f"[{name}] 상승흐름 확정 — 돌파선 {level:,.0f}원 재시험 성공"
+    return f"[{name}] 상승흐름 확정 — 돌파 후 {SIGNAL_HOLD_DAYS}일 연속 유지"
+
+
+def _emit_uptrend_alert(rule_id: int, ticker: str, name: str, level: float,
+                        path: Optional[str], confirmed_date: date_type,
+                        prices: List[PriceBar], confirm_idx: int) -> bool:
+    """쿨다운 게이트 통과 시 alert_history 기록 + last_triggered_at 갱신 (§3-4).
+
+    Returns:
+        기록했으면 True, 쿨다운으로 억제됐으면 False.
+    """
+    from app.database import get_db_connection, get_cursor
+
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        # 쿨다운: 직전 LV2(last_triggered_at)로부터 COOLDOWN_DAYS 거래일 이내면 억제
+        cur.execute("SELECT last_triggered_at FROM alert_rules WHERE id = ?", (rule_id,))
+        row = cur.fetchone()
+        last = row["last_triggered_at"] if row else None
+        if last:
+            prev_idx = _index_on_or_before(prices, _as_date(str(last)[:10]))
+            if prev_idx is not None and (confirm_idx - prev_idx) < SIGNAL_COOLDOWN_DAYS:
+                return False
+
+        message = _build_alert_message(name, path, level)
+        cur.execute(
+            """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
+               VALUES (?, ?, 'uptrend', ?, ?)""",
+            (rule_id, ticker, message, confirmed_date.isoformat()),
+        )
+        cur.execute(
+            "UPDATE alert_rules SET last_triggered_at = ? WHERE id = ?",
+            (confirmed_date.isoformat(), rule_id),
+        )
+        conn.commit()
+    return True
+
+
+def _step_day(rule_id: int, ticker: str, name: str, prices: List[PriceBar],
+              flows: Dict[date_type, int], i: int, active: Optional[dict]) -> Optional[dict]:
+    """하루치 상태 전이 처리. 갱신된 active(또는 None)를 반환한다."""
+    bar = prices[i]
+
+    # 1) 활성 pending 상태 갱신 (있으면)
+    if active is not None:
+        status, path = update_pending(active["signal"], prices, flows, i)
+        if status != "pending":
+            _resolve_event(active["id"], status, path, bar.date)
+            if status == "confirmed":
+                _emit_uptrend_alert(
+                    rule_id, ticker, name, active["signal"].breakout_level,
+                    path, bar.date, prices, i,
+                )
+            active = None
+
+    # 2) pending 없으면 신규 돌파 탐지 (이중 pending 차단)
+    if active is None:
+        sig = detect_breakout(prices, flows, i)
+        if sig is not None:
+            new_id = _create_pending(rule_id, ticker, sig)
+            if new_id is not None:
+                active = {"id": new_id, "signal": sig}
+
+    return active
+
+
+def _scan_ticker(collector, rule_id: int, ticker: str,
+                 since_date: Optional[date_type],
+                 until_date: date_type) -> Optional[date_type]:
+    """단일 종목의 놓친 거래일을 재생하며 상태 전이·알림을 처리한다.
+
+    Returns:
+        마지막으로 처리한 거래일 (마커 갱신용), 처리분 없으면 None.
+    """
+    collector.ensure_recent_history(ticker)
+    prices = _load_price_bars(ticker)
+    if len(prices) < SIGNAL_MIN_DATA_DAYS:
+        logger.info(f"[신호] {ticker}: 데이터 부족({len(prices)}행) → 판정 보류")
+        return None
+    flows = _load_flows(ticker)
+    etf = collector.get_etf_info(ticker)
+    name = etf.name if etf else ticker
+
+    active = _get_active_pending(ticker)
+    last_processed: Optional[date_type] = None
+
+    for i, bar in enumerate(prices):
+        if since_date is not None and bar.date <= since_date:
+            continue
+        if bar.date > until_date:
+            break
+        active = _step_day(rule_id, ticker, name, prices, flows, i, active)
+        last_processed = bar.date
+
+    return last_processed
+
+
+def scan_all(since=None, until=None) -> dict:
+    """활성 uptrend 종목 전체를 소급 재생 스캔한다 (§3-1, 두 진입점 공용, 멱등).
+
+    Args:
+        since: 마지막 스캔일(이후만 재생). None이면 전체 이력 재생(초기 구축).
+        until: 처리 상한 거래일(포함). None이면 오늘까지.
+
+    Returns:
+        {scanned, failed, marker} 요약. 전 종목 성공 시에만 마커를 갱신한다.
+    """
+    from app.services.data_collector import ETFDataCollector
+    from app.database import set_app_state
+
+    collector = ETFDataCollector()
+    rules = _get_active_uptrend_rules()
+    since_date = _as_date(since)
+    until_date = _as_date(until) or date_type.today()
+
+    all_success = True
+    scanned = 0
+    max_processed: Optional[date_type] = None
+
+    for rule in rules:
+        try:
+            processed_to = _scan_ticker(
+                collector, rule["id"], rule["ticker"], since_date, until_date
+            )
+            scanned += 1
+            if processed_to and (max_processed is None or processed_to > max_processed):
+                max_processed = processed_to
+        except Exception as e:
+            logger.error(f"[신호] {rule['ticker']} 스캔 실패: {e}", exc_info=True)
+            all_success = False
+
+    marker = None
+    # 전 종목 성공 시에만 마커 갱신 (부분 실패 시 다음 기동에 다시 따라잡도록)
+    if all_success and rules:
+        marker = (max_processed or until_date).isoformat()
+        set_app_state("last_signal_scan_date", marker)
+
+    logger.info(
+        f"[신호] 스캔 완료: {scanned}/{len(rules)} 종목, "
+        f"마커={marker or '미갱신'}"
+    )
+    return {
+        "scanned": scanned,
+        "failed": len(rules) - scanned,
+        "marker": marker,
+    }
