@@ -5,10 +5,10 @@
 - trading_signal: 외국인·기관 동시 매수/매도 시그널
 """
 from fastapi import APIRouter, HTTPException, Query
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from app.models import AlertRuleCreate, AlertRuleUpdate, AlertRuleResponse
-from app.database import get_db_connection, get_cursor
+from app.database import get_db_connection, get_cursor, get_app_state, set_app_state
 import logging
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,109 @@ async def get_signal_events(
     except Exception as e:
         logger.error(f"Failed to fetch signal events for {ticker}: {e}")
         raise HTTPException(status_code=500, detail="신호 이벤트 조회 실패")
+
+
+# ──────────── 상승흐름(uptrend) 알림 이력·읽음 (마커 방식) ────────────
+# ⚠️ 아래 고정 경로들은 반드시 매개변수 경로(/{ticker}, /{rule_id})보다 먼저 등록.
+# uptrend 알림만 서버 이력·미읽음 관리(기존 3종 상태성 알림과 분리 — 설계 §3-5).
+
+UPTREND_READ_KEY = "uptrend_last_read_at"
+
+
+@router.get("/uptrend")
+async def get_uptrend_alerts(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """상승흐름 확정 알림 이력 + 미읽음 카운트.
+
+    미읽음 = triggered_at > uptrend_last_read_at(마커). 마커 부재 시 전체가 미읽음.
+    """
+    try:
+        marker = get_app_state(UPTREND_READ_KEY)
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            cursor.execute(
+                f"""SELECT * FROM alert_history WHERE alert_type = 'uptrend'
+                    ORDER BY triggered_at DESC LIMIT {PP} OFFSET {PP}""",
+                (limit, offset),
+            )
+            items = [dict(row) for row in cursor.fetchall()]
+
+            if marker:
+                cursor.execute(
+                    f"""SELECT COUNT(*) AS c FROM alert_history
+                        WHERE alert_type = 'uptrend' AND triggered_at > {PP}""",
+                    (marker,),
+                )
+            else:
+                cursor.execute(
+                    "SELECT COUNT(*) AS c FROM alert_history WHERE alert_type = 'uptrend'"
+                )
+            unread = cursor.fetchone()["c"]
+        return {"items": items, "unread_count": unread}
+    except Exception as e:
+        logger.error(f"Failed to fetch uptrend alerts: {e}")
+        raise HTTPException(status_code=500, detail="상승흐름 알림 조회 실패")
+
+
+@router.post("/uptrend/read")
+async def mark_uptrend_read():
+    """상승흐름 알림 읽음 처리 — 마커를 현재 시각으로 갱신 (미읽음 0)."""
+    from datetime import datetime
+    try:
+        set_app_state(UPTREND_READ_KEY, datetime.now().isoformat())
+        return {"read": True}
+    except Exception as e:
+        logger.error(f"Failed to mark uptrend read: {e}")
+        raise HTTPException(status_code=500, detail="읽음 처리 실패")
+
+
+@router.delete("/uptrend")
+async def clear_uptrend_alerts(before: Optional[str] = Query(None)):
+    """상승흐름 알림 이력 정리. before(YYYY-MM-DD) 지정 시 그 이전만 삭제."""
+    try:
+        with get_db_connection() as conn_or_cursor:
+            conn = conn_or_cursor
+            cursor = conn.cursor()
+            if before:
+                cursor.execute(
+                    f"""DELETE FROM alert_history
+                        WHERE alert_type = 'uptrend' AND triggered_at < {PP}""",
+                    (before,),
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM alert_history WHERE alert_type = 'uptrend'"
+                )
+            conn.commit()
+            return {"deleted": cursor.rowcount}
+    except Exception as e:
+        logger.error(f"Failed to clear uptrend alerts: {e}")
+        raise HTTPException(status_code=500, detail="상승흐름 알림 삭제 실패")
+
+
+@router.delete("/uptrend/{alert_id}")
+async def delete_uptrend_alert(alert_id: int):
+    """상승흐름 알림 이력 1건 삭제."""
+    try:
+        with get_db_connection() as conn_or_cursor:
+            conn = conn_or_cursor
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""DELETE FROM alert_history
+                    WHERE id = {PP} AND alert_type = 'uptrend'""",
+                (alert_id,),
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다")
+            return {"deleted": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete uptrend alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="상승흐름 알림 삭제 실패")
 
 
 # ──────────────────────────── CRUD ────────────────────────────

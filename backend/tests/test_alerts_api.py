@@ -24,8 +24,8 @@ def clean():
     init_db()
     with get_db_connection() as conn:
         cur = conn.cursor()
-        cur.execute("DELETE FROM alert_rules")
-        cur.execute("DELETE FROM signal_events")
+        for t in ("alert_rules", "signal_events", "alert_history", "app_state"):
+            cur.execute(f"DELETE FROM {t}")
         conn.commit()
     yield
 
@@ -117,3 +117,97 @@ class TestSignalEventsEndpoint:
 
         rows = client.get(f"/api/alerts/signals/{ticker}").json()
         assert [r["breakout_date"][:10] for r in rows] == ["2026-07-01", "2026-06-01"]
+
+
+class TestUptrendHistory:
+    """상승흐름 알림 이력·읽음 API (Phase 2.5)"""
+
+    def _insert_uptrend_history(self, ticker, triggered_at, message="확정"):
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
+                   VALUES (1, ?, 'uptrend', ?, ?)""",
+                (ticker, message, triggered_at),
+            )
+            conn.commit()
+
+    def test_all_unread_when_no_marker(self):
+        """Given 마커 부재 When 조회 Then 전체가 미읽음"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-07-01")
+        self._insert_uptrend_history(ticker, "2026-07-02")
+
+        resp = client.get("/api/alerts/uptrend")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) == 2
+        assert data["unread_count"] == 2
+
+    def test_unread_zero_after_read(self):
+        """Given 읽음 처리 후 When 조회 Then 미읽음 0"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-07-01")
+
+        client.post("/api/alerts/uptrend/read")
+        data = client.get("/api/alerts/uptrend").json()
+
+        assert data["unread_count"] == 0
+
+    def test_new_signal_after_read_is_unread(self):
+        """Given 읽음 후 더 늦은 신호 When 조회 Then 미읽음 1"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-07-01")
+        client.post("/api/alerts/uptrend/read")
+        self._insert_uptrend_history(ticker, "2999-12-31")  # 마커 이후
+
+        data = client.get("/api/alerts/uptrend").json()
+        assert data["unread_count"] == 1
+
+    def test_only_uptrend_type_counted(self):
+        """Given 다른 타입 이력 혼재 When 조회 Then uptrend만 집계"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-07-01")
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
+                   VALUES (1, ?, 'buy', '목표가', '2026-07-01')""",
+                (ticker,),
+            )
+            conn.commit()
+
+        data = client.get("/api/alerts/uptrend").json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["alert_type"] == "uptrend"
+
+    def test_delete_single(self):
+        """Given 이력 1건 When 단건 삭제 Then 제거"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-07-01")
+        item = client.get("/api/alerts/uptrend").json()["items"][0]
+
+        resp = client.delete(f"/api/alerts/uptrend/{item['id']}")
+
+        assert resp.status_code == 200
+        assert client.get("/api/alerts/uptrend").json()["items"] == []
+
+    def test_delete_before(self):
+        """Given 여러 이력 When before로 정리 Then 이전 것만 삭제"""
+        ticker = _valid_ticker()
+        self._insert_uptrend_history(ticker, "2026-06-01")
+        self._insert_uptrend_history(ticker, "2026-07-10")
+
+        resp = client.delete("/api/alerts/uptrend", params={"before": "2026-07-01"})
+
+        assert resp.status_code == 200
+        remaining = client.get("/api/alerts/uptrend").json()["items"]
+        assert [r["triggered_at"][:10] for r in remaining] == ["2026-07-10"]
+
+    def test_uptrend_route_not_shadowed_by_ticker(self):
+        """Given uptrend 경로 When GET Then /{ticker} 규칙조회에 안 잡히고 이력 형태 반환"""
+        resp = client.get("/api/alerts/uptrend")
+        assert resp.status_code == 200
+        # 규칙 리스트가 아니라 {items, unread_count} 형태여야 함
+        assert "unread_count" in resp.json()
