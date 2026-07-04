@@ -336,6 +336,23 @@ export const alertApi = {
   // 종목별 알림 이력 조회
   getHistory: (ticker, limit = 20) =>
     api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
+
+  // ── 상승흐름(uptrend) 신호 ──
+  // 종목별 신호 이벤트 조회 (배지·상태 표시용)
+  getSignals: (ticker, limit = 50) =>
+    api.get(`/alerts/signals/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
+
+  // 상승흐름 확정 알림 이력 + 미읽음 카운트
+  getUptrend: (limit = 50, offset = 0) =>
+    api.get('/alerts/uptrend', { params: { limit, offset }, timeout: FAST_API_TIMEOUT }),
+
+  // 상승흐름 알림 읽음 처리 (미읽음 0)
+  markUptrendRead: () => api.post('/alerts/uptrend/read', {}, { timeout: FAST_API_TIMEOUT }),
+
+  // 상승흐름 알림 이력 삭제 (단건 또는 before 이전 일괄)
+  deleteUptrend: (id) => api.delete(`/alerts/uptrend/${id}`, { timeout: NORMAL_API_TIMEOUT }),
+  clearUptrend: (before) =>
+    api.delete('/alerts/uptrend', { params: before ? { before } : {}, timeout: NORMAL_API_TIMEOUT }),
 }
 
 // Simulation API 서비스
