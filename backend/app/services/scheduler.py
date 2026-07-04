@@ -9,6 +9,7 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
 import pytz
 
 from app.config import Config
@@ -349,6 +350,64 @@ class DataCollectionScheduler:
         except Exception as e:
             logger.warning(f"[스케줄러-펀더멘털] 수집 여부 확인 실패: {e}")
 
+    def run_signal_scan(self):
+        """상승흐름 신호 스캔 (평일 16:40 KST).
+
+        오늘 가격·수급을 강제 재수집(15:30 잠정치 → 확정치)한 뒤 scan_all을 호출한다.
+        매매동향은 장 마감 직후 잠정치라 저녁에 갱신될 수 있어 16:40에 다시 받는다.
+        """
+        from app.services.signal_detector import scan_all, _get_active_uptrend_rules
+
+        try:
+            for rule in _get_active_uptrend_rules():
+                ticker = rule["ticker"]
+                try:
+                    self.collector.collect_and_save_prices(ticker, days=1)
+                    self.collector.collect_and_save_trading_flow(ticker, days=1)
+                except Exception as e:
+                    logger.warning(f"[신호 스캔] {ticker} 당일 재수집 실패: {e}")
+            result = scan_all()
+            logger.info(f"[신호 스캔] 완료: {result}")
+        except Exception as e:
+            logger.error(f"[신호 스캔] 실패: {e}", exc_info=True)
+
+    def _run_signal_scan_catchup(self, since):
+        """앱 시작 따라잡기 — 마지막 스캔일 이후 놓친 거래일을 재생한다.
+
+        16:40 이전 기동이면 당일 데이터가 잠정/미비이므로 오늘분은 제외(전 거래일까지만).
+        """
+        from datetime import date as date_type, timedelta as td
+        from app.services.signal_detector import scan_all
+
+        try:
+            now_kst = datetime.now(KST)
+            cutoff = now_kst.replace(hour=16, minute=40, second=0, microsecond=0)
+            until = None
+            if now_kst < cutoff:
+                until = (date_type.today() - td(days=1)).isoformat()
+            result = scan_all(since=since, until=until)
+            logger.info(f"[신호 따라잡기] 완료(since={since}, until={until or '오늘'}): {result}")
+        except Exception as e:
+            logger.error(f"[신호 따라잡기] 실패: {e}", exc_info=True)
+
+    def _run_signal_scan_if_needed(self):
+        """앱 기동 시 신호 스캔 따라잡기를 백그라운드 1회성 잡으로 등록(비블로킹)."""
+        from app.database import get_app_state
+
+        try:
+            since = get_app_state("last_signal_scan_date")
+            self.scheduler.add_job(
+                self._run_signal_scan_catchup,
+                trigger=DateTrigger(run_date=datetime.now(KST)),
+                kwargs={"since": since},
+                id="signal_scan_catchup",
+                name="신호 스캔 따라잡기",
+                replace_existing=True,
+            )
+            logger.info(f"[신호 따라잡기] 백그라운드 잡 등록(since={since})")
+        except Exception as e:
+            logger.warning(f"[신호 따라잡기] 잡 등록 실패: {e}")
+
     def start(self):
         """
         스케줄러 시작
@@ -454,6 +513,22 @@ class DataCollectionScheduler:
         self._jobs['fundamentals_collection'] = fundamentals_job
         logger.info("펀더멘털 수집 스케줄 등록: 평일 16:30 KST")
 
+        # 상승흐름 신호 스캔 (평일 16:40 KST — 매매동향 확정치 반영 후)
+        signal_scan_job = self.scheduler.add_job(
+            self.run_signal_scan,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour=16,
+                minute=40,
+                timezone=KST
+            ),
+            id='signal_scan',
+            name='상승흐름 신호 스캔',
+            replace_existing=True
+        )
+        self._jobs['signal_scan'] = signal_scan_job
+        logger.info("신호 스캔 스케줄 등록: 평일 16:40 KST")
+
         # 스케줄러 시작
         self.scheduler.start()
         logger.info("스케줄러 시작 완료")
@@ -465,6 +540,10 @@ class DataCollectionScheduler:
         # 오늘 펀더멘털 수집 여부 확인 → 미수집이면 즉시 실행
         logger.info("펀더멘털 수집 여부 확인...")
         self._collect_fundamentals_if_needed()
+
+        # 신호 스캔 따라잡기 (백그라운드 1회성 — 앱 종료 중 놓친 거래일 재생)
+        logger.info("신호 스캔 따라잡기 확인...")
+        self._run_signal_scan_if_needed()
     
     def stop(self):
         """
