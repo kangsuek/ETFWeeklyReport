@@ -5,7 +5,11 @@ from app.models import ETF, PriceData, ETFMetrics
 from app.database import get_db_connection, get_cursor
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
-from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
+from app.constants import (
+    DEFAULT_RATE_LIMITER_INTERVAL,
+    DEFAULT_BACKFILL_DAYS,
+    SIGNAL_MIN_DATA_DAYS,
+)
 from app.services.naver_stock_api import (
     fetch_price_page,
     parse_bizdate,
@@ -901,3 +905,64 @@ class ETFDataCollector(TradingFlowCollectorMixin):
 
         return saved_count
 
+    def ensure_recent_history(self, ticker: str, min_rows: int = SIGNAL_MIN_DATA_DAYS) -> bool:
+        """
+        신호 감지 전제인 "연속·최신·수급 포함" 이력을 보장한다.
+
+        `calculate_missing_days`의 1일 캡을 우회해, 마지막 수집일과 오늘 사이의
+        달력일 갭을 **캡 없이** 한 번에 보충한다. 보충 후에도 가격 행이 `min_rows`
+        미만이면(이 기능 도입 전 등록돼 부분 이력만 가진 종목 등) `days=90` 백필을
+        1회 시도하는 자기치유를 수행한다.
+
+        Note:
+            내부에서 블로킹 스크레이핑(collect_and_save_*)을 호출하므로,
+            이벤트 루프에서 부를 때는 호출부에서 `asyncio.to_thread`로 감쌀 것.
+
+        Args:
+            ticker: 종목 코드
+            min_rows: 감지에 필요한 최소 가격 행 수 (기본: SIGNAL_MIN_DATA_DAYS)
+
+        Returns:
+            보충 후 가격 행이 `min_rows` 이상이면 True, 아니면 False
+        """
+        from app.database import get_collection_status
+
+        status = get_collection_status(ticker)
+        last_price_date = status.get('last_price_date') if status else None
+
+        if last_price_date:
+            last_date = (
+                last_price_date if isinstance(last_price_date, date)
+                else date.fromisoformat(last_price_date)
+            )
+            gap = (date.today() - last_date).days
+            # 갭이 있으면 캡 없이 갭만큼 보충 (오늘=0이면 스킵)
+            if gap > 0:
+                self.collect_and_save_prices(ticker, days=gap)
+                self.collect_and_save_trading_flow(ticker, days=gap)
+        else:
+            # 수집 이력이 없으면 기본 백필 일수로 초기 수집
+            self.collect_and_save_prices(ticker, days=DEFAULT_BACKFILL_DAYS)
+            self.collect_and_save_trading_flow(ticker, days=DEFAULT_BACKFILL_DAYS)
+
+        data_range = self.get_price_data_range(ticker)
+        row_count = data_range['count'] if data_range else 0
+
+        # 자기치유: 행이 부족하면 90일 백필을 1회 추가 시도 후 재판정
+        if row_count < min_rows:
+            logger.info(
+                f"[{ticker}] 이력 부족 ({row_count} < {min_rows}) → "
+                f"{DEFAULT_BACKFILL_DAYS}일 백필 재시도"
+            )
+            self.collect_and_save_prices(ticker, days=DEFAULT_BACKFILL_DAYS)
+            self.collect_and_save_trading_flow(ticker, days=DEFAULT_BACKFILL_DAYS)
+            data_range = self.get_price_data_range(ticker)
+            row_count = data_range['count'] if data_range else 0
+
+        if row_count < min_rows:
+            logger.warning(
+                f"[{ticker}] 이력 보충 실패: {row_count}행 (최소 {min_rows} 필요)"
+            )
+            return False
+
+        return True
