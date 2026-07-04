@@ -1511,6 +1511,16 @@ Content-Type: application/json
 - **Query**: `limit` (1~200, 기본 50)
 - **응답**: `[{ id, ticker, breakout_date, breakout_level, status(pending/confirmed/failed/expired), confirmed_date, confirm_path, ... }]`
 
+#### POST /api/alerts/signals/{ticker}/scan
+
+해당 종목을 **즉시 1회 스캔**합니다(활성 uptrend 규칙 필요). `signal_events`·`alert_history`를 기록하며, 상승흐름 토글을 켠 직후 결과를 바로 확인하는 용도입니다.
+- **응답**: `{ "scanned": true }` 또는 `{ "scanned": false, "reason": "no_active_rule" }`
+
+#### GET /api/alerts/uptrend/watchlist
+
+등록 종목(관심종목) 전체의 **현재 상승흐름 상태를 일괄 점검**합니다. 저장된 데이터로 순수 재생만 하며 DB를 변경하지 않습니다(읽기 전용).
+- **응답**: `{ "items": [ { "ticker", "name", "status"(confirmed/pending/failed/expired/none/insufficient_data), "latest"(최근 이벤트 요약 또는 null) } ] }`
+
 #### GET /api/alerts/uptrend
 
 상승흐름 확정 알림 이력과 미읽음 개수를 반환합니다.

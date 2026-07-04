@@ -100,6 +100,8 @@
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `/api/alerts/signals/{ticker}` | 종목별 상승흐름 신호 이벤트(`signal_events`) 조회. Query: `limit` (1~200, 기본 50) |
+| POST | `/api/alerts/signals/{ticker}/scan` | 단일 종목 즉시 스캔(활성 규칙 필요, DB 기록·알림 발신). 응답: `{scanned, reason?}` |
+| GET | `/api/alerts/uptrend/watchlist` | 관심종목 전체 상승흐름 일괄 점검(읽기 전용, DB 미변경). 응답: `{items:[{ticker,name,status,latest}]}` |
 | GET | `/api/alerts/uptrend` | 상승흐름 확정 알림 이력 + `unread_count`. Query: `limit` (1~200, 기본 50), `offset` (기본 0). 응답: `{items, unread_count}` |
 | POST | `/api/alerts/uptrend/read` | 상승흐름 알림 읽음 처리 (미읽음 마커 갱신) |
 | DELETE | `/api/alerts/uptrend/{id}` | 상승흐름 알림 이력 1건 삭제 |

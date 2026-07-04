@@ -193,6 +193,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 거래량 동반 돌파가 **확정**되면 알리는 신호. 백엔드 감지기(`signal_detector.py`)가 평일 16:40 크론·앱 시작 따라잡기로 스캔하며, 기존 3종 알림과 달리 **서버에서 이력·미읽음을 관리**한다.
 - **알림 규칙**: `POST /api/alerts/`에 `alert_type='uptrend'`(방향·목표가 불요). 종목 상세 &lsquo;상승흐름&rsquo; 탭에서 켜기/끄기.
 - **GET `/api/alerts/signals/{ticker}`** - 종목별 신호 이벤트(LV1 돌파→LV2 확정/실패/만료)
+- **GET `/api/alerts/uptrend/watchlist`** - 관심종목 전체 일괄 점검(읽기 전용, 현재 상태 리포트)
+- **POST `/api/alerts/signals/{ticker}/scan`** - 단일 종목 즉시 스캔(토글 ON 직후 결과 바로 확인)
 - **GET `/api/alerts/uptrend`** - 확정 알림 이력 + `unread_count`(마커 기반), `limit`/`offset`
 - **POST `/api/alerts/uptrend/read`** - 읽음 처리 / **DELETE `/api/alerts/uptrend/{id}`**·`?before=` - 이력 정리
 - **프론트**: nav 미읽음 배지(초록), Alerts 페이지 &lsquo;상승흐름 신호&rsquo; 이력 섹션, 종목 상세 확정 배지

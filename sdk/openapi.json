@@ -1902,6 +1902,67 @@
         }
       }
     },
+    "/api/alerts/signals/{ticker}/scan": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Scan Ticker Now",
+        "description": "단일 종목 즉시 스캔 (B — 토글 ON 직후 결과 바로 확인).\n\n해당 종목에 활성 uptrend 규칙이 있어야 하며, signal_events·alert_history를\n기록한다. 블로킹 수집을 스레드로 오프로드.",
+        "operationId": "scan_ticker_now_api_alerts_signals__ticker__scan_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/uptrend/watchlist": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Scan Watchlist",
+        "description": "관심종목(등록 종목) 전체의 현재 상승흐름 상태를 일괄 점검 (A — 읽기 전용).\n\n저장된 데이터로 순수 재생만 하며 signal_events/alert_history를 변경하지 않는다.",
+        "operationId": "scan_watchlist_api_alerts_uptrend_watchlist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/alerts/uptrend": {
       "get": {
         "tags": [
