@@ -235,6 +235,21 @@ export default function ETFDetail() {
     staleTime: 30_000,
   })
 
+  // 상승흐름 신호 (확정 배지용)
+  const { data: signalEvents = [] } = useQuery({
+    queryKey: ['signalEvents', ticker],
+    queryFn: async () => {
+      const res = await alertApi.getSignals(ticker)
+      return res.data
+    },
+    enabled: !!ticker,
+    staleTime: CACHE_STALE_TIME_SLOW,
+  })
+  const confirmedSignal = useMemo(
+    () => signalEvents.find(s => s.status === 'confirmed'),
+    [signalEvents],
+  )
+
   // 핵심 지표 (수익률·변동성·MDD·샤프) - ETF/STOCK 공통 (가격 기반 계산)
   const { data: metricsData } = useQuery({
     queryKey: ['metrics', ticker],
@@ -430,6 +445,21 @@ export default function ETFDetail() {
     <div className="animate-fadeIn">
       {/* Sticky 헤더 */}
       <ETFHeader etf={etf} />
+
+      {/* 상승흐름 확정 배지 */}
+      {confirmedSignal && (
+        <div className="px-1 mt-2">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+            <span aria-hidden="true">▲</span>
+            상승흐름 확정
+            {confirmedSignal.confirmed_date && (
+              <span className="font-normal">
+                ({String(confirmedSignal.confirmed_date).slice(5, 10).replace('-', '/')})
+              </span>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* ========================================== */}
       {/* 기본 보기: 누구나 이해할 수 있는 핵심 정보   */}
