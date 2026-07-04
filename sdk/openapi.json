@@ -1849,6 +1849,221 @@
         }
       }
     },
+    "/api/alerts/signals/{ticker}": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Get Signal Events",
+        "description": "종목별 상승흐름 신호 이벤트 조회 (상세 페이지 배지·상태 표시용)",
+        "operationId": "get_signal_events_api_alerts_signals__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/uptrend": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Get Uptrend Alerts",
+        "description": "상승흐름 확정 알림 이력 + 미읽음 카운트.\n\n미읽음 = triggered_at > uptrend_last_read_at(마커). 마커 부재 시 전체가 미읽음.",
+        "operationId": "get_uptrend_alerts_api_alerts_uptrend_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Clear Uptrend Alerts",
+        "description": "상승흐름 알림 이력 정리. before(YYYY-MM-DD) 지정 시 그 이전만 삭제.",
+        "operationId": "clear_uptrend_alerts_api_alerts_uptrend_delete",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/uptrend/read": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Mark Uptrend Read",
+        "description": "상승흐름 알림 읽음 처리 — 마커를 현재 시각으로 갱신 (미읽음 0).",
+        "operationId": "mark_uptrend_read_api_alerts_uptrend_read_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/uptrend/{alert_id}": {
+      "delete": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Delete Uptrend Alert",
+        "description": "상승흐름 알림 이력 1건 삭제.",
+        "operationId": "delete_uptrend_alert_api_alerts_uptrend__alert_id__delete",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/alerts/": {
       "post": {
         "tags": [
@@ -3110,6 +3325,22 @@
             },
             "type": "array",
             "title": "Risks"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/InsightPoint"
+            },
+            "type": "array",
+            "title": "Points",
+            "default": []
+          },
+          "point_risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Point Risks",
+            "default": []
           }
         },
         "type": "object",
@@ -3206,6 +3437,36 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "InsightPoint": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "text"
+        ],
+        "title": "InsightPoint",
+        "description": "typed 인사이트 포인트 (표시 색상은 type으로 결정)"
       },
       "LumpSumRequest": {
         "properties": {

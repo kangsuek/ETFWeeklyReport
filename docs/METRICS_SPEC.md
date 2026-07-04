@@ -46,6 +46,22 @@
 | 리스크: 동반 순매도 | 외국인+기관 모두 3일 연속 순매도 |
 | 리스크: 급락일 | 최근 5일 내 일간 -5% 초과 하락일 존재 |
 
+## 상승흐름(uptrend) 신호 판정 (SignalDetector)
+
+거래량 동반 돌파의 **확정(LV2)** 여부를 판정해 알림으로 발신한다. 상세 산식·파라미터·
+상태 머신은 정본 문서 [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md) §2 참조.
+
+| 판정 | 기준 (기본 파라미터) |
+|---|---|
+| LV1 돌파 | 종가 > 직전 20거래일 고가 + 거래량 ≥ 평균 2배 + 캔들 위치 ≥ 0.6 + 수급(당일 또는 3일 누적 순매수 > 0) + 5일 수익률 < 25% + 데이터 ≥ 30행 |
+| LV2 확정 (재시험) | 저가가 돌파선 ±2% 접근 후 종가가 돌파선 재돌파, 재시험 중 저가가 돌파선×0.97 미붕괴 |
+| LV2 확정 (연속유지) | 돌파일 포함 3거래일 연속 종가 > 돌파선 |
+| 실패/만료 | 종가가 돌파선×0.97 미만 마감(failed) / 15거래일 내 미확정(expired) |
+| 알림 억제 | 직전 LV2로부터 20거래일 이내 재확정 시(쿨다운) |
+
+> "거래일" = `prices` 테이블 행(휴장일 달력 없음, 본 문서 원칙과 동일). 계산은 백엔드
+> `signal_detector.py` 순수 함수가 정본, `as_of` 슬라이싱으로 미래 데이터 누수 차단.
+
 ## 구현 위치 현황
 
 | 소비처 | API | 계산 위치 |
@@ -56,6 +72,7 @@
 | 종목 비교 | `GET /api/etfs/compare` | `comparison_service.py` |
 | 뉴스 타임라인 감성 | `GET /api/news/{ticker}?analyze=true` | `news_analyzer.py` |
 | 차트 RSI/MACD 라인 | (가격 데이터 재활용) | `frontend/utils/technicalIndicators.js` (시각화 전용) |
+| 상승흐름 신호·이력 | `GET /api/alerts/signals/{ticker}`, `GET /api/alerts/uptrend` | `signal_detector.py` (`scheduler` 16:40 잡·기동 따라잡기) |
 
 > `get_etf_metrics`·`comparison_service`의 자체 산식은 위 명세와 일치해야 하며,
 > 장기적으로 `metrics_service` 프리미티브 재사용으로 통합한다.

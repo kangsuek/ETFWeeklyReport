@@ -1500,6 +1500,37 @@ Content-Type: application/json
 
 ---
 
+### 상승흐름(uptrend) 신호 이력·미읽음
+
+거래량 동반 돌파의 **확정 신호**만 서버에서 이력·미읽음을 관리합니다(기존 3종 상태성 알림과 분리). 판정 기준은 [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md) 참조.
+
+#### GET /api/alerts/signals/{ticker}
+
+종목별 신호 이벤트(`signal_events`)를 돌파일 내림차순으로 반환합니다.
+
+- **Query**: `limit` (1~200, 기본 50)
+- **응답**: `[{ id, ticker, breakout_date, breakout_level, status(pending/confirmed/failed/expired), confirmed_date, confirm_path, ... }]`
+
+#### GET /api/alerts/uptrend
+
+상승흐름 확정 알림 이력과 미읽음 개수를 반환합니다.
+
+- **Query**: `limit` (1~200, 기본 50), `offset` (기본 0)
+- **응답**: `{ "items": [ alert_history 행 ... ], "unread_count": int }`
+- 미읽음 = `triggered_at > uptrend_last_read_at`(마커). 마커 부재 시 전체가 미읽음.
+
+#### POST /api/alerts/uptrend/read
+
+읽음 마커를 현재 시각으로 갱신합니다(미읽음 0). **응답**: `{ "read": true }`
+
+#### DELETE /api/alerts/uptrend/{id} · DELETE /api/alerts/uptrend
+
+이력 정리. 단건 삭제(`/{id}`) 또는 `?before=YYYY-MM-DD`로 그 이전 일괄 삭제. **응답**: `{ "deleted": ... }`
+
+**상태 코드**: 200, 404(단건 미존재), 500
+
+---
+
 ## 8. 종목 발굴 (`/api/scanner`)
 
 조건 기반 종목 검색, 테마별 그룹, 추천 프리셋, 종목 발굴 수집 진행/취소를 제공합니다.

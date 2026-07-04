@@ -89,11 +89,21 @@
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `/api/alerts/{ticker}` | 종목별 알림 규칙 목록. Query: `active_only` (bool, 기본 true) |
-| POST | `/api/alerts/` | 알림 규칙 생성. Body: `ticker`, `alert_type` (buy/sell/price_change/trading_signal), `direction` (above/below/both), `target_price`, `memo` |
+| POST | `/api/alerts/` | 알림 규칙 생성. Body: `ticker`, `alert_type` (buy/sell/price_change/trading_signal/uptrend), `direction` (above/below/both), `target_price`, `memo`. `uptrend`는 방향·목표가 검사 면제 |
 | PUT | `/api/alerts/{rule_id}` | 알림 규칙 수정. Body: `alert_type`, `direction`, `target_price`, `memo`, `is_active` (모두 선택) |
 | DELETE | `/api/alerts/{rule_id}` | 알림 규칙 삭제 (관련 히스토리도 함께 삭제) |
 | POST | `/api/alerts/trigger` | 알림 트리거 기록. Body: `rule_id`, `ticker`, `alert_type`, `message` |
 | GET | `/api/alerts/history/{ticker}` | 종목별 알림 이력. Query: `limit` (1~100, 기본 20) |
+
+### 상승흐름(uptrend) 신호 — 서버 관리 이력·미읽음 ([UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md))
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/alerts/signals/{ticker}` | 종목별 상승흐름 신호 이벤트(`signal_events`) 조회. Query: `limit` (1~200, 기본 50) |
+| GET | `/api/alerts/uptrend` | 상승흐름 확정 알림 이력 + `unread_count`. Query: `limit` (1~200, 기본 50), `offset` (기본 0). 응답: `{items, unread_count}` |
+| POST | `/api/alerts/uptrend/read` | 상승흐름 알림 읽음 처리 (미읽음 마커 갱신) |
+| DELETE | `/api/alerts/uptrend/{id}` | 상승흐름 알림 이력 1건 삭제 |
+| DELETE | `/api/alerts/uptrend` | 상승흐름 알림 이력 정리. Query: `before` (YYYY-MM-DD, 지정 시 그 이전만) |
 
 ---
 
