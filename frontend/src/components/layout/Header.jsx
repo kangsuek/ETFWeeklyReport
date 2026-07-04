@@ -1,12 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAlertStore } from '../../contexts/AlertContext'
+import { useUptrendAlerts } from '../../hooks/useUptrendAlerts'
 
 export default function Header() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false)
   const { alerts, unreadCount, markAllRead, clearAll } = useAlertStore()
+  const { unreadCount: uptrendUnread } = useUptrendAlerts()
   const dropdownRef = useRef(null)
 
   // 드롭다운 외부 클릭 닫기
@@ -89,6 +91,15 @@ export default function Header() {
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full">
                     {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {/* 상승흐름 확정 미읽음 (서버 이력 — 벨 드롭다운과 분리) */}
+                {uptrendUnread > 0 && (
+                  <span
+                    className="absolute -top-0.5 -left-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-green-500 rounded-full"
+                    title={`상승흐름 확정 미읽음 ${uptrendUnread}건`}
+                  >
+                    {uptrendUnread > 9 ? '9+' : uptrendUnread}
                   </span>
                 )}
               </button>
@@ -214,6 +225,14 @@ export default function Header() {
               {unreadCount > 0 && (
                 <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-500 rounded-full">
                   {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              {uptrendUnread > 0 && (
+                <span
+                  className="ml-1 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-green-500 rounded-full"
+                  title={`상승흐름 확정 미읽음 ${uptrendUnread}건`}
+                >
+                  {uptrendUnread > 9 ? '9+' : uptrendUnread}
                 </span>
               )}
             </Link>
