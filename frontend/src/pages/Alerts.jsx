@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAlertStore } from '../contexts/AlertContext'
+import UptrendHistorySection from '../components/alerts/UptrendHistorySection'
 
 export default function Alerts() {
   const { alerts, clearAll } = useAlertStore()
@@ -102,6 +103,9 @@ export default function Alerts() {
           </ul>
         )}
       </div>
+
+      {/* 상승흐름 신호 이력 (서버 관리 — 기존 3종 메모리 알림과 분리) */}
+      <UptrendHistorySection />
 
       {/* 안내 */}
       <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
