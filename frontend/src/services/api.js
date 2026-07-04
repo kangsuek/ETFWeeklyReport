@@ -353,6 +353,13 @@ export const alertApi = {
   deleteUptrend: (id) => api.delete(`/alerts/uptrend/${id}`, { timeout: NORMAL_API_TIMEOUT }),
   clearUptrend: (before) =>
     api.delete('/alerts/uptrend', { params: before ? { before } : {}, timeout: NORMAL_API_TIMEOUT }),
+
+  // 관심종목 일괄 점검 (읽기 전용, 다소 오래 걸릴 수 있음)
+  scanWatchlist: () => api.get('/alerts/uptrend/watchlist', { timeout: LONG_API_TIMEOUT }),
+
+  // 단일 종목 즉시 스캔 (토글 ON 직후 — 수집 포함이라 LONG)
+  scanSignals: (ticker) =>
+    api.post(`/alerts/signals/${ticker}/scan`, {}, { timeout: LONG_API_TIMEOUT }),
 }
 
 // Simulation API 서비스

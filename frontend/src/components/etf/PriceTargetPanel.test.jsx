@@ -42,12 +42,17 @@ describe('PriceTargetPanel — 상승흐름 탭', () => {
 
   it('토글을 켜면 uptrend 규칙 생성이 요청된다', async () => {
     let posted = null
+    let scanned = null
     server.use(
       http.get(`${BASE}/alerts/:ticker`, () => HttpResponse.json([])),
       http.get(`${BASE}/alerts/signals/:ticker`, () => HttpResponse.json([])),
       http.post(`${BASE}/alerts/`, async ({ request }) => {
         posted = await request.json()
         return HttpResponse.json({ id: 9, ...posted, is_active: 1 })
+      }),
+      http.post(`${BASE}/alerts/signals/:ticker/scan`, ({ params }) => {
+        scanned = params.ticker
+        return HttpResponse.json({ scanned: true })
       }),
     )
     renderWithProviders(<PriceTargetPanel ticker="005930" currentPrice={70000} />)
@@ -57,5 +62,7 @@ describe('PriceTargetPanel — 상승흐름 탭', () => {
 
     await waitFor(() =>
       expect(posted).toMatchObject({ alert_type: 'uptrend', ticker: '005930' }))
+    // 켜기 직후 즉시 스캔(B)이 해당 종목으로 호출됨
+    await waitFor(() => expect(scanned).toBe('005930'))
   })
 })

@@ -174,13 +174,25 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
     staleTime: 60_000,
   })
 
+  // 켜기: 규칙 생성 + 즉시 스캔(B) → 결과 바로 반영. 끄기: 규칙 삭제
+  const enableUptrendMutation = useMutation({
+    mutationFn: async () => {
+      await alertApi.createRule({
+        ticker, alert_type: 'uptrend', direction: 'above', target_price: 0, memo: null,
+      })
+      await alertApi.scanSignals(ticker)
+    },
+    onSuccess: () => {
+      invalidate()
+      queryClient.invalidateQueries({ queryKey: ['signalEvents', ticker] })
+    },
+  })
+
   const handleUptrendToggle = () => {
     if (uptrendRule) {
       deleteMutation.mutate(uptrendRule.id)
     } else {
-      createMutation.mutate({
-        ticker, alert_type: 'uptrend', direction: 'above', target_price: 0, memo: null,
-      })
+      enableUptrendMutation.mutate()
     }
   }
 
@@ -400,7 +412,8 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
         <UptrendTab
           enabled={uptrendOn}
           onToggle={handleUptrendToggle}
-          pending={createMutation.isPending || deleteMutation.isPending}
+          pending={enableUptrendMutation.isPending || deleteMutation.isPending}
+          scanning={enableUptrendMutation.isPending}
           signals={signals}
         />
       ) : isLoading ? (
@@ -569,7 +582,7 @@ const formatMMDD = (iso) => {
   return m && d ? `${m}/${d}` : String(iso).slice(0, 10)
 }
 
-const UptrendTab = ({ enabled, onToggle, pending, signals }) => {
+const UptrendTab = ({ enabled, onToggle, pending, scanning, signals }) => {
   const latest = signals && signals.length > 0 ? signals[0] : null
   const status = latest ? SIGNAL_STATUS[latest.status] : null
   return (
@@ -578,7 +591,9 @@ const UptrendTab = ({ enabled, onToggle, pending, signals }) => {
       <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">상승흐름 확정 알림</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">거래량 동반 돌파가 확정되면 알림</p>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+            {scanning ? '켜는 중 — 현재 상태 확인 중…' : '거래량 동반 돌파가 확정되면 알림'}
+          </p>
         </div>
         <button
           type="button"
@@ -618,6 +633,7 @@ UptrendTab.propTypes = {
   enabled: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
   pending: PropTypes.bool,
+  scanning: PropTypes.bool,
   signals: PropTypes.array,
 }
 
