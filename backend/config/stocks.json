@@ -370,5 +370,18 @@
     ],
     "purchase_price": null,
     "quantity": null
+  },
+  "071050": {
+    "name": "한국금융지주",
+    "type": "STOCK",
+    "theme": "증권",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "한국금융지주",
+    "relevance_keywords": [
+      "한국금융지주",
+      "증권"
+    ]
   }
 }
