@@ -447,6 +447,44 @@ def init_db():
         ON alert_history(ticker, triggered_at DESC)
     """)
 
+    # Create signal_events table for uptrend signal state machine
+    # (상승흐름 신호 상태 머신 저장소 — docs/UPTREND_SIGNAL_DESIGN.md §3-2)
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS signal_events (
+            id {id_type},
+            ticker {text_type} NOT NULL,
+            rule_id {integer_type} NOT NULL,
+            breakout_date DATE NOT NULL,
+            breakout_level {real_type} NOT NULL,
+            volume_ratio {real_type},
+            candle_pos {real_type},
+            flow_net_3d {integer_type},
+            status {text_type} NOT NULL DEFAULT 'pending',
+            confirmed_date DATE,
+            confirm_path {text_type},
+            created_at TIMESTAMP {timestamp_default},
+            updated_at TIMESTAMP {timestamp_default},
+            FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+            FOREIGN KEY (rule_id) REFERENCES alert_rules(id),
+            UNIQUE(ticker, breakout_date)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_signal_events_status
+        ON signal_events(status, ticker)
+    """)
+
+    # Create app_state key-value table for persistent markers
+    # (마지막 신호 스캔일, uptrend 읽음 마커 등 앱 재시작 간 영속 상태 — §3-2)
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS app_state (
+            key {text_type} PRIMARY KEY,
+            value {text_type},
+            updated_at TIMESTAMP {timestamp_default}
+        )
+    """)
+
     # Create etf_fundamentals table for NAV, AUM tracking
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS etf_fundamentals (

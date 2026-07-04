@@ -16,8 +16,10 @@
 | `stock_catalog` | 종목 목록 카탈로그 (코스피, 코스닥, ETF — 검색·스크리닝용, 가격·수급 포함) |
 | `collection_status` | 종목별 수집 상태 (마지막 수집일, 건수, 실패 횟수 등) |
 | `intraday_prices` | 분봉 데이터 (당일 또는 지정일) |
-| `alert_rules` | 알림 규칙 (목표가, 급등/급락, 매매 시그널) |
+| `alert_rules` | 알림 규칙 (목표가, 급등/급락, 매매 시그널, 상승흐름) |
 | `alert_history` | 알림 트리거 이력 |
+| `signal_events` | 상승흐름 신호 상태 머신 (LV1 돌파 → LV2 확정/실패/만료) |
+| `app_state` | 앱 영속 상태 키-값 (마지막 신호 스캔일, uptrend 읽음 마커 등) |
 | `etf_fundamentals` | ETF 펀더멘털 (NAV, AUM, 추적오차, 총보수) |
 | `etf_rebalancing` | ETF 리밸런싱 이력 (편입/편출/조정) |
 | `etf_distributions` | ETF 분배금 이력 (기준일, 지급일, 주당 금액, 배당수익률) |
@@ -268,6 +270,43 @@ CREATE TABLE alert_history (
 );
 ```
 
+> 상승흐름 확정 알림은 `alert_type='uptrend'`으로 이 테이블에 기록되며, 미읽음·이력 관리 대상이다 (기존 3종 상태성 알림과 구분 — [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md) §3-5).
+
+### 9.5. `signal_events` (상승흐름 신호 상태 머신)
+LV1 돌파 감지부터 LV2 확정/실패/만료까지의 신호 상태를 종목·돌파일 단위로 저장. `UNIQUE(ticker, breakout_date)`로 소급 재생 시 멱등성 보장. 판정 기준은 [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md) §2 참조.
+
+```sql
+CREATE TABLE signal_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    rule_id INTEGER NOT NULL,          -- alert_rules(uptrend 규칙) 참조
+    breakout_date DATE NOT NULL,       -- LV1 발생일
+    breakout_level REAL NOT NULL,      -- 돌파선 (직전 20일 고가)
+    volume_ratio REAL,                 -- 돌파일 거래량 배수
+    candle_pos REAL,                   -- 돌파일 캔들 위치
+    flow_net_3d INTEGER,               -- 돌파일 기준 3일 누적 수급
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending/confirmed/failed/expired
+    confirmed_date DATE,               -- LV2 확정일
+    confirm_path TEXT,                 -- 'retest' | 'hold'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticker) REFERENCES etfs(ticker),
+    FOREIGN KEY (rule_id) REFERENCES alert_rules(id),
+    UNIQUE(ticker, breakout_date)
+);
+```
+
+### 9.6. `app_state` (앱 영속 상태 키-값)
+스케줄러·읽음 마커처럼 앱 재시작 간 유지해야 하는 범용 상태를 키-값으로 저장. 예: `('last_signal_scan_date', 'YYYY-MM-DD')`, `('uptrend_last_read_at', ISO timestamp)`.
+
+```sql
+CREATE TABLE app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ### 10. `etf_fundamentals` (ETF 펀더멘털: NAV, AUM)
 ETF별 일자 단위 NAV, AUM, 추적오차, 총보수 등. AI 보고서·분석용.
 
@@ -410,6 +449,7 @@ CREATE INDEX idx_collection_status_last_dates ON collection_status(last_price_da
 CREATE INDEX idx_intraday_prices_ticker_datetime ON intraday_prices(ticker, datetime DESC);
 CREATE INDEX idx_alert_rules_ticker ON alert_rules(ticker, is_active);
 CREATE INDEX idx_alert_history_ticker ON alert_history(ticker, triggered_at DESC);
+CREATE INDEX idx_signal_events_status ON signal_events(status, ticker);
 CREATE INDEX idx_etf_fundamentals_ticker_date ON etf_fundamentals(ticker, date DESC);
 CREATE INDEX idx_etf_rebalancing_ticker_date ON etf_rebalancing(ticker, rebalance_date DESC);
 CREATE INDEX idx_etf_distributions_ticker_date ON etf_distributions(ticker, record_date DESC);
