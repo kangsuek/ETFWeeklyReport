@@ -481,7 +481,10 @@ class ETFDataCollector(TradingFlowCollectorMixin):
                         success=True
                     )
             except Exception as e:
+                # 감지기가 last_trading_flow_date로 수급 신선도를 판정하므로
+                # 매매동향 수집 실패를 조용히 삼키지 않고 상태에 기록한다
                 logger.error(f"[일괄 수집] {ticker} 매매동향 수집 실패: {e}")
+                update_collection_status(ticker, success=False)
 
             # 뉴스 수집
             try:

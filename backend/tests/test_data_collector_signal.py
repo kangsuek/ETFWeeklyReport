@@ -5,7 +5,7 @@ Given-When-Then, 클래스 기반. collect/조회 메서드를 모킹해 요청 
 """
 import pytest
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.services.data_collector import ETFDataCollector
 from app.constants import DEFAULT_BACKFILL_DAYS, SIGNAL_MIN_DATA_DAYS
 
@@ -103,3 +103,57 @@ class TestEnsureRecentHistory:
         assert result is True
         m_price.assert_called_once_with('487240', days=DEFAULT_BACKFILL_DAYS)
         m_flow.assert_called_once_with('487240', days=DEFAULT_BACKFILL_DAYS)
+
+
+class TestTradingFlowStatusRecording:
+    """_collect_single_ticker의 매매동향 수집 상태 기록 정확성 (Phase 1.3)"""
+
+    @pytest.fixture
+    def collector(self):
+        return ETFDataCollector()
+
+    def _run(self, collector, flow_return=None, flow_error=None):
+        """가격은 성공 고정, 매매동향 결과만 바꿔가며 _collect_single_ticker 실행.
+
+        Returns: update_collection_status 모킹 객체
+        """
+        etf = MagicMock()
+        etf.name = '테스트'
+        with patch('app.database.update_collection_status') as m_status, \
+                patch.object(collector, 'get_etf_info', return_value=etf), \
+                patch.object(collector, 'collect_and_save_prices', return_value=5), \
+                patch.object(collector, 'collect_and_save_trading_flow') as m_flow, \
+                patch.object(collector.news_scraper, 'collect_and_save_news',
+                             return_value={'collected': 0}):
+            if flow_error is not None:
+                m_flow.side_effect = flow_error
+            else:
+                m_flow.return_value = flow_return
+            collector._collect_single_ticker('487240', days=1)
+        return m_status
+
+    def test_flow_success_records_date(self, collector):
+        """Given 매매동향 수집 성공 When 수집 Then trading_flow_date·success=True 기록"""
+        # When
+        m_status = self._run(collector, flow_return=3)
+
+        # Then: 매매동향 날짜와 성공이 기록됨
+        flow_calls = [
+            c for c in m_status.call_args_list
+            if c.kwargs.get('trading_flow_date')
+        ]
+        assert len(flow_calls) == 1
+        assert flow_calls[0].kwargs['trading_flow_date'] == date.today().isoformat()
+        assert flow_calls[0].kwargs['success'] is True
+
+    def test_flow_failure_records_failure(self, collector):
+        """Given 매매동향 수집 예외 When 수집 Then success=False로 실패 기록(무음 금지)"""
+        # When
+        m_status = self._run(collector, flow_error=Exception("network"))
+
+        # Then: success=False 호출이 존재해야 함
+        fail_calls = [
+            c for c in m_status.call_args_list
+            if c.kwargs.get('success') is False
+        ]
+        assert len(fail_calls) >= 1
