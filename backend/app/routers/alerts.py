@@ -18,7 +18,8 @@ router = APIRouter()
 PP = "?"
 
 # 허용되는 alert_type / direction 조합
-VALID_ALERT_TYPES = {"buy", "sell", "price_change", "trading_signal"}
+# uptrend: 상승흐름 확정 신호 — 방향·목표가를 쓰지 않고 백엔드 감지기가 판정
+VALID_ALERT_TYPES = {"buy", "sell", "price_change", "trading_signal", "uptrend"}
 VALID_DIRECTIONS = {"above", "below", "both"}
 
 
@@ -29,6 +30,9 @@ def _validate_rule(alert_type: str, direction: str, target_price: float):
             status_code=400,
             detail=f"alert_type은 {VALID_ALERT_TYPES} 중 하나여야 합니다",
         )
+    if alert_type == "uptrend":
+        # 상승흐름 규칙은 켜기/끄기만 의미 — 방향·목표가 검사 면제
+        return
     if direction not in VALID_DIRECTIONS:
         raise HTTPException(
             status_code=400,
@@ -97,6 +101,26 @@ async def get_alert_history(
     except Exception as e:
         logger.error(f"Failed to fetch alert history for {ticker}: {e}")
         raise HTTPException(status_code=500, detail="알림 이력 조회 실패")
+
+
+@router.get("/signals/{ticker}")
+async def get_signal_events(
+    ticker: str,
+    limit: int = Query(50, ge=1, le=200),
+):
+    """종목별 상승흐름 신호 이벤트 조회 (상세 페이지 배지·상태 표시용)"""
+    try:
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            cursor.execute(
+                f"""SELECT * FROM signal_events WHERE ticker = {PP}
+                    ORDER BY breakout_date DESC LIMIT {PP}""",
+                (ticker, limit),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Failed to fetch signal events for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="신호 이벤트 조회 실패")
 
 
 # ──────────────────────────── CRUD ────────────────────────────
