@@ -7,6 +7,7 @@ via the stocks.json configuration file.
 
 from fastapi import APIRouter, HTTPException, Path as PathParam, Query, Depends, Request
 from typing import Dict, Any, List, Optional
+import asyncio
 import logging
 from app.models import StockCreate, StockUpdate, StockDeleteResponse
 from app.utils import stocks_manager
@@ -16,9 +17,42 @@ from app.services.ticker_scraper import TickerScraper
 from app.services.ticker_catalog_collector import TickerCatalogCollector
 from app.exceptions import ScraperException
 from app.config import Config
+from app.constants import DEFAULT_BACKFILL_DAYS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _backfill_new_stock(ticker: str) -> None:
+    """신규 등록 종목의 초기 히스토리를 수집 (가격·매매동향 DEFAULT_BACKFILL_DAYS치).
+
+    블로킹 스크레이핑을 asyncio.to_thread로 오프로드해 이벤트 루프를 막지 않는다.
+    실패는 로그만 남기고 삼킨다 — 등록 자체는 이미 성공 처리된 상태다.
+    """
+    try:
+        from app.services.data_collector import ETFDataCollector
+        collector = ETFDataCollector()
+        await asyncio.to_thread(
+            collector.collect_and_save_prices, ticker, DEFAULT_BACKFILL_DAYS
+        )
+        await asyncio.to_thread(
+            collector.collect_and_save_trading_flow, ticker, DEFAULT_BACKFILL_DAYS
+        )
+        logger.info(f"[신규 백필] {ticker}: {DEFAULT_BACKFILL_DAYS}일 초기 수집 완료")
+    except Exception as e:
+        logger.error(f"[신규 백필] {ticker} 실패(등록은 성공): {e}")
+
+
+def _schedule_initial_backfill(ticker: str) -> None:
+    """신규 종목 초기 백필을 백그라운드 태스크로 예약한다 (fire-and-forget).
+
+    응답을 지연시키지 않도록 현재 이벤트 루프에 태스크만 등록하고 즉시 반환한다.
+    """
+    try:
+        asyncio.get_running_loop().create_task(_backfill_new_stock(ticker))
+    except RuntimeError:
+        # 실행 중인 이벤트 루프가 없으면(동기 컨텍스트) 백필을 건너뛴다
+        logger.warning(f"[신규 백필] {ticker}: 이벤트 루프 없음 — 백필 예약 건너뜀")
 
 
 # Initialize ticker scraper
@@ -129,6 +163,9 @@ async def create_stock(
         cache = get_cache()
         cache.invalidate_pattern("etfs")
         logger.info(f"Cache invalidated for etfs after creating stock {ticker}")
+
+        # 신규 종목 히스토리 초기 백필 (백그라운드, 응답 지연 없이)
+        _schedule_initial_backfill(ticker)
 
         # Return created stock
         return {
