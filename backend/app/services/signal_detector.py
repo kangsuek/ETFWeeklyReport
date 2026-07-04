@@ -23,6 +23,7 @@ from app.constants import (
     SIGNAL_FAIL_FLOOR,
     SIGNAL_HOLD_DAYS,
     SIGNAL_COOLDOWN_DAYS,
+    SIGNAL_ALERT_FRESH_DAYS,
 )
 
 logger = logging.getLogger(__name__)
@@ -413,12 +414,17 @@ def _build_alert_message(name: str, path: Optional[str], level: float) -> str:
 def _emit_uptrend_alert(rule_id: int, ticker: str, name: str, level: float,
                         path: Optional[str], confirmed_date: date_type,
                         prices: List[PriceBar], confirm_idx: int) -> bool:
-    """쿨다운 게이트 통과 시 alert_history 기록 + last_triggered_at 갱신 (§3-4).
+    """신선도·쿨다운 게이트 통과 시 alert_history 기록 + last_triggered_at 갱신 (§3-4).
 
     Returns:
-        기록했으면 True, 쿨다운으로 억제됐으면 False.
+        기록했으면 True, 신선도/쿨다운으로 억제됐으면 False.
     """
     from app.database import get_db_connection, get_cursor
+
+    # 신선도 가드: 확정일이 최신 데이터로부터 너무 오래됐으면 상태만 두고 알림 억제.
+    # 최초 스캔·장기 미기동 따라잡기의 소급 재생이 오래된 확정을 새 알림처럼 띄우는 것 방지.
+    if (len(prices) - 1 - confirm_idx) > SIGNAL_ALERT_FRESH_DAYS:
+        return False
 
     with get_db_connection() as conn:
         cur = get_cursor(conn)
@@ -629,10 +635,26 @@ def evaluate_watchlist() -> List[dict]:
         latest = events[-1] if events else None
         results.append({
             "ticker": etf.ticker, "name": etf.name,
-            "status": latest["status"] if latest else "none",
+            "status": _current_status(latest, prices),
             "latest": latest,
         })
     return results
+
+
+def _current_status(latest: Optional[dict], prices: List[PriceBar]) -> str:
+    """'지금'의 상태로 환산 — 오래된 확정(신선도 초과)은 'none'으로 강등.
+
+    확정 이벤트는 시점 신호라 시간이 지나면 '현재 상승흐름'이 아니다. pending은
+    확정 창(≤15거래일) 내라 본질적으로 최근이므로 그대로 둔다.
+    """
+    if latest is None:
+        return "none"
+    if latest["status"] != "confirmed":
+        return latest["status"]
+    idx = _find_index(prices, _as_date(latest["confirmed_date"]))
+    if idx is None or (len(prices) - 1 - idx) > SIGNAL_ALERT_FRESH_DAYS:
+        return "none"
+    return "confirmed"
 
 
 def scan_ticker(ticker: str, since=None) -> dict:

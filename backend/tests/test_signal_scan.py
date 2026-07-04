@@ -156,6 +156,34 @@ class TestScanAllIntegration:
             cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
             assert cur.fetchone()["c"] == 1
 
+    def test_old_confirm_suppressed_state_only(self):
+        """Given 신선도 초과 확정(소급) When scan_all Then 상태만 기록·알림 억제"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()  # day30 돌파 → day32 확정
+        # 확정 뒤 평탄한 거래일 12개 추가 → 확정이 최신에서 12거래일 전(> FRESH 10)
+        for k in range(1, 13):
+            bars.append((BASE + timedelta(days=32 + k), 101, 101, 101, 101, 1000))
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+        rule_id = _create_uptrend_rule(ticker)
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            scan_all(since=None)
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            # 상태(signal_events)는 confirmed로 기록
+            cur.execute("SELECT status FROM signal_events WHERE ticker=?", (ticker,))
+            assert cur.fetchone()["status"] == "confirmed"
+            # 사용자 알림은 억제 (오래된 확정)
+            cur.execute("SELECT COUNT(*) c FROM alert_history WHERE rule_id=?", (rule_id,))
+            assert cur.fetchone()["c"] == 0
+            cur.execute("SELECT last_triggered_at FROM alert_rules WHERE id=?", (rule_id,))
+            assert cur.fetchone()["last_triggered_at"] is None
+
     def test_partial_failure_keeps_marker(self):
         """Given 스캔 중 예외 When scan_all Then 마커 미갱신(다음 기동 재따라잡기)"""
         ticker = _valid_ticker()
@@ -247,6 +275,21 @@ class TestWatchlistAndSingleScan:
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) c FROM signal_events")
             assert cur.fetchone()["c"] == 0
+
+    def test_evaluate_watchlist_downgrades_stale_confirm(self):
+        """Given 오래된 확정 When 일괄 점검 Then status='none'(지금 아님), latest는 유지"""
+        ticker = _valid_ticker()
+        bars = _confirm_series()  # day32 확정
+        for k in range(1, 13):  # 확정 뒤 12거래일 → 신선도(10) 초과
+            bars.append((BASE + timedelta(days=32 + k), 101, 101, 101, 101, 1000))
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+
+        results = evaluate_watchlist()
+        entry = next((r for r in results if r["ticker"] == ticker), None)
+        assert entry is not None
+        assert entry["status"] == "none"  # 지금 상태는 아님
+        assert entry["latest"]["status"] == "confirmed"  # 원본 이벤트는 보존
 
     def test_evaluate_watchlist_insufficient_data(self):
         """Given 데이터 부족 종목 When 일괄 점검 Then insufficient_data"""

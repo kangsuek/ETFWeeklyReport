@@ -245,10 +245,13 @@ export default function ETFDetail() {
     enabled: !!ticker,
     staleTime: CACHE_STALE_TIME_SLOW,
   })
-  const confirmedSignal = useMemo(
-    () => signalEvents.find(s => s.status === 'confirmed'),
-    [signalEvents],
-  )
+  // 확정 배지는 '최근' 확정만 — 오래된 확정(수개월 전)은 이미 지난 신호이므로 숨김
+  const confirmedSignal = useMemo(() => {
+    const c = signalEvents.find(s => s.status === 'confirmed')
+    if (!c || !c.confirmed_date) return null
+    const daysAgo = (Date.now() - new Date(String(c.confirmed_date).slice(0, 10)).getTime()) / 86400000
+    return daysAgo <= 14 ? c : null
+  }, [signalEvents])
 
   // 핵심 지표 (수익률·변동성·MDD·샤프) - ETF/STOCK 공통 (가격 기반 계산)
   const { data: metricsData } = useQuery({
