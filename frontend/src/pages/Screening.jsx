@@ -6,6 +6,7 @@ import ScreeningFilters from '../components/screening/ScreeningFilters'
 import ScreeningTable from '../components/screening/ScreeningTable'
 import ScreeningHeatmap from '../components/screening/ScreeningHeatmap'
 import ThemeExplorer from '../components/screening/ThemeExplorer'
+import UptrendScreening from '../components/screening/UptrendScreening'
 import LoadingIndicator from '../components/common/LoadingIndicator'
 import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_FAST } from '../constants'
@@ -13,6 +14,7 @@ import { CACHE_STALE_TIME_FAST } from '../constants'
 const TABS = [
   { id: 'search', label: '조건 검색' },
   { id: 'theme', label: '테마 탐색' },
+  { id: 'uptrend', label: '상승흐름' },
 ]
 
 const SORT_OPTIONS = [
@@ -264,7 +266,7 @@ export default function Screening() {
     <div className="animate-fadeIn">
       <PageHeader
         title="종목 발굴"
-        subtitle="ETF 조건 검색 및 테마 탐색"
+        subtitle="ETF 조건 검색 · 테마 탐색 · 상승흐름 신호"
       />
 
       {/* 탭 바 + 데이터 수집 버튼 */}
@@ -475,6 +477,8 @@ export default function Screening() {
           isCollecting={isCollecting}
         />
       )}
+
+      {activeTab === 'uptrend' && <UptrendScreening />}
     </div>
   )
 }
