@@ -301,3 +301,20 @@ class TestUpdatePendingDown:
         fwd = [_bar(30 + k, 101, 102.5, 101, 102.0, 1000) for k in range(1, 16)]
         prices, flows = self._fwd(fwd)
         assert update_pending(self._event(prices), prices, flows, 45, direction='down') == ("expired", None)
+
+
+class TestFlatBarSymmetry:
+    """한 가격 마감(상한가·하한가 잠김) 봉의 방향 대칭성"""
+
+    def test_limit_up_flat_bar_detected(self):
+        """Given 점상한가(고=저=종>돌파선) When up 판정 Then 신호"""
+        prices = _base_flat(30) + [_bar(30, 115, 115, 115, 115, 2500)]
+        assert detect_breakout(prices, _pos_flows(prices), 30, direction='up') is not None
+
+    def test_limit_down_flat_bar_detected(self):
+        """Given 점하한가(고=저=종<이탈선) When down 판정 Then 신호 (회귀: 기각되던 버그)"""
+        prices = _base_flat(30) + [_bar(30, 85, 85, 85, 85, 2500)]
+        flows = _pos_flows(prices, -500)
+        sig = detect_breakout(prices, flows, 30, direction='down')
+        assert sig is not None
+        assert sig.breakout_level == pytest.approx(100.0)

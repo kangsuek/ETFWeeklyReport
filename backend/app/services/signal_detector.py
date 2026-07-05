@@ -72,6 +72,19 @@ def _candle_position(bar: PriceBar) -> float:
     return (bar.close - bar.low) / span
 
 
+def _effective_candle(bar: PriceBar, direction: str) -> float:
+    """방향 기준 캔들 강도 — up은 상단 마감일수록, down은 하단 마감일수록 1에 가깝다.
+
+    고가=저가(상한가·하한가 잠김 등 한 가격 마감)는 방향과 무관하게 가장 강한
+    마감으로 간주해 1.0을 반환한다. 단순히 1-_candle_position을 쓰면 하한가
+    잠김 봉(가장 강한 이탈)이 0이 되어 기각되는 비대칭이 생긴다.
+    """
+    if bar.high - bar.low <= 0:
+        return 1.0
+    pos = _candle_position(bar)
+    return pos if direction == UP else 1 - pos
+
+
 def _flow_sum_recent(
     prices: List[PriceBar],
     flows: Dict[date_type, int],
@@ -139,8 +152,8 @@ def detect_breakout(
     avg_vol = sum(b.volume for b in lookback) / len(lookback)
     volume_ratio = today.volume / avg_vol if avg_vol > 0 else 0.0
     candle_pos = _candle_position(today)
-    # up은 상단 마감(위치↑), down은 하단 마감(위치↓ → 1-위치가 커야 함)
-    eff_candle = candle_pos if direction == UP else 1 - candle_pos
+    # up은 상단 마감(위치↑), down은 하단 마감(위치↓). 한 가격 마감(상·하한가)은 양쪽 모두 1.0
+    eff_candle = _effective_candle(today, direction)
     net_3d, has_flow = _flow_sum_recent(prices, flows, as_of_idx)
 
     # B1 방향 돌파, B2 거래량 배수, B3 캔들 위치, B4 수급(결측이면 보류), B5 과열/과매도 아님
