@@ -288,6 +288,7 @@ CREATE TABLE signal_events (
     status TEXT NOT NULL DEFAULT 'pending',  -- pending/confirmed/failed/expired
     confirmed_date DATE,               -- LV2 확정일
     confirm_path TEXT,                 -- 'retest' | 'hold'
+    direction TEXT NOT NULL DEFAULT 'up',    -- 'up'(상승 돌파) | 'down'(하락 이탈)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ticker) REFERENCES etfs(ticker),

@@ -1948,9 +1948,9 @@
         "tags": [
           "Alerts"
         ],
-        "summary": "Scan Watchlist",
-        "description": "관심종목(등록 종목) 전체의 현재 상승흐름 상태를 일괄 점검 (A — 읽기 전용).\n\n저장된 데이터로 순수 재생만 하며 signal_events/alert_history를 변경하지 않는다.",
-        "operationId": "scan_watchlist_api_alerts_uptrend_watchlist_get",
+        "summary": "Scan Watchlist Up",
+        "description": "관심종목 상승흐름 일괄 점검 (읽기 전용).",
+        "operationId": "scan_watchlist_up_api_alerts_uptrend_watchlist_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1969,7 +1969,7 @@
           "Alerts"
         ],
         "summary": "Get Uptrend Alerts",
-        "description": "상승흐름 확정 알림 이력 + 미읽음 카운트.\n\n미읽음 = triggered_at > uptrend_last_read_at(마커). 마커 부재 시 전체가 미읽음.",
+        "description": "상승흐름 확정 알림 이력 + 미읽음 카운트.",
         "operationId": "get_uptrend_alerts_api_alerts_uptrend_get",
         "parameters": [
           {
@@ -2022,7 +2022,7 @@
           "Alerts"
         ],
         "summary": "Clear Uptrend Alerts",
-        "description": "상승흐름 알림 이력 정리. before(YYYY-MM-DD) 지정 시 그 이전만 삭제.",
+        "description": "상승흐름 알림 이력 정리.",
         "operationId": "clear_uptrend_alerts_api_alerts_uptrend_delete",
         "parameters": [
           {
@@ -2070,7 +2070,7 @@
           "Alerts"
         ],
         "summary": "Mark Uptrend Read",
-        "description": "상승흐름 알림 읽음 처리 — 마커를 현재 시각으로 갱신 (미읽음 0).",
+        "description": "상승흐름 알림 읽음 처리.",
         "operationId": "mark_uptrend_read_api_alerts_uptrend_read_post",
         "responses": {
           "200": {
@@ -2092,6 +2092,188 @@
         "summary": "Delete Uptrend Alert",
         "description": "상승흐름 알림 이력 1건 삭제.",
         "operationId": "delete_uptrend_alert_api_alerts_uptrend__alert_id__delete",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/downtrend/watchlist": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Scan Watchlist Down",
+        "description": "관심종목 하락흐름 일괄 점검 (읽기 전용).",
+        "operationId": "scan_watchlist_down_api_alerts_downtrend_watchlist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/downtrend": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Get Downtrend Alerts",
+        "description": "하락흐름 확정 알림 이력 + 미읽음 카운트.",
+        "operationId": "get_downtrend_alerts_api_alerts_downtrend_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Clear Downtrend Alerts",
+        "description": "하락흐름 알림 이력 정리.",
+        "operationId": "clear_downtrend_alerts_api_alerts_downtrend_delete",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/downtrend/read": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Mark Downtrend Read",
+        "description": "하락흐름 알림 읽음 처리.",
+        "operationId": "mark_downtrend_read_api_alerts_downtrend_read_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/downtrend/{alert_id}": {
+      "delete": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Delete Downtrend Alert",
+        "description": "하락흐름 알림 이력 1건 삭제.",
+        "operationId": "delete_downtrend_alert_api_alerts_downtrend__alert_id__delete",
         "parameters": [
           {
             "name": "alert_id",

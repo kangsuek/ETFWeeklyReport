@@ -189,8 +189,8 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
   - 쿼리: `limit` (1~100, 기본 20)
   - 최신순 정렬
 
-#### 5.3 상승흐름(uptrend) 확정 신호 ([UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md))
-거래량 동반 돌파가 **확정**되면 알리는 신호. 백엔드 감지기(`signal_detector.py`)가 평일 16:40 크론·앱 시작 따라잡기로 스캔하며, 기존 3종 알림과 달리 **서버에서 이력·미읽음을 관리**한다.
+#### 5.3 상승/하락 흐름(uptrend/downtrend) 확정 신호 ([UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md))
+거래량 동반 **돌파(상승)/이탈(하락)** 이 **확정**되면 알리는 신호. 두 방향은 같은 엔진의 거울상(`direction` up/down)이며 이력·미읽음·화면이 방향별로 분리된다. 백엔드 감지기(`signal_detector.py`)가 평일 16:40 크론·앱 시작 따라잡기로 스캔하며, 기존 3종 알림과 달리 **서버에서 이력·미읽음을 관리**한다.
 - **알림 규칙**: `POST /api/alerts/`에 `alert_type='uptrend'`(방향·목표가 불요). 종목 상세 &lsquo;상승흐름&rsquo; 탭에서 켜기/끄기.
 - **GET `/api/alerts/signals/{ticker}`** - 종목별 신호 이벤트(LV1 돌파→LV2 확정/실패/만료)
 - **GET `/api/alerts/uptrend/watchlist`** - 관심종목 전체 일괄 점검(읽기 전용, 현재 상태 리포트)
