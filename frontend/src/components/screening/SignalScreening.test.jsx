@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { renderWithProviders, screen } from '../../test/utils'
 import { server } from '../../test/mocks/server'
-import UptrendScreening from './UptrendScreening'
+import SignalScreening from './SignalScreening'
 
 const BASE = '*/api'
 
-describe('UptrendScreening', () => {
+describe('SignalScreening', () => {
   it('확정·대기 종목만 표시하고 none/데이터부족은 제외한다', async () => {
     server.use(
       http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({
@@ -18,7 +18,7 @@ describe('UptrendScreening', () => {
         ],
       })),
     )
-    renderWithProviders(<UptrendScreening />)
+    renderWithProviders(<SignalScreening direction="up" />)
 
     expect(await screen.findByText('한국콜마')).toBeInTheDocument()
     expect(screen.getByText('SK하이닉스')).toBeInTheDocument()
@@ -37,7 +37,7 @@ describe('UptrendScreening', () => {
         items: [{ ticker: '005930', name: '삼성전자', status: 'none', latest: null }],
       })),
     )
-    renderWithProviders(<UptrendScreening />)
+    renderWithProviders(<SignalScreening direction="up" />)
 
     expect(await screen.findByText('현재 상승흐름 확정·대기 종목이 없습니다')).toBeInTheDocument()
   })
@@ -51,7 +51,7 @@ describe('UptrendScreening', () => {
         ],
       })),
     )
-    renderWithProviders(<UptrendScreening />)
+    renderWithProviders(<SignalScreening direction="up" />)
 
     const rows = await screen.findAllByRole('row')
     // rows[0]은 헤더, rows[1]이 첫 데이터 행 → 확정(한국콜마)이 먼저

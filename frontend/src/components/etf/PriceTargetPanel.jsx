@@ -26,10 +26,11 @@ const FORM_DEFAULTS = {
 
 /* ── 탭 정의 ── */
 const TABS = [
-  { key: 'target',  label: '목표가' },
-  { key: 'change',  label: '급등/급락' },
-  { key: 'signal',  label: '매매시그널' },
-  { key: 'uptrend', label: '상승흐름' },
+  { key: 'target',    label: '목표가' },
+  { key: 'change',    label: '급등/급락' },
+  { key: 'signal',    label: '매매시그널' },
+  { key: 'uptrend',   label: '상승흐름' },
+  { key: 'downtrend', label: '하락흐름' },
 ]
 
 /**
@@ -147,12 +148,14 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
     setIsAdding(true)
   }
 
+  const isFlowTab = (tab) => tab === 'uptrend' || tab === 'downtrend'
+
   /* ── 탭별 규칙 필터 ── */
   const filteredRules = useMemo(() => {
     if (activeTab === 'target') return rules.filter(r => r.alert_type === 'buy' || r.alert_type === 'sell')
     if (activeTab === 'change') return rules.filter(r => r.alert_type === 'price_change')
     if (activeTab === 'signal') return rules.filter(r => r.alert_type === 'trading_signal')
-    return rules.filter(r => r.alert_type === 'uptrend')
+    return rules.filter(r => r.alert_type === activeTab)  // uptrend | downtrend
   }, [rules, activeTab])
 
   // 탭별 활성 규칙 수 (배지용)
@@ -160,25 +163,22 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
     if (key === 'target') return r.alert_type === 'buy' || r.alert_type === 'sell'
     if (key === 'change') return r.alert_type === 'price_change'
     if (key === 'signal') return r.alert_type === 'trading_signal'
-    return r.alert_type === 'uptrend'
+    return r.alert_type === key  // uptrend | downtrend
   }).filter(r => r.is_active).length, [rules])
 
-  // ── 상승흐름(uptrend) ──
-  const uptrendRule = useMemo(() => rules.find(r => r.alert_type === 'uptrend'), [rules])
-  const uptrendOn = !!(uptrendRule && uptrendRule.is_active)
-
+  // ── 상승/하락 흐름 (uptrend / downtrend) ──
   const { data: signals = [] } = useQuery({
     queryKey: ['signalEvents', ticker],
     queryFn: async () => { const res = await alertApi.getSignals(ticker); return res.data },
-    enabled: !!ticker && activeTab === 'uptrend',
+    enabled: !!ticker && isFlowTab(activeTab),
     staleTime: 60_000,
   })
 
-  // 켜기: 규칙 생성 + 즉시 스캔(B) → 결과 바로 반영. 끄기: 규칙 삭제
-  const enableUptrendMutation = useMutation({
-    mutationFn: async () => {
+  // 켜기: 규칙 생성 + 즉시 스캔(B). 끄기: 규칙 삭제. 방향별로 처리.
+  const enableFlowMutation = useMutation({
+    mutationFn: async (alertType) => {
       await alertApi.createRule({
-        ticker, alert_type: 'uptrend', direction: 'above', target_price: 0, memo: null,
+        ticker, alert_type: alertType, direction: 'above', target_price: 0, memo: null,
       })
       await alertApi.scanSignals(ticker)
     },
@@ -188,12 +188,10 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
     },
   })
 
-  const handleUptrendToggle = () => {
-    if (uptrendRule) {
-      deleteMutation.mutate(uptrendRule.id)
-    } else {
-      enableUptrendMutation.mutate()
-    }
+  const handleFlowToggle = (alertType) => {
+    const rule = rules.find(r => r.alert_type === alertType)
+    if (rule) deleteMutation.mutate(rule.id)
+    else enableFlowMutation.mutate(alertType)
   }
 
   const buyRules = filteredRules.filter(r => r.alert_type === 'buy')
@@ -210,7 +208,7 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
           </svg>
           알림 설정
         </h4>
-        {!isAdding && activeTab !== 'uptrend' && (
+        {!isAdding && !isFlowTab(activeTab) && (
           <button
             onClick={() => openAddForm(activeTab)}
             className="text-xs px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors font-medium"
@@ -408,13 +406,14 @@ const PriceTargetPanel = ({ ticker, currentPrice }) => {
       )}
 
       {/* ── 규칙 목록 ── */}
-      {activeTab === 'uptrend' ? (
-        <UptrendTab
-          enabled={uptrendOn}
-          onToggle={handleUptrendToggle}
-          pending={enableUptrendMutation.isPending || deleteMutation.isPending}
-          scanning={enableUptrendMutation.isPending}
-          signals={signals}
+      {isFlowTab(activeTab) ? (
+        <SignalTab
+          direction={activeTab === 'uptrend' ? 'up' : 'down'}
+          enabled={!!rules.find(r => r.alert_type === activeTab && r.is_active)}
+          onToggle={() => handleFlowToggle(activeTab)}
+          pending={enableFlowMutation.isPending || deleteMutation.isPending}
+          scanning={enableFlowMutation.isPending}
+          signal={signals.find(s => s.direction === (activeTab === 'uptrend' ? 'up' : 'down'))}
         />
       ) : isLoading ? (
         <div className="text-xs text-gray-400 text-center py-2">불러오는 중...</div>
@@ -570,10 +569,23 @@ RuleItem.propTypes = {
 /* 상승흐름 탭 (켜기/끄기 토글 + 현재 신호 상태)   */
 /* ══════════════════════════════════════════════ */
 const SIGNAL_STATUS = {
-  pending:   { label: '돌파 포착 — 확인 대기 중', cls: 'text-amber-600 dark:text-amber-400' },
-  confirmed: { label: '상승흐름 확정', cls: 'text-green-600 dark:text-green-400' },
-  failed:    { label: '가짜 돌파 (실패)', cls: 'text-gray-500 dark:text-gray-400' },
-  expired:   { label: '기간 경과 (만료)', cls: 'text-gray-500 dark:text-gray-400' },
+  up: {
+    pending:   { label: '돌파 포착 — 확인 대기 중', cls: 'text-amber-600 dark:text-amber-400' },
+    confirmed: { label: '상승흐름 확정', cls: 'text-green-600 dark:text-green-400' },
+    failed:    { label: '가짜 돌파 (실패)', cls: 'text-gray-500 dark:text-gray-400' },
+    expired:   { label: '기간 경과 (만료)', cls: 'text-gray-500 dark:text-gray-400' },
+  },
+  down: {
+    pending:   { label: '이탈 포착 — 확인 대기 중', cls: 'text-amber-600 dark:text-amber-400' },
+    confirmed: { label: '하락흐름 확정', cls: 'text-rose-600 dark:text-rose-400' },
+    failed:    { label: '가짜 이탈 (실패)', cls: 'text-gray-500 dark:text-gray-400' },
+    expired:   { label: '기간 경과 (만료)', cls: 'text-gray-500 dark:text-gray-400' },
+  },
+}
+
+const FLOW_TEXT = {
+  up: { title: '상승흐름 확정 알림', desc: '거래량 동반 돌파가 확정되면 알림', on: 'bg-green-500' },
+  down: { title: '하락흐름 확정 알림', desc: '거래량 동반 하향 이탈이 확정되면 알림', on: 'bg-rose-500' },
 }
 
 const formatMMDD = (iso) => {
@@ -582,17 +594,17 @@ const formatMMDD = (iso) => {
   return m && d ? `${m}/${d}` : String(iso).slice(0, 10)
 }
 
-const UptrendTab = ({ enabled, onToggle, pending, scanning, signals }) => {
-  const latest = signals && signals.length > 0 ? signals[0] : null
-  const status = latest ? SIGNAL_STATUS[latest.status] : null
+const SignalTab = ({ direction, enabled, onToggle, pending, scanning, signal }) => {
+  const status = signal ? SIGNAL_STATUS[direction][signal.status] : null
+  const text = FLOW_TEXT[direction]
   return (
     <div className="space-y-3">
       {/* 토글 */}
       <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">상승흐름 확정 알림</p>
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{text.title}</p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-            {scanning ? '켜는 중 — 현재 상태 확인 중…' : '거래량 동반 돌파가 확정되면 알림'}
+            {scanning ? '켜는 중 — 현재 상태 확인 중…' : text.desc}
           </p>
         </div>
         <button
@@ -601,8 +613,8 @@ const UptrendTab = ({ enabled, onToggle, pending, scanning, signals }) => {
           disabled={pending}
           role="switch"
           aria-checked={enabled}
-          aria-label="상승흐름 알림 토글"
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+          aria-label={`${text.title} 토글`}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? text.on : 'bg-gray-300 dark:bg-gray-600'}`}
         >
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
@@ -611,12 +623,12 @@ const UptrendTab = ({ enabled, onToggle, pending, scanning, signals }) => {
       {/* 현재 신호 상태 */}
       {enabled && (
         <div className="text-xs">
-          {latest && status ? (
+          {signal && status ? (
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className={`font-semibold ${status.cls}`}>{status.label}</span>
-              {latest.status === 'confirmed' && latest.confirmed_date && (
+              {signal.status === 'confirmed' && signal.confirmed_date && (
                 <span className="text-gray-400">
-                  ({formatMMDD(latest.confirmed_date)}{latest.confirm_path === 'retest' ? ', 재시험' : latest.confirm_path === 'hold' ? ', 연속유지' : ''})
+                  ({formatMMDD(signal.confirmed_date)}{signal.confirm_path === 'retest' ? ', 재시험' : signal.confirm_path === 'hold' ? ', 연속유지' : ''})
                 </span>
               )}
             </div>
@@ -629,12 +641,13 @@ const UptrendTab = ({ enabled, onToggle, pending, scanning, signals }) => {
   )
 }
 
-UptrendTab.propTypes = {
+SignalTab.propTypes = {
+  direction: PropTypes.oneOf(['up', 'down']).isRequired,
   enabled: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
   pending: PropTypes.bool,
   scanning: PropTypes.bool,
-  signals: PropTypes.array,
+  signal: PropTypes.object,
 }
 
 PriceTargetPanel.propTypes = {

@@ -245,12 +245,15 @@ export default function ETFDetail() {
     enabled: !!ticker,
     staleTime: CACHE_STALE_TIME_SLOW,
   })
-  // 확정 배지는 '최근' 확정만 — 오래된 확정(수개월 전)은 이미 지난 신호이므로 숨김
-  const confirmedSignal = useMemo(() => {
-    const c = signalEvents.find(s => s.status === 'confirmed')
-    if (!c || !c.confirmed_date) return null
-    const daysAgo = (Date.now() - new Date(String(c.confirmed_date).slice(0, 10)).getTime()) / 86400000
-    return daysAgo <= 14 ? c : null
+  // 확정 배지는 '최근'(14일 내) 확정만 — 오래된 확정은 이미 지난 신호이므로 숨김
+  const recentConfirmed = useMemo(() => {
+    const pick = (dir) => {
+      const c = signalEvents.find(s => s.status === 'confirmed' && s.direction === dir)
+      if (!c || !c.confirmed_date) return null
+      const daysAgo = (Date.now() - new Date(String(c.confirmed_date).slice(0, 10)).getTime()) / 86400000
+      return daysAgo <= 14 ? c : null
+    }
+    return { up: pick('up'), down: pick('down') }
   }, [signalEvents])
 
   // 핵심 지표 (수익률·변동성·MDD·샤프) - ETF/STOCK 공통 (가격 기반 계산)
@@ -449,18 +452,31 @@ export default function ETFDetail() {
       {/* Sticky 헤더 */}
       <ETFHeader etf={etf} />
 
-      {/* 상승흐름 확정 배지 */}
-      {confirmedSignal && (
-        <div className="px-1 mt-2">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-            <span aria-hidden="true">▲</span>
-            상승흐름 확정
-            {confirmedSignal.confirmed_date && (
-              <span className="font-normal">
-                ({String(confirmedSignal.confirmed_date).slice(5, 10).replace('-', '/')})
-              </span>
-            )}
-          </span>
+      {/* 상승/하락 흐름 확정 배지 (최근 확정만) */}
+      {(recentConfirmed.up || recentConfirmed.down) && (
+        <div className="px-1 mt-2 flex flex-wrap gap-2">
+          {recentConfirmed.up && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+              <span aria-hidden="true">▲</span>
+              상승흐름 확정
+              {recentConfirmed.up.confirmed_date && (
+                <span className="font-normal">
+                  ({String(recentConfirmed.up.confirmed_date).slice(5, 10).replace('-', '/')})
+                </span>
+              )}
+            </span>
+          )}
+          {recentConfirmed.down && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400">
+              <span aria-hidden="true">▼</span>
+              하락흐름 확정
+              {recentConfirmed.down.confirmed_date && (
+                <span className="font-normal">
+                  ({String(recentConfirmed.down.confirmed_date).slice(5, 10).replace('-', '/')})
+                </span>
+              )}
+            </span>
+          )}
         </div>
       )}
 

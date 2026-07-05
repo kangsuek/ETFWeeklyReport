@@ -1,14 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAlertStore } from '../../contexts/AlertContext'
-import { useUptrendAlerts } from '../../hooks/useUptrendAlerts'
+import { useSignalAlerts } from '../../hooks/useSignalAlerts'
 
 export default function Header() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false)
   const { alerts, unreadCount, markAllRead, clearAll } = useAlertStore()
-  const { unreadCount: uptrendUnread } = useUptrendAlerts()
+  const { unreadCount: uptrendUnread } = useSignalAlerts('uptrend')
+  const { unreadCount: downtrendUnread } = useSignalAlerts('downtrend')
   const dropdownRef = useRef(null)
 
   // 드롭다운 외부 클릭 닫기
@@ -100,6 +101,15 @@ export default function Header() {
                     title={`상승흐름 확정 미읽음 ${uptrendUnread}건`}
                   >
                     {uptrendUnread > 9 ? '9+' : uptrendUnread}
+                  </span>
+                )}
+                {/* 하락흐름 확정 미읽음 */}
+                {downtrendUnread > 0 && (
+                  <span
+                    className="absolute -bottom-0.5 -left-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-rose-500 rounded-full"
+                    title={`하락흐름 확정 미읽음 ${downtrendUnread}건`}
+                  >
+                    {downtrendUnread > 9 ? '9+' : downtrendUnread}
                   </span>
                 )}
               </button>
@@ -233,6 +243,14 @@ export default function Header() {
                   title={`상승흐름 확정 미읽음 ${uptrendUnread}건`}
                 >
                   {uptrendUnread > 9 ? '9+' : uptrendUnread}
+                </span>
+              )}
+              {downtrendUnread > 0 && (
+                <span
+                  className="ml-1 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-rose-500 rounded-full"
+                  title={`하락흐름 확정 미읽음 ${downtrendUnread}건`}
+                >
+                  {downtrendUnread > 9 ? '9+' : downtrendUnread}
                 </span>
               )}
             </Link>

@@ -337,27 +337,30 @@ export const alertApi = {
   getHistory: (ticker, limit = 20) =>
     api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
 
-  // ── 상승흐름(uptrend) 신호 ──
-  // 종목별 신호 이벤트 조회 (배지·상태 표시용)
+  // ── 상승/하락 흐름 신호 (kind: 'uptrend' | 'downtrend') ──
+  // 종목별 신호 이벤트 조회 (배지·상태 표시용, 방향 무관 전체)
   getSignals: (ticker, limit = 50) =>
     api.get(`/alerts/signals/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
 
-  // 상승흐름 확정 알림 이력 + 미읽음 카운트
-  getUptrend: (limit = 50, offset = 0) =>
-    api.get('/alerts/uptrend', { params: { limit, offset }, timeout: FAST_API_TIMEOUT }),
+  // 확정 알림 이력 + 미읽음 카운트
+  getFlowAlerts: (kind = 'uptrend', limit = 50, offset = 0) =>
+    api.get(`/alerts/${kind}`, { params: { limit, offset }, timeout: FAST_API_TIMEOUT }),
 
-  // 상승흐름 알림 읽음 처리 (미읽음 0)
-  markUptrendRead: () => api.post('/alerts/uptrend/read', {}, { timeout: FAST_API_TIMEOUT }),
+  // 알림 읽음 처리 (미읽음 0)
+  markFlowRead: (kind = 'uptrend') =>
+    api.post(`/alerts/${kind}/read`, {}, { timeout: FAST_API_TIMEOUT }),
 
-  // 상승흐름 알림 이력 삭제 (단건 또는 before 이전 일괄)
-  deleteUptrend: (id) => api.delete(`/alerts/uptrend/${id}`, { timeout: NORMAL_API_TIMEOUT }),
-  clearUptrend: (before) =>
-    api.delete('/alerts/uptrend', { params: before ? { before } : {}, timeout: NORMAL_API_TIMEOUT }),
+  // 알림 이력 삭제 (단건 또는 before 이전 일괄)
+  deleteFlowAlert: (kind, id) =>
+    api.delete(`/alerts/${kind}/${id}`, { timeout: NORMAL_API_TIMEOUT }),
+  clearFlowAlerts: (kind, before) =>
+    api.delete(`/alerts/${kind}`, { params: before ? { before } : {}, timeout: NORMAL_API_TIMEOUT }),
 
   // 관심종목 일괄 점검 (읽기 전용, 다소 오래 걸릴 수 있음)
-  scanWatchlist: () => api.get('/alerts/uptrend/watchlist', { timeout: LONG_API_TIMEOUT }),
+  scanWatchlist: (kind = 'uptrend') =>
+    api.get(`/alerts/${kind}/watchlist`, { timeout: LONG_API_TIMEOUT }),
 
-  // 단일 종목 즉시 스캔 (토글 ON 직후 — 수집 포함이라 LONG)
+  // 단일 종목 즉시 스캔 (토글 ON 직후 — 방향 무관 전 규칙, 수집 포함이라 LONG)
   scanSignals: (ticker) =>
     api.post(`/alerts/signals/${ticker}/scan`, {}, { timeout: LONG_API_TIMEOUT }),
 }

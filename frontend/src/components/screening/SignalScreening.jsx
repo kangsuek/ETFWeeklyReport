@@ -1,6 +1,8 @@
+import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { alertApi } from '../../services/api'
+import { SIGNAL_KINDS } from '../../config/signalKinds'
 
 const STATUS_META = {
   confirmed: { label: '확정', cls: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300', order: 0 },
@@ -17,14 +19,15 @@ const formatWon = (v) =>
   v == null ? '-' : `${Math.round(v).toLocaleString()}원`
 
 /**
- * 종목 발굴 '상승흐름' 탭 — 등록 관심종목 중 확정·대기 신호만 표시.
+ * 종목 발굴 상승/하락 흐름 탭 — 등록 관심종목 중 확정·대기 신호만 표시.
  * watchlist API(읽기 전용)를 재사용한다. 전체 카탈로그가 아닌 등록 종목 대상.
  */
-export default function UptrendScreening() {
+export default function SignalScreening({ direction }) {
+  const cfg = SIGNAL_KINDS[direction]
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['uptrendScreening'],
+    queryKey: ['signalScreening', cfg.kind],
     queryFn: async () => {
-      const res = await alertApi.scanWatchlist()
+      const res = await alertApi.scanWatchlist(cfg.kind)
       return res.data
     },
     staleTime: 60_000,
@@ -42,12 +45,14 @@ export default function UptrendScreening() {
 
   const confirmedCount = items.filter((i) => i.status === 'confirmed').length
   const pendingCount = items.filter((i) => i.status === 'pending').length
+  const levelLabel = direction === 'up' ? '돌파선' : '이탈선'
+  const breakLabel = direction === 'up' ? '돌파일' : '이탈일'
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          등록 관심종목 중 상승흐름 <span className="text-green-600 dark:text-green-400 font-semibold">확정 {confirmedCount.toLocaleString()}</span>
+          등록 관심종목 중 {cfg.label} <span className={`${cfg.accent} font-semibold`}>확정 {confirmedCount.toLocaleString()}</span>
           {' · '}
           <span className="text-amber-600 dark:text-amber-400 font-semibold">대기 {pendingCount.toLocaleString()}</span>
         </p>
@@ -66,8 +71,8 @@ export default function UptrendScreening() {
         <p className="py-10 text-center text-sm text-gray-400">불러오는 중…</p>
       ) : items.length === 0 ? (
         <div className="py-12 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400">현재 상승흐름 확정·대기 종목이 없습니다</p>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">종목 상세의 &lsquo;상승흐름&rsquo; 탭에서 알림을 켜면 감지 대상이 됩니다</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">현재 {cfg.label} 확정·대기 종목이 없습니다</p>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">종목 상세의 &lsquo;{cfg.label}&rsquo; 탭에서 알림을 켜면 감지 대상이 됩니다</p>
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -76,8 +81,8 @@ export default function UptrendScreening() {
               <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                 <th className="text-left font-medium px-4 py-2.5">종목</th>
                 <th className="text-center font-medium px-3 py-2.5">상태</th>
-                <th className="text-right font-medium px-3 py-2.5">확정/돌파일</th>
-                <th className="text-right font-medium px-4 py-2.5">돌파선</th>
+                <th className="text-right font-medium px-3 py-2.5">확정/{breakLabel}</th>
+                <th className="text-right font-medium px-4 py-2.5">{levelLabel}</th>
               </tr>
             </thead>
             <tbody>
@@ -108,4 +113,8 @@ export default function UptrendScreening() {
       )}
     </div>
   )
+}
+
+SignalScreening.propTypes = {
+  direction: PropTypes.oneOf(['up', 'down']).isRequired,
 }

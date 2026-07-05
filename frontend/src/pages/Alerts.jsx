@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAlertStore } from '../contexts/AlertContext'
-import UptrendHistorySection from '../components/alerts/UptrendHistorySection'
-import UptrendWatchlistCheck from '../components/alerts/UptrendWatchlistCheck'
+import SignalHistorySection from '../components/alerts/SignalHistorySection'
+import SignalWatchlistCheck from '../components/alerts/SignalWatchlistCheck'
 
 export default function Alerts() {
   const { alerts, clearAll } = useAlertStore()
@@ -106,10 +106,12 @@ export default function Alerts() {
       </div>
 
       {/* 관심종목 일괄 점검 (읽기 전용 — 등록 종목 전체 현재 상태) */}
-      <UptrendWatchlistCheck />
+      <SignalWatchlistCheck direction="up" />
+      <SignalWatchlistCheck direction="down" />
 
-      {/* 상승흐름 신호 이력 (서버 관리 — 기존 3종 메모리 알림과 분리) */}
-      <UptrendHistorySection />
+      {/* 상승/하락 흐름 신호 이력 (서버 관리 — 기존 3종 메모리 알림과 분리) */}
+      <SignalHistorySection direction="up" />
+      <SignalHistorySection direction="down" />
 
       {/* 안내 */}
       <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">

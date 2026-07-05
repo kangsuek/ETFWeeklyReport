@@ -1,7 +1,9 @@
+import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import { useUptrendAlerts } from '../../hooks/useUptrendAlerts'
+import { useSignalAlerts } from '../../hooks/useSignalAlerts'
 import { alertApi } from '../../services/api'
+import { SIGNAL_KINDS } from '../../config/signalKinds'
 
 const formatDate = (iso) => {
   if (!iso) return ''
@@ -12,28 +14,26 @@ const formatDate = (iso) => {
 }
 
 /**
- * Alerts 페이지의 "상승흐름 신호" 서버 이력 섹션.
- *
- * 기존 3종 알림(메모리·AlertContext)과 분리된, 백엔드가 기록하는 확정 신호 이력을
- * 조회·읽음·삭제한다.
+ * Alerts 페이지의 상승/하락 흐름 확정 알림 서버 이력 섹션 (direction별).
  */
-export default function UptrendHistorySection() {
-  const { items, unreadCount, markRead } = useUptrendAlerts()
+export default function SignalHistorySection({ direction }) {
+  const cfg = SIGNAL_KINDS[direction]
+  const { items, unreadCount, markRead } = useSignalAlerts(cfg.kind)
   const queryClient = useQueryClient()
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => alertApi.deleteUptrend(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['uptrendAlerts'] }),
+    mutationFn: (id) => alertApi.deleteFlowAlert(cfg.kind, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['signalAlerts', cfg.kind] }),
   })
 
   return (
-    <section aria-label="상승흐름 신호 이력" className="space-y-2">
+    <section aria-label={`${cfg.label} 신호 이력`} className="space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          상승흐름 신호
+          <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+          {cfg.label} 신호
           {unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-[10px] font-bold text-white bg-green-500 rounded-full">
+            <span className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-[10px] font-bold text-white ${cfg.badge} rounded-full`}>
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -51,16 +51,16 @@ export default function UptrendHistorySection() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {items.length === 0 ? (
           <div className="py-10 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">확정된 상승흐름 신호가 없습니다</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">확정된 {cfg.label} 신호가 없습니다</p>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              종목 상세의 &lsquo;상승흐름&rsquo; 탭에서 알림을 켜세요
+              종목 상세의 &lsquo;{cfg.label}&rsquo; 탭에서 알림을 켜세요
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/50">
             {items.map(item => (
               <li key={item.id} className="flex items-start gap-3 px-4 py-3 group">
-                <span className="mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-400" />
+                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dotSoft}`} />
                 <Link to={`/etf/${item.ticker}`} className="min-w-0 flex-1">
                   <p className="text-sm text-gray-800 dark:text-gray-200">{item.message}</p>
                   <time className="mt-1 block text-xs text-gray-400">{formatDate(item.triggered_at)}</time>
@@ -82,4 +82,8 @@ export default function UptrendHistorySection() {
       </div>
     </section>
   )
+}
+
+SignalHistorySection.propTypes = {
+  direction: PropTypes.oneOf(['up', 'down']).isRequired,
 }

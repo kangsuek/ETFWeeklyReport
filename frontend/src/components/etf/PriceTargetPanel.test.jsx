@@ -27,7 +27,7 @@ describe('PriceTargetPanel — 상승흐름 탭', () => {
       ])),
       http.get(`${BASE}/alerts/signals/:ticker`, () => HttpResponse.json([
         {
-          id: 1, ticker: '005930', status: 'confirmed',
+          id: 1, ticker: '005930', status: 'confirmed', direction: 'up',
           confirmed_date: '2026-07-01', confirm_path: 'hold', breakout_date: '2026-06-25',
         },
       ])),
