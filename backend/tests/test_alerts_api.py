@@ -232,3 +232,70 @@ class TestWatchlistAndScanEndpoints:
         resp = client.post(f"/api/alerts/signals/{ticker}/scan")
         assert resp.status_code == 200
         assert resp.json() == {"scanned": False, "reason": "no_active_rule"}
+
+
+class TestDowntrendEndpoints:
+    """하락흐름 규칙·이력·읽음·일괄점검 (거울상)"""
+
+    def _insert_down_history(self, ticker, triggered_at, message="하락 확정"):
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
+                   VALUES (1, ?, 'downtrend', ?, ?)""",
+                (ticker, message, triggered_at),
+            )
+            conn.commit()
+
+    def test_create_downtrend_rule(self):
+        """Given downtrend·목표가 0 When 생성 Then 200·검사 면제"""
+        ticker = _valid_ticker()
+        resp = client.post("/api/alerts/", json={
+            "ticker": ticker, "alert_type": "downtrend",
+            "direction": "below", "target_price": 0,
+        })
+        assert resp.status_code == 200
+        assert resp.json()["alert_type"] == "downtrend"
+
+    def test_downtrend_history_unread_and_read(self):
+        """Given 하락 이력 When 조회·읽음 Then 미읽음 집계 후 0"""
+        ticker = _valid_ticker()
+        self._insert_down_history(ticker, "2026-07-01")
+        self._insert_down_history(ticker, "2026-07-02")
+
+        data = client.get("/api/alerts/downtrend").json()
+        assert len(data["items"]) == 2
+        assert data["unread_count"] == 2
+
+        client.post("/api/alerts/downtrend/read")
+        assert client.get("/api/alerts/downtrend").json()["unread_count"] == 0
+
+    def test_downtrend_separated_from_uptrend(self):
+        """Given up·down 이력 혼재 When downtrend 조회 Then downtrend만"""
+        ticker = _valid_ticker()
+        self._insert_down_history(ticker, "2026-07-01")
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
+                   VALUES (1, ?, 'uptrend', '상승', '2026-07-01')""",
+                (ticker,),
+            )
+            conn.commit()
+        data = client.get("/api/alerts/downtrend").json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["alert_type"] == "downtrend"
+
+    def test_downtrend_watchlist_returns_items(self):
+        """Given 등록 종목 When 하락 일괄 점검 Then items 반환"""
+        resp = client.get("/api/alerts/downtrend/watchlist")
+        assert resp.status_code == 200
+        assert "items" in resp.json()
+
+    def test_delete_downtrend_single(self):
+        """Given 하락 이력 When 단건 삭제 Then 제거"""
+        ticker = _valid_ticker()
+        self._insert_down_history(ticker, "2026-07-01")
+        item = client.get("/api/alerts/downtrend").json()["items"][0]
+        assert client.delete(f"/api/alerts/downtrend/{item['id']}").status_code == 200
+        assert client.get("/api/alerts/downtrend").json()["items"] == []

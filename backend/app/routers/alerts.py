@@ -18,8 +18,9 @@ router = APIRouter()
 PP = "?"
 
 # 허용되는 alert_type / direction 조합
-# uptrend: 상승흐름 확정 신호 — 방향·목표가를 쓰지 않고 백엔드 감지기가 판정
-VALID_ALERT_TYPES = {"buy", "sell", "price_change", "trading_signal", "uptrend"}
+# uptrend/downtrend: 상승·하락 흐름 확정 신호 — 방향·목표가를 쓰지 않고 감지기가 판정
+SIGNAL_ALERT_TYPES = {"uptrend", "downtrend"}
+VALID_ALERT_TYPES = {"buy", "sell", "price_change", "trading_signal"} | SIGNAL_ALERT_TYPES
 VALID_DIRECTIONS = {"above", "below", "both"}
 
 
@@ -30,8 +31,8 @@ def _validate_rule(alert_type: str, direction: str, target_price: float):
             status_code=400,
             detail=f"alert_type은 {VALID_ALERT_TYPES} 중 하나여야 합니다",
         )
-    if alert_type == "uptrend":
-        # 상승흐름 규칙은 켜기/끄기만 의미 — 방향·목표가 검사 면제
+    if alert_type in SIGNAL_ALERT_TYPES:
+        # 상승/하락 흐름 규칙은 켜기/끄기만 의미 — 방향·목표가 검사 면제
         return
     if direction not in VALID_DIRECTIONS:
         raise HTTPException(
@@ -140,61 +141,95 @@ async def scan_ticker_now(ticker: str):
         raise HTTPException(status_code=500, detail="종목 스캔 실패")
 
 
-# ──────────── 상승흐름(uptrend) 알림 이력·읽음 (마커 방식) ────────────
+# ─── 상승/하락 흐름 신호 알림 이력·읽음 (마커 방식, 방향별 분리) ───
 # ⚠️ 아래 고정 경로들은 반드시 매개변수 경로(/{ticker}, /{rule_id})보다 먼저 등록.
-# uptrend 알림만 서버 이력·미읽음 관리(기존 3종 상태성 알림과 분리 — 설계 §3-5).
+# 흐름 신호만 서버 이력·미읽음 관리(기존 3종 상태성 알림과 분리 — 설계 §3-5).
 
-UPTREND_READ_KEY = "uptrend_last_read_at"
+READ_KEY = {"uptrend": "uptrend_last_read_at", "downtrend": "downtrend_last_read_at"}
 
 
-@router.get("/uptrend/watchlist")
-async def scan_watchlist():
-    """관심종목(등록 종목) 전체의 현재 상승흐름 상태를 일괄 점검 (A — 읽기 전용).
-
-    저장된 데이터로 순수 재생만 하며 signal_events/alert_history를 변경하지 않는다.
-    """
+async def _watchlist(direction: str):
+    """방향별 관심종목 일괄 점검 (읽기 전용 — signal_events/alert_history 미변경)."""
     import asyncio
     from app.services.signal_detector import evaluate_watchlist
     try:
-        items = await asyncio.to_thread(evaluate_watchlist)
+        items = await asyncio.to_thread(evaluate_watchlist, direction)
         return {"items": items}
     except Exception as e:
-        logger.error(f"Failed to scan watchlist: {e}")
+        logger.error(f"Failed to scan watchlist ({direction}): {e}")
         raise HTTPException(status_code=500, detail="관심종목 점검 실패")
 
 
-@router.get("/uptrend")
-async def get_uptrend_alerts(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-):
-    """상승흐름 확정 알림 이력 + 미읽음 카운트.
-
-    미읽음 = triggered_at > uptrend_last_read_at(마커). 마커 부재 시 전체가 미읽음.
-    """
-    try:
-        marker = get_app_state(UPTREND_READ_KEY)
-        with get_db_connection() as conn_or_cursor:
-            cursor = get_cursor(conn_or_cursor)
+def _signal_history(alert_type: str, limit: int, offset: int):
+    """방향별 확정 알림 이력 + 미읽음(triggered_at > 마커; 마커 부재 시 전체 미읽음)."""
+    marker = get_app_state(READ_KEY[alert_type])
+    with get_db_connection() as conn_or_cursor:
+        cursor = get_cursor(conn_or_cursor)
+        cursor.execute(
+            f"""SELECT * FROM alert_history WHERE alert_type = {PP}
+                ORDER BY triggered_at DESC LIMIT {PP} OFFSET {PP}""",
+            (alert_type, limit, offset),
+        )
+        items = [dict(row) for row in cursor.fetchall()]
+        if marker:
             cursor.execute(
-                f"""SELECT * FROM alert_history WHERE alert_type = 'uptrend'
-                    ORDER BY triggered_at DESC LIMIT {PP} OFFSET {PP}""",
-                (limit, offset),
+                f"""SELECT COUNT(*) AS c FROM alert_history
+                    WHERE alert_type = {PP} AND triggered_at > {PP}""",
+                (alert_type, marker),
             )
-            items = [dict(row) for row in cursor.fetchall()]
+        else:
+            cursor.execute(
+                f"SELECT COUNT(*) AS c FROM alert_history WHERE alert_type = {PP}",
+                (alert_type,),
+            )
+        unread = cursor.fetchone()["c"]
+    return {"items": items, "unread_count": unread}
 
-            if marker:
-                cursor.execute(
-                    f"""SELECT COUNT(*) AS c FROM alert_history
-                        WHERE alert_type = 'uptrend' AND triggered_at > {PP}""",
-                    (marker,),
-                )
-            else:
-                cursor.execute(
-                    "SELECT COUNT(*) AS c FROM alert_history WHERE alert_type = 'uptrend'"
-                )
-            unread = cursor.fetchone()["c"]
-        return {"items": items, "unread_count": unread}
+
+def _clear_signal_history(alert_type: str, before: Optional[str]):
+    with get_db_connection() as conn_or_cursor:
+        conn = conn_or_cursor
+        cursor = conn.cursor()
+        if before:
+            cursor.execute(
+                f"""DELETE FROM alert_history
+                    WHERE alert_type = {PP} AND triggered_at < {PP}""",
+                (alert_type, before),
+            )
+        else:
+            cursor.execute(
+                f"DELETE FROM alert_history WHERE alert_type = {PP}", (alert_type,)
+            )
+        conn.commit()
+        return {"deleted": cursor.rowcount}
+
+
+def _delete_signal_alert(alert_type: str, alert_id: int):
+    with get_db_connection() as conn_or_cursor:
+        conn = conn_or_cursor
+        cursor = conn.cursor()
+        cursor.execute(
+            f"DELETE FROM alert_history WHERE id = {PP} AND alert_type = {PP}",
+            (alert_id, alert_type),
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다")
+        return {"deleted": True}
+
+
+# ── 상승흐름(uptrend) ──
+@router.get("/uptrend/watchlist")
+async def scan_watchlist_up():
+    """관심종목 상승흐름 일괄 점검 (읽기 전용)."""
+    return await _watchlist("up")
+
+
+@router.get("/uptrend")
+async def get_uptrend_alerts(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    """상승흐름 확정 알림 이력 + 미읽음 카운트."""
+    try:
+        return _signal_history("uptrend", limit, offset)
     except Exception as e:
         logger.error(f"Failed to fetch uptrend alerts: {e}")
         raise HTTPException(status_code=500, detail="상승흐름 알림 조회 실패")
@@ -202,10 +237,10 @@ async def get_uptrend_alerts(
 
 @router.post("/uptrend/read")
 async def mark_uptrend_read():
-    """상승흐름 알림 읽음 처리 — 마커를 현재 시각으로 갱신 (미읽음 0)."""
+    """상승흐름 알림 읽음 처리."""
     from datetime import datetime
     try:
-        set_app_state(UPTREND_READ_KEY, datetime.now().isoformat())
+        set_app_state(READ_KEY["uptrend"], datetime.now().isoformat())
         return {"read": True}
     except Exception as e:
         logger.error(f"Failed to mark uptrend read: {e}")
@@ -214,23 +249,9 @@ async def mark_uptrend_read():
 
 @router.delete("/uptrend")
 async def clear_uptrend_alerts(before: Optional[str] = Query(None)):
-    """상승흐름 알림 이력 정리. before(YYYY-MM-DD) 지정 시 그 이전만 삭제."""
+    """상승흐름 알림 이력 정리."""
     try:
-        with get_db_connection() as conn_or_cursor:
-            conn = conn_or_cursor
-            cursor = conn.cursor()
-            if before:
-                cursor.execute(
-                    f"""DELETE FROM alert_history
-                        WHERE alert_type = 'uptrend' AND triggered_at < {PP}""",
-                    (before,),
-                )
-            else:
-                cursor.execute(
-                    "DELETE FROM alert_history WHERE alert_type = 'uptrend'"
-                )
-            conn.commit()
-            return {"deleted": cursor.rowcount}
+        return _clear_signal_history("uptrend", before)
     except Exception as e:
         logger.error(f"Failed to clear uptrend alerts: {e}")
         raise HTTPException(status_code=500, detail="상승흐름 알림 삭제 실패")
@@ -240,23 +261,63 @@ async def clear_uptrend_alerts(before: Optional[str] = Query(None)):
 async def delete_uptrend_alert(alert_id: int):
     """상승흐름 알림 이력 1건 삭제."""
     try:
-        with get_db_connection() as conn_or_cursor:
-            conn = conn_or_cursor
-            cursor = conn.cursor()
-            cursor.execute(
-                f"""DELETE FROM alert_history
-                    WHERE id = {PP} AND alert_type = 'uptrend'""",
-                (alert_id,),
-            )
-            conn.commit()
-            if cursor.rowcount == 0:
-                raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다")
-            return {"deleted": True}
+        return _delete_signal_alert("uptrend", alert_id)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to delete uptrend alert {alert_id}: {e}")
         raise HTTPException(status_code=500, detail="상승흐름 알림 삭제 실패")
+
+
+# ── 하락흐름(downtrend) ──
+@router.get("/downtrend/watchlist")
+async def scan_watchlist_down():
+    """관심종목 하락흐름 일괄 점검 (읽기 전용)."""
+    return await _watchlist("down")
+
+
+@router.get("/downtrend")
+async def get_downtrend_alerts(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    """하락흐름 확정 알림 이력 + 미읽음 카운트."""
+    try:
+        return _signal_history("downtrend", limit, offset)
+    except Exception as e:
+        logger.error(f"Failed to fetch downtrend alerts: {e}")
+        raise HTTPException(status_code=500, detail="하락흐름 알림 조회 실패")
+
+
+@router.post("/downtrend/read")
+async def mark_downtrend_read():
+    """하락흐름 알림 읽음 처리."""
+    from datetime import datetime
+    try:
+        set_app_state(READ_KEY["downtrend"], datetime.now().isoformat())
+        return {"read": True}
+    except Exception as e:
+        logger.error(f"Failed to mark downtrend read: {e}")
+        raise HTTPException(status_code=500, detail="읽음 처리 실패")
+
+
+@router.delete("/downtrend")
+async def clear_downtrend_alerts(before: Optional[str] = Query(None)):
+    """하락흐름 알림 이력 정리."""
+    try:
+        return _clear_signal_history("downtrend", before)
+    except Exception as e:
+        logger.error(f"Failed to clear downtrend alerts: {e}")
+        raise HTTPException(status_code=500, detail="하락흐름 알림 삭제 실패")
+
+
+@router.delete("/downtrend/{alert_id}")
+async def delete_downtrend_alert(alert_id: int):
+    """하락흐름 알림 이력 1건 삭제."""
+    try:
+        return _delete_signal_alert("downtrend", alert_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete downtrend alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="하락흐름 알림 삭제 실패")
 
 
 # ──────────────────────────── CRUD ────────────────────────────
