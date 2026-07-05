@@ -462,6 +462,7 @@ def init_db():
             status {text_type} NOT NULL DEFAULT 'pending',
             confirmed_date DATE,
             confirm_path {text_type},
+            direction {text_type} NOT NULL DEFAULT 'up',
             created_at TIMESTAMP {timestamp_default},
             updated_at TIMESTAMP {timestamp_default},
             FOREIGN KEY (ticker) REFERENCES etfs(ticker),
@@ -469,6 +470,17 @@ def init_db():
             UNIQUE(ticker, breakout_date)
         )
     """)
+
+    # signal_events 방향 컬럼 마이그레이션 (기존 DB — 상승/하락 신호 구분)
+    try:
+        cursor.execute(
+            f"ALTER TABLE signal_events ADD COLUMN direction {text_type} "
+            f"NOT NULL DEFAULT 'up'"
+        )
+        logger.info("Added direction column to signal_events table")
+    except Exception as e:
+        if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+            logger.warning(f"Could not add direction column to signal_events: {e}")
 
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_signal_events_status

@@ -19,7 +19,7 @@ class TestRunSignalScan:
     def test_calls_scan_all(self):
         """Given uptrend 규칙 없음 When run_signal_scan Then scan_all 호출"""
         scheduler = DataCollectionScheduler()
-        with patch("app.services.signal_detector._get_active_uptrend_rules",
+        with patch("app.services.signal_detector._get_active_signal_rules",
                    return_value=[]), \
                 patch("app.services.signal_detector.scan_all",
                       return_value={"scanned": 0}) as m_scan:
@@ -29,7 +29,7 @@ class TestRunSignalScan:
     def test_refetches_today_then_scans(self):
         """Given uptrend 규칙 존재 When run_signal_scan Then 당일 재수집 후 scan_all"""
         scheduler = DataCollectionScheduler()
-        with patch("app.services.signal_detector._get_active_uptrend_rules",
+        with patch("app.services.signal_detector._get_active_signal_rules",
                    return_value=[{"id": 1, "ticker": "005930"}]), \
                 patch("app.services.signal_detector.scan_all") as m_scan, \
                 patch.object(scheduler.collector, "collect_and_save_prices") as m_p, \

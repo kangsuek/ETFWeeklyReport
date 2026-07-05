@@ -324,29 +324,37 @@ def _load_flows(ticker: str) -> Dict[date_type, int]:
     return flows
 
 
-def _get_active_uptrend_rules() -> List[dict]:
-    """활성 uptrend 알림 규칙 목록 (id, ticker)."""
+ALERT_TYPE_BY_DIRECTION = {UP: "uptrend", DOWN: "downtrend"}
+DIRECTION_BY_ALERT_TYPE = {"uptrend": UP, "downtrend": DOWN}
+
+
+def _get_active_signal_rules() -> List[dict]:
+    """활성 상승/하락 신호 규칙 목록 (id, ticker, alert_type, direction)."""
     from app.database import get_db_connection, get_cursor
 
     with get_db_connection() as conn:
         cur = get_cursor(conn)
         cur.execute(
-            "SELECT id, ticker FROM alert_rules WHERE alert_type = 'uptrend' AND is_active = 1"
+            """SELECT id, ticker, alert_type FROM alert_rules
+               WHERE alert_type IN ('uptrend', 'downtrend') AND is_active = 1"""
         )
-        return [{"id": r["id"], "ticker": r["ticker"]} for r in cur.fetchall()]
+        return [{
+            "id": r["id"], "ticker": r["ticker"], "alert_type": r["alert_type"],
+            "direction": DIRECTION_BY_ALERT_TYPE[r["alert_type"]],
+        } for r in cur.fetchall()]
 
 
-def _get_active_pending(ticker: str) -> Optional[dict]:
-    """종목의 활성 pending 이벤트 1개 (최신 돌파일). 없으면 None."""
+def _get_active_pending(ticker: str, direction: str = UP) -> Optional[dict]:
+    """종목·방향의 활성 pending 이벤트 1개 (최신 돌파일). 없으면 None."""
     from app.database import get_db_connection, get_cursor
 
     with get_db_connection() as conn:
         cur = get_cursor(conn)
         cur.execute(
             """SELECT id, breakout_date, breakout_level FROM signal_events
-               WHERE ticker = ? AND status = 'pending'
+               WHERE ticker = ? AND direction = ? AND status = 'pending'
                ORDER BY breakout_date DESC LIMIT 1""",
-            (ticker,),
+            (ticker, direction),
         )
         r = cur.fetchone()
         if not r:
@@ -359,7 +367,8 @@ def _get_active_pending(ticker: str) -> Optional[dict]:
         return {"id": r["id"], "signal": sig}
 
 
-def _create_pending(rule_id: int, ticker: str, sig: BreakoutSignal) -> Optional[int]:
+def _create_pending(rule_id: int, ticker: str, sig: BreakoutSignal,
+                    direction: str = UP) -> Optional[int]:
     """pending 이벤트 생성 (멱등: 동일 (ticker, breakout_date) 있으면 무시).
 
     Returns:
@@ -372,18 +381,19 @@ def _create_pending(rule_id: int, ticker: str, sig: BreakoutSignal) -> Optional[
         cur.execute(
             """INSERT OR IGNORE INTO signal_events
                (ticker, rule_id, breakout_date, breakout_level, volume_ratio,
-                candle_pos, flow_net_3d, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
+                candle_pos, flow_net_3d, status, direction)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
             (ticker, rule_id, sig.breakout_date.isoformat(), sig.breakout_level,
-             sig.volume_ratio, sig.candle_pos, sig.flow_net_3d),
+             sig.volume_ratio, sig.candle_pos, sig.flow_net_3d, direction),
         )
         conn.commit()
         if cur.rowcount and cur.lastrowid:
             return cur.lastrowid
         # 이미 존재 — 여전히 pending이면 그 id 반환(재생 중 이어받기)
         cur.execute(
-            "SELECT id, status FROM signal_events WHERE ticker = ? AND breakout_date = ?",
-            (ticker, sig.breakout_date.isoformat()),
+            """SELECT id, status FROM signal_events
+               WHERE ticker = ? AND breakout_date = ? AND direction = ?""",
+            (ticker, sig.breakout_date.isoformat(), direction),
         )
         row = cur.fetchone()
         if row and row["status"] == "pending":
@@ -425,16 +435,22 @@ def _index_on_or_before(prices: List[PriceBar], target: date_type) -> Optional[i
     return result
 
 
-def _build_alert_message(name: str, path: Optional[str], level: float) -> str:
+def _build_alert_message(name: str, path: Optional[str], level: float,
+                         direction: str = UP) -> str:
     """LV2 확정 알림 문구 (§3-3, 천 단위 콤마)."""
+    if direction == UP:
+        if path == "retest":
+            return f"[{name}] 상승흐름 확정 — 돌파선 {level:,.0f}원 재시험 성공"
+        return f"[{name}] 상승흐름 확정 — 돌파 후 {SIGNAL_HOLD_DAYS}일 연속 유지"
     if path == "retest":
-        return f"[{name}] 상승흐름 확정 — 돌파선 {level:,.0f}원 재시험 성공"
-    return f"[{name}] 상승흐름 확정 — 돌파 후 {SIGNAL_HOLD_DAYS}일 연속 유지"
+        return f"[{name}] 하락흐름 확정 — 이탈선 {level:,.0f}원 재이탈"
+    return f"[{name}] 하락흐름 확정 — 이탈 후 {SIGNAL_HOLD_DAYS}일 연속 유지"
 
 
-def _emit_uptrend_alert(rule_id: int, ticker: str, name: str, level: float,
-                        path: Optional[str], confirmed_date: date_type,
-                        prices: List[PriceBar], confirm_idx: int) -> bool:
+def _emit_signal_alert(rule_id: int, ticker: str, name: str, level: float,
+                       path: Optional[str], confirmed_date: date_type,
+                       prices: List[PriceBar], confirm_idx: int,
+                       direction: str = UP) -> bool:
     """신선도·쿨다운 게이트 통과 시 alert_history 기록 + last_triggered_at 갱신 (§3-4).
 
     Returns:
@@ -458,11 +474,12 @@ def _emit_uptrend_alert(rule_id: int, ticker: str, name: str, level: float,
             if prev_idx is not None and (confirm_idx - prev_idx) < SIGNAL_COOLDOWN_DAYS:
                 return False
 
-        message = _build_alert_message(name, path, level)
+        message = _build_alert_message(name, path, level, direction)
         cur.execute(
             """INSERT INTO alert_history (rule_id, ticker, alert_type, message, triggered_at)
-               VALUES (?, ?, 'uptrend', ?, ?)""",
-            (rule_id, ticker, message, confirmed_date.isoformat()),
+               VALUES (?, ?, ?, ?, ?)""",
+            (rule_id, ticker, ALERT_TYPE_BY_DIRECTION[direction], message,
+             confirmed_date.isoformat()),
         )
         cur.execute(
             "UPDATE alert_rules SET last_triggered_at = ? WHERE id = ?",
@@ -473,27 +490,28 @@ def _emit_uptrend_alert(rule_id: int, ticker: str, name: str, level: float,
 
 
 def _step_day(rule_id: int, ticker: str, name: str, prices: List[PriceBar],
-              flows: Dict[date_type, int], i: int, active: Optional[dict]) -> Optional[dict]:
+              flows: Dict[date_type, int], i: int, active: Optional[dict],
+              direction: str = UP) -> Optional[dict]:
     """하루치 상태 전이 처리. 갱신된 active(또는 None)를 반환한다."""
     bar = prices[i]
 
     # 1) 활성 pending 상태 갱신 (있으면)
     if active is not None:
-        status, path = update_pending(active["signal"], prices, flows, i)
+        status, path = update_pending(active["signal"], prices, flows, i, direction)
         if status != "pending":
             _resolve_event(active["id"], status, path, bar.date)
             if status == "confirmed":
-                _emit_uptrend_alert(
+                _emit_signal_alert(
                     rule_id, ticker, name, active["signal"].breakout_level,
-                    path, bar.date, prices, i,
+                    path, bar.date, prices, i, direction,
                 )
             active = None
 
     # 2) pending 없으면 신규 돌파 탐지 (이중 pending 차단)
     if active is None:
-        sig = detect_breakout(prices, flows, i)
+        sig = detect_breakout(prices, flows, i, direction)
         if sig is not None:
-            new_id = _create_pending(rule_id, ticker, sig)
+            new_id = _create_pending(rule_id, ticker, sig, direction)
             if new_id is not None:
                 active = {"id": new_id, "signal": sig}
 
@@ -502,7 +520,7 @@ def _step_day(rule_id: int, ticker: str, name: str, prices: List[PriceBar],
 
 def _scan_ticker(collector, rule_id: int, ticker: str,
                  since_date: Optional[date_type],
-                 until_date: date_type) -> Optional[date_type]:
+                 until_date: date_type, direction: str = UP) -> Optional[date_type]:
     """단일 종목의 놓친 거래일을 재생하며 상태 전이·알림을 처리한다.
 
     Returns:
@@ -517,7 +535,7 @@ def _scan_ticker(collector, rule_id: int, ticker: str,
     etf = collector.get_etf_info(ticker)
     name = etf.name if etf else ticker
 
-    active = _get_active_pending(ticker)
+    active = _get_active_pending(ticker, direction)
     last_processed: Optional[date_type] = None
 
     for i, bar in enumerate(prices):
@@ -525,27 +543,27 @@ def _scan_ticker(collector, rule_id: int, ticker: str,
             continue
         if bar.date > until_date:
             break
-        active = _step_day(rule_id, ticker, name, prices, flows, i, active)
+        active = _step_day(rule_id, ticker, name, prices, flows, i, active, direction)
         last_processed = bar.date
 
     return last_processed
 
 
 def scan_all(since=None, until=None) -> dict:
-    """활성 uptrend 종목 전체를 소급 재생 스캔한다 (§3-1, 두 진입점 공용, 멱등).
+    """활성 상승/하락 신호 종목 전체를 소급 재생 스캔한다 (§3-1, 멱등).
 
     Args:
         since: 마지막 스캔일(이후만 재생). None이면 전체 이력 재생(초기 구축).
         until: 처리 상한 거래일(포함). None이면 오늘까지.
 
     Returns:
-        {scanned, failed, marker} 요약. 전 종목 성공 시에만 마커를 갱신한다.
+        {scanned, failed, marker} 요약. 전 규칙 성공 시에만 마커를 갱신한다.
     """
     from app.services.data_collector import ETFDataCollector
     from app.database import set_app_state
 
     collector = ETFDataCollector()
-    rules = _get_active_uptrend_rules()
+    rules = _get_active_signal_rules()
     since_date = _as_date(since)
     until_date = _as_date(until) or date_type.today()
 
@@ -556,7 +574,8 @@ def scan_all(since=None, until=None) -> dict:
     for rule in rules:
         try:
             processed_to = _scan_ticker(
-                collector, rule["id"], rule["ticker"], since_date, until_date
+                collector, rule["id"], rule["ticker"], since_date, until_date,
+                rule["direction"],
             )
             scanned += 1
             if processed_to and (max_processed is None or processed_to > max_processed):
@@ -608,7 +627,7 @@ def _event_dict(sig: BreakoutSignal, status: str, path: Optional[str],
 
 
 def replay_events(prices: List[PriceBar], flows: Dict[date_type, int],
-                  start_idx: int = 0) -> List[dict]:
+                  start_idx: int = 0, direction: str = UP) -> List[dict]:
     """DB 없이 순수하게 재생해 신호 이벤트 목록을 시간순으로 반환한다.
 
     scan_all과 동일한 상태 전이 규칙을 쓰되 DB에 기록하지 않는다. 종목당 활성
@@ -619,12 +638,12 @@ def replay_events(prices: List[PriceBar], flows: Dict[date_type, int],
 
     for i in range(start_idx, len(prices)):
         if active is not None:
-            status, path = update_pending(active, prices, flows, i)
+            status, path = update_pending(active, prices, flows, i, direction)
             if status != "pending":
                 events.append(_event_dict(active, status, path, prices[i].date))
                 active = None
         if active is None:
-            sig = detect_breakout(prices, flows, i)
+            sig = detect_breakout(prices, flows, i, direction)
             if sig is not None:
                 active = sig
 
@@ -633,8 +652,8 @@ def replay_events(prices: List[PriceBar], flows: Dict[date_type, int],
     return events
 
 
-def evaluate_watchlist() -> List[dict]:
-    """등록 종목 전체의 현재 상승흐름 상태를 리포트한다 (읽기 전용, DB 미변경).
+def evaluate_watchlist(direction: str = UP) -> List[dict]:
+    """등록 종목 전체의 현재 상승/하락 흐름 상태를 리포트한다 (읽기 전용, DB 미변경).
 
     저장된 가격·수급으로 재생하며, 각 종목의 **가장 최근 신호 이벤트**를 요약한다.
     데이터 부족 종목은 status='insufficient_data'로 표시한다.
@@ -652,7 +671,7 @@ def evaluate_watchlist() -> List[dict]:
             })
             continue
         flows = _load_flows(etf.ticker)
-        events = replay_events(prices, flows)
+        events = replay_events(prices, flows, direction=direction)
         latest = events[-1] if events else None
         results.append({
             "ticker": etf.ticker, "name": etf.name,
@@ -678,22 +697,26 @@ def _current_status(latest: Optional[dict], prices: List[PriceBar]) -> str:
     return "confirmed"
 
 
-def scan_ticker(ticker: str, since=None) -> dict:
+def scan_ticker(ticker: str, since=None, direction: Optional[str] = None) -> dict:
     """단일 종목만 스캔한다 (DB 기록·알림 발신). 토글 ON 직후 즉시 확인용.
 
+    direction=None이면 해당 종목의 활성 규칙(상승·하락) 전부를 스캔한다.
     전역 마커(last_signal_scan_date)는 건드리지 않는다 — 전체 스캔 전용이다.
     """
     from app.services.data_collector import ETFDataCollector
 
-    rule = next(
-        (r for r in _get_active_uptrend_rules() if r["ticker"] == ticker), None
-    )
-    if rule is None:
+    rules = [
+        r for r in _get_active_signal_rules()
+        if r["ticker"] == ticker and (direction is None or r["direction"] == direction)
+    ]
+    if not rules:
         return {"scanned": False, "reason": "no_active_rule"}
 
     collector = ETFDataCollector()
     try:
-        _scan_ticker(collector, rule["id"], ticker, _as_date(since), date_type.today())
+        for rule in rules:
+            _scan_ticker(collector, rule["id"], ticker, _as_date(since),
+                         date_type.today(), rule["direction"])
         return {"scanned": True}
     except Exception as e:
         logger.error(f"[신호] {ticker} 단일 스캔 실패: {e}", exc_info=True)

@@ -13,7 +13,7 @@ from app.database import (
     init_db, get_db_connection, get_app_state, set_app_state,
 )
 from app.services.signal_detector import (
-    PriceBar, scan_all, _emit_uptrend_alert, evaluate_watchlist, scan_ticker,
+    PriceBar, scan_all, _emit_signal_alert, evaluate_watchlist, scan_ticker,
 )
 
 BASE = date(2026, 1, 1)
@@ -221,8 +221,8 @@ class TestCooldownGate:
             conn.commit()
 
         # 새 확정 index 20 → 거리 10 < 20 → 억제
-        emitted = _emit_uptrend_alert(rule_id, ticker, "종목", 100.0, "hold",
-                                      prices[20].date, prices, 20)
+        emitted = _emit_signal_alert(rule_id, ticker, "종목", 100.0, "hold",
+                                     prices[20].date, prices, 20)
 
         assert emitted is False
         with get_db_connection() as conn:
@@ -244,8 +244,8 @@ class TestCooldownGate:
             conn.commit()
 
         # 새 확정 index 31 → 거리 21 ≥ 20 → 허용
-        emitted = _emit_uptrend_alert(rule_id, ticker, "종목", 100.0, "hold",
-                                      prices[31].date, prices, 31)
+        emitted = _emit_signal_alert(rule_id, ticker, "종목", 100.0, "hold",
+                                     prices[31].date, prices, 31)
 
         assert emitted is True
         with get_db_connection() as conn:
@@ -325,3 +325,75 @@ class TestWatchlistAndSingleScan:
         ticker = _valid_ticker()
         result = scan_ticker(ticker)
         assert result == {"scanned": False, "reason": "no_active_rule"}
+
+
+def _create_downtrend_rule(ticker):
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO alert_rules (ticker, alert_type, direction, target_price, is_active)
+               VALUES (?, 'downtrend', 'down', 0, 1)""",
+            (ticker,),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def _down_confirm_series():
+    """C2(연속 유지)로 day30 하향 이탈 → day32 확정되는 33거래일 시리즈."""
+    bars = [(BASE + timedelta(days=i), 100, 100, 100, 100, 1000) for i in range(30)]
+    bars.append((BASE + timedelta(days=30), 99, 99, 95, 95.5, 2500))  # 이탈
+    bars.append((BASE + timedelta(days=31), 96, 97, 95, 96, 1200))
+    bars.append((BASE + timedelta(days=32), 96, 97, 95, 96, 1200))    # 확정
+    return bars
+
+
+class TestDowntrendScan:
+    """하락흐름 스캔 — 상승과 같은 엔진의 거울상"""
+
+    def test_downtrend_confirms_and_alerts(self):
+        """Given 하향 이탈 시리즈+downtrend 규칙 When scan_all Then 하락 확정·알림"""
+        ticker = _valid_ticker()
+        bars = _down_confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars), net=-500)
+        rule_id = _create_downtrend_rule(ticker)
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            scan_all(since=None)
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT status, confirm_path, direction FROM signal_events WHERE ticker=?",
+                (ticker,),
+            )
+            ev = cur.fetchone()
+            assert ev["status"] == "confirmed"
+            assert ev["direction"] == "down"
+            assert ev["confirm_path"] == "hold"
+
+            cur.execute(
+                "SELECT alert_type, message FROM alert_history WHERE rule_id=?", (rule_id,)
+            )
+            alert = cur.fetchone()
+            assert alert["alert_type"] == "downtrend"
+            assert "하락흐름 확정" in alert["message"]
+
+    def test_evaluate_watchlist_down_direction(self):
+        """Given 하향 이탈 시리즈 When 하락 방향 일괄 점검 Then confirmed 리포트"""
+        ticker = _valid_ticker()
+        bars = _down_confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars), net=-500)
+
+        results = evaluate_watchlist(direction="down")
+        entry = next((r for r in results if r["ticker"] == ticker), None)
+        assert entry is not None
+        assert entry["status"] == "confirmed"
+        # 상승 방향으로 보면 신호 없음(대칭 확인)
+        up = next((r for r in evaluate_watchlist(direction="up") if r["ticker"] == ticker), None)
+        assert up["status"] != "confirmed"

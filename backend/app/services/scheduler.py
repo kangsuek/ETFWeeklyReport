@@ -351,16 +351,16 @@ class DataCollectionScheduler:
             logger.warning(f"[스케줄러-펀더멘털] 수집 여부 확인 실패: {e}")
 
     def run_signal_scan(self):
-        """상승흐름 신호 스캔 (평일 16:40 KST).
+        """상승/하락 신호 스캔 (평일 16:40 KST).
 
         오늘 가격·수급을 강제 재수집(15:30 잠정치 → 확정치)한 뒤 scan_all을 호출한다.
         매매동향은 장 마감 직후 잠정치라 저녁에 갱신될 수 있어 16:40에 다시 받는다.
         """
-        from app.services.signal_detector import scan_all, _get_active_uptrend_rules
+        from app.services.signal_detector import scan_all, _get_active_signal_rules
 
         try:
-            for rule in _get_active_uptrend_rules():
-                ticker = rule["ticker"]
+            # 상승·하락 규칙 종목의 당일 데이터를 종목당 1회만 재수집 (중복 제거)
+            for ticker in {r["ticker"] for r in _get_active_signal_rules()}:
                 try:
                     self.collector.collect_and_save_prices(ticker, days=1)
                     self.collector.collect_and_save_trading_flow(ticker, days=1)
