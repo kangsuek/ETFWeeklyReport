@@ -33,6 +33,15 @@ OVERHEAT_LOOKBACK = 5
 # 수급 누적 판정 기간 (§2-2 B4 / §2-3 확정 재확인: 최근 3거래일)
 FLOW_WINDOW_DAYS = 3
 
+# 신호 방향 — 상승흐름(up)과 그 거울상 하락흐름(down)을 같은 로직으로 판정.
+UP = "up"
+DOWN = "down"
+
+
+def _sign(direction: str) -> int:
+    """up→+1, down→-1. 부호로 상/하 비교를 대칭 처리한다."""
+    return 1 if direction == UP else -1
+
 
 @dataclass
 class PriceBar:
@@ -86,32 +95,32 @@ def _flow_sum_recent(
 
 
 def _breakout_supply_confirms(
-    prices: List[PriceBar], flows: Dict[date_type, int], as_of_idx: int, net_3d: int
+    prices: List[PriceBar], flows: Dict[date_type, int],
+    as_of_idx: int, net_3d: int, s: int
 ) -> bool:
-    """B4: 당일 순매수 > 0 또는 최근 3거래일 누적 순매수 > 0."""
+    """B4: 당일 또는 최근 3거래일 누적 수급이 방향과 일치(up→순매수, down→순매도)."""
     today_net = flows.get(prices[as_of_idx].date)
-    return (today_net is not None and today_net > 0) or net_3d > 0
+    return (today_net is not None and s * today_net > 0) or s * net_3d > 0
 
 
-def _is_overheated(prices: List[PriceBar], as_of_idx: int) -> bool:
-    """B5: 당일 종가 ÷ 5거래일 전 종가 − 1 ≥ OVERHEAT_5D(%)면 과열."""
+def _is_extreme_move(prices: List[PriceBar], as_of_idx: int, s: int) -> bool:
+    """B5: 5거래일 방향 수익률이 임계(±OVERHEAT_5D%) 넘으면 과열/과매도 → 추격 제외."""
     prev_close = prices[as_of_idx - OVERHEAT_LOOKBACK].close
     if prev_close <= 0:
         return False
-    return (prices[as_of_idx].close / prev_close - 1) * 100 >= SIGNAL_OVERHEAT_5D
+    return s * (prices[as_of_idx].close / prev_close - 1) * 100 >= SIGNAL_OVERHEAT_5D
 
 
 def detect_breakout(
     prices: List[PriceBar],
     flows: Dict[date_type, int],
     as_of_idx: int,
+    direction: str = UP,
 ) -> Optional[BreakoutSignal]:
-    """`as_of_idx`일 종가 확정 기준으로 LV1 돌파(B1~B6)를 판정 (§2-2).
+    """`as_of_idx`일 종가 확정 기준으로 LV1 돌파/이탈(B1~B6)을 판정 (§2-2).
 
-    Args:
-        prices: 오래된→최신 순 정렬된 일봉 리스트
-        flows: 날짜→수급 순매수(외국인+기관) 매핑
-        as_of_idx: 판정 대상일 인덱스 (이 인덱스까지만 참조)
+    direction='up'이면 20일 고점 상향 돌파, 'down'이면 20일 저점 하향 이탈을
+    같은 규칙의 거울상으로 판정한다.
 
     Returns:
         모든 조건 충족 시 BreakoutSignal, 아니면 None.
@@ -120,24 +129,30 @@ def detect_breakout(
     if as_of_idx < SIGNAL_LOOKBACK_DAYS or (as_of_idx + 1) < SIGNAL_MIN_DATA_DAYS:
         return None
 
+    s = _sign(direction)
     today = prices[as_of_idx]
     lookback = prices[as_of_idx - SIGNAL_LOOKBACK_DAYS:as_of_idx]  # 당일 제외 직전 20행
-    breakout_level = max(b.high for b in lookback)
+    breakout_level = (
+        max(b.high for b in lookback) if direction == UP
+        else min(b.low for b in lookback)
+    )
     avg_vol = sum(b.volume for b in lookback) / len(lookback)
     volume_ratio = today.volume / avg_vol if avg_vol > 0 else 0.0
     candle_pos = _candle_position(today)
+    # up은 상단 마감(위치↑), down은 하단 마감(위치↓ → 1-위치가 커야 함)
+    eff_candle = candle_pos if direction == UP else 1 - candle_pos
     net_3d, has_flow = _flow_sum_recent(prices, flows, as_of_idx)
 
-    # B1 종가>돌파선, B2 거래량 배수, B3 캔들 위치, B4 수급(결측이면 보류), B5 과열 아님
-    if today.close <= breakout_level:
+    # B1 방향 돌파, B2 거래량 배수, B3 캔들 위치, B4 수급(결측이면 보류), B5 과열/과매도 아님
+    if s * (today.close - breakout_level) <= 0:
         return None
     if volume_ratio < SIGNAL_VOL_MULT:
         return None
-    if candle_pos < SIGNAL_CANDLE_POS_MIN:
+    if eff_candle < SIGNAL_CANDLE_POS_MIN:
         return None
-    if not has_flow or not _breakout_supply_confirms(prices, flows, as_of_idx, net_3d):
+    if not has_flow or not _breakout_supply_confirms(prices, flows, as_of_idx, net_3d, s):
         return None
-    if _is_overheated(prices, as_of_idx):
+    if _is_extreme_move(prices, as_of_idx, s):
         return None
 
     return BreakoutSignal(
@@ -157,31 +172,32 @@ def _find_index(prices: List[PriceBar], target: date_type) -> Optional[int]:
     return None
 
 
-def _supply_ok(prices: List[PriceBar], flows: Dict[date_type, int], idx: int) -> bool:
-    """확정일 수급 재확인 — 최근 3거래일 누적 순매수 > 0 (결측이면 보수적으로 False)."""
+def _supply_ok(prices: List[PriceBar], flows: Dict[date_type, int], idx: int, s: int) -> bool:
+    """확정일 수급 재확인 — 최근 3거래일 누적 수급이 방향과 일치 (결측이면 False)."""
     net_3d, has_flow = _flow_sum_recent(prices, flows, idx)
-    return has_flow and net_3d > 0
+    return has_flow and s * net_3d > 0
 
 
 def _hold_confirms(
-    prices: List[PriceBar], flows: Dict[date_type, int], b_idx: int, level: float, i: int
+    prices: List[PriceBar], flows: Dict[date_type, int],
+    b_idx: int, level: float, i: int, s: int
 ) -> bool:
-    """C2: 돌파일 포함 HOLD_DAYS 연속 종가 > 돌파선 + 수급 확인 (§2-3)."""
+    """C2: 돌파일 포함 HOLD_DAYS 연속 종가가 돌파선 반대편 유지 + 수급 확인 (§2-3)."""
     if i != b_idx + SIGNAL_HOLD_DAYS - 1:
         return False
-    if not all(prices[j].close > level for j in range(b_idx, i + 1)):
+    if not all(s * (prices[j].close - level) > 0 for j in range(b_idx, i + 1)):
         return False
-    return _supply_ok(prices, flows, i)
+    return _supply_ok(prices, flows, i, s)
 
 
 def _retest_confirms(
     bar: PriceBar, level: float, retest_touched: bool, c1_broken: bool,
-    prices: List[PriceBar], flows: Dict[date_type, int], i: int
+    prices: List[PriceBar], flows: Dict[date_type, int], i: int, s: int
 ) -> bool:
-    """C1: 재시험 접근 이력 + 저가 붕괴 없음 + 종가 > 돌파선 + 수급 확인 (§2-3)."""
-    if not (retest_touched and not c1_broken and bar.close > level):
+    """C1: 재시험 접근 이력 + 실패선 붕괴 없음 + 종가 재이탈 + 수급 확인 (§2-3)."""
+    if not (retest_touched and not c1_broken and s * (bar.close - level) > 0):
         return False
-    return _supply_ok(prices, flows, i)
+    return _supply_ok(prices, flows, i, s)
 
 
 def update_pending(
@@ -189,11 +205,12 @@ def update_pending(
     prices: List[PriceBar],
     flows: Dict[date_type, int],
     as_of_idx: int,
+    direction: str = UP,
 ) -> Tuple[str, Optional[str]]:
     """pending 이벤트의 상태를 `as_of_idx` 기준으로 판정 (§2-3, §2-4).
 
     돌파일부터 as_of_idx(최대 CONFIRM_WINDOW)까지 시간순으로 재생하며 최초의
-    종결 전이를 반환한다. 종결 전이가 없으면 ('pending', None).
+    종결 전이를 반환한다. direction으로 상승/하락을 대칭 처리한다.
 
     Returns:
         (status, path): status ∈ {pending, confirmed, failed, expired},
@@ -203,8 +220,10 @@ def update_pending(
     if b_idx is None or b_idx > as_of_idx:
         return ("pending", None)
 
+    s = _sign(direction)
     level = event.breakout_level
-    fail_line = level * SIGNAL_FAIL_FLOOR
+    # 실패선: up→level×0.97(아래), down→level×1.03(위)
+    fail_line = level * (1 - s * (1 - SIGNAL_FAIL_FLOOR))
     near_lo = level * (1 - SIGNAL_RETEST_NEAR)
     near_hi = level * (1 + SIGNAL_RETEST_NEAR)
     window_end = b_idx + SIGNAL_CONFIRM_WINDOW
@@ -215,21 +234,23 @@ def update_pending(
 
     for i in range(b_idx, end + 1):
         bar = prices[i]
+        # 재시험 접근·붕괴 판정에 쓰는 극단가: up→저가, down→고가
+        extreme = bar.low if direction == UP else bar.high
 
-        # 실패: 돌파일 이후 종가가 실패선(돌파선×0.97) 미만 마감 (§2-4)
-        if i > b_idx and bar.close < fail_line:
+        # 실패: 돌파일 이후 종가가 실패선 반대편으로 마감 (§2-4)
+        if i > b_idx and s * (bar.close - fail_line) < 0:
             return ("failed", None)
-        # 저가가 실패선 붕괴 → C1 자격 상실 (종가 회복 시 failed는 아님, §2-3 주석)
-        if bar.low < fail_line:
+        # 극단가가 실패선 붕괴 → C1 자격 상실 (종가 회복 시 failed는 아님, §2-3 주석)
+        if s * (extreme - fail_line) < 0:
             c1_broken = True
         # C2 연속 유지 확정
-        if _hold_confirms(prices, flows, b_idx, level, i):
+        if _hold_confirms(prices, flows, b_idx, level, i, s):
             return ("confirmed", "hold")
-        # C1 재시험 접근(돌파일 이후 저가가 ±RETEST_NEAR 밴드 진입)
-        if i > b_idx and near_lo <= bar.low <= near_hi:
+        # C1 재시험 접근(돌파일 이후 극단가가 ±RETEST_NEAR 밴드 진입)
+        if i > b_idx and near_lo <= extreme <= near_hi:
             retest_touched = True
         # C1 재시험 확정 (접근·재마감 동일일 허용)
-        if _retest_confirms(bar, level, retest_touched, c1_broken, prices, flows, i):
+        if _retest_confirms(bar, level, retest_touched, c1_broken, prices, flows, i, s):
             return ("confirmed", "retest")
         # 만료: CONFIRM_WINDOW 경과 (§2-4)
         if i >= window_end:

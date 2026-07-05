@@ -230,3 +230,74 @@ class TestReplayEvents:
         events = replay_events(prices, _pos_flows(prices))
         assert events[-1]["status"] == "pending"
         assert events[-1]["confirmed_date"] is None
+
+
+class TestDetectBreakoutDown:
+    """하락흐름 LV1 이탈 — 상승 규칙의 거울상 (direction='down')"""
+
+    def test_valid_breakdown(self):
+        """Given 20일 저점 하향 이탈+매도 폭발 When 판정 Then 신호"""
+        prices = _base_flat(30) + [_bar(30, 99, 99, 95, 95.5, 2500)]
+        flows = _pos_flows(prices, -500)
+        sig = detect_breakout(prices, flows, 30, direction='down')
+        assert sig is not None
+        assert sig.breakout_level == pytest.approx(100.0)  # 직전 20일 최저가
+        assert sig.flow_net_3d == -1500
+
+    def test_close_not_below_level(self):
+        """Given 종가가 저점 위 When 판정 Then None"""
+        prices = _base_flat(30) + [_bar(30, 100, 100, 100, 100, 2500)]
+        assert detect_breakout(prices, _pos_flows(prices, -500), 30, direction='down') is None
+
+    def test_bullish_candle_rejected(self):
+        """Given 하단 마감 아님(상단 마감) When 판정 Then None"""
+        # candle_pos=(98.5-95)/(99-95)=0.875 → eff(down)=0.125<0.6
+        prices = _base_flat(30) + [_bar(30, 96, 99, 95, 98.5, 2500)]
+        assert detect_breakout(prices, _pos_flows(prices, -500), 30, direction='down') is None
+
+    def test_positive_supply_rejected(self):
+        """Given 순매수(방향 불일치) When 판정 Then None"""
+        prices = _base_flat(30) + [_bar(30, 99, 99, 95, 95.5, 2500)]
+        assert detect_breakout(prices, _pos_flows(prices, 500), 30, direction='down') is None
+
+    def test_oversold_excluded(self):
+        """Given 5일 -25% 이하(과매도) When 판정 Then None(투매 추격 제외)"""
+        prices = _base_flat(30) + [_bar(30, 71, 72, 69, 70, 2500)]  # 70/100-1 = -30%
+        assert detect_breakout(prices, _pos_flows(prices, -500), 30, direction='down') is None
+
+
+class TestUpdatePendingDown:
+    """하락흐름 확정/실패/만료 — 거울상 (direction='down')"""
+
+    def _event(self, prices, level=100.0):
+        return BreakoutSignal(breakout_date=prices[30].date, breakout_level=level,
+                              volume_ratio=2.5, candle_pos=0.1, flow_net_3d=-1500)
+
+    def _fwd(self, forward_bars):
+        prices = _base_flat(30) + [_bar(30, 99, 99, 95, 95.5, 2500)]
+        prices += forward_bars
+        return prices, _pos_flows(prices, -500)
+
+    def test_c2_hold_confirmed(self):
+        """Given 3일 연속 종가<이탈선(밴드 밖) When 판정 Then confirmed/hold"""
+        fwd = [_bar(31, 96, 97, 95, 96.0, 1200), _bar(32, 96, 97, 95, 96.0, 1200)]
+        prices, flows = self._fwd(fwd)
+        assert update_pending(self._event(prices), prices, flows, 32, direction='down') == ("confirmed", "hold")
+
+    def test_c1_retest_confirmed(self):
+        """Given 반등 접근 후 재이탈 When 판정 Then confirmed/retest"""
+        fwd = [_bar(31, 100, 101, 99, 101.0, 1000), _bar(32, 100, 100.5, 98, 99.0, 1300)]
+        prices, flows = self._fwd(fwd)
+        assert update_pending(self._event(prices), prices, flows, 32, direction='down') == ("confirmed", "retest")
+
+    def test_failed_on_close_recovery(self):
+        """Given 종가가 실패선(×1.03) 위로 회복 When 판정 Then failed"""
+        fwd = [_bar(31, 103, 105, 103, 104.0, 1000)]  # close 104 > 103
+        prices, flows = self._fwd(fwd)
+        assert update_pending(self._event(prices), prices, flows, 31, direction='down') == ("failed", None)
+
+    def test_expired_after_window(self):
+        """Given 확정·실패 없이 창 경과 When 판정 Then expired"""
+        fwd = [_bar(30 + k, 101, 102.5, 101, 102.0, 1000) for k in range(1, 16)]
+        prices, flows = self._fwd(fwd)
+        assert update_pending(self._event(prices), prices, flows, 45, direction='down') == ("expired", None)
