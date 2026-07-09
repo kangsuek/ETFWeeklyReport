@@ -7,6 +7,7 @@ import ScreeningTable from '../components/screening/ScreeningTable'
 import ScreeningHeatmap from '../components/screening/ScreeningHeatmap'
 import ThemeExplorer from '../components/screening/ThemeExplorer'
 import SignalScreening from '../components/screening/SignalScreening'
+import { SORT_OPTIONS } from '../config/screeningOptions'
 import LoadingIndicator from '../components/common/LoadingIndicator'
 import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_FAST } from '../constants'
@@ -16,16 +17,6 @@ const TABS = [
   { id: 'theme', label: '테마 탐색' },
   { id: 'uptrend', label: '상승흐름' },
   { id: 'downtrend', label: '하락흐름' },
-]
-
-const SORT_OPTIONS = [
-  { value: 'weekly_return', label: '주간수익률' },
-  { value: 'daily_change_pct', label: '등락률' },
-  { value: 'volume', label: '거래량' },
-  { value: 'close_price', label: '현재가' },
-  { value: 'foreign_net', label: '외국인' },
-  { value: 'institutional_net', label: '기관' },
-  { value: 'name', label: '종목명' },
 ]
 
 const DEFAULT_FILTERS = {

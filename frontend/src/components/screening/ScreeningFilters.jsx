@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react'
-
-const MARKET_TABS = [
-  { value: 'ETF', label: 'ETF' },
-  { value: 'KOSPI', label: 'KOSPI' },
-  { value: 'KOSDAQ', label: 'KOSDAQ' },
-  { value: 'ALL', label: '전체' },
-]
+import { MARKET_TABS } from '../../config/screeningOptions'
 
 export default function ScreeningFilters({ filters, onFilterChange, onReset, lastUpdated }) {
   const [localQ, setLocalQ] = useState(filters.q || '')

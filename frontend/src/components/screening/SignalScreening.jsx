@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { alertApi, scannerApi } from '../../services/api'
 import { SIGNAL_KINDS } from '../../config/signalKinds'
+import { describeFilters, describeSort } from '../../config/screeningOptions'
 
 // 백엔드 SIGNAL_BATCH_SCAN_MAX와 동일 — 초과 요청은 백엔드에서도 잘린다.
 const BATCH_MAX = 50
@@ -131,10 +132,26 @@ export default function SignalScreening({ direction, filters }) {
       </div>
 
       {mode === 'screen' && (
-        <p className="text-xs text-gray-400 dark:text-gray-500">
-          현재 조건검색 필터의 상위 {limit.toLocaleString()}개 종목에 대해 가격·수급 이력을 수집한 뒤 판정합니다.
-          종목당 약 2초 소요되며, 수집된 이력은 저장됩니다.
-        </p>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 p-3 space-y-2">
+          <div className="flex items-center gap-1.5 flex-wrap" aria-label="적용된 조건검색 필터">
+            <span className="text-xs text-gray-500 dark:text-gray-400">적용 조건</span>
+            {describeFilters(filters).map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                {chip.label}
+              </span>
+            ))}
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              · {describeSort(filters)} 상위 <strong className="tabular-nums text-gray-700 dark:text-gray-200">{limit.toLocaleString()}</strong>개
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            &lsquo;조건 검색&rsquo; 탭에서 설정한 조건이 그대로 적용됩니다(페이지는 무시하고 상위 N개).
+            종목당 약 2초 소요되며, 수집된 가격·수급 이력은 저장됩니다.
+          </p>
+        </div>
       )}
 
       {/* 요약 */}

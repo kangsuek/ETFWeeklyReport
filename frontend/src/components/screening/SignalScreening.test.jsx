@@ -77,6 +77,45 @@ describe('SignalScreening — 조건검색 모드 (배치 점검)', () => {
     expect(input).toHaveValue(50)
   })
 
+  it('적용된 조건검색 필터를 칩으로 표시한다', () => {
+    server.use(
+      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({ items: [] })),
+    )
+    renderWithProviders(
+      <SignalScreening
+        direction="up"
+        filters={{
+          market: 'KOSDAQ', sector: '반도체', q: '전력',
+          min_weekly_return: 3, foreign_net_positive: true,
+          sort_by: 'volume', sort_dir: 'asc',
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('조건검색 결과'))
+
+    const summary = screen.getByLabelText('적용된 조건검색 필터')
+    expect(summary).toHaveTextContent('KOSDAQ')
+    expect(summary).toHaveTextContent('반도체')
+    expect(summary).toHaveTextContent('"전력"')
+    expect(summary).toHaveTextContent('주간수익률 ≥ 3%')
+    expect(summary).toHaveTextContent('외국인 순매수')
+    expect(summary).toHaveTextContent('거래량 오름차순 상위 30개')
+  })
+
+  it('필터가 비어도 기본값(ETF·주간수익률 내림차순)을 보여준다', () => {
+    server.use(
+      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({ items: [] })),
+    )
+    renderWithProviders(<SignalScreening direction="up" filters={{}} />)
+
+    fireEvent.click(screen.getByText('조건검색 결과'))
+
+    const summary = screen.getByLabelText('적용된 조건검색 필터')
+    expect(summary).toHaveTextContent('ETF')
+    expect(summary).toHaveTextContent('주간수익률 내림차순 상위 30개')
+  })
+
   it('실행 전에는 안내 문구를 표시한다', () => {
     server.use(
       http.get(`${BASE}/alerts/downtrend/watchlist`, () => HttpResponse.json({ items: [] })),
