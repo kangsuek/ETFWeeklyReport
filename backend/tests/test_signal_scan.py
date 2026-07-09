@@ -397,3 +397,72 @@ class TestDowntrendScan:
         # 상승 방향으로 보면 신호 없음(대칭 확인)
         up = next((r for r in evaluate_watchlist(direction="up") if r["ticker"] == ticker), None)
         assert up["status"] != "confirmed"
+
+
+class TestBatchEvaluate:
+    """evaluate_tickers — 조건검색 결과 등 임의 종목 배치 점검 (상한·읽기전용)"""
+
+    def test_collects_then_reports_confirmed(self):
+        """Given 확정 시리즈 When 배치 점검 Then confirmed·signal_events 미기록"""
+        from app.services.signal_detector import evaluate_tickers
+        ticker = _valid_ticker()
+        bars = _confirm_series()
+        _insert_prices(ticker, bars)
+        _insert_flows(ticker, _all_dates(bars))
+
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            results = evaluate_tickers([ticker], direction="up", limit=30)
+
+        assert len(results) == 1
+        assert results[0]["ticker"] == ticker
+        assert results[0]["status"] == "confirmed"
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) c FROM signal_events")
+            assert cur.fetchone()["c"] == 0  # 읽기 전용
+
+    def test_limit_caps_targets(self):
+        """Given 다수 티커 When limit=2 Then 앞의 2개만 점검"""
+        from app.services.signal_detector import evaluate_tickers
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            results = evaluate_tickers(["A", "B", "C", "D"], direction="up", limit=2)
+        assert [r["ticker"] for r in results] == ["A", "B"]
+
+    def test_dedupes_and_hard_caps(self):
+        """Given 중복·과대 limit When 점검 Then 중복 제거 + SIGNAL_BATCH_SCAN_MAX 상한"""
+        from app.services.signal_detector import evaluate_tickers
+        from app.constants import SIGNAL_BATCH_SCAN_MAX
+        tickers = [f"T{i}" for i in range(80)] + ["T0"]  # 중복 포함
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=True,
+        ):
+            results = evaluate_tickers(tickers, direction="up", limit=999)
+        assert len(results) == SIGNAL_BATCH_SCAN_MAX
+        assert len({r["ticker"] for r in results}) == SIGNAL_BATCH_SCAN_MAX
+
+    def test_collection_failure_marks_error(self):
+        """Given 이력 수집 실패 When 점검 Then status='error'로 개별 격리"""
+        from app.services.signal_detector import evaluate_tickers
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            side_effect=Exception("network"),
+        ):
+            results = evaluate_tickers(["005930"], direction="up", limit=5)
+        assert results[0]["status"] == "error"
+
+    def test_insufficient_history_reported(self):
+        """Given 이력 부족 When 점검 Then insufficient_data"""
+        from app.services.signal_detector import evaluate_tickers
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=False,
+        ):
+            results = evaluate_tickers(["999999"], direction="down", limit=5)
+        assert results[0]["status"] == "insufficient_data"

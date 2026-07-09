@@ -4,6 +4,7 @@ TestClient로 uptrend 규칙 CRUD와 GET /signals/{ticker} 응답을 검증한�
 Given-When-Then.
 """
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -299,3 +300,42 @@ class TestDowntrendEndpoints:
         item = client.get("/api/alerts/downtrend").json()["items"][0]
         assert client.delete(f"/api/alerts/downtrend/{item['id']}").status_code == 200
         assert client.get("/api/alerts/downtrend").json()["items"] == []
+
+
+class TestBatchScanEndpoint:
+    """POST /api/alerts/signals/scan-batch"""
+
+    def test_empty_tickers_returns_empty(self):
+        """Given 빈 목록 When 배치 점검 Then 즉시 빈 결과(수집 없음)"""
+        resp = client.post("/api/alerts/signals/scan-batch",
+                           json={"tickers": [], "direction": "up", "limit": 30})
+        assert resp.status_code == 200
+        assert resp.json() == {"items": [], "scanned": 0}
+
+    def test_invalid_direction_rejected(self):
+        """Given 잘못된 direction When 요청 Then 400"""
+        resp = client.post("/api/alerts/signals/scan-batch",
+                           json={"tickers": ["005930"], "direction": "sideways"})
+        assert resp.status_code == 400
+
+    def test_scan_batch_returns_items(self):
+        """Given 티커 목록 When 배치 점검 Then 종목별 status 반환 (수집 모킹)"""
+        with patch(
+            "app.services.data_collector.ETFDataCollector.ensure_recent_history",
+            return_value=False,  # 이력 부족 → insufficient_data
+        ):
+            resp = client.post("/api/alerts/signals/scan-batch",
+                               json={"tickers": ["005930", "000660"],
+                                     "direction": "down", "limit": 30})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["scanned"] == 2
+        assert {i["ticker"] for i in data["items"]} == {"005930", "000660"}
+        assert all(i["status"] == "insufficient_data" for i in data["items"])
+
+    def test_scan_batch_route_not_shadowed_by_ticker(self):
+        """Given /signals/scan-batch When POST Then /signals/{ticker} 에 안 잡힘"""
+        resp = client.post("/api/alerts/signals/scan-batch",
+                           json={"tickers": [], "direction": "up"})
+        assert resp.status_code == 200
+        assert "items" in resp.json()

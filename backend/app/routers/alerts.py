@@ -104,6 +104,36 @@ async def get_alert_history(
         raise HTTPException(status_code=500, detail="알림 이력 조회 실패")
 
 
+class BatchScanRequest(BaseModel):
+    """조건검색 결과 등 임의 종목 목록의 흐름 배치 점검 요청"""
+    tickers: List[str]
+    direction: str = "up"
+    limit: int = 30
+
+
+@router.post("/signals/scan-batch")
+async def scan_batch(req: BatchScanRequest):
+    """지정 종목들의 이력을 즉시 수집한 뒤 상승/하락 흐름을 판정한다 (상한 적용).
+
+    가격·수급 이력은 저장되지만 signal_events/alert_history는 변경하지 않는다.
+    """
+    import asyncio
+    from app.services.signal_detector import evaluate_tickers
+
+    if req.direction not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="direction은 'up' 또는 'down'이어야 합니다")
+    if not req.tickers:
+        return {"items": [], "scanned": 0}
+    try:
+        items = await asyncio.to_thread(
+            evaluate_tickers, req.tickers, req.direction, req.limit
+        )
+        return {"items": items, "scanned": len(items)}
+    except Exception as e:
+        logger.error(f"Failed to batch-scan signals: {e}")
+        raise HTTPException(status_code=500, detail="배치 흐름 점검 실패")
+
+
 @router.get("/signals/{ticker}")
 async def get_signal_events(
     ticker: str,

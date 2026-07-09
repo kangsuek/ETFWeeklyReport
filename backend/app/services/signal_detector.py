@@ -24,6 +24,7 @@ from app.constants import (
     SIGNAL_HOLD_DAYS,
     SIGNAL_COOLDOWN_DAYS,
     SIGNAL_ALERT_FRESH_DAYS,
+    SIGNAL_BATCH_SCAN_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -734,3 +735,86 @@ def scan_ticker(ticker: str, since=None, direction: Optional[str] = None) -> dic
     except Exception as e:
         logger.error(f"[신호] {ticker} 단일 스캔 실패: {e}", exc_info=True)
         return {"scanned": False, "reason": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 배치 점검 — 조건검색 결과 등 임의 종목 목록을 즉시 수집 후 판정
+#
+# evaluate_watchlist는 "이미 이력이 있는 등록 종목"만 본다. 카탈로그 종목은
+# prices/trading_flow 이력이 없으므로, 판정 전에 종목별로 이력을 수집해야 한다.
+# signal_events/alert_history는 건드리지 않는다(판정은 읽기 전용, 이력만 저장).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _lookup_names(tickers: List[str]) -> Dict[str, str]:
+    """종목명 조회 — 등록 종목(etfs)을 우선하고, 없으면 카탈로그(stock_catalog)."""
+    from app.database import get_db_connection, get_cursor
+
+    if not tickers:
+        return {}
+    placeholders = ",".join("?" * len(tickers))
+    names: Dict[str, str] = {}
+    with get_db_connection() as conn:
+        cur = get_cursor(conn)
+        cur.execute(
+            f"SELECT ticker, name FROM stock_catalog WHERE ticker IN ({placeholders})",
+            tuple(tickers),
+        )
+        for r in cur.fetchall():
+            names[r["ticker"]] = r["name"]
+        cur.execute(
+            f"SELECT ticker, name FROM etfs WHERE ticker IN ({placeholders})",
+            tuple(tickers),
+        )
+        for r in cur.fetchall():
+            names[r["ticker"]] = r["name"]
+    return names
+
+
+def evaluate_tickers(tickers: List[str], direction: str = UP,
+                     limit: int = 30) -> List[dict]:
+    """지정 종목들의 이력을 즉시 수집한 뒤 현재 흐름 상태를 리포트한다.
+
+    가격·수급 이력은 DB에 저장되지만(ensure_recent_history), 신호 상태
+    (signal_events)와 알림(alert_history)은 변경하지 않는다 — 판정은 순수 재생.
+
+    Args:
+        tickers: 대상 종목 코드 (중복 제거 후 앞에서부터 limit개만)
+        direction: 'up' | 'down'
+        limit: 상한 (1 ~ SIGNAL_BATCH_SCAN_MAX)
+    """
+    from app.services.data_collector import ETFDataCollector
+
+    capped = max(1, min(limit, SIGNAL_BATCH_SCAN_MAX))
+    targets = list(dict.fromkeys(tickers))[:capped]
+    names = _lookup_names(targets)
+    collector = ETFDataCollector()
+
+    results: List[dict] = []
+    for ticker in targets:
+        name = names.get(ticker, ticker)
+        try:
+            collector.ensure_recent_history(ticker)
+        except Exception as e:
+            logger.warning(f"[신호 배치] {ticker} 이력 수집 실패: {e}")
+            results.append({"ticker": ticker, "name": name,
+                            "status": "error", "latest": None})
+            continue
+
+        prices = _load_price_bars(ticker)
+        if len(prices) < SIGNAL_MIN_DATA_DAYS:
+            results.append({"ticker": ticker, "name": name,
+                            "status": "insufficient_data", "latest": None})
+            continue
+
+        flows = _load_flows(ticker)
+        events = replay_events(prices, flows, direction=direction)
+        latest = events[-1] if events else None
+        results.append({
+            "ticker": ticker, "name": name,
+            "status": _current_status(latest, prices),
+            "latest": latest,
+        })
+
+    logger.info(f"[신호 배치] {direction} {len(results)}종목 점검 완료")
+    return results
