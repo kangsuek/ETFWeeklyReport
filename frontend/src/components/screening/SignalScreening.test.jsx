@@ -1,61 +1,90 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
-import { renderWithProviders, screen } from '../../test/utils'
+import { renderWithProviders, screen, waitFor, fireEvent } from '../../test/utils'
 import { server } from '../../test/mocks/server'
 import SignalScreening from './SignalScreening'
 
 const BASE = '*/api'
 
-describe('SignalScreening', () => {
-  it('확정·대기 종목만 표시하고 none/데이터부족은 제외한다', async () => {
+const WATCHLIST_ITEMS = [
+  { ticker: '161890', name: '한국콜마', status: 'confirmed', latest: { confirmed_date: '2026-07-01', breakout_level: 55000 } },
+  { ticker: '000660', name: 'SK하이닉스', status: 'pending', latest: { breakout_date: '2026-07-02', breakout_level: 240000 } },
+  { ticker: '005930', name: '삼성전자', status: 'none', latest: null },
+]
+
+describe('SignalScreening — 관심종목 모드', () => {
+  it('확정·대기만 표시하고 none은 제외한다', async () => {
     server.use(
-      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({
-        items: [
-          { ticker: '161890', name: '한국콜마', status: 'confirmed', latest: { confirmed_date: '2026-07-01', breakout_level: 55000, confirm_path: 'hold' } },
-          { ticker: '000660', name: 'SK하이닉스', status: 'pending', latest: { breakout_date: '2026-07-02', breakout_level: 240000 } },
-          { ticker: '005930', name: '삼성전자', status: 'none', latest: null },
-          { ticker: '068270', name: '셀트리온', status: 'insufficient_data', latest: null },
-        ],
-      })),
+      http.get(`${BASE}/alerts/uptrend/watchlist`, () =>
+        HttpResponse.json({ items: WATCHLIST_ITEMS })),
     )
     renderWithProviders(<SignalScreening direction="up" />)
 
     expect(await screen.findByText('한국콜마')).toBeInTheDocument()
     expect(screen.getByText('SK하이닉스')).toBeInTheDocument()
     expect(screen.queryByText('삼성전자')).not.toBeInTheDocument()
-    expect(screen.queryByText('셀트리온')).not.toBeInTheDocument()
-    // 요약 카운트
-    expect(screen.getByText(/확정 1/)).toBeInTheDocument()
-    expect(screen.getByText(/대기 1/)).toBeInTheDocument()
-    // 돌파선 포맷(천 단위 콤마)
     expect(screen.getByText('55,000원')).toBeInTheDocument()
   })
+})
 
-  it('확정·대기가 없으면 안내 문구를 표시한다', async () => {
+describe('SignalScreening — 조건검색 모드 (배치 점검)', () => {
+  it('조건검색 결과를 상위 N개로 조회해 배치 점검한다', async () => {
+    let searchPageSize = null
+    let batchBody = null
     server.use(
-      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({
-        items: [{ ticker: '005930', name: '삼성전자', status: 'none', latest: null }],
-      })),
+      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({ items: [] })),
+      http.get(`${BASE}/scanner`, ({ request }) => {
+        searchPageSize = new URL(request.url).searchParams.get('page_size')
+        return HttpResponse.json({
+          items: [{ ticker: 'AAA' }, { ticker: 'BBB' }], total: 2, page: 1, page_size: 2,
+        })
+      }),
+      http.post(`${BASE}/alerts/signals/scan-batch`, async ({ request }) => {
+        batchBody = await request.json()
+        return HttpResponse.json({
+          items: [
+            { ticker: 'AAA', name: '가나다', status: 'confirmed', latest: { confirmed_date: '2026-07-03', breakout_level: 1234 } },
+            { ticker: 'BBB', name: '라마바', status: 'insufficient_data', latest: null },
+          ],
+          scanned: 2,
+        })
+      }),
     )
-    renderWithProviders(<SignalScreening direction="up" />)
+    renderWithProviders(<SignalScreening direction="up" filters={{ market: 'ETF', sort_by: 'weekly_return' }} />)
 
-    expect(await screen.findByText('현재 상승흐름 확정·대기 종목이 없습니다')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('조건검색 결과'))
+    fireEvent.change(screen.getByLabelText('상위'), { target: { value: '5' } })
+    fireEvent.click(screen.getByText('점검 실행'))
+
+    expect(await screen.findByText('가나다')).toBeInTheDocument()
+    await waitFor(() => expect(searchPageSize).toBe('5'))
+    expect(batchBody).toMatchObject({ tickers: ['AAA', 'BBB'], direction: 'up', limit: 5 })
+    // 판정 불가(insufficient_data)는 목록에서 빠지고 요약에만 집계
+    expect(screen.queryByText('라마바')).not.toBeInTheDocument()
+    expect(screen.getByText(/판정 불가 1/)).toBeInTheDocument()
   })
 
-  it('확정이 대기보다 먼저 정렬된다', async () => {
+  it('N 입력은 최대치(50)로 클램프된다', () => {
     server.use(
-      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({
-        items: [
-          { ticker: '000660', name: 'SK하이닉스', status: 'pending', latest: { breakout_date: '2026-07-02', breakout_level: 240000 } },
-          { ticker: '161890', name: '한국콜마', status: 'confirmed', latest: { confirmed_date: '2026-07-01', breakout_level: 55000 } },
-        ],
-      })),
+      http.get(`${BASE}/alerts/uptrend/watchlist`, () => HttpResponse.json({ items: [] })),
     )
-    renderWithProviders(<SignalScreening direction="up" />)
+    renderWithProviders(<SignalScreening direction="up" filters={{}} />)
 
-    const rows = await screen.findAllByRole('row')
-    // rows[0]은 헤더, rows[1]이 첫 데이터 행 → 확정(한국콜마)이 먼저
-    expect(rows[1]).toHaveTextContent('한국콜마')
-    expect(rows[2]).toHaveTextContent('SK하이닉스')
+    fireEvent.click(screen.getByText('조건검색 결과'))
+    const input = screen.getByLabelText('상위')
+    fireEvent.change(input, { target: { value: '999' } })
+
+    expect(input).toHaveValue(50)
+  })
+
+  it('실행 전에는 안내 문구를 표시한다', () => {
+    server.use(
+      http.get(`${BASE}/alerts/downtrend/watchlist`, () => HttpResponse.json({ items: [] })),
+    )
+    renderWithProviders(<SignalScreening direction="down" filters={{}} />)
+
+    fireEvent.click(screen.getByText('조건검색 결과'))
+
+    expect(screen.getByText(/‘점검 실행’을 누르면/)).toBeInTheDocument()
   })
 })

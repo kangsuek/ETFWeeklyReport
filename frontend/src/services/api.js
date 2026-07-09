@@ -363,6 +363,11 @@ export const alertApi = {
   // 단일 종목 즉시 스캔 (토글 ON 직후 — 방향 무관 전 규칙, 수집 포함이라 LONG)
   scanSignals: (ticker) =>
     api.post(`/alerts/signals/${ticker}/scan`, {}, { timeout: LONG_API_TIMEOUT }),
+
+  // 임의 종목 목록 배치 점검 (조건검색 결과 대상 — 이력 수집 포함이라 LONG)
+  scanBatch: (tickers, direction = 'up', limit = 30) =>
+    api.post('/alerts/signals/scan-batch', { tickers, direction, limit },
+      { timeout: LONG_API_TIMEOUT }),
 }
 
 // Simulation API 서비스

@@ -76,3 +76,7 @@ windows/
 
 # SDK auto-generated client (regenerate with sdk/generate.sh)
 sdk/python/
+
+# Playwright MCP 산출물
+.playwright-mcp/
+*-snapshot.md

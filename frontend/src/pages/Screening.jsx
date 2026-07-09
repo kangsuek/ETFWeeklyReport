@@ -479,8 +479,8 @@ export default function Screening() {
         />
       )}
 
-      {activeTab === 'uptrend' && <SignalScreening direction="up" />}
-      {activeTab === 'downtrend' && <SignalScreening direction="down" />}
+      {activeTab === 'uptrend' && <SignalScreening direction="up" filters={filters} />}
+      {activeTab === 'downtrend' && <SignalScreening direction="down" filters={filters} />}
     </div>
   )
 }

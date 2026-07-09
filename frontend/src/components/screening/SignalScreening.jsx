@@ -1,8 +1,13 @@
+import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { alertApi } from '../../services/api'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { alertApi, scannerApi } from '../../services/api'
 import { SIGNAL_KINDS } from '../../config/signalKinds'
+
+// 백엔드 SIGNAL_BATCH_SCAN_MAX와 동일 — 초과 요청은 백엔드에서도 잘린다.
+const BATCH_MAX = 50
+const BATCH_DEFAULT = 30
 
 const STATUS_META = {
   confirmed: { label: '확정', cls: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300', order: 0 },
@@ -15,25 +20,50 @@ const formatDate = (iso) => {
   return m && d ? `${m}/${d}` : String(iso).slice(0, 10)
 }
 
-const formatWon = (v) =>
-  v == null ? '-' : `${Math.round(v).toLocaleString()}원`
+const formatWon = (v) => (v == null ? '-' : `${Math.round(v).toLocaleString()}원`)
 
 /**
- * 종목 발굴 상승/하락 흐름 탭 — 등록 관심종목 중 확정·대기 신호만 표시.
- * watchlist API(읽기 전용)를 재사용한다. 전체 카탈로그가 아닌 등록 종목 대상.
+ * 종목 발굴 상승/하락 흐름 탭.
+ *
+ * - 관심종목 모드: 이미 이력이 있는 등록 종목을 즉시 판정 (읽기 전용, 빠름)
+ * - 조건검색 모드: 현재 조건검색 결과 상위 N개의 이력을 즉시 수집 후 판정
+ *   (실제 알고리즘 그대로. 종목당 수집이 필요해 다소 시간이 걸린다)
  */
-export default function SignalScreening({ direction }) {
+export default function SignalScreening({ direction, filters }) {
   const cfg = SIGNAL_KINDS[direction]
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+  const [mode, setMode] = useState('watchlist')
+  const [limit, setLimit] = useState(BATCH_DEFAULT)
+
+  const watchlist = useQuery({
     queryKey: ['signalScreening', cfg.kind],
     queryFn: async () => {
       const res = await alertApi.scanWatchlist(cfg.kind)
       return res.data
     },
+    enabled: mode === 'watchlist',
     staleTime: 60_000,
   })
 
-  const items = (data?.items ?? [])
+  const batch = useMutation({
+    mutationFn: async () => {
+      const params = {}
+      for (const [key, val] of Object.entries(filters ?? {})) {
+        if (val !== undefined) params[key] = val
+      }
+      params.page = 1
+      params.page_size = limit
+      const found = await scannerApi.search(params)
+      const tickers = (found.data?.items ?? []).map((i) => i.ticker)
+      const res = await alertApi.scanBatch(tickers, cfg.direction, limit)
+      return res.data
+    },
+  })
+
+  const source = mode === 'watchlist' ? watchlist : batch
+  const isBusy = mode === 'watchlist' ? watchlist.isFetching : batch.isPending
+  const rows = source.data?.items ?? []
+
+  const items = rows
     .filter((i) => i.status === 'confirmed' || i.status === 'pending')
     .sort((a, b) => {
       const so = STATUS_META[a.status].order - STATUS_META[b.status].order
@@ -43,36 +73,99 @@ export default function SignalScreening({ direction }) {
       return db.localeCompare(da)
     })
 
-  const confirmedCount = items.filter((i) => i.status === 'confirmed').length
-  const pendingCount = items.filter((i) => i.status === 'pending').length
+  const count = (s) => rows.filter((i) => i.status === s).length
+  const skipped = count('insufficient_data') + count('error')
   const levelLabel = direction === 'up' ? '돌파선' : '이탈선'
   const breakLabel = direction === 'up' ? '돌파일' : '이탈일'
+  const hasRun = mode === 'watchlist' ? watchlist.isSuccess : batch.isSuccess
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          등록 관심종목 중 {cfg.label} <span className={`${cfg.accent} font-semibold`}>확정 {confirmedCount.toLocaleString()}</span>
-          {' · '}
-          <span className="text-amber-600 dark:text-amber-400 font-semibold">대기 {pendingCount.toLocaleString()}</span>
-        </p>
+      {/* 대상 선택 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          {[
+            { id: 'watchlist', label: '등록 관심종목' },
+            { id: 'screen', label: '조건검색 결과' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setMode(m.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                mode === m.id
+                  ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'screen' && (
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="batch-limit" className="text-xs text-gray-500 dark:text-gray-400">상위</label>
+            <input
+              id="batch-limit"
+              type="number"
+              min={1}
+              max={BATCH_MAX}
+              value={limit}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10)
+                setLimit(Number.isNaN(n) ? BATCH_DEFAULT : Math.min(Math.max(n, 1), BATCH_MAX))
+              }}
+              className="w-16 px-2 py-1 text-sm text-right tabular-nums border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400">개 (최대 {BATCH_MAX})</span>
+          </div>
+        )}
+
         <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="btn btn-outline btn-sm"
+          onClick={() => (mode === 'watchlist' ? watchlist.refetch() : batch.mutate())}
+          disabled={isBusy}
+          className="btn btn-outline btn-sm ml-auto"
         >
-          {isFetching ? '점검 중…' : '새로고침'}
+          {isBusy ? '점검 중…' : mode === 'watchlist' ? '새로고침' : '점검 실행'}
         </button>
       </div>
 
-      {isError ? (
+      {mode === 'screen' && (
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          현재 조건검색 필터의 상위 {limit.toLocaleString()}개 종목에 대해 가격·수급 이력을 수집한 뒤 판정합니다.
+          종목당 약 2초 소요되며, 수집된 이력은 저장됩니다.
+        </p>
+      )}
+
+      {/* 요약 */}
+      {hasRun && !isBusy && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          총 {rows.length.toLocaleString()}종목 점검 ·{' '}
+          <span className={`${cfg.accent} font-semibold`}>확정 {count('confirmed').toLocaleString()}</span>
+          {' · '}
+          <span className="text-amber-600 dark:text-amber-400 font-semibold">대기 {count('pending').toLocaleString()}</span>
+          {skipped > 0 && (
+            <span className="text-gray-400"> · 판정 불가 {skipped.toLocaleString()}</span>
+          )}
+        </p>
+      )}
+
+      {source.isError ? (
         <p className="py-10 text-center text-sm text-red-500">점검에 실패했습니다. 잠시 후 다시 시도하세요.</p>
-      ) : isLoading ? (
-        <p className="py-10 text-center text-sm text-gray-400">불러오는 중…</p>
+      ) : isBusy ? (
+        <p className="py-10 text-center text-sm text-gray-400">
+          {mode === 'screen' ? `${limit.toLocaleString()}개 종목 이력 수집·판정 중… (수십 초 소요)` : '불러오는 중…'}
+        </p>
+      ) : !hasRun ? (
+        <div className="py-12 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400">&lsquo;점검 실행&rsquo;을 누르면 조건검색 결과를 점검합니다</p>
+        </div>
       ) : items.length === 0 ? (
         <div className="py-12 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <p className="text-sm text-gray-500 dark:text-gray-400">현재 {cfg.label} 확정·대기 종목이 없습니다</p>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">종목 상세의 &lsquo;{cfg.label}&rsquo; 탭에서 알림을 켜면 감지 대상이 됩니다</p>
+          {mode === 'watchlist' && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">종목 상세의 &lsquo;{cfg.label}&rsquo; 탭에서 알림을 켜면 감지 대상이 됩니다</p>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -117,4 +210,5 @@ export default function SignalScreening({ direction }) {
 
 SignalScreening.propTypes = {
   direction: PropTypes.oneOf(['up', 'down']).isRequired,
+  filters: PropTypes.object,
 }
