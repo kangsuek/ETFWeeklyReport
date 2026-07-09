@@ -1,11 +1,18 @@
-# 상승흐름 확정 알림 — 구현 플랜
+# 상승/하락 흐름 확정 알림 — 구현 플랜
 
-> **📌 진행 상황 (2026-07-04):** Phase 0~3 **구현·검증·커밋 완료**. Phase 4(선택·데이터 축적 후)만 미착수.
-> - 백엔드: `uv run pytest` **523 passed / 1 skipped**, 신규 코드 flake8 클린
-> - 프론트: 신규 테스트 8종 통과, `npm run build` 성공, `npm run lint` exit 0
-> - 회귀 개선: `renderWithProviders`에 누락된 `AlertProvider` 보강 → 기존 실패 테스트 12개 복구, 신규 회귀 0
-> - 보류: SDK 파이썬 클라이언트 재생성(`openapi-python-client` 미설치 — `openapi.json` 스펙만 갱신),
->   실 데이터 스모크(앱 기동 시 따라잡기로 자연 실행), Phase 4
+> **📌 진행 상황 (2026-07-09):** Phase 0~3 **완료**. 이후 **Phase 5~7**(하락흐름·판정범위 확장·발굴 연동)까지
+> 구현·검증·커밋 완료. Phase 4(선택·데이터 축적 후)만 미착수.
+> - 백엔드: `uv run pytest` **561 passed / 1 skipped** (그중 신호·알림·스케줄러·DB 스위트 97개).
+>   신규 코드 flake8 클린 (C901은 기존 코드에도 존재하는 관행)
+> - 프론트: 신규·변경 테스트 전부 통과. 전체 스위트는 **320 통과 / 57 실패**인데, 이 57건은
+>   작업 착수 전과 **동일한 기존 실패**(예: 영문 nav 라벨을 찾는 스테일 테스트)이며 **신규 회귀 0**
+> - `npm run build` 성공, `npm run lint` exit 0
+> - Playwright 라이브 검증: 종목발굴 상승/하락 탭, Alerts 4개 섹션, 종목상세 흐름 탭, 배치 점검 실행
+> - 회귀 개선: `renderWithProviders`에 누락된 `AlertProvider` 보강 → 기존 실패 12개 복구(69→57)
+> - 보류: SDK 파이썬 클라이언트 재생성(`openapi-python-client` 미설치 — `openapi.json` 스펙만 갱신), Phase 4
+>
+> ⚠️ **정본은 [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md)** 다. 이 문서(§Phase 0~4)는 상승흐름
+> 초기 구현 시점의 계획이며, 그 뒤 확장분은 아래 **Phase 5~7**에 정리했다.
 
 > **설계 정본:** [UPTREND_SIGNAL_DESIGN.md](./UPTREND_SIGNAL_DESIGN.md) · **브랜치:** `feature/macos-app`
 > 이 문서는 설계를 **커밋 단위의 실행 단계**로 쪼갠 작업 순서다. 각 단계는 독립 커밋 가능하고,
@@ -202,6 +209,108 @@
 
 ---
 
+## Phase 5 ✅ — 판정 범위 확장 · 신선도 (계획 이후 추가분)
+
+> Phase 0~3 완료 후 실사용에서 드러난 요구·결함을 반영한 단계. 모두 구현·검증 완료.
+
+### 5.1 ✅ 관심종목 일괄 점검 + 단일 종목 즉시 스캔
+- **문제:** 알림 규칙을 켠 종목만 판정돼, "지금 어떤 종목이 상승흐름인지" 한눈에 볼 수 없었다.
+  토글을 켜도 다음 예약 스캔(16:40)까지 결과가 안 보였다.
+- `evaluate_watchlist()` — 등록 종목 전체를 저장 데이터로 순수 재생 (**읽기 전용**, `signal_events`·
+  `alert_history` 미변경). `GET /api/alerts/{kind}/watchlist`
+- `scan_ticker(ticker)` — 단일 종목만 DB 기록·알림 발신(전역 마커 미갱신).
+  `POST /api/alerts/signals/{ticker}/scan` → 토글 ON 직후 즉시 결과 반영
+- **커밋:** `f697dfa`(백엔드) · `b907470`(프론트) · `dddf332`(문서)
+
+### 5.2 ✅ 신선도 가드 — 오래된 확정이 '현재 신호'로 노출되던 결함
+- **문제:** 최초 스캔·장기 미기동 따라잡기가 **소급 재생**하며 수개월 전 확정을 새 알림처럼 발신.
+  (실사례: 3개월 전 확정 신호가 미읽음 배지로 표시. 그 사이 주가는 2배 상승)
+- `SIGNAL_ALERT_FRESH_DAYS`(10거래일) 신설. 확정일이 최신 데이터로부터 이 기간을 넘으면
+  **상태(`signal_events`)만 기록하고 알림·현재 배지는 억제**
+- 3개 노출 지점에 일관 적용: 알림 발신 / 일괄 점검 `_current_status` 강등 / ETFDetail 확정 배지(14일)
+- **커밋:** `eb4ec0e`
+
+### 5.3 ✅ 종목 발굴 '상승흐름' 탭
+- Screening 페이지에 확정·대기 종목 표 (`watchlist` API 재사용)
+- **커밋:** `135ff87`
+
+---
+
+## Phase 6 ✅ — 하락흐름 (downtrend) · 상승의 완전한 거울상
+
+> 감지기를 `direction` 파라미터화해 **로직 중복 없이** 상·하 대칭 판정. 규칙표는 설계 정본 상단 참조.
+
+### 6.1 ✅ 감지기 `direction` 파라미터화
+- `detect_breakout`/`update_pending`에 `direction`('up'|'down') 추가. 부호(`_sign`)로 대칭 처리.
+  기본값 `'up'`이라 기존 동작·테스트 불변
+- 하락 분기 단위 테스트 9종(하단 마감·순매도·과매도 제외·재이탈 확정·실패선 ×1.03)
+- **커밋:** `2de7248`
+
+### 6.2 ✅ 스캔·알림 상태 관리 계층
+- `signal_events.direction` 컬럼 + 마이그레이션. `scan_all`이 활성 상승·하락 규칙을 모두 처리
+- `_emit_signal_alert`: 방향별 문구·`alert_type` 기록. 스케줄러 16:40 잡은 종목당 1회만 재수집
+- **커밋:** `012321c`
+
+### 6.3 ✅ 하락흐름 API
+- `VALID_ALERT_TYPES`에 `downtrend`. 이력/읽음/삭제/watchlist를 `alert_type` 파라미터 헬퍼로 추출해
+  `/uptrend/*`·`/downtrend/*` 양쪽 라우트가 공유(**읽음 마커도 방향별 분리**)
+- **커밋:** `c6bf2a1`
+
+### 6.4 ✅ 프론트 (방향 파라미터화)
+- `config/signalKinds`, `useSignalAlerts(kind)`, `SignalHistorySection`/`SignalWatchlistCheck`/
+  `SignalScreening`을 `direction` prop으로 일반화
+- PriceTargetPanel '하락흐름' 탭, Header 상승(초록)·하락(로즈) 배지 분리,
+  Alerts 4개 섹션, Screening '하락흐름' 탭, ETFDetail 양방향 확정 배지
+- **커밋:** `2ae96a8` · `9102540`(문서·OpenAPI)
+
+### 6.5 ✅ [버그] 하한가 잠김 봉이 하락 감지에서 기각되던 비대칭
+- **원인:** `_candle_position`이 고가=저가 봉에 1.0(상단 마감)을 반환 → 하락은 `1−1.0=0`이 되어
+  캔들 조건(≥0.6)에서 기각. **가장 강한 이탈 신호인 점하한가 봉이 누락**
+- `_effective_candle` 도입: 한 가격 마감은 **방향 무관 1.0**(점상한가=최강 돌파, 점하한가=최강 이탈)
+- 경계값 전수 감사 통과: B1~B5·실패선(0.97/1.03)·`c1_broken`·동일일 재시험·확정 수급 게이트·
+  **완전 대칭 시리즈 교차검증**(up/down이 동일 경로로 확정)
+- **커밋:** `f27f99d`
+
+---
+
+## Phase 7 ✅ — 조건검색 결과 배치 점검 (발굴 연동)
+
+> **데이터 제약:** `stock_catalog`(약 3,900종목)에는 스냅샷 컬럼만 있고 20일 OHLC·평균거래량·
+> 3일 수급 이력이 없다. 전 종목 일괄 판정은 불가하므로, **조건검색으로 좁힌 상위 N개만**
+> 그때그때 수집(종목당 약 2초)해 **실제 알고리즘 그대로** 판정한다.
+
+### 7.1 ✅ 배치 판정 서비스·API
+- `evaluate_tickers(tickers, direction, limit)` — 중복 제거 + `limit`·`SIGNAL_BATCH_SCAN_MAX`(50)
+  이중 상한. 종목별 `ensure_recent_history` 후 순수 재생. 수집 실패는 `status='error'`로 개별 격리.
+  가격·수급 이력은 저장되나 **`signal_events`/`alert_history`는 미변경**
+- `_lookup_names`: 등록 종목(`etfs`) 우선, 없으면 `stock_catalog`
+- `POST /api/alerts/signals/scan-batch` (`/{ticker}` 앞에 등록, `direction` 검증)
+- **커밋:** `d59f194`
+
+### 7.2 ✅ 발굴 탭 UI — 대상 모드 · 상한 N 입력
+- `SignalScreening`에 '등록 관심종목' / '조건검색 결과' 모드 토글
+- 조건검색 모드: 상위 N개(기본 30, 최대 50, 입력 클램프) → `scannerApi.search`로 현재 필터의
+  티커 확보 → `scanBatch` 판정. 요약에 '판정 불가'(이력 부족·수집 실패) 별도 집계
+- **커밋:** `f10cae3`
+
+### 7.3 ✅ 적용 조건 칩
+- 어떤 조건으로 종목을 고르는지 화면에 노출(시장·검색어·섹터·수익률 범위·수급·정렬·상위 N)
+- `config/screeningOptions`로 `MARKET_TABS`·`SORT_OPTIONS` 중복 정의 제거 +
+  `describeFilters`/`describeSort` 순수 함수
+- **커밋:** `9c4fc7c`
+
+### 7.4 ✅ 최근 7일 신호만 노출
+- 발굴 모드는 갓 나온 신호만 의미가 있으므로 확정일·돌파일이 7일 초과면 제외
+  (관심종목 모드는 보유 종목 모니터링이라 미적용)
+- `utils/dateRange.isWithinRecentDays` — 타임존 오차를 피해 `YYYY-MM-DD` **문자열 비교**로 판정
+  (ISO 날짜는 사전순 = 시간순). 경계(정확히 N일 전) 포함
+- **커밋:** `c63e312`
+
+**Phase 5~7 완료 판정:** 백엔드 전체 회귀 그린 + 프론트 테스트·빌드·린트 그린 +
+Playwright 라이브 검증(발굴 상승/하락 탭, 배치 점검 실행, Alerts 4섹션, 종목상세 흐름 탭).
+
+---
+
 ## 진행 체크리스트
 
 ```
@@ -211,13 +320,25 @@ Phase 2  [x] 2.1 테이블·상수  [x] 2.2 순수함수  [x] 2.3 scan_all  [x] 
          [x] 2.5 이력·읽음 API  [x] 2.6 스케줄러  [~] 2.7 통합·문서(SDK 클라이언트 재생성만 보류)
 Phase 3  [x] 3.1 api.js  [x] 3.2 설정탭  [x] 3.3 배지  [x] 3.4 이력섹션  [x] 3.5 상세배지
 Phase 4  [ ] 4.1 replay  [ ] 4.2 튜닝   (선택 — 데이터 축적 후)
+Phase 5  [x] 5.1 일괄점검·즉시스캔  [x] 5.2 신선도 가드  [x] 5.3 발굴 상승흐름 탭
+Phase 6  [x] 6.1 direction 파라미터화  [x] 6.2 스캔·알림  [x] 6.3 하락 API
+         [x] 6.4 프론트 거울상  [x] 6.5 [버그] 하한가 잠김 봉 비대칭
+Phase 7  [x] 7.1 배치 판정 API  [x] 7.2 발굴 모드·상한 N  [x] 7.3 조건 칩  [x] 7.4 최근 7일 필터
 ```
 
 **커밋 매핑** (`feature/macos-app`):
-`f468020`(1.1) · `b99cd5b`(1.2) · `6feeb7c`(1.3) · `f9cb3e1`(2.1) · `7ab2fef`(2.2) ·
-`b2417bc`(2.3) · `1af4a3d`(2.4) · `b2dedea`(2.5) · `30b5f2b`(2.6) · `3f77cd1`(2.7 문서·OpenAPI) ·
-`b7718ea`(3.1) · `32b09ed`(3.2) · `f3baafe`(3.3) · `d016072`(3.4) · `0c25291`(3.5) · `0eacb63`(3 문서)
+
+| 단계 | 커밋 |
+|---|---|
+| Phase 1 | `f468020`(1.1) · `b99cd5b`(1.2) · `6feeb7c`(1.3) |
+| Phase 2 | `f9cb3e1`(2.1) · `7ab2fef`(2.2) · `b2417bc`(2.3) · `1af4a3d`(2.4) · `b2dedea`(2.5) · `30b5f2b`(2.6) · `3f77cd1`(2.7) |
+| Phase 3 | `b7718ea`(3.1) · `32b09ed`(3.2) · `f3baafe`(3.3) · `d016072`(3.4) · `0c25291`(3.5) · `0eacb63`(문서) |
+| Phase 5 | `f697dfa`·`b907470`·`dddf332`(5.1) · `eb4ec0e`(5.2) · `135ff87`(5.3) |
+| Phase 6 | `2de7248`(6.1) · `012321c`(6.2) · `c6bf2a1`(6.3) · `2ae96a8`·`9102540`(6.4) · `f27f99d`(6.5) |
+| Phase 7 | `d59f194`(7.1) · `f10cae3`(7.2) · `9c4fc7c`(7.3) · `c63e312`(7.4) · `3b35e51`(설계 정본 반영) |
 
 **의존성 요약:** Phase 1 → 2 (감지기가 1.1 헬퍼 사용) → 3 (프론트가 2의 API 사용).
 Phase 1 내부는 병렬 가능. Phase 2 내부는 2.1 → 2.2 → 2.3 순서 필수(알림 발신 포함 — 2.4에 비의존),
 2.4/2.5는 2.3과 병렬 가능, 2.6은 2.3 이후.
+확장분은 Phase 3 → 5 → 6 → 7 순. 6.1(direction 파라미터화)이 6.2~6.4의 전제이며,
+7은 5.1의 `ensure_recent_history` 재사용에 의존한다.
