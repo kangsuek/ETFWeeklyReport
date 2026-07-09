@@ -1849,6 +1849,46 @@
         }
       }
     },
+    "/api/alerts/signals/scan-batch": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Scan Batch",
+        "description": "지정 종목들의 이력을 즉시 수집한 뒤 상승/하락 흐름을 판정한다 (상한 적용).\n\n가격·수급 이력은 저장되지만 signal_events/alert_history는 변경하지 않는다.",
+        "operationId": "scan_batch_api_alerts_signals_scan_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/alerts/signals/{ticker}": {
       "get": {
         "tags": [
@@ -3277,6 +3317,33 @@
         "type": "object",
         "title": "ApiKeysUpdate",
         "description": "API 키 업데이트 요청 모델"
+      },
+      "BatchScanRequest": {
+        "properties": {
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tickers"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "up"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "tickers"
+        ],
+        "title": "BatchScanRequest",
+        "description": "조건검색 결과 등 임의 종목 목록의 흐름 배치 점검 요청"
       },
       "BatchSummaryRequest": {
         "properties": {

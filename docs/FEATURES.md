@@ -195,6 +195,9 @@ ETF Weekly Report의 백엔드 API와 프론트엔드 기능을 정리한 문서
 - **GET `/api/alerts/signals/{ticker}`** - 종목별 신호 이벤트(LV1 돌파→LV2 확정/실패/만료)
 - **GET `/api/alerts/uptrend/watchlist`** - 관심종목 전체 일괄 점검(읽기 전용, 현재 상태 리포트)
 - **POST `/api/alerts/signals/{ticker}/scan`** - 단일 종목 즉시 스캔(토글 ON 직후 결과 바로 확인)
+- **POST `/api/alerts/signals/scan-batch`** - 조건검색 결과 등 임의 종목 상위 N개(기본 30·최대 50) 배치 점검. 대상 이력을 즉시 수집해 **실제 알고리즘 그대로** 판정 (신호 상태·알림은 미변경)
+
+> **왜 상한을 두는가**: 흐름 판정에는 20일 OHLC·평균거래량·3일 수급이 필요한데, `stock_catalog`(약 3,900종목)에는 스냅샷만 있어 대상 종목의 이력을 그때그때 수집해야 한다(종목당 약 2초). 전 종목 일괄 수집은 비현실적이므로, 조건검색으로 좁힌 결과 상위 N개만 점검한다.
 - **GET `/api/alerts/uptrend`** - 확정 알림 이력 + `unread_count`(마커 기반), `limit`/`offset`
 - **POST `/api/alerts/uptrend/read`** - 읽음 처리 / **DELETE `/api/alerts/uptrend/{id}`**·`?before=` - 이력 정리
 - **프론트**: nav 미읽음 배지(초록), Alerts 페이지 &lsquo;상승흐름 신호&rsquo; 이력 섹션, 종목 상세 확정 배지

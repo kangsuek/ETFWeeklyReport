@@ -103,6 +103,7 @@
 |--------|------|------|
 | GET | `/api/alerts/signals/{ticker}` | 종목별 신호 이벤트(`signal_events`, 방향 무관 전체) 조회. Query: `limit` (1~200, 기본 50) |
 | POST | `/api/alerts/signals/{ticker}/scan` | 단일 종목 즉시 스캔(방향 무관 전 규칙, DB 기록·알림 발신). 응답: `{scanned, reason?}` |
+| POST | `/api/alerts/signals/scan-batch` | 임의 종목 목록 배치 점검. Body: `tickers[]`, `direction`(up/down), `limit`(기본 30, 상한 50). 대상 이력을 즉시 수집한 뒤 판정하되 `signal_events`/`alert_history`는 미변경. 응답: `{items:[{ticker,name,status,latest}], scanned}`. `status`에 `insufficient_data`·`error` 포함 |
 | GET | `/api/alerts/{kind}/watchlist` | 관심종목 전체 방향별 일괄 점검(읽기 전용, DB 미변경). 응답: `{items:[{ticker,name,status,latest}]}` |
 | GET | `/api/alerts/{kind}` | 방향별 확정 알림 이력 + `unread_count`. Query: `limit` (1~200, 기본 50), `offset` (기본 0). 응답: `{items, unread_count}` |
 | POST | `/api/alerts/{kind}/read` | 방향별 알림 읽음 처리 (미읽음 마커 갱신) |
