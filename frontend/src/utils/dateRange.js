@@ -42,3 +42,22 @@ export function calculateDateRange(range = '7d') {
     range
   }
 }
+
+/**
+ * ISO 날짜 문자열이 최근 N일 이내인지 판정한다.
+ *
+ * 타임존 오차를 피하려고 Date 연산 대신 `YYYY-MM-DD` 문자열을 비교한다
+ * (ISO 날짜는 사전순 비교가 곧 시간순 비교).
+ *
+ * @param {string} iso - 'YYYY-MM-DD' 또는 그 접두를 가진 문자열
+ * @param {number} days - 며칠 이내인지 (오늘 기준, 경계 포함)
+ * @param {Date} [today] - 기준일 (테스트 주입용)
+ * @returns {boolean} 유효하지 않은 값이면 false
+ */
+export function isWithinRecentDays(iso, days, today = new Date()) {
+  if (!iso) return false
+  const target = String(iso).slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return false
+  const cutoff = format(subDays(today, days), 'yyyy-MM-dd')
+  return target >= cutoff
+}

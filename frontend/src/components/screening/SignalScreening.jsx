@@ -5,10 +5,15 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { alertApi, scannerApi } from '../../services/api'
 import { SIGNAL_KINDS } from '../../config/signalKinds'
 import { describeFilters, describeSort } from '../../config/screeningOptions'
+import { isWithinRecentDays } from '../../utils/dateRange'
 
 // 백엔드 SIGNAL_BATCH_SCAN_MAX와 동일 — 초과 요청은 백엔드에서도 잘린다.
 const BATCH_MAX = 50
 const BATCH_DEFAULT = 30
+
+// 조건검색 모드는 '발굴' 용도라 갓 나온 신호만 본다.
+// (관심종목 모드는 보유 종목 모니터링이므로 이 필터를 적용하지 않는다)
+const RECENT_DAYS = 7
 
 const STATUS_META = {
   confirmed: { label: '확정', cls: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300', order: 0 },
@@ -64,18 +69,25 @@ export default function SignalScreening({ direction, filters }) {
   const isBusy = mode === 'watchlist' ? watchlist.isFetching : batch.isPending
   const rows = source.data?.items ?? []
 
-  const items = rows
-    .filter((i) => i.status === 'confirmed' || i.status === 'pending')
-    .sort((a, b) => {
-      const so = STATUS_META[a.status].order - STATUS_META[b.status].order
-      if (so !== 0) return so
-      const da = a.latest?.confirmed_date || a.latest?.breakout_date || ''
-      const db = b.latest?.confirmed_date || b.latest?.breakout_date || ''
-      return db.localeCompare(da)
-    })
+  const signalDate = (i) => i.latest?.confirmed_date || i.latest?.breakout_date || ''
 
-  const count = (s) => rows.filter((i) => i.status === s).length
-  const skipped = count('insufficient_data') + count('error')
+  const eligible = rows.filter((i) => i.status === 'confirmed' || i.status === 'pending')
+  // 조건검색(발굴) 모드는 확정/돌파일이 최근 RECENT_DAYS 이내인 신호만 노출
+  const fresh = mode === 'screen'
+    ? eligible.filter((i) => isWithinRecentDays(signalDate(i), RECENT_DAYS))
+    : eligible
+  const staleExcluded = eligible.length - fresh.length
+
+  const items = [...fresh].sort((a, b) => {
+    const so = STATUS_META[a.status].order - STATUS_META[b.status].order
+    if (so !== 0) return so
+    return signalDate(b).localeCompare(signalDate(a))
+  })
+
+  const count = (s) => fresh.filter((i) => i.status === s).length
+  const skipped = rows.filter(
+    (i) => i.status === 'insufficient_data' || i.status === 'error',
+  ).length
   const levelLabel = direction === 'up' ? '돌파선' : '이탈선'
   const breakLabel = direction === 'up' ? '돌파일' : '이탈일'
   const hasRun = mode === 'watchlist' ? watchlist.isSuccess : batch.isSuccess
@@ -143,12 +155,16 @@ export default function SignalScreening({ direction, filters }) {
                 {chip.label}
               </span>
             ))}
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300">
+              최근 {RECENT_DAYS}일 이내 신호만
+            </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               · {describeSort(filters)} 상위 <strong className="tabular-nums text-gray-700 dark:text-gray-200">{limit.toLocaleString()}</strong>개
             </span>
           </div>
           <p className="text-xs text-gray-400 dark:text-gray-500">
             &lsquo;조건 검색&rsquo; 탭에서 설정한 조건이 그대로 적용됩니다(페이지는 무시하고 상위 N개).
+            확정일·{breakLabel}이 {RECENT_DAYS}일을 넘은 신호는 제외합니다.
             종목당 약 2초 소요되며, 수집된 가격·수급 이력은 저장됩니다.
           </p>
         </div>
@@ -161,6 +177,9 @@ export default function SignalScreening({ direction, filters }) {
           <span className={`${cfg.accent} font-semibold`}>확정 {count('confirmed').toLocaleString()}</span>
           {' · '}
           <span className="text-amber-600 dark:text-amber-400 font-semibold">대기 {count('pending').toLocaleString()}</span>
+          {staleExcluded > 0 && (
+            <span className="text-gray-400"> · {RECENT_DAYS}일 경과 제외 {staleExcluded.toLocaleString()}</span>
+          )}
           {skipped > 0 && (
             <span className="text-gray-400"> · 판정 불가 {skipped.toLocaleString()}</span>
           )}
@@ -179,9 +198,17 @@ export default function SignalScreening({ direction, filters }) {
         </div>
       ) : items.length === 0 ? (
         <div className="py-12 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400">현재 {cfg.label} 확정·대기 종목이 없습니다</p>
-          {mode === 'watchlist' && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {mode === 'screen'
+              ? `최근 ${RECENT_DAYS}일 이내 ${cfg.label} 확정·대기 종목이 없습니다`
+              : `현재 ${cfg.label} 확정·대기 종목이 없습니다`}
+          </p>
+          {mode === 'watchlist' ? (
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">종목 상세의 &lsquo;{cfg.label}&rsquo; 탭에서 알림을 켜면 감지 대상이 됩니다</p>
+          ) : staleExcluded > 0 && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {staleExcluded.toLocaleString()}건은 {RECENT_DAYS}일이 지난 신호라 제외했습니다
+            </p>
           )}
         </div>
       ) : (
