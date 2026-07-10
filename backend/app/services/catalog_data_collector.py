@@ -11,7 +11,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
@@ -177,12 +177,7 @@ class CatalogDataCollector:
         updated = 0
         supply_updated = 0
         weekly_calc_count = 0
-        today_str = datetime.now().strftime("%Y-%m-%d")
-
-        # 주간 수익률 기준일: 5거래일 ≈ 7달력일 전 (rolling window)
         today = date.today()
-        target_base_date = today - timedelta(days=7)
-        target_base_str = target_base_date.isoformat()
 
         try:
             from app.services.progress import is_cancelled
@@ -206,12 +201,15 @@ class CatalogDataCollector:
             # Step 1.5: price_map에서 ETF 티커 제외 (FIX-08)
             # sise_market_sum에는 KOSPI 상장 ETF도 포함되지만, ETF는 Phase 1~3에서
             # 이미 처리됨. Phase 4에서 ETF를 처리하면 weekly_return이 0.0으로 덮어써짐.
+            # market 값이 'KOSPI'로 잘못 남은 ETF도 걸러내도록 type='ETF'도 함께 확인.
             with get_db_connection() as conn_or_cursor2:
                 if USE_POSTGRES:
                     cursor2 = conn_or_cursor2
                 else:
                     cursor2 = conn_or_cursor2.cursor()
-                cursor2.execute("SELECT ticker FROM stock_catalog WHERE market = 'ETF'")
+                cursor2.execute(
+                    "SELECT ticker FROM stock_catalog WHERE market = 'ETF' OR type = 'ETF'"
+                )
                 etf_tickers = {row["ticker"] if isinstance(row, dict) else row[0] for row in cursor2.fetchall()}
             if etf_tickers:
                 excluded = sum(1 for t in price_map if t in etf_tickers)
@@ -251,8 +249,9 @@ class CatalogDataCollector:
                         }
 
             # Step 3: 시가총액 상위 N개 frgn.naver 수급 병렬 수집
+            # (Step 1.5에서 제외된 ETF는 수급 수집 대상에서도 제외)
             top_stocks = kospi_stocks[:KOSPI_TOP_N_SUPPLY] + kosdaq_stocks[:KOSDAQ_TOP_N_SUPPLY]
-            top_tickers = [s["ticker"] for s in top_stocks]
+            top_tickers = [s["ticker"] for s in top_stocks if s["ticker"] in price_map]
             logger.info(f"수급 수집 대상: {len(top_tickers)}개 (KOSPI {KOSPI_TOP_N_SUPPLY} + KOSDAQ {KOSDAQ_TOP_N_SUPPLY})")
 
             supply_map: Dict[str, Dict[str, Any]] = {}
@@ -303,14 +302,22 @@ class CatalogDataCollector:
                     volume = s.get("volume")
                     db_row = existing_db.get(ticker, {})
 
+                    if close_price is None:
+                        # 가격 파싱 실패: 기존 close_price를 NULL로 덮어쓰거나
+                        # week_base를 오염시키지 않도록 이 종목은 건너뜀
+                        continue
+
                     if ticker in top_ticker_set and ticker in supply_map:
                         # 상위 N개: 수급 포함 업데이트
                         # COALESCE: None(NULL) 값이 들어올 경우 기존 DB 값 보존 (FIX-02)
-                        # week_base_date: target_base_str(이번 주 월요일) 사용 (FIX-03)
+                        # week_base_price는 오늘 종가이므로 week_base_date도 오늘 날짜로 저장
+                        # (날짜를 과거로 역산하면 상위권 이탈 후 하루 수익률이 주간으로 계산됨)
                         sup = supply_map[ticker]
                         cursor.execute(f"""
                             UPDATE stock_catalog
-                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
+                            SET close_price = {p},
+                                daily_change_pct = COALESCE({p}, daily_change_pct),
+                                volume = COALESCE({p}, volume),
                                 weekly_return  = COALESCE({p}, weekly_return),
                                 monthly_return = COALESCE({p}, monthly_return),
                                 ytd_return     = COALESCE({p}, ytd_return),
@@ -325,7 +332,7 @@ class CatalogDataCollector:
                             sup.get("monthly_return"),
                             sup.get("ytd_return"),
                             sup.get("foreign_net"), sup.get("institutional_net"),
-                            close_price, target_base_str,
+                            close_price, today.isoformat(),
                             sup.get("ytd_base_date"),
                             ticker
                         ))
@@ -334,34 +341,20 @@ class CatalogDataCollector:
                             supply_updated += 1
                     else:
                         # 나머지 종목: 5거래일 rolling window 기준 weekly_return 계산
-                        week_base_price = db_row.get("week_base_price")
-                        week_base_date = db_row.get("week_base_date")
-
-                        # 기준일로부터 경과일 계산 (5~9일이면 유효 = 5거래일 ± 휴일 여유)
-                        base_days_ago = None
-                        if week_base_date:
-                            try:
-                                base_days_ago = (today - date.fromisoformat(week_base_date)).days
-                            except (ValueError, TypeError):
-                                pass
-
-                        if base_days_ago is not None and 5 <= base_days_ago <= 9 and week_base_price and week_base_price > 0 and close_price:
-                            # 유효 기준일 → 기준가 vs 현재가로 5거래일 수익률 계산
-                            new_weekly_return = round(
-                                (close_price - week_base_price) / week_base_price * 100, 2
-                            )
+                        new_weekly_return, new_base_price, new_base_date = self._resolve_week_base(
+                            close_price,
+                            db_row.get("week_base_price"),
+                            db_row.get("week_base_date"),
+                            today,
+                        )
+                        if new_weekly_return is not None:
                             weekly_calc_count += 1
-                            new_base_price = week_base_price
-                            new_base_date = week_base_date  # 기존 기준일 유지
-                        else:
-                            # 기준일 유효하지 않음 → 오늘 현재가로 기준 초기화, 수익률 0%
-                            new_base_price = close_price
-                            new_base_date = today.isoformat()  # 오늘 실제 날짜 저장
-                            new_weekly_return = 0.0
 
                         cursor.execute(f"""
                             UPDATE stock_catalog
-                            SET close_price = {p}, daily_change_pct = {p}, volume = {p},
+                            SET close_price = {p},
+                                daily_change_pct = COALESCE({p}, daily_change_pct),
+                                volume = COALESCE({p}, volume),
                                 weekly_return = COALESCE({p}, weekly_return),
                                 week_base_price = {p}, week_base_date = {p},
                                 catalog_updated_at = CURRENT_TIMESTAMP
@@ -381,6 +374,45 @@ class CatalogDataCollector:
             logger.error(f"Failed to update KOSPI/KOSDAQ prices: {e}", exc_info=True)
 
         return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
+
+    @staticmethod
+    def _resolve_week_base(
+        close_price: float,
+        week_base_price: Optional[float],
+        week_base_date: Optional[str],
+        today: date,
+    ) -> tuple:
+        """
+        5거래일 rolling window 주간수익률 계산을 위한 기준가/기준일 결정
+
+        Returns:
+            (weekly_return, new_base_price, new_base_date)
+            weekly_return이 None이면 기존 DB 값을 보존해야 함 (COALESCE 사용)
+
+        규칙:
+        - 기준일이 5~9일 전(5거래일 ± 휴일 여유): 수익률 계산, 기준 유지
+        - 기준일이 5일 미만: 기준을 그대로 숙성시키고 기존 수익률 보존
+          (이전에는 여기서 매일 기준을 리셋하고 0.0으로 덮어써서
+           비상위권 종목의 주간수익률이 항상 0%로 표시되는 버그가 있었음)
+        - 기준 없음/손상/9일 초과: 오늘 종가로 기준 재설정, 기존 수익률 보존
+        """
+        base_days_ago = None
+        if week_base_date:
+            try:
+                base_days_ago = (today - date.fromisoformat(str(week_base_date))).days
+            except (ValueError, TypeError):
+                base_days_ago = None
+
+        if base_days_ago is not None and week_base_price and week_base_price > 0:
+            if 5 <= base_days_ago <= 9:
+                weekly_return = round(
+                    (close_price - week_base_price) / week_base_price * 100, 2
+                )
+                return weekly_return, week_base_price, str(week_base_date)
+            if 0 <= base_days_ago < 5:
+                return None, week_base_price, str(week_base_date)
+
+        return None, close_price, today.isoformat()
 
     @retry_with_backoff(
         max_retries=3,
@@ -441,7 +473,8 @@ class CatalogDataCollector:
 
             result[ticker] = {
                 'name': item.get('itemname'),
-                'close_price': item.get('nowVal'),
+                # 0/None은 유효하지 않은 가격 → None으로 저장해 기존 값 보존(COALESCE)
+                'close_price': now_val if now_val else None,
                 'daily_change_pct': change_rate,
                 'volume': item.get('quant'),
             }

@@ -183,28 +183,59 @@ class TickerCatalogCollector:
             logger.error(f"Error collecting ticker catalog: {e}", exc_info=True)
             raise ScraperException(f"종목 목록 수집 실패: {e}")
 
+    # sise_market_sum 기본 레이아웃 fallback 인덱스:
+    # [0]N [1]종목명 [2]현재가 [3]전일비 [4]등락률 [5]액면가 [6]시가총액
+    # [7]상장주식수 [8]외국인비율 [9]거래량 [10]PER [11]ROE [12]토론실
+    _SISE_DEFAULT_COL_IDX = {"현재가": 2, "등락률": 4, "거래량": 9}
+
     @staticmethod
-    def _parse_sise_price_row(cols) -> Dict[str, Any]:
+    def _build_sise_col_map(table) -> Dict[str, int]:
+        """
+        sise_market_sum 테이블 헤더(th)에서 컬럼명 → 인덱스 매핑 생성
+
+        네이버가 표시 컬럼 구성을 바꿔도 가격/거래량이 다른 컬럼 값으로
+        잘못 파싱되지 않도록 헤더 텍스트 기준으로 위치를 찾는다.
+        """
+        col_map = {}
+        for idx, th in enumerate(table.find_all('th')):
+            text = th.get_text(strip=True)
+            if text and text not in col_map:
+                col_map[text] = idx
+        return col_map
+
+    @classmethod
+    def _parse_sise_price_row(
+        cls, cols, col_map: Optional[Dict[str, int]] = None
+    ) -> Dict[str, Any]:
         """
         네이버 sise_market_sum 테이블 행에서 가격 데이터 파싱
-        컬럼 구조: [0]순위 [1]종목명 [2]현재가 [3]전일비 [4]등락률 [5]액면가
-                   [6]시가총액 [7]거래량 ...
+
+        col_map(헤더명 → 인덱스)이 있으면 그것을 우선 사용하고,
+        없거나 해당 헤더가 없으면 기본 레이아웃 인덱스로 fallback한다.
         """
+        def _idx(name: str) -> int:
+            if col_map and name in col_map:
+                return col_map[name]
+            return cls._SISE_DEFAULT_COL_IDX[name]
+
         result = {"close_price": None, "daily_change_pct": None, "volume": None}
         try:
-            price_text = cols[2].get_text(strip=True).replace(',', '')
+            price_text = cols[_idx("현재가")].get_text(strip=True).replace(',', '')
             if price_text:
-                result["close_price"] = float(price_text)
+                price_val = float(price_text)
+                if price_val > 0:
+                    result["close_price"] = price_val
         except (IndexError, ValueError):
             pass
         try:
-            pct_text = cols[4].get_text(strip=True).replace('%', '').replace(',', '').replace('+', '')
+            pct_text = cols[_idx("등락률")].get_text(strip=True)
+            pct_text = pct_text.replace('%', '').replace(',', '').replace('+', '')
             if pct_text:
                 result["daily_change_pct"] = float(pct_text)
         except (IndexError, ValueError):
             pass
         try:
-            vol_text = cols[7].get_text(strip=True).replace(',', '')
+            vol_text = cols[_idx("거래량")].get_text(strip=True).replace(',', '')
             if vol_text:
                 result["volume"] = int(vol_text)
         except (IndexError, ValueError):
@@ -246,6 +277,10 @@ class TickerCatalogCollector:
                     logger.warning(f"{market} table not found on page {page}")
                     break
 
+                col_map = self._build_sise_col_map(table)
+                if page == 1 and "현재가" not in col_map:
+                    logger.warning(f"{market} 테이블 헤더에서 '현재가' 컬럼을 찾지 못함 - 기본 인덱스로 파싱")
+
                 rows = table.find_all('tr')
                 if not rows:
                     break
@@ -264,7 +299,7 @@ class TickerCatalogCollector:
                             name = link.get_text(strip=True)
 
                             if ticker and name and len(ticker) >= 5:
-                                price_data = self._parse_sise_price_row(cols)
+                                price_data = self._parse_sise_price_row(cols, col_map)
                                 page_stocks.append({
                                     "ticker": ticker,
                                     "name": name,
