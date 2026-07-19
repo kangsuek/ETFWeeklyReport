@@ -186,10 +186,10 @@ export default function DataManagementPanel() {
       setCollectAllProgress({ status: 'completed', current: data.result.total_tickers, total: data.result.total_tickers, message: '수집 완료' })
       // 성공 메시지 표시
       const fundamentalsPart = data.result.fundamentals_success != null
-        ? `, 펀더멘털: ${data.result.fundamentals_success}개 성공${data.result.fundamentals_failed > 0 ? `/${data.result.fundamentals_failed}개 실패` : ''}`
+        ? `, 펀더멘털: ${data.result.fundamentals_success.toLocaleString('ko-KR')}개 성공${data.result.fundamentals_failed > 0 ? `/${data.result.fundamentals_failed.toLocaleString('ko-KR')}개 실패` : ''}`
         : ''
       toast.success(
-        `데이터 수집 완료! 가격: ${data.result.total_price_records}건, 매매 동향: ${data.result.total_trading_flow_records}건, 뉴스: ${data.result.total_news_records}건${fundamentalsPart}`,
+        `데이터 수집 완료! 가격: ${data.result.total_price_records.toLocaleString('ko-KR')}건, 매매 동향: ${data.result.total_trading_flow_records.toLocaleString('ko-KR')}건, 뉴스: ${data.result.total_news_records.toLocaleString('ko-KR')}건${fundamentalsPart}`,
         5000
       )
 
@@ -243,11 +243,11 @@ export default function DataManagementPanel() {
 
       // 성공 메시지 표시
       const deletedCounts = [
-        `가격: ${data.deleted.prices || 0}건`,
-        `뉴스: ${data.deleted.news || 0}건`,
-        `매매 동향: ${data.deleted.trading_flow || 0}건`,
-        `수집 상태: ${data.deleted.collection_status || 0}건`,
-        `분봉: ${data.deleted.intraday_prices || 0}건`
+        `가격: ${(data.deleted.prices || 0).toLocaleString('ko-KR')}건`,
+        `뉴스: ${(data.deleted.news || 0).toLocaleString('ko-KR')}건`,
+        `매매 동향: ${(data.deleted.trading_flow || 0).toLocaleString('ko-KR')}건`,
+        `수집 상태: ${(data.deleted.collection_status || 0).toLocaleString('ko-KR')}건`,
+        `분봉: ${(data.deleted.intraday_prices || 0).toLocaleString('ko-KR')}건`
       ].filter(item => !item.includes(': 0건')).join(', ')
 
       toast.success(
@@ -393,7 +393,7 @@ export default function DataManagementPanel() {
               {/* 종목 수 */}
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">종목 수</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.etfs}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatNumber(stats.etfs)}</div>
               </div>
 
               {/* 가격 레코드 */}

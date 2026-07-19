@@ -9,7 +9,7 @@ import { format } from 'date-fns'
  */
 export default function ETFHeader({ etf }) {
   return (
-    <div className="sticky top-0 z-50 mb-4">
+    <div className="sticky top-[68px] z-40 mb-4">
       {/* 배경 레이어 (전체 너비) */}
       <div className="absolute inset-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm -mx-4 sm:-mx-6 lg:-mx-8 transition-colors"></div>
       {/* 내용 레이어 (카드와 동일한 패딩) */}
