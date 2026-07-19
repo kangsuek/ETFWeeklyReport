@@ -93,12 +93,29 @@ export default function TickerManagementPanel({ prefillStock }) {
   // 종목 순서 변경 Mutation
   const reorderMutation = useMutation({
     mutationFn: (tickers) => settingsApi.reorderStocks(tickers),
+    onMutate: async (tickers) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['settings-stocks'] })
+      const previousStocks = queryClient.getQueryData(['settings-stocks'])
+
+      if (previousStocks) {
+        const stockMap = new Map(previousStocks.map((s) => [s.ticker, s]))
+        const reordered = tickers.map((ticker) => stockMap.get(ticker)).filter(Boolean)
+        queryClient.setQueryData(['settings-stocks'], reordered)
+      }
+
+      return { previousStocks }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings-stocks'] })
       queryClient.invalidateQueries({ queryKey: ['etfs'] }) // 대시보드 캐시도 무효화
     },
-    onError: (error) => {
+    onError: (error, tickers, context) => {
       alert(`순서 변경 실패: ${error.message}`)
+      // Rollback
+      if (context?.previousStocks) {
+        queryClient.setQueryData(['settings-stocks'], context.previousStocks)
+      }
     },
   })
 
@@ -143,11 +160,8 @@ export default function TickerManagementPanel({ prefillStock }) {
     const movedTicker = newStocks[index - 1].ticker
     setHighlightedTicker(movedTicker)
     setTimeout(() => setHighlightedTicker(null), 1500) // 1.5초 후 하이라이트 제거
-    
-    // 즉시 UI 업데이트
-    queryClient.setQueryData(['settings-stocks'], newStocks)
-    
-    // 백엔드에 저장
+
+    // 백엔드에 저장 (낙관적 업데이트/롤백은 mutation의 onMutate/onError에서 처리)
     const tickers = newStocks.map(s => s.ticker)
     reorderMutation.mutate(tickers)
   }
@@ -161,11 +175,8 @@ export default function TickerManagementPanel({ prefillStock }) {
     const movedTicker = newStocks[index + 1].ticker
     setHighlightedTicker(movedTicker)
     setTimeout(() => setHighlightedTicker(null), 1500) // 1.5초 후 하이라이트 제거
-    
-    // 즉시 UI 업데이트
-    queryClient.setQueryData(['settings-stocks'], newStocks)
-    
-    // 백엔드에 저장
+
+    // 백엔드에 저장 (낙관적 업데이트/롤백은 mutation의 onMutate/onError에서 처리)
     const tickers = newStocks.map(s => s.ticker)
     reorderMutation.mutate(tickers)
   }

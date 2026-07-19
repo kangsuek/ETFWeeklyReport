@@ -237,7 +237,7 @@ function SupportResistanceSection({ data }) {
 
   if (!data) return null
 
-  const { currentPrice, supports, resistances, recentLevels } = data
+  const { currentPrice, supports, resistances, recentLevels, recentDays } = data
 
   // 가장 가까운 지지선/저항선 (각 최대 3개)
   const nearSupports = supports.slice(0, 3)
@@ -347,12 +347,12 @@ function SupportResistanceSection({ data }) {
       {/* 최근 고점/저점 정보 */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="bg-red-50 dark:bg-red-900/10 rounded-md px-3 py-2 text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {Math.min(20, supports.length + resistances.length)}일 최고가</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {recentDays}일 최고가</p>
           <p className="text-sm font-semibold text-red-600 dark:text-red-400">{fmtPrice(recentLevels.highestHigh)}원</p>
           <p className="text-xs text-gray-400 dark:text-gray-500">{recentLevels.highestDate}</p>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/10 rounded-md px-3 py-2 text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {Math.min(20, supports.length + resistances.length)}일 최저가</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">최근 {recentDays}일 최저가</p>
           <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{fmtPrice(recentLevels.lowestLow)}원</p>
           <p className="text-xs text-gray-400 dark:text-gray-500">{recentLevels.lowestDate}</p>
         </div>
@@ -419,6 +419,7 @@ SupportResistanceSection.propTypes = {
     pivot: PropTypes.object,
     movingAverages: PropTypes.array,
     recentLevels: PropTypes.object,
+    recentDays: PropTypes.number,
     supports: PropTypes.array,
     resistances: PropTypes.array,
   }),

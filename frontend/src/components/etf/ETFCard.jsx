@@ -4,7 +4,7 @@ import { useState, memo } from 'react'
 import PropTypes from 'prop-types'
 import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
-import { formatPrice, formatVolume, formatPercent } from '../../utils/format'
+import { formatPrice, formatVolume, formatPercent, getPriceChangeColor } from '../../utils/format'
 
 // 매매 동향 포맷팅 (억 단위, 천 단위 콤마) - 순수 함수로 컴포넌트 외부 정의
 const formatTradingValue = (value) => {
@@ -24,12 +24,6 @@ const formatTradingValue = (value) => {
 const formatChartDate = (dateStr) => {
   const date = new Date(dateStr)
   return `${date.getMonth() + 1}/${date.getDate()}`
-}
-
-// 등락률에 따른 색상 결정 - 순수 함수로 컴포넌트 외부 정의
-const getChangeColor = (changePct) => {
-  if (!changePct) return 'text-gray-600'
-  return changePct > 0 ? 'text-red-600' : changePct < 0 ? 'text-blue-600' : 'text-gray-600'
 }
 
 const ETFCard = memo(function ETFCard({ etf, summary }) {
@@ -259,7 +253,7 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
             {/* 종가 & 등락률 */}
             <div className="flex items-baseline justify-between mb-2">
               <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatPrice(latestPrice.close_price)}</span>
-              <span className={`text-sm font-semibold ${getChangeColor(latestPrice.daily_change_pct)}`}>
+              <span className={`text-sm font-semibold ${getPriceChangeColor(latestPrice.daily_change_pct)}`}>
                 {formatPercent(latestPrice.daily_change_pct)}
               </span>
             </div>
@@ -284,12 +278,12 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-2">
               <span>거래량: {formatVolume(latestPrice.volume)}</span>
               {weeklyReturn !== null && (
-                <span className={`font-semibold ${getChangeColor(weeklyReturn)}`}>
+                <span className={`font-semibold ${getPriceChangeColor(weeklyReturn)}`}>
                   주간: {formatPercent(weeklyReturn)}
                 </span>
               )}
               {purchaseReturn !== null && (
-                <span className={`font-semibold ${getChangeColor(purchaseReturn)}`}>
+                <span className={`font-semibold ${getPriceChangeColor(purchaseReturn)}`}>
                   매입 대비: {formatPercent(purchaseReturn)}
                 </span>
               )}

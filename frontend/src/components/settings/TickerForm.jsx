@@ -106,8 +106,10 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
     mutationFn: (ticker) => settingsApi.validateTicker(ticker),
     onSuccess: (response) => {
       const data = response.data
-      setFormData({
-        ...formData,
+      // 함수형 업데이터 사용: 네트워크 응답 대기 중 사용자가 다른 필드를 수정했다면
+      // 그 수정 내용이 남아있도록 최신 상태 위에 덮어써야 한다 (stale closure 방지)
+      setFormData((prev) => ({
+        ...prev,
         name: data.name || '',
         type: data.type || 'ALL',
         theme: data.theme || '',
@@ -115,7 +117,7 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
         purchase_price: data.purchase_price ?? '', // null 또는 undefined인 경우 빈 문자열
         search_keyword: data.search_keyword || '',
         relevance_keywords: data.relevance_keywords || [],
-      })
+      }))
       setKeywordsInput((data.relevance_keywords || []).join(', '))
       alert('종목 정보를 자동으로 입력했습니다. 확인 후 저장하세요.')
     },

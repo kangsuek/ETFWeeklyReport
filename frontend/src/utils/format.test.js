@@ -147,29 +147,29 @@ describe('formatPercent', () => {
 
 describe('getPriceChangeColor', () => {
   it('양수일 때 빨간색 클래스를 반환한다', () => {
-    expect(getPriceChangeColor(1.5)).toBe('text-red-600')
-    expect(getPriceChangeColor(0.01)).toBe('text-red-600')
+    expect(getPriceChangeColor(1.5)).toBe('text-red-600 dark:text-red-400')
+    expect(getPriceChangeColor(0.01)).toBe('text-red-600 dark:text-red-400')
   })
 
   it('음수일 때 파란색 클래스를 반환한다', () => {
-    expect(getPriceChangeColor(-1.5)).toBe('text-blue-600')
-    expect(getPriceChangeColor(-0.01)).toBe('text-blue-600')
+    expect(getPriceChangeColor(-1.5)).toBe('text-blue-600 dark:text-blue-400')
+    expect(getPriceChangeColor(-0.01)).toBe('text-blue-600 dark:text-blue-400')
   })
 
   it('0일 때 회색 클래스를 반환한다', () => {
-    expect(getPriceChangeColor(0)).toBe('text-gray-500')
+    expect(getPriceChangeColor(0)).toBe('text-gray-500 dark:text-gray-400')
   })
 
   it('null 값을 처리한다', () => {
-    expect(getPriceChangeColor(null)).toBe('text-gray-500')
+    expect(getPriceChangeColor(null)).toBe('text-gray-500 dark:text-gray-400')
   })
 
   it('undefined 값을 처리한다', () => {
-    expect(getPriceChangeColor(undefined)).toBe('text-gray-500')
+    expect(getPriceChangeColor(undefined)).toBe('text-gray-500 dark:text-gray-400')
   })
 
   it('NaN 값을 처리한다', () => {
-    expect(getPriceChangeColor(NaN)).toBe('text-gray-500')
+    expect(getPriceChangeColor(NaN)).toBe('text-gray-500 dark:text-gray-400')
   })
 })
 

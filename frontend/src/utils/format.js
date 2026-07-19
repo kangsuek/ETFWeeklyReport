@@ -56,10 +56,10 @@ export const formatPercent = (value) => {
  * @returns {string} - Tailwind CSS 색상 클래스
  */
 export const getPriceChangeColor = (value) => {
-  if (value === null || value === undefined || isNaN(value)) return 'text-gray-500'
-  if (value > 0) return 'text-red-600'
-  if (value < 0) return 'text-blue-600'
-  return 'text-gray-500'
+  if (value === null || value === undefined || isNaN(value)) return 'text-gray-500 dark:text-gray-400'
+  if (value > 0) return 'text-red-600 dark:text-red-400'
+  if (value < 0) return 'text-blue-600 dark:text-blue-400'
+  return 'text-gray-500 dark:text-gray-400'
 }
 
 /**

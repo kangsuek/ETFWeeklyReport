@@ -230,6 +230,7 @@ export function calculateSupportResistance(priceData) {
     pivot,
     movingAverages,
     recentLevels,
+    recentDays,
     supports,
     resistances,
   }
