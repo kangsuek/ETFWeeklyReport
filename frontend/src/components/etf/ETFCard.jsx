@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useState, memo } from 'react'
+import { useState, memo, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { etfApi, newsApi } from '../../services/api'
 import { COLORS } from '../../constants'
@@ -83,8 +83,8 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
 
   const isLoading = !summary && pricesLoading
 
-  // 미니 캔들스틱 차트 생성 (OHLC)
-  const renderMiniChart = () => {
+  // 미니 캔들스틱 차트 기하 계산 (가격 데이터가 바뀔 때만 재계산; hover 상태 변화에는 불변)
+  const chartGeometry = useMemo(() => {
     if (!actualPrices || actualPrices.length < 2) return null
 
     const reversedPrices = [...actualPrices].reverse() // 오래된 것부터
@@ -118,6 +118,15 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
       }
     })
 
+    return { candles, candleWidth, width, height, count: reversedPrices.length }
+  }, [actualPrices])
+
+  // 미니 캔들스틱 차트 생성 (OHLC)
+  const renderMiniChart = () => {
+    if (!chartGeometry) return null
+
+    const { candles, candleWidth, width, height, count } = chartGeometry
+
     return (
       <div className="relative w-full">
         <svg
@@ -127,7 +136,7 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
           style={{ height: `${height}px` }}
           onMouseLeave={() => setHoveredPoint(null)}
           role="img"
-          aria-label={`최근 ${reversedPrices.length}일간 가격 차트`}
+          aria-label={`최근 ${count}일간 가격 차트`}
         >
           {/* 배경 일자 구분선 */}
           {candles.map((candle, i) => (
@@ -179,9 +188,9 @@ const ETFCard = memo(function ETFCard({ etf, summary }) {
 
                 {/* 투명한 인터랙션 영역 */}
                 <rect
-                  x={i === 0 ? 0 : candle.x - (width / reversedPrices.length) / 2}
+                  x={i === 0 ? 0 : candle.x - (width / count) / 2}
                   y={0}
-                  width={width / reversedPrices.length}
+                  width={width / count}
                   height={height}
                   fill="transparent"
                   className="cursor-pointer"

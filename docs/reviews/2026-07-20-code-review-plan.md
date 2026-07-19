@@ -63,8 +63,10 @@
 
 ## D. 성능 (Low, 영향 적음 — 백로그)
 
-- [ ] **D1. `routers/data.py` collect-all의 fundamentals 수집이 순차 for-loop** (가격 수집은 `ThreadPoolExecutor(5)` 병렬인데 불일치). 티커 수가 적어 지금은 영향 미미.
-- [ ] **D2. 프론트 `ETFCard.jsx:renderMiniChart()` — `useMemo` 없이 매 렌더 재계산.** 카드가 이미 `memo`라 영향 적음.
+- [x] **D1. `routers/data.py` collect-all의 fundamentals 수집이 순차 for-loop** (가격 수집은 `ThreadPoolExecutor(5)` 병렬인데 불일치). 티커 수가 적어 지금은 영향 미미.
+  `collect_all_data`와 `collect_all_fundamentals` 두 곳의 순차 루프를 `asyncio.gather` + `asyncio.Semaphore(FUNDAMENTALS_MAX_WORKERS=5)`로 병렬화(가격 수집과 동일한 동시성). `gather`가 입력 순서를 보존하므로 결과 순서 불변.
+- [x] **D2. 프론트 `ETFCard.jsx:renderMiniChart()` — `useMemo` 없이 매 렌더 재계산.** 카드가 이미 `memo`라 영향 적음.
+  캔들 기하 계산(Math.min/max, flatMap, map)을 `useMemo([actualPrices])`로 추출해 hover 상태 변화 시 재계산되지 않도록 함. 렌더 JSX는 메모된 `candles`/`candleWidth`/`count`를 사용.
 
 ## 보류/조치 불필요로 확인된 것
 - SQL 인젝션: 발견된 f-string SQL은 전부 파라미터 바인딩 + 화이트리스트 컬럼명이라 안전함(조치 불필요).

@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = int(float(os.getenv("CACHE_TTL_MINUTES", "0.5")) * 60)
 cache = get_cache(ttl_seconds=CACHE_TTL_SECONDS)
 
+# 펀더멘털 병렬 수집 동시성 (가격 수집 ThreadPoolExecutor와 동일하게 5)
+FUNDAMENTALS_MAX_WORKERS = 5
+
 @router.get("/collect-progress")
 async def get_collect_progress(request: Request):
     """
@@ -151,23 +154,31 @@ async def collect_all_data(
             ]
             etf_collector = ETFFundamentalsCollector()
 
-            for ticker, etf_type in all_tickers:
-                try:
-                    if etf_type == 'STOCK':
-                        res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
-                        ok = res.get('success', False)
-                    else:
-                        res = await asyncio.to_thread(etf_collector.collect_all, ticker)
-                        ok = res.get('nav', False) or res.get('holdings', False)
+            # 가격 수집(ThreadPoolExecutor 5)과 동일하게 최대 5개 종목을 병렬 수집
+            sem = asyncio.Semaphore(FUNDAMENTALS_MAX_WORKERS)
 
-                    if ok:
-                        fundamentals_success += 1
-                    else:
-                        fundamentals_failed += 1
-                        logger.warning(f"collect-all: fundamentals failed for {ticker}: {res}")
-                except Exception as e:
-                    fundamentals_failed += 1
-                    logger.error(f"collect-all: fundamentals error for {ticker}: {e}")
+            async def _collect_one(ticker, etf_type):
+                async with sem:
+                    try:
+                        if etf_type == 'STOCK':
+                            res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
+                            ok = res.get('success', False)
+                        else:
+                            res = await asyncio.to_thread(etf_collector.collect_all, ticker)
+                            ok = res.get('nav', False) or res.get('holdings', False)
+
+                        if not ok:
+                            logger.warning(f"collect-all: fundamentals failed for {ticker}: {res}")
+                        return ok
+                    except Exception as e:
+                        logger.error(f"collect-all: fundamentals error for {ticker}: {e}")
+                        return False
+
+            outcomes = await asyncio.gather(
+                *[_collect_one(ticker, etf_type) for ticker, etf_type in all_tickers]
+            )
+            fundamentals_success = sum(1 for ok in outcomes if ok)
+            fundamentals_failed = len(outcomes) - fundamentals_success
 
             # 스케줄러 마지막 펀더멘털 수집 시간 업데이트
             try:
@@ -527,22 +538,31 @@ async def collect_all_fundamentals(request: Request, api_key: str = Depends(veri
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
 
     tickers = [(r['ticker'], r['type']) if USE_POSTGRES else (r[0], r[1]) for r in rows]
-    results = []
 
-    for ticker, etf_type in tickers:
-        try:
-            if etf_type == 'STOCK':
-                from app.services.stock_fundamentals_collector import collect_stock_fundamentals
-                res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
-            else:
-                from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
-                collector = ETFFundamentalsCollector()
-                res = await asyncio.to_thread(collector.collect_all, ticker)
-                res = {'ticker': ticker, 'type': etf_type, 'success': True, 'result': res}
-            results.append(res)
-        except Exception as e:
-            logger.error(f"collect_fundamentals error for {ticker}: {e}")
-            results.append({'ticker': ticker, 'type': etf_type, 'success': False, 'error': str(e)})
+    from app.services.stock_fundamentals_collector import collect_stock_fundamentals
+    from app.services.etf_fundamentals_collector import ETFFundamentalsCollector
+
+    # 가격 수집(ThreadPoolExecutor 5)과 동일하게 최대 5개 종목을 병렬 수집
+    sem = asyncio.Semaphore(FUNDAMENTALS_MAX_WORKERS)
+
+    async def _collect_one(ticker, etf_type):
+        async with sem:
+            try:
+                if etf_type == 'STOCK':
+                    res = await asyncio.to_thread(collect_stock_fundamentals, ticker)
+                else:
+                    collector = ETFFundamentalsCollector()
+                    res = await asyncio.to_thread(collector.collect_all, ticker)
+                    res = {'ticker': ticker, 'type': etf_type, 'success': True, 'result': res}
+                return res
+            except Exception as e:
+                logger.error(f"collect_fundamentals error for {ticker}: {e}")
+                return {'ticker': ticker, 'type': etf_type, 'success': False, 'error': str(e)}
+
+    # gather는 입력 순서를 보존하므로 결과 순서도 tickers와 동일
+    results = list(await asyncio.gather(
+        *[_collect_one(ticker, etf_type) for ticker, etf_type in tickers]
+    ))
 
     success_count = sum(1 for r in results if r.get('success', False))
     return {
