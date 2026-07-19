@@ -213,6 +213,35 @@ def get_cursor(conn_or_cursor):
         # SQLite: get_db_connection()이 connection을 반환
         return conn_or_cursor.cursor()
 
+
+def get_conn_and_cursor(conn_or_cursor):
+    """
+    get_db_connection()이 yield한 객체에서 (connection, cursor) 쌍을 반환.
+
+    write(commit 필요) 경로에서 반복되던 USE_POSTGRES 분기 보일러플레이트를
+    한 곳으로 모은다. read 전용이면 get_cursor()로 충분하다.
+
+    Args:
+        conn_or_cursor: get_db_connection()이 yield한 객체
+                        (PostgreSQL은 cursor, SQLite는 connection)
+
+    Returns:
+        (connection, cursor) 튜플
+
+    Usage:
+        with get_db_connection() as conn_or_cursor:
+            conn, cursor = get_conn_and_cursor(conn_or_cursor)
+            cursor.execute("INSERT ...", params)
+            conn.commit()
+    """
+    if USE_POSTGRES:
+        cursor = conn_or_cursor
+        return cursor.connection, cursor
+    else:
+        conn = conn_or_cursor
+        return conn, conn.cursor()
+
+
 _ALLOWED_IDENTIFIER_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_")
 
 def _safe_alter_table(cursor, table: str, col_name: str, col_type: str,

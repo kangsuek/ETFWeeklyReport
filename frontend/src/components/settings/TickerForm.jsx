@@ -1,8 +1,60 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import PropTypes from 'prop-types'
 import { settingsApi } from '../../services/api'
 import { MIN_SEARCH_LENGTH } from '../../constants'
 import { formatPrice, formatNumber } from '../../utils/format'
+
+// 티커 코드 / 종목명 입력의 자동완성 드롭다운 (두 입력에서 공유)
+function StockSuggestions({ innerRef, isSearching, results, onSelect }) {
+  return (
+    <div
+      ref={innerRef}
+      className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+    >
+      {isSearching ? (
+        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+          검색 중...
+        </div>
+      ) : results.length > 0 ? (
+        <ul className="py-1">
+          {results.map((stock) => (
+            <li
+              key={stock.ticker}
+              onClick={() => onSelect(stock)}
+              className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                    {stock.name}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {stock.ticker} · {stock.market} · {stock.type}
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+          검색 결과가 없습니다
+        </div>
+      )}
+    </div>
+  )
+}
+
+StockSuggestions.propTypes = {
+  innerRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
+  isSearching: PropTypes.bool,
+  results: PropTypes.array.isRequired,
+  onSelect: PropTypes.func.isRequired,
+}
 
 export default function TickerForm({ mode, initialData, prefillData, onSubmit, onClose, isSubmitting }) {
   const [formData, setFormData] = useState({
@@ -402,41 +454,12 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
                 />
                 {/* 자동완성 드롭다운 (티커 코드 필드용) */}
                 {mode === 'create' && showSuggestions && searchQuery.length >= MIN_SEARCH_LENGTH && searchField === 'ticker' && (
-                  <div
-                    ref={suggestionsRef}
-                    className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
-                  >
-                    {isSearching ? (
-                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        검색 중...
-                      </div>
-                    ) : searchResults.length > 0 ? (
-                      <ul className="py-1">
-                        {searchResults.map((stock) => (
-                          <li
-                            key={stock.ticker}
-                            onClick={() => handleSelectStock(stock)}
-                            className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-gray-100">
-                                  {stock.name}
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                  {stock.ticker} · {stock.market} · {stock.type}
-                                </div>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        검색 결과가 없습니다
-                      </div>
-                    )}
-                  </div>
+                  <StockSuggestions
+                    innerRef={suggestionsRef}
+                    isSearching={isSearching}
+                    results={searchResults}
+                    onSelect={handleSelectStock}
+                  />
                 )}
               </div>
               {mode === 'create' && (
@@ -499,41 +522,12 @@ export default function TickerForm({ mode, initialData, prefillData, onSubmit, o
               />
               {/* 자동완성 드롭다운 (종목명 필드용) */}
               {mode === 'create' && showSuggestions && searchQuery.length >= MIN_SEARCH_LENGTH && searchField === 'name' && (
-                <div
-                  ref={suggestionsRef}
-                  className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
-                >
-                  {isSearching ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                      검색 중...
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    <ul className="py-1">
-                      {searchResults.map((stock) => (
-                        <li
-                          key={stock.ticker}
-                          onClick={() => handleSelectStock(stock)}
-                          className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium text-gray-900 dark:text-gray-100">
-                                {stock.name}
-                              </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {stock.ticker} · {stock.market} · {stock.type}
-                              </div>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                      검색 결과가 없습니다
-                    </div>
-                  )}
-                </div>
+                <StockSuggestions
+                  innerRef={suggestionsRef}
+                  isSearching={isSearching}
+                  results={searchResults}
+                  onSelect={handleSelectStock}
+                />
               )}
             </div>
             {errors.name && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.name}</p>}

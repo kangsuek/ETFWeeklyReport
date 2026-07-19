@@ -18,7 +18,7 @@ import re
 from datetime import datetime, date
 from typing import Optional, List, Dict
 
-from app.database import get_db_connection, USE_POSTGRES
+from app.database import get_db_connection, get_conn_and_cursor, USE_POSTGRES
 from app.services.naver_finance_scraper import fetch_main_page
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,83 @@ def _parse_date(text: str) -> Optional[date]:
 class ETFFundamentalsCollector:
     """ETF 펀더멘털 데이터 수집기 (네이버 금융 main 페이지 기반)"""
 
+    def _save_nav_rows(self, ticker: str, nav_rows: List[dict],
+                       expense_ratio: Optional[float]) -> bool:
+        """
+        NAV 행들을 etf_fundamentals에 upsert. 성공 시 True.
+
+        collect_nav_data / collect_all에서 공유하는 INSERT 로직 (중복 제거).
+        """
+        if not nav_rows:
+            return False
+
+        param = '%s' if USE_POSTGRES else '?'
+        try:
+            with get_db_connection() as conn_or_cursor:
+                conn, cursor = get_conn_and_cursor(conn_or_cursor)
+                for row in nav_rows:
+                    if USE_POSTGRES:
+                        cursor.execute(f"""
+                            INSERT INTO etf_fundamentals
+                                (ticker, date, nav, nav_change_pct, expense_ratio)
+                            VALUES ({param},{param},{param},{param},{param})
+                            ON CONFLICT (ticker, date) DO UPDATE SET
+                                nav=EXCLUDED.nav,
+                                nav_change_pct=EXCLUDED.nav_change_pct,
+                                expense_ratio=EXCLUDED.expense_ratio
+                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
+                    else:
+                        cursor.execute(f"""
+                            INSERT OR REPLACE INTO etf_fundamentals
+                                (ticker, date, nav, nav_change_pct, expense_ratio)
+                            VALUES ({param},{param},{param},{param},{param})
+                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
+                conn.commit()
+            logger.info(f"[ETFFundamentals] Saved {len(nav_rows)} NAV rows for {ticker}")
+            return True
+        except Exception as e:
+            logger.error(f"[ETFFundamentals] DB error saving NAV for {ticker}: {e}")
+            return False
+
+    def _save_holdings(self, ticker: str, holdings: List[dict]) -> bool:
+        """
+        구성종목을 etf_holdings에 upsert (오늘 날짜 기준). 성공 시 True.
+
+        collect_holdings / collect_all에서 공유하는 INSERT 로직 (중복 제거).
+        """
+        if not holdings:
+            return False
+
+        today = date.today()
+        param = '%s' if USE_POSTGRES else '?'
+        try:
+            with get_db_connection() as conn_or_cursor:
+                conn, cursor = get_conn_and_cursor(conn_or_cursor)
+                for h in holdings:
+                    if USE_POSTGRES:
+                        cursor.execute(f"""
+                            INSERT INTO etf_holdings
+                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                            VALUES ({param},{param},{param},{param},{param},{param},{param})
+                            ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
+                                stock_name=EXCLUDED.stock_name,
+                                weight=EXCLUDED.weight,
+                                shares=EXCLUDED.shares,
+                                daily_change_pct=EXCLUDED.daily_change_pct
+                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
+                    else:
+                        cursor.execute(f"""
+                            INSERT OR REPLACE INTO etf_holdings
+                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                            VALUES ({param},{param},{param},{param},{param},{param},{param})
+                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
+                conn.commit()
+            logger.info(f"[ETFFundamentals] Saved {len(holdings)} holdings for {ticker}")
+            return True
+        except Exception as e:
+            logger.error(f"[ETFFundamentals] DB error saving holdings for {ticker}: {e}")
+            return False
+
     def collect_nav_data(self, ticker: str) -> bool:
         """
         NAV 추이 테이블과 펀드보수를 수집하여 etf_fundamentals에 저장합니다.
@@ -79,43 +156,7 @@ class ETFFundamentalsCollector:
             return False
 
         # 3. DB 저장
-        param = '%s' if USE_POSTGRES else '?'
-        try:
-            with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
-                saved = 0
-
-                for row in nav_rows:
-                    if USE_POSTGRES:
-                        cursor.execute(f"""
-                            INSERT INTO etf_fundamentals
-                                (ticker, date, nav, nav_change_pct, expense_ratio)
-                            VALUES ({param},{param},{param},{param},{param})
-                            ON CONFLICT (ticker, date) DO UPDATE SET
-                                nav=EXCLUDED.nav,
-                                nav_change_pct=EXCLUDED.nav_change_pct,
-                                expense_ratio=EXCLUDED.expense_ratio
-                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    else:
-                        cursor.execute(f"""
-                            INSERT OR REPLACE INTO etf_fundamentals
-                                (ticker, date, nav, nav_change_pct, expense_ratio)
-                            VALUES ({param},{param},{param},{param},{param})
-                        """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    saved += 1
-
-                conn.commit()
-            logger.info(f"[ETFFundamentals] Saved {saved} NAV rows for {ticker}")
-            return True
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] DB error saving NAV for {ticker}: {e}")
-            return False
+        return self._save_nav_rows(ticker, nav_rows, expense_ratio)
 
     def _parse_expense_ratio(self, soup) -> Optional[float]:
         """펀드보수 테이블에서 총보수(%) 파싱."""
@@ -219,45 +260,7 @@ class ETFFundamentalsCollector:
             logger.warning(f"[ETFFundamentals] No holdings data found for {ticker}")
             return False
 
-        today = date.today()
-        param = '%s' if USE_POSTGRES else '?'
-        try:
-            with get_db_connection() as conn_or_cursor:
-                if USE_POSTGRES:
-                    cursor = conn_or_cursor
-                    conn = cursor.connection
-                else:
-                    conn = conn_or_cursor
-                    cursor = conn.cursor()
-                saved = 0
-
-                for h in holdings:
-                    if USE_POSTGRES:
-                        cursor.execute(f"""
-                            INSERT INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
-                            VALUES ({param},{param},{param},{param},{param},{param},{param})
-                            ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
-                                stock_name=EXCLUDED.stock_name,
-                                weight=EXCLUDED.weight,
-                                shares=EXCLUDED.shares,
-                                daily_change_pct=EXCLUDED.daily_change_pct
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
-                    else:
-                        cursor.execute(f"""
-                            INSERT OR REPLACE INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
-                            VALUES ({param},{param},{param},{param},{param},{param},{param})
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
-                    saved += 1
-
-                conn.commit()
-            logger.info(f"[ETFFundamentals] Saved {saved} holdings for {ticker}")
-            return True
-
-        except Exception as e:
-            logger.error(f"[ETFFundamentals] DB error saving holdings for {ticker}: {e}")
-            return False
+        return self._save_holdings(ticker, holdings)
 
     def _parse_holdings_table(self, soup) -> List[dict]:
         """
@@ -360,78 +363,11 @@ class ETFFundamentalsCollector:
         # NAV + 펀드보수
         expense_ratio = self._parse_expense_ratio(soup)
         nav_rows = self._parse_nav_table(soup)
-
-        nav_ok = False
-        if nav_rows:
-            param = '%s' if USE_POSTGRES else '?'
-            try:
-                with get_db_connection() as conn_or_cursor:
-                    if USE_POSTGRES:
-                        cursor = conn_or_cursor
-                        conn = cursor.connection
-                    else:
-                        conn = conn_or_cursor
-                        cursor = conn.cursor()
-                    for row in nav_rows:
-                        if USE_POSTGRES:
-                            cursor.execute(f"""
-                                INSERT INTO etf_fundamentals
-                                    (ticker, date, nav, nav_change_pct, expense_ratio)
-                                VALUES ({param},{param},{param},{param},{param})
-                                ON CONFLICT (ticker, date) DO UPDATE SET
-                                    nav=EXCLUDED.nav,
-                                    nav_change_pct=EXCLUDED.nav_change_pct,
-                                    expense_ratio=EXCLUDED.expense_ratio
-                            """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                        else:
-                            cursor.execute(f"""
-                                INSERT OR REPLACE INTO etf_fundamentals
-                                    (ticker, date, nav, nav_change_pct, expense_ratio)
-                                VALUES ({param},{param},{param},{param},{param})
-                            """, (ticker, row['date'], row['nav'], row['nav_change_pct'], expense_ratio))
-                    conn.commit()
-                nav_ok = True
-                logger.info(f"[ETFFundamentals] Saved {len(nav_rows)} NAV rows for {ticker}")
-            except Exception as e:
-                logger.error(f"[ETFFundamentals] DB error (NAV) for {ticker}: {e}")
+        nav_ok = self._save_nav_rows(ticker, nav_rows, expense_ratio)
 
         # 구성종목
         holdings = self._parse_holdings_table(soup)
-        holdings_ok = False
-        if holdings:
-            today = date.today()
-            param = '%s' if USE_POSTGRES else '?'
-            try:
-                with get_db_connection() as conn_or_cursor:
-                    if USE_POSTGRES:
-                        cursor = conn_or_cursor
-                        conn = cursor.connection
-                    else:
-                        conn = conn_or_cursor
-                        cursor = conn.cursor()
-                    for h in holdings:
-                        if USE_POSTGRES:
-                            cursor.execute(f"""
-                                INSERT INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
-                                VALUES ({param},{param},{param},{param},{param},{param},{param})
-                                ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
-                                    stock_name=EXCLUDED.stock_name,
-                                    weight=EXCLUDED.weight,
-                                    shares=EXCLUDED.shares,
-                                    daily_change_pct=EXCLUDED.daily_change_pct
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
-                        else:
-                            cursor.execute(f"""
-                                INSERT OR REPLACE INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
-                                VALUES ({param},{param},{param},{param},{param},{param},{param})
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
-                    conn.commit()
-                holdings_ok = True
-                logger.info(f"[ETFFundamentals] Saved {len(holdings)} holdings for {ticker}")
-            except Exception as e:
-                logger.error(f"[ETFFundamentals] DB error (holdings) for {ticker}: {e}")
+        holdings_ok = self._save_holdings(ticker, holdings)
 
         results = {
             'nav': nav_ok,

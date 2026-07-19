@@ -1,16 +1,13 @@
 """
-Perplexity AI API service for stock/ETF analysis reports.
+Perplexity AI prompt-building service for stock/ETF analysis reports.
 
-Uses the Perplexity sonar model with online search to generate
-comprehensive investment analysis reports.
+DB 데이터(RAG context)를 결합한 분석 프롬프트를 생성한다. 실제 Perplexity API
+호출은 클라이언트(프론트엔드)가 수행하므로, 이 서비스는 프롬프트 생성까지만 담당한다.
 """
 
-import os
 import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
-
-import requests
 
 from app.database import get_db_connection, USE_POSTGRES
 
@@ -18,11 +15,6 @@ logger = logging.getLogger(__name__)
 
 # Prompt template path (project root / prompt / perplexity.md)
 PROMPT_TEMPLATE_PATH = Path(__file__).resolve().parents[3] / "prompt" / "perplexity.md"
-
-PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
-PERPLEXITY_MODEL = "sonar"
-PERPLEXITY_TIMEOUT = 60
-PERPLEXITY_TEMPERATURE = 0.2
 
 
 class PerplexityService:
@@ -685,12 +677,6 @@ class PerplexityService:
 
         return "\n".join(context_parts)
 
-    def _get_api_key(self) -> str:
-        key = os.getenv("PERPLEXITY_API_KEY", "")
-        if not key or key.startswith("your_"):
-            raise ValueError("PERPLEXITY_API_KEY가 설정되지 않았습니다. Settings 페이지에서 API 키를 입력해주세요.")
-        return key
-
     def _load_template(self) -> str:
         if self._template is None:
             if not PROMPT_TEMPLATE_PATH.exists():
@@ -860,182 +846,3 @@ class PerplexityService:
 ---
 
 위 템플릿 전체를 반영하여, 실제 투자 의사결정에 바로 활용 가능한 **고품질 통합 비교 리포트**를 작성하세요."""
-
-    def analyze(self, ticker: str, name: str, use_db_data: bool = True) -> dict:
-        """
-        Call Perplexity API to generate an investment analysis report.
-
-        Args:
-            ticker: Stock/ETF ticker code
-            name: Stock/ETF name
-            use_db_data: DB 데이터를 context로 사용할지 여부 (기본: True)
-
-        Returns:
-            dict with 'content' (Markdown report) and 'citations' (list of source URLs)
-
-        Raises:
-            ValueError: If API key is not configured
-            RuntimeError: If API call fails
-        """
-        api_key = self._get_api_key()
-
-        # DB 데이터를 context로 추가
-        db_context = None
-        if use_db_data:
-            logger.info(f"Fetching DB data for {ticker} to enhance prompt with RAG context")
-            db_context = self._fetch_db_context(ticker, name)
-            logger.info(f"DB context length: {len(db_context)} characters")
-
-        prompt = self._build_prompt(name, ticker, db_context)
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": PERPLEXITY_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            "temperature": PERPLEXITY_TEMPERATURE,
-        }
-
-        logger.info(f"Calling Perplexity API for {name}({ticker})")
-
-        try:
-            response = requests.post(
-                PERPLEXITY_API_URL,
-                json=payload,
-                headers=headers,
-                timeout=PERPLEXITY_TIMEOUT,
-            )
-            response.raise_for_status()
-        except requests.exceptions.Timeout:
-            logger.error(f"Perplexity API timeout for {ticker}")
-            raise RuntimeError("Perplexity API 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response is not None else "unknown"
-            logger.error(f"Perplexity API HTTP error {status} for {ticker}: {e}")
-            if status == 401:
-                raise RuntimeError("Perplexity API 키가 유효하지 않습니다. Settings에서 확인해주세요.")
-            elif status == 429:
-                raise RuntimeError("Perplexity API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.")
-            raise RuntimeError(f"Perplexity API 호출 실패 (HTTP {status})")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Perplexity API request error for {ticker}: {e}")
-            raise RuntimeError("Perplexity API 연결에 실패했습니다.")
-
-        data = response.json()
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected Perplexity API response format: {e}")
-            raise RuntimeError("Perplexity API 응답 형식이 올바르지 않습니다.")
-
-        # Extract citations from Perplexity response
-        citations = data.get("citations", [])
-
-        # Replace [1], [2], ... with markdown links to citations
-        if citations:
-            import re
-            def replace_citation(match):
-                idx = int(match.group(1))
-                if 1 <= idx <= len(citations):
-                    url = citations[idx - 1]
-                    return f"[[{idx}]]({url})"
-                return match.group(0)
-            content = re.sub(r'\[(\d+)\]', replace_citation, content)
-
-        logger.info(f"Perplexity analysis completed for {name}({ticker}), length={len(content)}, citations={len(citations)}")
-        return {"content": content, "citations": citations, "prompt": prompt}
-
-    def analyze_multi(self, stocks: list[dict]) -> dict:
-        """
-        Call Perplexity API to generate a combined investment analysis report for multiple stocks.
-
-        Args:
-            stocks: List of dicts with 'ticker' and 'name' keys
-
-        Returns:
-            dict with 'content' (Markdown report) and 'citations' (list of source URLs)
-        """
-        api_key = self._get_api_key()
-
-        # 각 종목의 DB 컨텍스트 수집 (RAG)
-        logger.info(f"Fetching DB data for multi-stock analysis: {len(stocks)} stocks")
-        db_contexts = []
-        for stock in stocks:
-            ctx = self._fetch_db_context(stock['ticker'], stock['name'])
-            db_contexts.append(ctx)
-        combined_context = "\n\n".join(db_contexts)
-
-        base_prompt = self._build_multi_prompt(stocks)
-        prompt = f"{combined_context}\n\n---\n\n{base_prompt}"
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": PERPLEXITY_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            "temperature": PERPLEXITY_TEMPERATURE,
-        }
-
-        names = ", ".join(f"{s['name']}({s['ticker']})" for s in stocks)
-        logger.info(f"Calling Perplexity API for multi-stock analysis: {names}")
-
-        try:
-            response = requests.post(
-                PERPLEXITY_API_URL,
-                json=payload,
-                headers=headers,
-                timeout=PERPLEXITY_TIMEOUT * 2,
-            )
-            response.raise_for_status()
-        except requests.exceptions.Timeout:
-            logger.error(f"Perplexity API timeout for multi-stock: {names}")
-            raise RuntimeError("Perplexity API 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response is not None else "unknown"
-            logger.error(f"Perplexity API HTTP error {status} for multi-stock: {e}")
-            if status == 401:
-                raise RuntimeError("Perplexity API 키가 유효하지 않습니다. Settings에서 확인해주세요.")
-            elif status == 429:
-                raise RuntimeError("Perplexity API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.")
-            raise RuntimeError(f"Perplexity API 호출 실패 (HTTP {status})")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Perplexity API request error for multi-stock: {e}")
-            raise RuntimeError("Perplexity API 연결에 실패했습니다.")
-
-        data = response.json()
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected Perplexity API response format: {e}")
-            raise RuntimeError("Perplexity API 응답 형식이 올바르지 않습니다.")
-
-        citations = data.get("citations", [])
-
-        if citations:
-            import re
-            def replace_citation(match):
-                idx = int(match.group(1))
-                if 1 <= idx <= len(citations):
-                    url = citations[idx - 1]
-                    return f"[[{idx}]]({url})"
-                return match.group(0)
-            content = re.sub(r'\[(\d+)\]', replace_citation, content)
-
-        logger.info(f"Perplexity multi-stock analysis completed for {names}, length={len(content)}, citations={len(citations)}")
-        return {"content": content, "citations": citations, "prompt": prompt}

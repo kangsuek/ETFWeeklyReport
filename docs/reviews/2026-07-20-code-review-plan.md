@@ -52,14 +52,18 @@
 
 ## C. 코드 품질/구조 (Low~Medium, 시간 될 때)
 
-- [ ] **C1. 백엔드 `if USE_POSTGRES: cursor=... else: cursor=...` 보일러플레이트 23곳 반복**
-  `database.py`의 `get_cursor()`가 read 경로용으로 이미 있으나 write(commit 필요) 경로엔 동등한 헬퍼가 없어 계속 복붙됨 → A1류 버그의 근본 원인. `get_conn_and_cursor()` 헬퍼 추가해 점진적으로 교체.
-- [ ] **C2. `etf_fundamentals_collector.py` — NAV/holdings INSERT 블록이 `collect_*`와 `collect_all`에 중복**
-  private 헬퍼로 추출.
-- [ ] **C3. `services/perplexity_service.py` 의 `analyze()`/`analyze_multi()` — 호출부 없는 죽은 코드**
-- [ ] **C4. `utils/cache.py:get_cache()` 싱글턴 — 최초 호출의 `ttl_seconds`/`max_size`만 적용되고 이후 호출 인자는 무시됨** (풋건, 문서화라도 필요)
-- [ ] **C5. 프론트 `TickerForm.jsx` 티커/종목명 자동완성 드롭다운 마크업 중복** (~35줄 블록 2곳) → 공용 컴포넌트로 추출
-- [ ] **C6. 프론트 `main.jsx`/`SettingsContext.jsx` 테마 감지 로직 중복**
+- [x] **C1. 백엔드 `if USE_POSTGRES: cursor=... else: cursor=...` 보일러플레이트 23곳 반복**
+  `database.py`의 `get_cursor()`가 read 경로용으로 이미 있으나 write(commit 필요) 경로엔 동등한 헬퍼가 없어 계속 복붙됨 → A1류 버그의 근본 원인. `get_conn_and_cursor(conn_or_cursor) -> (conn, cursor)` 헬퍼 추가. C2 리팩터링에서 첫 적용, 나머지 사이트는 점진적으로 교체 예정.
+- [x] **C2. `etf_fundamentals_collector.py` — NAV/holdings INSERT 블록이 `collect_*`와 `collect_all`에 중복**
+  `_save_nav_rows()`/`_save_holdings()` private 헬퍼로 추출(각 INSERT 블록이 2곳→1곳). `collect_nav_data`/`collect_holdings`/`collect_all`이 공유. 헬퍼는 C1의 `get_conn_and_cursor` 사용. `test_etf_fundamentals_collector.py` 전체 통과.
+- [x] **C3. `services/perplexity_service.py` 의 `analyze()`/`analyze_multi()` — 호출부 없는 죽은 코드**
+  두 메서드 및 그것만 쓰던 `_get_api_key()`, `import os`/`import requests`, `PERPLEXITY_API_URL/MODEL/TIMEOUT/TEMPERATURE` 상수 제거(전 코드베이스 grep으로 호출부 없음 확인). 라우터는 `get_prompt`/`get_multi_prompt`만 사용.
+- [x] **C4. `utils/cache.py:get_cache()` 싱글턴 — 최초 호출의 `ttl_seconds`/`max_size`만 적용되고 이후 호출 인자는 무시됨** (풋건, 문서화라도 필요)
+  docstring에 "최초 호출에만 반영, 이후 인자 무시" 경고 및 우회법(개별 항목 TTL은 set/get_or_set 인자로) 명시.
+- [x] **C5. 프론트 `TickerForm.jsx` 티커/종목명 자동완성 드롭다운 마크업 중복** (~35줄 블록 2곳) → 공용 컴포넌트로 추출
+  `StockSuggestions` 컴포넌트(PropTypes 포함)로 추출, 두 입력이 공유.
+- [x] **C6. 프론트 `main.jsx`/`SettingsContext.jsx` 테마 감지 로직 중복**
+  `utils/theme.js` 신설(`getSystemTheme`/`getEffectiveTheme`/`applyTheme`/`readStoredTheme`). `main.jsx`의 FOUC 방지 IIFE와 `SettingsContext.jsx`가 공유. `main.jsx`는 IIFE → `applyTheme(readStoredTheme())` 한 줄로 축소.
 
 ## D. 성능 (Low, 영향 적음 — 백로그)
 

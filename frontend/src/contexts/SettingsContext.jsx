@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { applyTheme } from '../utils/theme'
 
 const STORAGE_KEY = 'app_settings'
 
@@ -102,41 +103,6 @@ function saveSettingsToStorage(settings) {
 
 // Context 생성
 const SettingsContext = createContext(null)
-
-/**
- * 시스템 테마 감지 (prefers-color-scheme 미디어 쿼리)
- */
-function getSystemTheme() {
-  if (typeof window === 'undefined') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-/**
- * 실제 적용할 테마 계산 (system인 경우 시스템 설정 반영)
- */
-function getEffectiveTheme(theme) {
-  if (theme === 'system') {
-    return getSystemTheme()
-  }
-  return theme
-}
-
-/**
- * HTML 태그에 테마 클래스 적용
- */
-function applyTheme(theme) {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  const body = document.body
-  const effectiveTheme = getEffectiveTheme(theme)
-  
-  // 기존 dark 클래스 제거 후 추가/제거 (확실한 적용을 위해)
-  root.classList.remove('dark')
-  
-  if (effectiveTheme === 'dark') {
-    root.classList.add('dark')
-  }
-}
 
 /**
  * Settings Provider 컴포넌트

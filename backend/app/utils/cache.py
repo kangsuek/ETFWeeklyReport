@@ -258,12 +258,19 @@ def get_cache(ttl_seconds: int = 30, max_size: int = 1000) -> MemoryCache:
     """
     전역 캐시 인스턴스 가져오기 (싱글톤 패턴)
 
+    ⚠️ 주의(풋건): 싱글톤이므로 **최초 호출 시점의 ttl_seconds/max_size만 적용**되고,
+    이후 호출에서 전달한 인자는 무시된다(이미 생성된 인스턴스를 그대로 반환).
+    모듈 import 순서에 따라 어떤 호출이 "최초"가 될지 달라질 수 있으므로,
+    전역 설정을 바꾸려면 이 함수의 기본값 자체를 수정하거나
+    최초 호출부(app 기동 시점)에서 명시적으로 값을 지정할 것.
+    개별 항목의 TTL은 set()/get_or_set()의 ttl_seconds 인자로 조정할 수 있다.
+
     Args:
-        ttl_seconds: 기본 TTL (초)
-        max_size: 최대 캐시 크기
+        ttl_seconds: 기본 TTL (초) — 최초 호출에만 반영됨
+        max_size: 최대 캐시 크기 — 최초 호출에만 반영됨
 
     Returns:
-        MemoryCache 인스턴스
+        MemoryCache 인스턴스 (전역 공유)
     """
     global _global_cache
 
