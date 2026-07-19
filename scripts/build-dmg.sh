@@ -100,19 +100,19 @@ if ! command -v git &> /dev/null; then
   exit 1
 fi
 
-# 브랜치 존재 확인
+# 브랜치 존재 확인 (로컬에 브랜치가 없어도 origin에만 있으면 되므로 fetch로 확인)
 if $BUILD_MAC; then
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify "$MACOS_APP_BRANCH" &> /dev/null; then
-    echo "ERROR: '$MACOS_APP_BRANCH' 브랜치가 존재하지 않습니다."
-    echo "  git fetch origin $MACOS_APP_BRANCH 를 실행해주세요."
+  if ! git -C "$PROJECT_ROOT" fetch origin "$MACOS_APP_BRANCH" &> /dev/null; then
+    echo "ERROR: origin에서 '$MACOS_APP_BRANCH' 브랜치를 가져올 수 없습니다."
+    echo "  네트워크 연결과 원격 브랜치 존재 여부를 확인해주세요."
     exit 1
   fi
 fi
 
 if $BUILD_WIN; then
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify "$WINDOWS_APP_BRANCH" &> /dev/null; then
-    echo "ERROR: '$WINDOWS_APP_BRANCH' 브랜치가 존재하지 않습니다."
-    echo "  git fetch origin $WINDOWS_APP_BRANCH 를 실행해주세요."
+  if ! git -C "$PROJECT_ROOT" fetch origin "$WINDOWS_APP_BRANCH" &> /dev/null; then
+    echo "ERROR: origin에서 '$WINDOWS_APP_BRANCH' 브랜치를 가져올 수 없습니다."
+    echo "  네트워크 연결과 원격 브랜치 존재 여부를 확인해주세요."
     exit 1
   fi
 fi
@@ -126,7 +126,7 @@ cd "$PROJECT_ROOT"
 
 if $BUILD_MAC; then
   echo "  macOS 소스 ($MACOS_APP_BRANCH)..."
-  git checkout "$MACOS_APP_BRANCH" -- \
+  git checkout "origin/$MACOS_APP_BRANCH" -- \
     macos/main.js \
     macos/preload.js \
     macos/loading.html \
@@ -146,7 +146,7 @@ fi
 
 if $BUILD_WIN; then
   echo "  Windows 소스 ($WINDOWS_APP_BRANCH)..."
-  git checkout "$WINDOWS_APP_BRANCH" -- \
+  git checkout "origin/$WINDOWS_APP_BRANCH" -- \
     windows/main.js \
     windows/preload.js \
     windows/loading.html \
