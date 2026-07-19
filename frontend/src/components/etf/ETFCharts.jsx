@@ -198,7 +198,7 @@ function TechnicalIndicatorsSection({ rsiData, macdData, showRSI, showMACD, onTo
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1">
               <div>
                 <p className="font-medium text-gray-600 dark:text-gray-400 mb-0.5">① 추세 (0선 기준)</p>
-                <p><span className="text-red-600 dark:text-red-400 font-medium">▲ 상승</span> = 단기 > 장기 이평선</p>
+                <p><span className="text-red-600 dark:text-red-400 font-medium">▲ 상승</span> = 단기 &gt; 장기 이평선</p>
                 <p><span className="text-blue-600 dark:text-blue-400 font-medium">▼ 하락</span> = 단기 &lt; 장기 이평선</p>
               </div>
               <div>
