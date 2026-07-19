@@ -20,50 +20,11 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 class APIKeyAuth:
-    """API Key 인증 클래스"""
+    """API Key 인증 클래스
 
-    # 인증이 필요 없는 공개 엔드포인트 (읽기 전용)
-    PUBLIC_ENDPOINTS = [
-        "/",
-        "/api/health",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    ]
-
-    # 인증이 필요 없는 공개 경로 패턴 (읽기 전용)
-    PUBLIC_PATH_PATTERNS = [
-        "/api/etfs",  # GET만 허용 (목록 조회)
-        "/api/news",  # GET만 허용 (뉴스 조회)
-    ]
-
-    # 읽기 전용 메서드 (인증 불필요)
-    READ_ONLY_METHODS = ["GET", "HEAD", "OPTIONS"]
-
-    @classmethod
-    def is_public_endpoint(cls, path: str, method: str) -> bool:
-        """
-        공개 엔드포인트 여부 확인
-
-        Args:
-            path: 요청 경로
-            method: HTTP 메서드
-
-        Returns:
-            bool: 공개 엔드포인트면 True
-        """
-        # 정확히 일치하는 공개 엔드포인트
-        if path in cls.PUBLIC_ENDPOINTS:
-            return True
-
-        # 읽기 전용 메서드는 대부분 공개
-        if method in cls.READ_ONLY_METHODS:
-            # /api/etfs, /api/news로 시작하는 GET 요청은 공개
-            for pattern in cls.PUBLIC_PATH_PATTERNS:
-                if path.startswith(pattern):
-                    return True
-
-        return False
+    이 앱은 전역 미들웨어가 아니라 라우트별 `Depends(verify_api_key_dependency)`로
+    보호 대상을 지정한다 (읽기 전용 GET은 대부분 공개, 변경성 엔드포인트는 보호).
+    """
 
     @classmethod
     def verify_api_key(cls, api_key: Optional[str]) -> bool:

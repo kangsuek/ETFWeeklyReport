@@ -4,11 +4,12 @@
 - price_change: 급등/급락 알림 (target_price = 임계 %)
 - trading_signal: 외국인·기관 동시 매수/매도 시그널
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List
 from pydantic import BaseModel
 from app.models import AlertRuleCreate, AlertRuleUpdate, AlertRuleResponse
 from app.database import get_db_connection, get_cursor, USE_POSTGRES
+from app.dependencies import verify_api_key_dependency
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class AlertTriggerRequest(BaseModel):
 
 
 @router.post("/trigger")
-async def record_alert_trigger(req: AlertTriggerRequest):
+async def record_alert_trigger(req: AlertTriggerRequest, api_key: str = Depends(verify_api_key_dependency)):
     """프론트엔드에서 감지한 알림 트리거를 히스토리에 기록"""
     try:
         with get_db_connection() as conn_or_cursor:
@@ -107,7 +108,7 @@ async def get_alert_history(
 
 
 @router.post("/", response_model=AlertRuleResponse)
-async def create_alert_rule(rule: AlertRuleCreate):
+async def create_alert_rule(rule: AlertRuleCreate, api_key: str = Depends(verify_api_key_dependency)):
     """알림 규칙 생성"""
     _validate_rule(rule.alert_type, rule.direction, rule.target_price)
 
@@ -173,7 +174,7 @@ async def get_alert_rules(
 
 
 @router.put("/{rule_id}", response_model=AlertRuleResponse)
-async def update_alert_rule(rule_id: int, rule: AlertRuleUpdate):
+async def update_alert_rule(rule_id: int, rule: AlertRuleUpdate, api_key: str = Depends(verify_api_key_dependency)):
     """알림 규칙 수정"""
     try:
         with get_db_connection() as conn_or_cursor:
@@ -237,7 +238,7 @@ async def update_alert_rule(rule_id: int, rule: AlertRuleUpdate):
 
 
 @router.delete("/{rule_id}")
-async def delete_alert_rule(rule_id: int):
+async def delete_alert_rule(rule_id: int, api_key: str = Depends(verify_api_key_dependency)):
     """알림 규칙 삭제"""
     try:
         with get_db_connection() as conn_or_cursor:

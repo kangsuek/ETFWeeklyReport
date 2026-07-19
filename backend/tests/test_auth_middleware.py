@@ -129,25 +129,6 @@ class TestAPIKeyAuth:
 class TestAuthMiddleware:
     """인증 미들웨어 동작 테스트"""
 
-    def test_is_public_endpoint(self):
-        """공개 엔드포인트 판별"""
-        from app.middleware.auth import APIKeyAuth
-
-        # 정확히 일치하는 공개 엔드포인트
-        assert APIKeyAuth.is_public_endpoint("/", "GET") is True
-        assert APIKeyAuth.is_public_endpoint("/api/health", "GET") is True
-        assert APIKeyAuth.is_public_endpoint("/docs", "GET") is True
-
-        # GET 요청은 대부분 공개
-        assert APIKeyAuth.is_public_endpoint("/api/etfs", "GET") is True
-        assert APIKeyAuth.is_public_endpoint("/api/etfs/487240", "GET") is True
-        assert APIKeyAuth.is_public_endpoint("/api/news/487240", "GET") is True
-
-        # POST/DELETE는 보호
-        assert APIKeyAuth.is_public_endpoint("/api/data/reset", "DELETE") is False
-        assert APIKeyAuth.is_public_endpoint("/api/data/collect-all", "POST") is False
-        assert APIKeyAuth.is_public_endpoint("/api/settings/stocks", "POST") is False
-
     def test_verify_api_key(self):
         """API Key 검증 로직"""
         from app.middleware.auth import APIKeyAuth

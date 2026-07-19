@@ -475,3 +475,50 @@ class NewsScraper:
 
         logger.debug(f"Retrieved {len(news_list)} news articles for {ticker}")
         return news_list
+
+    def get_news_batch(
+        self, tickers: List[str], start_date: date, end_date: date
+    ) -> Dict[str, List[News]]:
+        """
+        배치 쿼리로 여러 종목의 뉴스를 한 번에 조회 (IN 절 활용)
+
+        Args:
+            tickers: 종목 코드 리스트
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+
+        Returns:
+            종목별 뉴스 딕셔너리 {ticker: [News, ...]}
+        """
+        if not tickers:
+            return {}
+
+        logger.debug(f"Batch fetching news for {len(tickers)} tickers from {start_date} to {end_date}")
+        param_placeholder = "%s" if USE_POSTGRES else "?"
+
+        with get_db_connection() as conn_or_cursor:
+            cursor = get_cursor(conn_or_cursor)
+            placeholders = ','.join([param_placeholder] * len(tickers))
+            cursor.execute(f"""
+                SELECT ticker, date, published_at, title, url, source, relevance_score
+                FROM news
+                WHERE ticker IN ({placeholders}) AND date BETWEEN {param_placeholder} AND {param_placeholder}
+                ORDER BY ticker, date DESC, relevance_score DESC
+            """, list(tickers) + [start_date, end_date])
+
+            rows = cursor.fetchall()
+
+            result: Dict[str, List[News]] = {ticker: [] for ticker in tickers}
+            for row in rows:
+                published_at = row['published_at'] if 'published_at' in row.keys() else None
+                result[row['ticker']].append(News(
+                    date=row['date'],
+                    published_at=published_at,
+                    title=row['title'],
+                    url=row['url'],
+                    source=row['source'],
+                    relevance_score=row['relevance_score']
+                ))
+
+        logger.debug(f"Batch fetched news for {len(tickers)} tickers ({len(rows)} rows)")
+        return result

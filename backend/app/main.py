@@ -126,6 +126,8 @@ async def startup_event():
     logger.info(message="starting_scheduler", phase="app_startup")
     scheduler = get_scheduler()
     scheduler.start()
+    # 초기 수집은 백그라운드 스레드에서 실행 (앱 기동/헬스체크가 수집 완료까지 막히지 않도록)
+    await scheduler.run_initial_collection()
 
 # Graceful shutdown on application shutdown
 @app.on_event("shutdown")

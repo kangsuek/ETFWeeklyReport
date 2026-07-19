@@ -628,16 +628,21 @@ class ApiKeysUpdate(BaseModel):
 
 
 @router.get("/api-keys")
-async def get_api_keys(raw: bool = False) -> Dict[str, Any]:
+async def get_api_keys(request: Request, raw: bool = False) -> Dict[str, Any]:
     """
     저장된 API 키 조회
 
     **Query Parameters:**
-    - raw: true면 원본 값 반환, false면 마스킹 처리 (기본: false)
+    - raw: true면 원본 값 반환 (인증 필요), false면 마스킹 처리 (기본: false, 인증 불필요)
 
     **Status Codes:**
     - 200: Success
+    - 401: raw=true인데 인증 실패
     """
+    if raw:
+        # raw=true는 평문 API 키를 반환하므로 다른 변경성 엔드포인트와 동일하게 인증 요구
+        await verify_api_key_dependency(request.headers.get("X-API-Key"))
+
     keys = _load_api_keys()
 
     result = {}

@@ -25,6 +25,11 @@ KOSPI_TOP_N_SUPPLY = 200    # 시가총액 상위 200개 - frgn.naver 수급 수
 KOSDAQ_TOP_N_SUPPLY = 300   # 시가총액 상위 300개 - frgn.naver 수급 수집
 STOCK_SUPPLY_WORKERS = 10   # 병렬 수급 수집 워커 수
 
+# 스케줄러(cron)와 수동 트리거(POST /scanner/collect-data)가 서로 다른
+# CatalogDataCollector 인스턴스로 동시에 collect_all()을 호출할 수 있어
+# 모듈 레벨 락으로 중복 실행을 막는다 (check-then-act 레이스 방지).
+_catalog_collection_lock = threading.Lock()
+
 
 class CatalogDataCollector:
     """ETF 카탈로그 가격/수급 데이터 수집"""
@@ -45,6 +50,10 @@ class CatalogDataCollector:
         from app.services.progress import update_progress, is_cancelled
 
         TASK_ID = "catalog-data"
+
+        if not _catalog_collection_lock.acquire(blocking=False):
+            logger.warning("Catalog data collection already in progress, skipping duplicate trigger")
+            return {"status": "already_running"}
 
         logger.info("Starting catalog data collection")
         start_time = datetime.now()
@@ -159,6 +168,8 @@ class CatalogDataCollector:
             })
             logger.error(f"Catalog data collection failed: {e}", exc_info=True)
             raise ScraperException(f"카탈로그 데이터 수집 실패: {e}")
+        finally:
+            _catalog_collection_lock.release()
 
     def _update_stock_prices(self) -> Dict[str, int]:
         """

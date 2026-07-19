@@ -4,6 +4,7 @@
 APScheduler를 사용하여 정기적인 데이터 수집 작업을 스케줄링합니다.
 """
 
+import asyncio
 import logging
 import threading
 from datetime import datetime
@@ -340,10 +341,15 @@ class DataCollectionScheduler:
                 else:
                     cursor = conn_or_cursor.cursor()
                 cursor.execute(
-                    f"SELECT COUNT(*) FROM etf_holdings WHERE date = {param}", (today,)
+                    f"SELECT COUNT(*) AS cnt FROM etf_holdings WHERE date = {param}", (today,)
                 )
                 row = cursor.fetchone()
-                count = row[0] if row else 0
+                if row is None:
+                    count = 0
+                elif USE_POSTGRES:
+                    count = row['cnt']
+                else:
+                    count = row[0]
 
             if count == 0:
                 logger.info(f"[스케줄러-펀더멘털] 오늘({today}) 수집된 데이터 없음 → 즉시 수집 시작")
@@ -459,18 +465,25 @@ class DataCollectionScheduler:
         self._jobs['fundamentals_collection'] = fundamentals_job
         logger.info("펀더멘털 수집 스케줄 등록: 평일 16:30 KST")
 
-        # 스케줄러 시작
+        # 스케줄러 시작 (AsyncIOScheduler는 실행 중인 이벤트 루프가 필요하므로 동기 호출 유지)
         self.scheduler.start()
         logger.info("스케줄러 시작 완료")
 
-        # 즉시 첫 수집 실행
-        logger.info("즉시 첫 주기적 수집 실행...")
-        self.collect_periodic_data()
+    async def run_initial_collection(self):
+        """
+        앱 시작 직후 실행할 초기 수집 작업을 백그라운드 스레드에서 실행합니다.
 
-        # 오늘 펀더멘털 수집 여부 확인 → 미수집이면 즉시 실행
-        logger.info("펀더멘털 수집 여부 확인...")
-        self._collect_fundamentals_if_needed()
-    
+        collect_periodic_data/_collect_fundamentals_if_needed는 티커별로 동기
+        requests.get()을 수행하므로, 이벤트 루프에서 직접 호출하면 수집이
+        끝날 때까지 /api/health를 포함한 모든 요청이 막힌다. asyncio.to_thread로
+        스레드풀에 위임해 앱 기동(healthcheck 응답)을 지연시키지 않는다.
+        """
+        logger.info("즉시 첫 주기적 수집 실행... (백그라운드)")
+        asyncio.create_task(asyncio.to_thread(self.collect_periodic_data))
+
+        logger.info("펀더멘털 수집 여부 확인... (백그라운드)")
+        asyncio.create_task(asyncio.to_thread(self._collect_fundamentals_if_needed))
+
     def stop(self):
         """
         스케줄러 중지

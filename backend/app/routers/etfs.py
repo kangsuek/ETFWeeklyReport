@@ -837,15 +837,18 @@ async def get_batch_summary(
             trading_flow_batch = collector.get_trading_flow_batch(request.tickers, start_date, end_date)
             logger.debug(f"Batch fetched trading flow for {len(trading_flow_batch)} tickers")
 
-            # 3. 뉴스는 ticker별로 조회 (뉴스는 IN 절 최적화 필요 없음 - 데이터 적음)
+            # 3. 뉴스 배치 조회 (IN 절 활용)
             from app.services.news_scraper import NewsScraper
             news_scraper = NewsScraper()
+            news_batch = news_scraper.get_news_batch(request.tickers, start_date, end_date)
+            logger.debug(f"Batch fetched news for {len(news_batch)} tickers")
 
         except Exception as e:
             logger.error(f"Error in batch queries: {e}", exc_info=True)
             # 배치 쿼리 실패 시 빈 결과로 처리
             prices_batch = {ticker: [] for ticker in request.tickers}
             trading_flow_batch = {ticker: [] for ticker in request.tickers}
+            news_batch = {ticker: [] for ticker in request.tickers}
 
         # 종목별로 데이터 조합
         for ticker in request.tickers:
@@ -875,13 +878,10 @@ async def get_batch_summary(
                     from app.models import TradingFlow
                     summary.latest_trading_flow = TradingFlow(**trading_flow[0])
 
-                # 3. 뉴스 조회 (ticker별로 - 최적화 불필요)
-                try:
-                    news = news_scraper.get_news_for_ticker(ticker, start_date, end_date)
-                    if news:
-                        summary.latest_news = news[:request.news_limit]
-                except Exception as e:
-                    logger.warning(f"Error fetching news for {ticker}: {e}")
+                # 3. 뉴스 설정 (배치 조회 결과에서 추출)
+                news = news_batch.get(ticker, [])
+                if news:
+                    summary.latest_news = news[:request.news_limit]
 
                 result_data[ticker] = summary
 
@@ -1348,10 +1348,15 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
             # (NAV는 전 거래일 기준, holdings는 수집 실행일 기준) 별도로
             # etf_holdings 자체의 최신 날짜를 기준으로 조회한다.
             cursor.execute(f"""
-                SELECT MAX(date) FROM etf_holdings WHERE ticker = {param}
+                SELECT MAX(date) AS latest_date FROM etf_holdings WHERE ticker = {param}
             """, (ticker,))
             latest_holdings_date_row = cursor.fetchone()
-            latest_holdings_date = latest_holdings_date_row[0] if latest_holdings_date_row else None
+            if latest_holdings_date_row:
+                latest_holdings_date = (
+                    latest_holdings_date_row['latest_date'] if USE_POSTGRES else latest_holdings_date_row[0]
+                )
+            else:
+                latest_holdings_date = None
 
             holdings = []
             if latest_holdings_date:

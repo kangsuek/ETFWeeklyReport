@@ -73,6 +73,7 @@ windows/
 !windows/tests/run-windows-e2e.ps1
 !windows/tests/run-windows-e2e.cmd
 windows/tests/reports/
+windows/release/
 
 # SDK auto-generated client (regenerate with sdk/generate.sh)
 sdk/python/

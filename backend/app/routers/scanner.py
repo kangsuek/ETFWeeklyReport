@@ -4,11 +4,13 @@ Scanner API 라우터
 ETF 조건 검색, 테마 탐색, 추천 프리셋 제공
 """
 import logging
-from fastapi import APIRouter, Query, BackgroundTasks
+from fastapi import APIRouter, Query, BackgroundTasks, Request, Depends
 from typing import Optional, List
 from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.models import ScreeningItem, ScreeningResponse, ThemeGroup, RecommendationPreset
 from app.utils.cache import get_cache, make_cache_key
+from app.dependencies import verify_api_key_dependency
+from app.middleware.rate_limit import limiter, RateLimitConfig
 
 logger = logging.getLogger(__name__)
 
@@ -387,7 +389,12 @@ async def get_collect_progress():
 
 
 @router.post("/collect-data")
-async def trigger_collect_data(background_tasks: BackgroundTasks):
+@limiter.limit(RateLimitConfig.DATA_COLLECTION)
+async def trigger_collect_data(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_api_key_dependency),
+):
     """카탈로그 데이터 수동 수집 트리거"""
     from app.services.catalog_data_collector import CatalogDataCollector
     from app.services.progress import clear_progress, get_progress
@@ -408,7 +415,7 @@ async def trigger_collect_data(background_tasks: BackgroundTasks):
 
 
 @router.post("/cancel-collect")
-async def cancel_collect_data():
+async def cancel_collect_data(api_key: str = Depends(verify_api_key_dependency)):
     """진행 중인 카탈로그 데이터 수집 중지"""
     from app.services.progress import request_cancel, get_progress
 
