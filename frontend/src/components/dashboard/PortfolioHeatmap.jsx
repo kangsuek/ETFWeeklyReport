@@ -46,7 +46,7 @@ const formatPrice = (price) => {
  * 종목명, 종가, 일간 변동률을 표시
  */
 const HeatmapCell = (props) => {
-  const { x, y, width, height, name, changePct, closePrice, weeklyReturn, isInvested, depth } = props
+  const { x, y, width, height, name, ticker, changePct, closePrice, weeklyReturn, isInvested, depth, onContextMenu } = props
 
   // root 노드(depth 0)는 렌더링하지 않음
   if (depth !== 1) return null
@@ -104,7 +104,13 @@ const HeatmapCell = (props) => {
   ].filter(Boolean).join('\n')
 
   return (
-    <g style={{ cursor: 'pointer' }}>
+    <g
+      style={{ cursor: 'pointer' }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu?.(e.clientX, e.clientY, ticker, name)
+      }}
+    >
       <defs>
         <clipPath id={clipId}>
           <rect x={x + 1} y={y + 1} width={Math.max(width - 2, 0)} height={innerH} rx={4} />
@@ -191,8 +197,9 @@ const HeatmapCell = (props) => {
  *
  * @param {Array} etfs - ETF 종목 배열
  * @param {Object} batchSummary - 배치 요약 데이터 {ticker: summary}
+ * @param {Function} onContextMenu - 셀 우클릭 콜백 (x, y, ticker, name)
  */
-export default function PortfolioHeatmap({ etfs, batchSummary }) {
+export default function PortfolioHeatmap({ etfs, batchSummary, onContextMenu }) {
   const navigate = useNavigate()
 
   const heatmapData = useMemo(() => {
@@ -246,7 +253,7 @@ export default function PortfolioHeatmap({ etfs, batchSummary }) {
             data={heatmapData}
             dataKey="size"
             ratio={4 / 3}
-            content={<HeatmapCell />}
+            content={<HeatmapCell onContextMenu={onContextMenu} />}
             onClick={handleClick}
             isAnimationActive={false}
           />
@@ -259,4 +266,5 @@ export default function PortfolioHeatmap({ etfs, batchSummary }) {
 PortfolioHeatmap.propTypes = {
   etfs: PropTypes.array.isRequired,
   batchSummary: PropTypes.object,
+  onContextMenu: PropTypes.func,
 }

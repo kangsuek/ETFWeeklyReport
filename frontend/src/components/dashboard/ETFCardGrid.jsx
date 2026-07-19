@@ -22,7 +22,7 @@ import ETFCard from '../etf/ETFCard'
 /**
  * 드래그 가능한 카드 래퍼 컴포넌트
  */
-const SortableCard = memo(function SortableCard({ etf, summary }) {
+const SortableCard = memo(function SortableCard({ etf, summary, onContextMenu }) {
   const {
     attributes,
     listeners,
@@ -44,6 +44,10 @@ const SortableCard = memo(function SortableCard({ etf, summary }) {
       ref={setNodeRef}
       style={style}
       className="relative group"
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu?.(e.clientX, e.clientY, etf.ticker, etf.name)
+      }}
       {...attributes}
       {...listeners}
     >
@@ -67,6 +71,7 @@ const SortableCard = memo(function SortableCard({ etf, summary }) {
 SortableCard.propTypes = {
   etf: PropTypes.object.isRequired,
   summary: PropTypes.object,
+  onContextMenu: PropTypes.func,
 }
 
 /**
@@ -77,8 +82,9 @@ SortableCard.propTypes = {
  * @param {Array} props.etfs - ETF 배열
  * @param {Object} props.batchSummary - 배치 요약 데이터 (ticker를 키로 하는 객체)
  * @param {Function} props.onOrderChange - 순서 변경 콜백 함수
+ * @param {Function} props.onContextMenu - 카드 우클릭 콜백 (x, y, ticker, name)
  */
-export default function ETFCardGrid({ etfs, batchSummary, onOrderChange }) {
+export default function ETFCardGrid({ etfs, batchSummary, onOrderChange, onContextMenu }) {
   const [activeId, setActiveId] = useState(null)
 
   const sensors = useSensors(
@@ -135,6 +141,7 @@ export default function ETFCardGrid({ etfs, batchSummary, onOrderChange }) {
               key={etf.ticker}
               etf={etf}
               summary={batchSummary?.[etf.ticker]}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -166,5 +173,6 @@ ETFCardGrid.propTypes = {
   ).isRequired,
   batchSummary: PropTypes.object,  // {ticker: {latest_price, prices, weekly_return, ...}}
   onOrderChange: PropTypes.func,
+  onContextMenu: PropTypes.func,
 }
 

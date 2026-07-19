@@ -8,6 +8,8 @@ import ETFCardGrid from '../components/dashboard/ETFCardGrid'
 import PortfolioHeatmap from '../components/dashboard/PortfolioHeatmap'
 import RecommendationCards from '../components/dashboard/RecommendationCards'
 import MarketOverview from '../components/dashboard/MarketOverview'
+import StockContextMenu from '../components/dashboard/StockContextMenu'
+import TickerDeleteConfirm from '../components/settings/TickerDeleteConfirm'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { CACHE_STALE_TIME_STATIC, CACHE_STALE_TIME_FAST, CACHE_STALE_TIME_STATUS } from '../constants'
@@ -24,6 +26,33 @@ export default function Dashboard() {
     settings.cardOrder && settings.cardOrder.length > 0 ? 'custom' : 'config'
   )
   const [sortDirection, setSortDirection] = useState('asc') // 'asc', 'desc'
+  // 히트맵/카드 우클릭 컨텍스트 메뉴 및 종목 삭제 확인 모달 상태
+  const [contextMenu, setContextMenu] = useState(null) // { x, y, ticker, name }
+  const [deleteTarget, setDeleteTarget] = useState(null) // { ticker, name }
+
+  const handleContextMenu = useCallback((x, y, ticker, name) => {
+    setContextMenu({ x, y, ticker, name })
+  }, [])
+
+  // 종목 삭제 Mutation (설정 > 종목관리목록과 동일한 API 사용)
+  const deleteMutation = useMutation({
+    mutationFn: (ticker) => settingsApi.deleteStock(ticker),
+    onSuccess: (_response, deletedTicker) => {
+      queryClient.setQueryData(['etfs'], (oldEtfs) =>
+        Array.isArray(oldEtfs) ? oldEtfs.filter((etf) => etf.ticker !== deletedTicker) : oldEtfs
+      )
+      queryClient.invalidateQueries({ queryKey: ['etfs'] })
+      queryClient.invalidateQueries({ queryKey: ['settings-stocks'] })
+      queryClient.removeQueries({ queryKey: ['prices', deletedTicker] })
+      queryClient.removeQueries({ queryKey: ['trading-flow', deletedTicker] })
+      queryClient.removeQueries({ queryKey: ['news', deletedTicker] })
+      toast.success('종목이 삭제되었습니다.', 2000)
+      setDeleteTarget(null)
+    },
+    onError: (error) => {
+      toast.error(`종목 삭제 실패: ${error.message}`, 3000)
+    },
+  })
 
   // 스케줄러 상태 조회 (마지막 수집 시각)
   const { data: schedulerStatus } = useQuery({
@@ -409,6 +438,7 @@ export default function Dashboard() {
       <PortfolioHeatmap
         etfs={sortedETFs}
         batchSummary={batchSummary}
+        onContextMenu={handleContextMenu}
       />
 
       {/* ETF 추천 카드 */}
@@ -425,7 +455,33 @@ export default function Dashboard() {
             setSortBy('custom')
           }
         }}
+        onContextMenu={handleContextMenu}
       />
+
+      {/* 히트맵/카드 우클릭 컨텍스트 메뉴 */}
+      {contextMenu && (
+        <StockContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          ticker={contextMenu.ticker}
+          name={contextMenu.name}
+          onClose={() => setContextMenu(null)}
+          onDelete={() => {
+            setDeleteTarget({ ticker: contextMenu.ticker, name: contextMenu.name })
+            setContextMenu(null)
+          }}
+        />
+      )}
+
+      {/* 종목 삭제 확인 모달 */}
+      {deleteTarget && (
+        <TickerDeleteConfirm
+          ticker={deleteTarget}
+          isDeleting={deleteMutation.isPending}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.ticker)}
+        />
+      )}
     </div>
   )
 }
