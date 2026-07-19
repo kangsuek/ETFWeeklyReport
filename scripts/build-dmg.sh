@@ -121,6 +121,38 @@ echo ""
 
 # ─── [2] 앱 소스 체크아웃 ────────────────────────────────────────
 
+# git checkout <branch> -- <path>는 해당 브랜치의 파일 내용을 main의
+# 인덱스(staging area)에 그대로 올린다. 빌드가 성공하든 실패하든 중단되든
+# 스크립트 종료 시 항상 원래(HEAD) 상태로 되돌려 불필요한 staged 변경이
+# 남지 않도록 한다.
+restore_app_sources() {
+  if $BUILD_MAC; then
+    git -C "$PROJECT_ROOT" checkout HEAD -- \
+      macos/main.js \
+      macos/preload.js \
+      macos/loading.html \
+      macos/loading.css \
+      macos/package.json \
+      macos/electron-builder.yml \
+      macos/scripts/ \
+      macos/icons/ \
+      2>/dev/null || true
+  fi
+  if $BUILD_WIN; then
+    git -C "$PROJECT_ROOT" checkout HEAD -- \
+      windows/main.js \
+      windows/preload.js \
+      windows/loading.html \
+      windows/loading.css \
+      windows/package.json \
+      windows/electron-builder.yml \
+      windows/scripts/ \
+      windows/icons/ \
+      2>/dev/null || true
+  fi
+}
+trap restore_app_sources EXIT
+
 echo ">>> [2] 앱 소스 체크아웃..."
 cd "$PROJECT_ROOT"
 
