@@ -164,7 +164,9 @@ export default function MarketIndexModal({ index, onClose }) {
                   dataKey="date"
                   tickFormatter={(v) => {
                     const d = new Date(v)
-                    return `${d.getMonth() + 1}/${d.getDate()}`
+                    return period === '3Y'
+                      ? `${String(d.getFullYear()).slice(2)}/${d.getMonth() + 1}/${d.getDate()}`
+                      : `${d.getMonth() + 1}/${d.getDate()}`
                   }}
                   interval={tickInterval}
                   tick={{ fontSize: 10, fill: '#9ca3af' }}

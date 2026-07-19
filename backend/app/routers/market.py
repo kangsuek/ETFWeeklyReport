@@ -63,17 +63,35 @@ PERIOD_COUNT = {
 }
 
 
+NAVER_MAX_PAGE_SIZE = 60  # Naver 모바일 API가 허용하는 페이지당 최대 건수 (초과 시 400 응답)
+
+
 def _fetch_index_chart(code: str, period: str = "3M") -> list[dict]:
     """
     Naver 모바일 API에서 지수 일별 차트 데이터를 가져옵니다.
     period: 1M | 3M | 6M | 1Y | 3Y
+
+    Naver의 count 파라미터는 무시되고 항상 최근 20건만 반환하므로,
+    page/pageSize(최대 60)로 페이지네이션하여 필요한 만큼 누적 수집한다.
     """
     try:
         count = PERIOD_COUNT.get(period, 70)
-        url = f"https://m.stock.naver.com/api/index/{code}/price?count={count}&requestType=1"
-        resp = requests.get(url, headers=HEADERS, timeout=8)
-        resp.raise_for_status()
-        raw = resp.json()
+        # offset은 (page-1)*pageSize로 계산되므로, 페이지마다 동일한 pageSize를 사용해야
+        # 페이지 간 데이터가 이어진다 (마지막 페이지라고 pageSize를 줄이면 안 됨).
+        raw = []
+        page = 1
+        while len(raw) < count:
+            url = f"https://m.stock.naver.com/api/index/{code}/price?page={page}&pageSize={NAVER_MAX_PAGE_SIZE}"
+            resp = requests.get(url, headers=HEADERS, timeout=8)
+            resp.raise_for_status()
+            page_data = resp.json()
+            if not page_data:
+                break
+            raw.extend(page_data)
+            if len(page_data) < NAVER_MAX_PAGE_SIZE:
+                break  # 더 이상 과거 데이터가 없음
+            page += 1
+        raw = raw[:count]
 
         result = []
         for item in raw:
