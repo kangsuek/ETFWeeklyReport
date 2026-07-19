@@ -650,11 +650,38 @@ def init_db():
             shares {integer_type},
             market_value {real_type},
             sector {text_type},
+            daily_change_pct {real_type},
             created_at TIMESTAMP {timestamp_default},
             PRIMARY KEY (ticker, date, stock_code),
             FOREIGN KEY (ticker) REFERENCES etfs(ticker)
         )
     """)
+
+    # daily_change_pct 컬럼이 없으면 추가 (기존 DB 마이그레이션)
+    etf_holdings_columns_to_add = [("daily_change_pct", real_type)]
+    _etf_holdings_allowed = {col for col, _ in etf_holdings_columns_to_add}
+    if USE_POSTGRES:
+        for col_name, col_type in etf_holdings_columns_to_add:
+            try:
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='etf_holdings' AND column_name=%s
+                """, (col_name,))
+                if not cursor.fetchone():
+                    _safe_alter_table(cursor, "etf_holdings", col_name, col_type, _etf_holdings_allowed)
+                    logger.info(f"Added {col_name} column to etf_holdings table")
+            except Exception as e:
+                logger.warning(f"Could not check/add {col_name} column to etf_holdings: {e}")
+                conn.rollback()
+    else:
+        for col_name, col_type in etf_holdings_columns_to_add:
+            try:
+                _safe_alter_table(cursor, "etf_holdings", col_name, col_type, _etf_holdings_allowed)
+                logger.info(f"Added {col_name} column to etf_holdings table")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
+                    logger.warning(f"Could not add {col_name} column to etf_holdings: {e}")
 
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_etf_holdings_ticker_date

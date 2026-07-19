@@ -326,7 +326,7 @@ CREATE TABLE etf_distributions (
 ```
 
 ### 13. `etf_holdings` (ETF 구성종목)
-ETF별 일자별 보유 종목·비중·주식수·시가총액·섹터. 상위 종목 스냅샷용.
+ETF별 일자별 보유 종목·비중·주식수·시가총액·섹터·전일대비 등락률. 상위 10개 종목 스냅샷용.
 
 ```sql
 CREATE TABLE etf_holdings (
@@ -338,6 +338,7 @@ CREATE TABLE etf_holdings (
     shares INTEGER,
     market_value REAL,
     sector TEXT,
+    daily_change_pct REAL,  -- 구성종목의 전일 대비 등락률 (%)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (ticker, date, stock_code),
     FOREIGN KEY (ticker) REFERENCES etfs(ticker)

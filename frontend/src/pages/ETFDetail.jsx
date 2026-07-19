@@ -154,16 +154,27 @@ export default function ETFDetail() {
         staleTime: 5 * 60 * 1000, // 5분
         retry: 1,
       },
+      // 3순위: 펀더멘털 (ETF: 구성종목 상위 10개)
+      {
+        queryKey: ['fundamentals', ticker],
+        queryFn: async () => {
+          const response = await etfApi.getFundamentals(ticker)
+          return response.data
+        },
+        staleTime: CACHE_STALE_TIME_SLOW,
+        retry: 1,
+      },
     ],
   })
 
-  // 쿼리 결과 분리 (분봉 제외 5개 - 분봉은 페이지 표시 후 별도 요청)
+  // 쿼리 결과 분리 (분봉 제외 6개 - 분봉은 페이지 표시 후 별도 요청)
   const [
     { data: etf, isLoading: etfLoading, error: etfError },
     { data: pricesData, isLoading: pricesLoading, isFetching: pricesFetching, error: pricesError, refetch: refetchPrices },
     { data: tradingFlowData, isLoading: tradingFlowLoading, isFetching: tradingFlowFetching, error: tradingFlowError, refetch: refetchTradingFlow },
     { data: insightsData, isLoading: insightsLoading, error: insightsError },
     { data: newsData, isLoading: newsLoading, error: newsError },
+    { data: fundamentalsData },
   ] = queries
 
   // 장중 여부 판단 (09:00~15:30, 평일) - 분봉 자동 갱신 주기에 사용
@@ -452,6 +463,39 @@ export default function ETFDetail() {
               </div>
             )}
           </div>
+
+          {/* ETF 주요 구성자산 (상위 10개 종목) */}
+          {etf?.type === 'ETF' && fundamentalsData?.holdings?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                ETF 주요 구성자산
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-1.5 font-medium">종목명</th>
+                      <th className="text-right py-1.5 font-medium">비중</th>
+                      <th className="text-right py-1.5 font-medium">전일대비</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fundamentalsData.holdings.map((h) => (
+                      <tr key={h.stock_code} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                        <td className="py-1.5 text-gray-900 dark:text-gray-100">{h.stock_name}</td>
+                        <td className="py-1.5 text-right text-gray-700 dark:text-gray-300">
+                          {h.weight != null ? `${h.weight.toFixed(2)}%` : '-'}
+                        </td>
+                        <td className={`py-1.5 text-right font-medium ${getPriceChangeColor(h.daily_change_pct)}`}>
+                          {formatPercent(h.daily_change_pct)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 최근 가격 정보 */}

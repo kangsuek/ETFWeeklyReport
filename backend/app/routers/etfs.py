@@ -1308,15 +1308,14 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
     - type=STOCK: stock_fundamentals (최근 1건)
     - type=ETF:   etf_fundamentals (최근 10건), etf_holdings (최근 1일)
     """
-    from app.database import get_db_connection, USE_POSTGRES
+    from app.database import get_db_connection, get_cursor, USE_POSTGRES
     ticker = etf.ticker
     etf_type = etf.type
     param = '%s' if USE_POSTGRES else '?'
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    with get_db_connection() as conn_or_cursor:
+        cursor = get_cursor(conn_or_cursor)
 
-    try:
         if etf_type == 'STOCK':
             cursor.execute(f"""
                 SELECT * FROM stock_fundamentals
@@ -1345,14 +1344,22 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                 cols = [d[0] for d in cursor.description]
                 fundamentals = [dict(zip(cols, r)) for r in rows]
 
-            latest_date = fundamentals[0]['date'] if fundamentals else None
+            # 구성종목은 etf_fundamentals(NAV)와 수집 시점이 다를 수 있으므로
+            # (NAV는 전 거래일 기준, holdings는 수집 실행일 기준) 별도로
+            # etf_holdings 자체의 최신 날짜를 기준으로 조회한다.
+            cursor.execute(f"""
+                SELECT MAX(date) FROM etf_holdings WHERE ticker = {param}
+            """, (ticker,))
+            latest_holdings_date_row = cursor.fetchone()
+            latest_holdings_date = latest_holdings_date_row[0] if latest_holdings_date_row else None
+
             holdings = []
-            if latest_date:
+            if latest_holdings_date:
                 cursor.execute(f"""
                     SELECT * FROM etf_holdings
                     WHERE ticker = {param} AND date = {param}
                     ORDER BY weight DESC
-                """, (ticker, latest_date))
+                """, (ticker, latest_holdings_date))
                 h_rows = cursor.fetchall()
                 if USE_POSTGRES:
                     holdings = [dict(r) for r in h_rows]
@@ -1366,6 +1373,3 @@ async def get_fundamentals(etf: ETF = Depends(get_etf_or_404)):
                 'fundamentals': fundamentals,
                 'holdings': holdings,
             }
-    finally:
-        cursor.close()
-        conn.close()

@@ -235,19 +235,20 @@ class ETFFundamentalsCollector:
                     if USE_POSTGRES:
                         cursor.execute(f"""
                             INSERT INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares)
-                            VALUES ({param},{param},{param},{param},{param},{param})
+                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                            VALUES ({param},{param},{param},{param},{param},{param},{param})
                             ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
                                 stock_name=EXCLUDED.stock_name,
                                 weight=EXCLUDED.weight,
-                                shares=EXCLUDED.shares
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                                shares=EXCLUDED.shares,
+                                daily_change_pct=EXCLUDED.daily_change_pct
+                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
                     else:
                         cursor.execute(f"""
                             INSERT OR REPLACE INTO etf_holdings
-                                (ticker, date, stock_code, stock_name, weight, shares)
-                            VALUES ({param},{param},{param},{param},{param},{param})
-                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                                (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                            VALUES ({param},{param},{param},{param},{param},{param},{param})
+                        """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
                     saved += 1
 
                 conn.commit()
@@ -319,12 +320,16 @@ class ETFFundamentalsCollector:
                 # 세 번째 td: 구성비중 (21.52%)
                 weight = _parse_number(tds[2].get_text(strip=True))
 
+                # 여섯 번째 td: 등락률 (전일 대비, 예: -11.53%). 없는 레이아웃도 있어 optional.
+                daily_change_pct = _parse_number(tds[5].get_text(strip=True)) if len(tds) > 5 else None
+
                 if stock_code and stock_name and weight is not None:
                     results.append({
                         'stock_code': stock_code,
                         'stock_name': stock_name,
                         'weight': weight,
                         'shares': shares,
+                        'daily_change_pct': daily_change_pct,
                     })
 
                 if len(results) >= 10:
@@ -408,19 +413,20 @@ class ETFFundamentalsCollector:
                         if USE_POSTGRES:
                             cursor.execute(f"""
                                 INSERT INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares)
-                                VALUES ({param},{param},{param},{param},{param},{param})
+                                    (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                                VALUES ({param},{param},{param},{param},{param},{param},{param})
                                 ON CONFLICT (ticker, date, stock_code) DO UPDATE SET
                                     stock_name=EXCLUDED.stock_name,
                                     weight=EXCLUDED.weight,
-                                    shares=EXCLUDED.shares
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                                    shares=EXCLUDED.shares,
+                                    daily_change_pct=EXCLUDED.daily_change_pct
+                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
                         else:
                             cursor.execute(f"""
                                 INSERT OR REPLACE INTO etf_holdings
-                                    (ticker, date, stock_code, stock_name, weight, shares)
-                                VALUES ({param},{param},{param},{param},{param},{param})
-                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares']))
+                                    (ticker, date, stock_code, stock_name, weight, shares, daily_change_pct)
+                                VALUES ({param},{param},{param},{param},{param},{param},{param})
+                            """, (ticker, today, h['stock_code'], h['stock_name'], h['weight'], h['shares'], h.get('daily_change_pct')))
                     conn.commit()
                 holdings_ok = True
                 logger.info(f"[ETFFundamentals] Saved {len(holdings)} holdings for {ticker}")
