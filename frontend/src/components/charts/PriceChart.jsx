@@ -1,4 +1,4 @@
-import { useMemo, memo, useState } from 'react'
+import { useMemo, memo, useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import {
   ComposedChart,
@@ -22,9 +22,10 @@ import { COLORS, MAX_CHART_POINTS } from '../../constants'
 /**
  * CustomTooltip: 캔들스틱 차트 툴팁
  */
-const CustomTooltip = ({ active, payload }) => {
+const CustomTooltip = ({ active, payload, baseline }) => {
   if (!active || !payload || payload.length === 0) return null
   const data = payload[0].payload
+  const baselineChangePct = baseline ? ((data.close_price - baseline.close_price) / baseline.close_price) * 100 : null
 
   return (
     <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg transition-colors">
@@ -60,6 +61,14 @@ const CustomTooltip = ({ active, payload }) => {
             </span>
           </div>
         )}
+        {baselineChangePct != null && (
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">기준일({format(new Date(baseline.date), 'MM/dd')}) 대비:</span>
+            <span className="font-semibold" style={{ color: getPriceChangeColorHex(baselineChangePct) }}>
+              {baselineChangePct > 0 ? '+' : ''}{baselineChangePct.toFixed(2)}%
+            </span>
+          </div>
+        )}
         {(data.ma5 || data.ma10 || data.ma20) && (
           <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
             {data.ma5 && <div className="flex justify-between gap-4"><span style={{ color: COLORS.MA_5 }}>MA5:</span><span className="font-semibold" style={{ color: COLORS.MA_5 }}>{formatPrice(data.ma5)}</span></div>}
@@ -80,6 +89,21 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
   const [showMA5, setShowMA5] = useState(false)
   const [showMA10, setShowMA10] = useState(false)
   const [showMA20, setShowMA20] = useState(false)
+  const [baseline, setBaseline] = useState(null)
+
+  const handleChartClick = (state) => {
+    const point = state?.activePayload?.[0]?.payload
+    if (point) setBaseline({ date: point.date, close_price: point.close_price })
+  }
+
+  const handleChartContextMenu = (state, event) => {
+    event.preventDefault()
+    setBaseline(null)
+  }
+
+  useEffect(() => {
+    setBaseline(null)
+  }, [ticker])
 
   const { containerRef, width: containerWidth } = useContainerWidth()
   const { chartHeight: responsiveHeight } = useWindowSize()
@@ -215,7 +239,14 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
 
         {/* ── 가격 차트 (캔들스틱 + 이동평균선) ── */}
         <ResponsiveContainer width="100%" height={priceH}>
-          <ComposedChart data={chartData} margin={sharedMargin} barCategoryGap={barCategoryGap}>
+          <ComposedChart
+            data={chartData}
+            margin={sharedMargin}
+            barCategoryGap={barCategoryGap}
+            onClick={handleChartClick}
+            onContextMenu={handleChartContextMenu}
+            style={{ cursor: 'pointer' }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.CHART_GRID} />
             <XAxis dataKey="date" hide />
             <YAxis
@@ -226,7 +257,7 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               domain={priceDomain}
             />
             <Tooltip
-              content={<CustomTooltip />}
+              content={<CustomTooltip baseline={baseline} />}
               cursor={{ stroke: COLORS.CHART_CURSOR, strokeWidth: 1, strokeDasharray: '5 5' }}
               isAnimationActive={false}
               wrapperStyle={{ outline: 'none' }}
@@ -252,6 +283,17 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
                 strokeDasharray="5 5"
                 strokeWidth={2}
                 label={{ value: `매입가: ${formatPrice(purchasePrice)}`, position: 'insideTopRight', fill: '#22c55e', fontSize: 12, fontWeight: 'bold' }}
+              />
+            )}
+
+            {/* 기준일 기준선 (클릭으로 지정, 우클릭으로 해제) */}
+            {baseline && (
+              <ReferenceLine
+                y={baseline.close_price}
+                stroke="#3b82f6"
+                strokeDasharray="5 5"
+                strokeWidth={2}
+                label={{ value: `기준일(${format(new Date(baseline.date), 'MM/dd')}): ${formatPrice(baseline.close_price)}`, position: 'insideBottomRight', fill: '#3b82f6', fontSize: 12, fontWeight: 'bold' }}
               />
             )}
           </ComposedChart>
@@ -315,7 +357,18 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
               <span className="text-green-500">매입가: {formatPrice(purchasePrice)}</span>
             </div>
           )}
+
+          {baseline && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-6 h-0.5 border-t-2 border-dashed border-blue-500"></span>
+              <span className="text-blue-500">기준일({format(new Date(baseline.date), 'MM/dd')}): {formatPrice(baseline.close_price)}</span>
+            </div>
+          )}
         </div>
+
+        <p className="text-center text-xs text-gray-400 dark:text-gray-500 pb-1">
+          차트 클릭: 기준일 지정 · 우클릭: 기준일 해제
+        </p>
 
       </div>
     </div>
