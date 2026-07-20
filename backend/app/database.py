@@ -497,6 +497,7 @@ def init_db():
         ("week_base_price", real_type),
         ("week_base_date", "TEXT"),
         ("ytd_base_date", "TEXT"),
+        ("ytd_base_price", real_type),
     ]
     _catalog_allowed = {col for col, _ in screening_columns}
     if USE_POSTGRES:

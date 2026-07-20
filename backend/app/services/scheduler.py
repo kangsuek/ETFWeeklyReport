@@ -7,7 +7,7 @@ APScheduler를 사용하여 정기적인 데이터 수집 작업을 스케줄링
 import asyncio
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -47,6 +47,7 @@ class DataCollectionScheduler:
         self.last_catalog_collection_time = None
         self.last_catalog_data_collection_time = None
         self.last_fundamentals_collection_time = None
+        self.last_news_collection_time = None  # 뉴스 수집 쓰로틀(S6) 기준 시각
         logger.info("DataCollectionScheduler 초기화 완료")
     
     def collect_periodic_data(self):
@@ -71,6 +72,14 @@ class DataCollectionScheduler:
             total_trading_records = 0
             total_news_records = 0
 
+            # 뉴스 쓰로틀(S6): 마지막 뉴스 수집 후 NEWS_COLLECT_INTERVAL_MINUTES 이내면 이번 주기엔 건너뜀.
+            # 뉴스는 3분마다 바뀌지 않고 대부분 ON CONFLICT로 버려지므로 API 호출만 낭비된다.
+            news_interval = timedelta(minutes=Config.NEWS_COLLECT_INTERVAL_MINUTES)
+            collect_news = (
+                self.last_news_collection_time is None
+                or (start_time - self.last_news_collection_time) >= news_interval
+            )
+
             for ticker in tickers:
                 try:
                     stock_info = Config.get_stock_info(ticker)
@@ -86,11 +95,12 @@ class DataCollectionScheduler:
                     total_trading_records += trading_count
                     logger.info(f"[{ticker}/{stock_name}] 매매동향: {trading_count}건")
 
-                    # 3. 뉴스 데이터 수집 (1일)
-                    news_result = self.news_scraper.collect_and_save_news(ticker, days=1)
-                    news_count = news_result.get('collected', 0)
-                    total_news_records += news_count
-                    logger.info(f"[{ticker}/{stock_name}] 뉴스: {news_count}건")
+                    # 3. 뉴스 데이터 수집 (1일) — 쓰로틀 간격 지났을 때만
+                    if collect_news:
+                        news_result = self.news_scraper.collect_and_save_news(ticker, days=1)
+                        news_count = news_result.get('collected', 0)
+                        total_news_records += news_count
+                        logger.info(f"[{ticker}/{stock_name}] 뉴스: {news_count}건")
 
                     success_count += 1
 
@@ -104,11 +114,14 @@ class DataCollectionScheduler:
 
             # 마지막 수집 시간 업데이트
             self.last_collection_time = end_time
+            if collect_news:
+                self.last_news_collection_time = end_time
 
+            news_log = f"뉴스 {total_news_records}건" if collect_news else "뉴스 건너뜀(쓰로틀)"
             logger.info(
                 f"[스케줄러-주기수집] 완료: "
                 f"성공 {success_count}/{total_tickers}, 실패 {error_count}, "
-                f"가격 {total_price_records}건, 매매동향 {total_trading_records}건, 뉴스 {total_news_records}건, "
+                f"가격 {total_price_records}건, 매매동향 {total_trading_records}건, {news_log}, "
                 f"소요 시간 {duration:.2f}초"
             )
 
@@ -382,6 +395,17 @@ class DataCollectionScheduler:
         )
         self._jobs['periodic_collection'] = periodic_job
         logger.info(f"주기적 수집 스케줄 등록: {interval_minutes}분마다 실행")
+
+        # 시각 기반 cron 작업은 데몬(웹 배포)에서만 유효하다. 비데몬 데스크톱 App은
+        # 해당 시각에 앱이 떠 있어야만 발화하므로 ENABLE_SCHEDULED_JOBS=false로 끈다.
+        if not Config.ENABLE_SCHEDULED_JOBS:
+            logger.info(
+                "ENABLE_SCHEDULED_JOBS=false → 시각 기반 cron 작업(일일/백필/카탈로그/"
+                "카탈로그데이터/펀더멘털) 등록 생략 (온디맨드: 실행 시 + 버튼)"
+            )
+            self.scheduler.start()
+            logger.info("스케줄러 시작 완료")
+            return
 
         # 일일 데이터 수집 스케줄 (평일 오후 3:30 KST)
         # 한국 주식시장은 평일 9:00-15:30에 운영되므로 장 마감 직후 수집

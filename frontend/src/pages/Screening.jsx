@@ -25,6 +25,17 @@ const SORT_OPTIONS = [
   { value: 'name', label: '종목명' },
 ]
 
+// ISO 타임스탬프(예: "2026-07-20T16:10:00")를 "07/20 16:10" 형태로 표시
+function formatCollectedAt(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${mm}/${dd} ${hh}:${mi}`
+}
+
 const DEFAULT_FILTERS = {
   q: undefined,
   market: 'ETF',
@@ -47,8 +58,10 @@ export default function Screening() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [isCollecting, setIsCollecting] = useState(false)
   const [progress, setProgress] = useState(null)
+  const [freshInfo, setFreshInfo] = useState(null) // 최신이라 재수집 확인 대기 중 { lastUpdated }
   const pollingRef = useRef(null)
   const startingRef = useRef(false) // collectData() 요청이 아직 서버에 반영되기 전 구간
+  const requestingRef = useRef(false) // collectData() 요청 in-flight (중복 클릭 방지)
 
   // 히트맵 모드에서는 50개씩, 테이블은 기존 page_size
   const effectivePageSize = viewMode === 'heatmap' ? 50 : filters.page_size
@@ -145,12 +158,16 @@ export default function Screening() {
     }
   }, [isCollecting, queryClient, toast])
 
-  // 페이지 진입 시 이미 수집 중인지 확인
+  // 외부(스케줄러/다른 탭/API 등)에서 시작된 수집도 감지한다.
+  // 수집 중이 아닐 때 주기적으로 진행 상태를 확인하여, in_progress가 감지되면
+  // isCollecting을 켜서 진행률 배너 + 폴링(위 effect)이 인계받도록 한다.
   useEffect(() => {
+    if (isCollecting) return
     const checkRunning = async () => {
       try {
         const res = await scannerApi.getCollectProgress()
         if (res.data?.status === 'in_progress') {
+          startingRef.current = false
           setIsCollecting(true)
           setProgress(res.data)
         }
@@ -158,8 +175,10 @@ export default function Screening() {
         // 무시
       }
     }
-    checkRunning()
-  }, [])
+    checkRunning() // 진입 시 즉시 1회
+    const id = setInterval(checkRunning, 4000)
+    return () => clearInterval(id)
+  }, [isCollecting])
 
   const handleFilterChange = useCallback((partial) => {
     setFilters((prev) => ({ ...prev, ...partial, page: partial.page ?? 1 }))
@@ -187,19 +206,31 @@ export default function Screening() {
     setFilters({ ...DEFAULT_FILTERS, sector, market: 'ALL' })
   }, [])
 
-  const handleCollectData = async () => {
-    if (isCollecting) return
-    startingRef.current = true
-    setIsCollecting(true)
-    setProgress({ status: 'in_progress', message: '수집 시작 중...' })
+  const handleCollectData = async (force = false) => {
+    if (isCollecting || requestingRef.current) return
+    requestingRef.current = true
     try {
-      await scannerApi.collectData()
+      const res = await scannerApi.collectData(force)
+      // 이미 최신: 진행률 배너 없이 재수집 여부 확인창만 표시
+      if (res.data?.status === 'fresh') {
+        setFreshInfo({ lastUpdated: res.data.last_updated })
+        return
+      }
+      // started / already_running: 진행률 배너 + 폴링 시작
+      startingRef.current = true
+      setIsCollecting(true)
+      setProgress({ status: 'in_progress', message: '수집 시작 중...' })
     } catch (err) {
-      startingRef.current = false
       toast.error(`수집 실패: ${err.message}`, 3000)
-      setIsCollecting(false)
-      setProgress(null)
+    } finally {
+      requestingRef.current = false
     }
+  }
+
+  // "이미 최신" 안내에서 사용자가 재수집을 확인한 경우에만 force=true 호출
+  const handleConfirmForceCollect = () => {
+    setFreshInfo(null)
+    handleCollectData(true)
   }
 
   const handleCancelCollect = async () => {
@@ -243,7 +274,7 @@ export default function Screening() {
         </div>
 
         <button
-          onClick={handleCollectData}
+          onClick={() => handleCollectData()}
           disabled={isCollecting}
           className="btn btn-outline btn-sm"
           title="ETF 가격/수급 데이터를 네이버 금융에서 수집합니다"
@@ -288,6 +319,42 @@ export default function Screening() {
             >
               중지
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 이미 최신 데이터 → 재수집 확인 모달 */}
+      {freshInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full transition-colors">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                이미 최신 데이터입니다
+              </h3>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                가장 최근 거래일 데이터를 이미 수집했습니다
+                {freshInfo.lastUpdated && (
+                  <> (<span className="font-medium">{formatCollectedAt(freshInfo.lastUpdated)}</span> 수집)</>
+                )}
+                . 그래도 다시 수집할까요?
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 rounded-b-lg flex gap-3">
+              <button
+                onClick={() => setFreshInfo(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-sm"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleConfirmForceCollect}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+              >
+                다시 수집
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -414,7 +481,7 @@ export default function Screening() {
       {activeTab === 'theme' && (
         <ThemeExplorer
           onSectorClick={handleSectorClick}
-          onCollectData={handleCollectData}
+          onCollectData={() => handleCollectData()}
           isCollecting={isCollecting}
         />
       )}

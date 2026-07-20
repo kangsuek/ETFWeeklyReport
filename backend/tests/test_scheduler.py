@@ -249,6 +249,62 @@ class TestSchedulerJobTiming:
         assert "hour='2'" in trigger_str or "hour=2" in trigger_str
         assert "minute='0'" in trigger_str or "minute=0" in trigger_str
         assert 'sun' in trigger_str
-        
+
         scheduler.stop()
+
+
+class TestPhaseDImprovements:
+    """Phase D: 뉴스 쓰로틀(S6) + cron 토글(S8)"""
+
+    def _mock_collectors(self, scheduler):
+        """가격/매매동향/뉴스 수집기를 목킹 (네트워크 차단)."""
+        scheduler.collector.collect_and_save_prices_smart = MagicMock(return_value=0)
+        scheduler.collector.collect_and_save_trading_flow_smart = MagicMock(return_value=0)
+        scheduler.news_scraper.collect_and_save_news = MagicMock(return_value={'collected': 0})
+
+    def test_news_collected_on_first_periodic_run(self):
+        """최초 주기 수집에서는 뉴스도 수집한다 (last_news_collection_time=None)."""
+        scheduler = DataCollectionScheduler()
+        self._mock_collectors(scheduler)
+        with patch('app.services.scheduler.Config.get_all_tickers', return_value=['005930']):
+            scheduler.collect_periodic_data()
+        scheduler.news_scraper.collect_and_save_news.assert_called_once()
+        assert scheduler.last_news_collection_time is not None
+
+    def test_news_skipped_within_throttle_interval(self):
+        """직전 뉴스 수집이 쓰로틀 간격 이내면 뉴스 단계를 건너뛴다."""
+        from datetime import datetime as _dt
+        import app.services.scheduler as sched_mod
+        scheduler = DataCollectionScheduler()
+        self._mock_collectors(scheduler)
+        # 방금 뉴스를 수집한 것으로 설정 (간격 30분 이내)
+        scheduler.last_news_collection_time = _dt.now(sched_mod.KST)
+        with patch('app.services.scheduler.Config.get_all_tickers', return_value=['005930']):
+            scheduler.collect_periodic_data()
+        # 가격/매매동향은 수집, 뉴스는 스킵
+        scheduler.collector.collect_and_save_prices_smart.assert_called_once()
+        scheduler.news_scraper.collect_and_save_news.assert_not_called()
+
+    def test_cron_jobs_skipped_when_disabled(self):
+        """ENABLE_SCHEDULED_JOBS=false면 시각 기반 cron 미등록 (주기 수집만)."""
+        scheduler = DataCollectionScheduler()
+        with patch('app.services.scheduler.Config.ENABLE_SCHEDULED_JOBS', False):
+            scheduler.start()
+            job_ids = [job['id'] for job in scheduler.get_jobs()]
+            scheduler.stop()
+        assert 'periodic_collection' in job_ids
+        assert 'daily_collection' not in job_ids
+        assert 'catalog_data_collection' not in job_ids
+        assert 'fundamentals_collection' not in job_ids
+
+    def test_cron_jobs_registered_when_enabled(self):
+        """ENABLE_SCHEDULED_JOBS=true(기본)면 시각 기반 cron 등록."""
+        scheduler = DataCollectionScheduler()
+        with patch('app.services.scheduler.Config.ENABLE_SCHEDULED_JOBS', True):
+            scheduler.start()
+            job_ids = [job['id'] for job in scheduler.get_jobs()]
+            scheduler.stop()
+        assert 'daily_collection' in job_ids
+        assert 'catalog_data_collection' in job_ids
+        assert 'fundamentals_collection' in job_ids
 

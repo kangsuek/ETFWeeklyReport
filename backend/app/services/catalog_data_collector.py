@@ -11,7 +11,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as dtime
+from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
@@ -40,7 +41,74 @@ class CatalogDataCollector:
         }
         self.rate_limiter = RateLimiter(min_interval=DEFAULT_RATE_LIMITER_INTERVAL)
 
-    def collect_all(self) -> Dict[str, Any]:
+    @staticmethod
+    def _parse_db_timestamp(value: Any) -> Optional[datetime]:
+        """DB의 catalog_updated_at 값을 datetime으로 변환 (SQLite=str, Postgres=datetime)."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(str(value).replace(" ", "T").split(".")[0])
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _last_market_close(now: datetime) -> datetime:
+        """가장 최근 장 마감(확정) 시각. 평일 15:40 이후면 오늘, 아니면 직전 거래일 15:40."""
+        confirm = dtime(15, 40)
+        if now.weekday() < 5 and now.time() >= confirm:
+            return datetime.combine(now.date(), confirm)
+        d = now.date() - timedelta(days=1)
+        while d.weekday() >= 5:  # 토(5)/일(6) 건너뜀
+            d = d - timedelta(days=1)
+        return datetime.combine(d, confirm)
+
+    def check_freshness(self, now: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        스캐너 데이터 freshness 판정.
+
+        - 장외: 최근 장 마감 확정분(catalog_updated_at >= 직전 마감)을 확보했으면 fresh.
+        - 장중(평일 09:00~15:40): 가격이 계속 움직이므로 TTL(SCANNER_COLLECT_TTL_HOURS)
+          이내 수집분만 fresh로 간주.
+        - 데이터 없음(NULL): stale.
+
+        Args:
+            now: 기준 시각 (테스트용, 기본 datetime.now()).
+
+        Returns:
+            {"fresh": bool, "last_updated": Optional[str(ISO)]}
+        """
+        with get_db_connection() as conn_or_cursor:
+            if USE_POSTGRES:
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+            cursor.execute(
+                "SELECT MAX(catalog_updated_at) FROM stock_catalog "
+                "WHERE catalog_updated_at IS NOT NULL"
+            )
+            row = cursor.fetchone()
+
+        raw = row[0] if row else None
+        last = self._parse_db_timestamp(raw)
+        if last is None:
+            return {"fresh": False, "last_updated": None}
+
+        if now is None:
+            now = datetime.now()
+        is_market_hours = (
+            now.weekday() < 5 and dtime(9, 0) <= now.time() <= dtime(15, 40)
+        )
+        if is_market_hours:
+            ttl = timedelta(hours=Config.SCANNER_COLLECT_TTL_HOURS)
+            fresh = (now - last) < ttl
+        else:
+            fresh = last >= self._last_market_close(now)
+
+        return {"fresh": fresh, "last_updated": last.isoformat()}
+
+    def collect_all(self, force: bool = False) -> Dict[str, Any]:
         """
         전체 카탈로그 데이터 수집 (ETF 가격+수급 + KOSPI/KOSDAQ 가격)
 
@@ -54,6 +122,21 @@ class CatalogDataCollector:
         if not _catalog_collection_lock.acquire(blocking=False):
             logger.warning("Catalog data collection already in progress, skipping duplicate trigger")
             return {"status": "already_running"}
+
+        # freshness 가드: force가 아니고 최근 수집분이 유효하면 크롤 없이 스킵
+        if not force:
+            freshness = self.check_freshness()
+            if freshness["fresh"]:
+                _catalog_collection_lock.release()
+                logger.info(
+                    "Catalog data is fresh (last_updated=%s), skipping collection",
+                    freshness["last_updated"],
+                )
+                return {
+                    "status": "fresh",
+                    "skipped": True,
+                    "last_updated": freshness["last_updated"],
+                }
 
         logger.info("Starting catalog data collection")
         start_time = datetime.now()
@@ -269,10 +352,16 @@ class CatalogDataCollector:
             supply_map: Dict[str, Dict[str, Any]] = {}
             lock = threading.Lock()
 
+            # 저장된 올해 YTD 기준가 로드 → 딥 페이징(최대 15p) 생략
+            ytd_cache = self._load_ytd_base_cache()
+
             def fetch_supply(ticker: str):
                 if is_cancelled("catalog-data"):
                     return ticker, None
-                data = self._fetch_supply_data(ticker, use_rate_limiter=False)
+                data = self._fetch_supply_data(
+                    ticker, use_rate_limiter=False,
+                    cached_ytd_base=ytd_cache.get(ticker),
+                )
                 return ticker, data
 
             with ThreadPoolExecutor(max_workers=STOCK_SUPPLY_WORKERS) as executor:
@@ -305,6 +394,7 @@ class CatalogDataCollector:
                     conn = conn_or_cursor
                     cursor = conn.cursor()
                     p = "?"
+                active_true = "TRUE" if USE_POSTGRES else "1"
 
                 top_ticker_set = set(top_tickers)
 
@@ -328,6 +418,8 @@ class CatalogDataCollector:
                                 foreign_net = {p}, institutional_net = {p},
                                 week_base_price = {p}, week_base_date = {p},
                                 ytd_base_date = COALESCE({p}, ytd_base_date),
+                                ytd_base_price = COALESCE({p}, ytd_base_price),
+                                is_active = {active_true},
                                 catalog_updated_at = CURRENT_TIMESTAMP
                             WHERE ticker = {p}
                         """, (
@@ -338,6 +430,7 @@ class CatalogDataCollector:
                             sup.get("foreign_net"), sup.get("institutional_net"),
                             close_price, target_base_str,
                             sup.get("ytd_base_date"),
+                            sup.get("ytd_base_price"),
                             ticker
                         ))
                         if cursor.rowcount > 0:
@@ -375,6 +468,7 @@ class CatalogDataCollector:
                             SET close_price = {p}, daily_change_pct = {p}, volume = {p},
                                 weekly_return = COALESCE({p}, weekly_return),
                                 week_base_price = {p}, week_base_date = {p},
+                                is_active = {active_true},
                                 catalog_updated_at = CURRENT_TIMESTAMP
                             WHERE ticker = {p}
                         """, (
@@ -460,6 +554,41 @@ class CatalogDataCollector:
         logger.info(f"ETF JSON API: {len(result)}개 ETF 가격 수집")
         return result
 
+    def _load_ytd_base_cache(self) -> Dict[str, Dict[str, Any]]:
+        """
+        stock_catalog에 저장된 올해 YTD 기준가를 로드한다.
+
+        YTD 기준가(올해 첫 거래일 종가)는 연중 불변이므로, 이미 저장돼 있으면
+        _fetch_supply_data가 1월까지 딥 페이징하지 않고 재사용할 수 있다.
+
+        Returns:
+            {ticker: {"date": "YYYY.MM.DD", "price": float}} — 올해 기준가만 포함
+        """
+        current_year = str(date.today().year)
+        cache: Dict[str, Dict[str, Any]] = {}
+        try:
+            with get_db_connection() as conn_or_cursor:
+                if USE_POSTGRES:
+                    cursor = conn_or_cursor
+                else:
+                    cursor = conn_or_cursor.cursor()
+                cursor.execute(
+                    "SELECT ticker, ytd_base_date, ytd_base_price FROM stock_catalog "
+                    "WHERE ytd_base_price IS NOT NULL AND ytd_base_date IS NOT NULL"
+                )
+                for row in cursor.fetchall():
+                    if isinstance(row, dict):
+                        ticker, bdate, bprice = row["ticker"], row["ytd_base_date"], row["ytd_base_price"]
+                    else:
+                        ticker, bdate, bprice = row[0], row[1], row[2]
+                    # 올해 기준가만 재사용 (작년 것은 연도 변경으로 무효)
+                    if bdate and str(bdate).startswith(current_year):
+                        cache[ticker] = {"date": bdate, "price": bprice}
+        except Exception as e:
+            logger.warning(f"YTD 기준가 캐시 로드 실패(전량 재수집으로 진행): {e}")
+        logger.info(f"YTD 기준가 캐시 로드: {len(cache):,}개 (딥 페이징 생략 대상)")
+        return cache
+
     def _collect_supply_demand(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
         """
         개별 종목의 수급(외국인/기관 순매수) 데이터를 병렬 수집
@@ -483,13 +612,19 @@ class CatalogDataCollector:
         completed_count = 0
         lock = threading.Lock()
 
+        # 저장된 올해 YTD 기준가 로드 → 딥 페이징(최대 15p) 생략
+        ytd_cache = self._load_ytd_base_cache()
+
         def fetch_one(ticker: str):
             """단일 종목 수급 데이터 수집 (워커 스레드)"""
             if is_cancelled("catalog-data"):
                 return ticker, None
 
             try:
-                data = self._fetch_supply_data(ticker, use_rate_limiter=False)
+                data = self._fetch_supply_data(
+                    ticker, use_rate_limiter=False,
+                    cached_ytd_base=ytd_cache.get(ticker),
+                )
                 time.sleep(REQUEST_DELAY)
                 return ticker, data
             except Exception as e:
@@ -531,25 +666,29 @@ class CatalogDataCollector:
 
         return result
 
-    def _fetch_supply_data(self, ticker: str, use_rate_limiter: bool = True) -> Optional[Dict[str, Any]]:
+    def _fetch_supply_data(
+        self,
+        ticker: str,
+        use_rate_limiter: bool = True,
+        cached_ytd_base: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         개별 종목 수급 데이터 수집 (외국인/기관 순매수, 주간/월간/YTD 수익률)
 
         Args:
             ticker: 종목 코드
             use_rate_limiter: True면 공유 rate limiter 사용, False면 건너뜀 (병렬 수집 시)
+            cached_ytd_base: 올해 저장된 YTD 기준가 {"date": "YYYY.MM.DD", "price": float}.
+                유효하면(올해 것) 1월까지 딥 페이징하지 않고 2페이지만 수집해 캐시로 YTD 계산.
 
         Returns:
-            {foreign_net, institutional_net, weekly_return, monthly_return, ytd_return} or None
+            {foreign_net, institutional_net, weekly_return, monthly_return,
+             ytd_return, ytd_base_date, ytd_base_price} or None
         """
         foreign_net = None
         institutional_net = None
         prices_with_date = []  # [(date, price), ...]
         current_year = date.today().year
-
-        # YTD 계산을 위해 올해 첫 거래일(1월 1~15일)에 도달할 때까지 동적으로 페이지 수집
-        # 최대 15페이지(약 300거래일 = 1년치 이상)로 상한 설정 (FIX-01)
-        MAX_SUPPLY_PAGES = 15
 
         def _has_ytd_base(prices):
             """수집 목록에 올해 1월 1~15일 데이터가 있으면 True (첫 거래일 도달 판단)"""
@@ -557,6 +696,16 @@ class CatalogDataCollector:
                 if d.year == current_year and d.month == 1 and d.day <= 15:
                     return True
             return False
+
+        # YTD 기준가 캐시가 올해 것이면 딥 페이징 생략(주간/월간에 필요한 20행만).
+        # 1페이지=20행이므로 2페이지 상한이면 월간(20행)까지 충분하다.
+        # 캐시가 없거나 작년 것이면 1월 첫 거래일 도달까지 최대 15페이지(약 1년치).
+        use_cached_ytd = bool(
+            cached_ytd_base
+            and cached_ytd_base.get("price")
+            and str(cached_ytd_base.get("date", "")).startswith(str(current_year))
+        )
+        MAX_SUPPLY_PAGES = 2 if use_cached_ytd else 15
 
         page = 1
         while page <= MAX_SUPPLY_PAGES:
@@ -612,8 +761,12 @@ class CatalogDataCollector:
                 if page_data_count == 0:
                     break
 
-                # 월간(20개) + YTD 기준일 도달 시 수집 완료
-                if len(prices_with_date) >= 20 and _has_ytd_base(prices_with_date):
+                # 캐시 사용 시: 월간(20행)만 확보하면 완료 (YTD는 캐시로 계산)
+                # 캐시 미사용 시: 월간(20행) + 올해 1월 기준일 도달까지 수집
+                if use_cached_ytd:
+                    if len(prices_with_date) >= 20:
+                        break
+                elif len(prices_with_date) >= 20 and _has_ytd_base(prices_with_date):
                     break
 
                 page += 1
@@ -640,22 +793,27 @@ class CatalogDataCollector:
         monthly_return = calc_ret(current_val, prices_with_date[19][1] if len(prices_with_date) >= 20 else None)
 
         # 3. YTD수익률 (올해 첫 거래일)
-        # _has_ytd_base()로 실제 1월 데이터에 도달했는지 확인 후 계산 (FIX-05)
         ytd_return = None
         ytd_base_date = None
-        this_year_prices = [p for p in prices_with_date if p[0].year == current_year]
-        if this_year_prices and _has_ytd_base(prices_with_date):
-            # 올해의 가장 오래된 데이터 = 올해 첫 거래일에 가장 가까운 데이터
-            base_val = this_year_prices[-1][1]
-            ytd_base_date = this_year_prices[-1][0].strftime("%Y.%m.%d")
-            ytd_return = calc_ret(current_val, base_val)
-        elif this_year_prices:
-            # 1월 데이터 미도달: 수집된 올해 데이터 중 가장 오래된 것으로 fallback
-            # (신규 상장 종목 또는 연말 수집 실패 상황 대비)
-            base_val = this_year_prices[-1][1]
-            ytd_base_date = this_year_prices[-1][0].strftime("%Y.%m.%d")
-            ytd_return = calc_ret(current_val, base_val)
-            logger.debug(f"[{ticker}] YTD fallback: 1월 데이터 미도달, {this_year_prices[-1][0]} 기준 사용")
+        ytd_base_price = None
+        if use_cached_ytd:
+            # 저장된 올해 기준가로 계산 (딥 페이징 생략). 기준가는 연중 불변.
+            ytd_base_price = cached_ytd_base["price"]
+            ytd_base_date = cached_ytd_base["date"]
+            ytd_return = calc_ret(current_val, ytd_base_price)
+        else:
+            # _has_ytd_base()로 실제 1월 데이터에 도달했는지 확인 후 계산 (FIX-05)
+            this_year_prices = [p for p in prices_with_date if p[0].year == current_year]
+            if this_year_prices:
+                # 올해의 가장 오래된 데이터 = 올해 첫 거래일에 가장 가까운 데이터
+                base_val = this_year_prices[-1][1]
+                ytd_base_date = this_year_prices[-1][0].strftime("%Y.%m.%d")
+                ytd_base_price = base_val
+                ytd_return = calc_ret(current_val, base_val)
+                if not _has_ytd_base(prices_with_date):
+                    # 1월 데이터 미도달: 수집된 올해 데이터 중 가장 오래된 것으로 fallback
+                    # (신규 상장 종목 또는 연말 수집 실패 상황 대비)
+                    logger.debug(f"[{ticker}] YTD fallback: 1월 데이터 미도달, {this_year_prices[-1][0]} 기준 사용")
 
         return {
             'foreign_net': foreign_net,
@@ -664,6 +822,7 @@ class CatalogDataCollector:
             'monthly_return': monthly_return,
             'ytd_return': ytd_return,
             'ytd_base_date': ytd_base_date,
+            'ytd_base_price': ytd_base_price,
         }
 
     def _save_to_database(
@@ -700,13 +859,13 @@ class CatalogDataCollector:
                                  close_price, daily_change_pct, volume,
                                  weekly_return, monthly_return, ytd_return,
                                  foreign_net, institutional_net,
-                                 ytd_base_date,
+                                 ytd_base_date, ytd_base_price,
                                  catalog_updated_at)
                             VALUES ({p}, {p}, 'ETF', 'ETF', TRUE,
                                     {p}, {p}, {p},
                                     {p}, {p}, {p},
                                     {p}, {p},
-                                    {p},
+                                    {p}, {p},
                                     {p})
                             ON CONFLICT (ticker) DO UPDATE SET
                                 name = COALESCE(EXCLUDED.name, stock_catalog.name),
@@ -719,6 +878,8 @@ class CatalogDataCollector:
                                 foreign_net = COALESCE(EXCLUDED.foreign_net, stock_catalog.foreign_net),
                                 institutional_net = COALESCE(EXCLUDED.institutional_net, stock_catalog.institutional_net),
                                 ytd_base_date = COALESCE(EXCLUDED.ytd_base_date, stock_catalog.ytd_base_date),
+                                ytd_base_price = COALESCE(EXCLUDED.ytd_base_price, stock_catalog.ytd_base_price),
+                                is_active = CASE WHEN EXCLUDED.close_price IS NOT NULL THEN TRUE ELSE stock_catalog.is_active END,
                                 catalog_updated_at = EXCLUDED.catalog_updated_at
                         """, (
                             ticker, name,
@@ -731,6 +892,7 @@ class CatalogDataCollector:
                             supply.get('foreign_net'),
                             supply.get('institutional_net'),
                             supply.get('ytd_base_date'),
+                            supply.get('ytd_base_price'),
                             now,
                         ))
                     else:
@@ -741,13 +903,13 @@ class CatalogDataCollector:
                                  close_price, daily_change_pct, volume,
                                  weekly_return, monthly_return, ytd_return,
                                  foreign_net, institutional_net,
-                                 ytd_base_date,
+                                 ytd_base_date, ytd_base_price,
                                  catalog_updated_at)
                             VALUES ({p}, {p}, 'ETF', 'ETF', 1,
                                     {p}, {p}, {p},
                                     {p}, {p}, {p},
                                     {p}, {p},
-                                    {p},
+                                    {p}, {p},
                                     {p})
                             ON CONFLICT(ticker) DO UPDATE SET
                                 name = COALESCE(excluded.name, stock_catalog.name),
@@ -760,6 +922,8 @@ class CatalogDataCollector:
                                 foreign_net = COALESCE(excluded.foreign_net, stock_catalog.foreign_net),
                                 institutional_net = COALESCE(excluded.institutional_net, stock_catalog.institutional_net),
                                 ytd_base_date = COALESCE(excluded.ytd_base_date, stock_catalog.ytd_base_date),
+                                ytd_base_price = COALESCE(excluded.ytd_base_price, stock_catalog.ytd_base_price),
+                                is_active = CASE WHEN excluded.close_price IS NOT NULL THEN 1 ELSE stock_catalog.is_active END,
                                 catalog_updated_at = excluded.catalog_updated_at
                         """, (
                             ticker, name,
@@ -772,6 +936,7 @@ class CatalogDataCollector:
                             supply.get('foreign_net'),
                             supply.get('institutional_net'),
                             supply.get('ytd_base_date'),
+                            supply.get('ytd_base_price'),
                             now,
                         ))
 

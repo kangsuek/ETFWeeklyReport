@@ -402,8 +402,8 @@ class NewsScraper:
         """
         logger.debug(f"Starting news collection for {ticker} (last {days} days)")
 
-        # 최신 설정을 매번 읽어옴 (캐시 무효화)
-        Config._stock_config_cache = None
+        # 설정 캐시는 설정 변경 시(settings/stocks_manager의 reload_stock_config)에만
+        # 무효화된다. 여기서 매번 무효화하면 병렬 워커가 stocks.json을 반복 재읽기하므로 제거.
         stock_config = Config.get_stock_config().get(ticker)
 
         if not stock_config:

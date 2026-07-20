@@ -393,6 +393,7 @@ async def get_collect_progress():
 async def trigger_collect_data(
     request: Request,
     background_tasks: BackgroundTasks,
+    force: bool = Query(default=False, description="freshness 가드를 무시하고 강제 재수집"),
     api_key: str = Depends(verify_api_key_dependency),
 ):
     """카탈로그 데이터 수동 수집 트리거"""
@@ -404,12 +405,24 @@ async def trigger_collect_data(
     if current and current.get("status") == "in_progress":
         return {"message": "이미 데이터 수집이 진행 중입니다", "status": "already_running"}
 
+    collector = CatalogDataCollector()
+
+    # freshness 가드: force가 아니고 최근 수집분이 유효하면 배경 작업 없이 즉시 응답.
+    # 프론트는 진행률 배너 없이 "이미 최신입니다" 안내 후 재수집 여부를 확인한다.
+    if not force:
+        freshness = collector.check_freshness()
+        if freshness["fresh"]:
+            return {
+                "message": "이미 최신 데이터입니다",
+                "status": "fresh",
+                "skipped": True,
+                "last_updated": freshness["last_updated"],
+            }
+
     # 이전 취소 플래그 초기화
     clear_progress("catalog-data")
 
-    collector = CatalogDataCollector()
-
-    background_tasks.add_task(collector.collect_all)
+    background_tasks.add_task(collector.collect_all, force=True)
 
     return {"message": "카탈로그 데이터 수집이 시작되었습니다", "status": "started"}
 

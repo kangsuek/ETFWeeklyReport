@@ -34,6 +34,29 @@ class Config:
     # Scheduler Settings
     SCRAPING_INTERVAL_MINUTES = int(os.getenv("SCRAPING_INTERVAL_MINUTES", "3"))
 
+    # 뉴스는 3분 주기 수집 루프에서 매번 호출할 필요가 없다(같은 기사가 대부분).
+    # 이 간격(분) 이내면 주기 수집에서 뉴스 단계를 건너뛴다. 가격/매매동향은 그대로 매 주기 수집.
+    NEWS_COLLECT_INTERVAL_MINUTES = int(os.getenv("NEWS_COLLECT_INTERVAL_MINUTES", "30"))
+
+    # 시각 기반 cron 작업(일일 15:30, 카탈로그 03:00, 카탈로그데이터 16:00, 펀더멘털 16:30,
+    # 백필 일 02:00) 활성화 여부. 웹 배포(데몬)에서는 True로 유지, 데스크톱 App(비데몬)에서는
+    # 그 시각에 앱이 떠 있어야만 발화하므로 False로 꺼서 "실행 시 + 버튼" 온디맨드로 일원화한다.
+    ENABLE_SCHEDULED_JOBS = os.getenv("ENABLE_SCHEDULED_JOBS", "true").lower() == "true"
+
+    # Intraday Settings
+    # 종목상세 조회 중 장중 분봉 재수집 임계값(초). 마지막 체결이 이 값보다
+    # 오래되면 증분 재수집을 트리거한다. 네이버 sise_time은 약 1분 간격
+    # 체결을 제공하므로 기본 60초로 분단위 갱신을 보장한다.
+    INTRADAY_RECOLLECT_THRESHOLD_SECONDS = int(
+        os.getenv("INTRADAY_RECOLLECT_THRESHOLD_SECONDS", "60")
+    )
+
+    # Scanner (catalog data) Settings
+    # 종목발굴 데이터 수집 freshness 가드. 스캐너 데이터는 일 단위 확정
+    # 데이터라 최근 장 마감분을 확보했으면 재수집을 스킵한다. 장중(09:00~15:30)에는
+    # 가격만 움직이므로 이 TTL(시간) 이내면 재수집을 스킵한다. force=true면 무시.
+    SCANNER_COLLECT_TTL_HOURS = int(os.getenv("SCANNER_COLLECT_TTL_HOURS", "6"))
+
     # Cache Settings (메모리 캐시 구현됨)
     CACHE_TTL_MINUTES = float(os.getenv("CACHE_TTL_MINUTES", "3"))
     

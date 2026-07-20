@@ -15,6 +15,7 @@ from app.utils.data_collection import auto_collect_if_needed
 from app.utils.cache import get_cache, make_cache_key
 from app.dependencies import get_etf_or_404, get_collector, verify_api_key_dependency
 from app.middleware.rate_limit import limiter, RateLimitConfig
+from app.config import Config
 from app.constants import (
     ERROR_DATABASE,
     ERROR_DATABASE_COLLECTION,
@@ -1010,7 +1011,7 @@ async def get_intraday_prices(
                     else:
                         last_dt = last_dt_str
                     elapsed = (now - last_dt).total_seconds()
-                    if elapsed > 180:  # 3분
+                    if elapsed > Config.INTRADAY_RECOLLECT_THRESHOLD_SECONDS:
                         need_recollect = True
                         logger.info(f"Intraday data for {etf.ticker} is {int(elapsed)}s old, triggering re-collection")
                 except Exception as e:
