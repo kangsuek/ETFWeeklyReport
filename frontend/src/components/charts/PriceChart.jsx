@@ -303,7 +303,14 @@ const PriceChart = memo(function PriceChart({ data = [], ticker, height = null, 
         <ResponsiveContainer width="100%" height={volumeH}>
           <ComposedChart data={chartData} margin={volumeMargin} barCategoryGap={barCategoryGap}>
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.CHART_GRID} vertical={false} />
-            <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 12 }} stroke={COLORS.CHART_AXIS} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatXAxis}
+              tick={{ fontSize: 12 }}
+              stroke={COLORS.CHART_AXIS}
+              interval="preserveStartEnd"
+              minTickGap={40}
+            />
             <YAxis
               orientation="left"
               tickFormatter={(v) => formatVolume(v)}

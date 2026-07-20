@@ -685,7 +685,9 @@ export default function ETFDetail() {
               다시 시도
             </button>
           </div>
-        ) : intradayData?.background_collect_started ? (
+        ) : intradayData?.background_collect_started && !(intradayData?.data?.length > 0) ? (
+          // 데이터가 아직 없을 때만 수집 중 안내. 데이터가 있으면 백그라운드 재수집 중에도
+          // 기존 차트를 계속 보여준다(헤더의 갱신 스피너가 재수집 상태를 표시).
           <div className="flex flex-col items-center justify-center h-[300px] text-gray-500 dark:text-gray-400 gap-2">
             <Spinner />
             <p className="text-sm">데이터 수집 중입니다.</p>
