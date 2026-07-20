@@ -282,12 +282,13 @@ class CatalogDataCollector:
             from app.services.progress import is_cancelled
             
             # Step 1: sise_market_sum에서 전체 가격 수집 (시가총액 내림차순)
-            kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80, task_id="catalog-data")
+            # use_cache=True: 종목목록 수집(기능5)이 최근 크롤했으면 그 결과를 재사용 (D1)
+            kospi_stocks = catalog_collector._collect_sise_stocks(sosok=0, market="KOSPI", max_pages=80, task_id="catalog-data", use_cache=True)
             if is_cancelled("catalog-data"):
                 logger.info("Cancelled during KOSPI collection in Phase 4")
                 return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}
-                
-            kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110, task_id="catalog-data")
+
+            kosdaq_stocks = catalog_collector._collect_sise_stocks(sosok=1, market="KOSDAQ", max_pages=110, task_id="catalog-data", use_cache=True)
             if is_cancelled("catalog-data"):
                 logger.info("Cancelled during KOSDAQ collection in Phase 4")
                 return {"updated": updated, "supply_updated": supply_updated, "weekly_calc_count": weekly_calc_count}

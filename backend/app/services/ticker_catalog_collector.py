@@ -7,10 +7,12 @@ import contextlib
 import logging
 import os
 import re
+import threading
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from app.config import Config
 from app.utils.retry import retry_with_backoff
 from app.utils.rate_limiter import RateLimiter
 from app.constants import DEFAULT_RATE_LIMITER_INTERVAL
@@ -18,6 +20,28 @@ from app.database import get_db_connection, get_cursor, USE_POSTGRES
 from app.exceptions import ScraperException
 
 logger = logging.getLogger(__name__)
+
+# sise_market_sum 크롤 결과 공유 캐시 (D1) — 종목목록 수집(기능5)과 스캐너 데이터
+# 수집(기능6 Phase4)이 동일한 _collect_sise_stocks를 호출하므로, 한쪽이 최근 크롤한
+# 결과를 프로세스 레벨에서 TTL 동안 공유해 190페이지 중복 크롤을 막는다.
+_sise_cache: Dict[Tuple[int, str], Tuple[datetime, List[Dict[str, Any]]]] = {}
+_sise_cache_lock = threading.Lock()
+
+
+def _get_cached_sise(key: Tuple[int, str]) -> Optional[List[Dict[str, Any]]]:
+    """TTL 이내 캐시된 sise 결과의 복사본을 반환 (없거나 만료면 None)."""
+    ttl = timedelta(minutes=Config.SISE_CACHE_TTL_MINUTES)
+    with _sise_cache_lock:
+        entry = _sise_cache.get(key)
+        if entry and (datetime.now() - entry[0]) < ttl:
+            return [dict(s) for s in entry[1]]
+    return None
+
+
+def _store_cached_sise(key: Tuple[int, str], stocks: List[Dict[str, Any]]) -> None:
+    """완전한 sise 크롤 결과를 캐시에 저장 (호출자 리스트와 격리된 복사본)."""
+    with _sise_cache_lock:
+        _sise_cache[key] = (datetime.now(), [dict(s) for s in stocks])
 
 # Selenium 선택적 사용 (설치되어 있으면 사용)
 try:
@@ -211,18 +235,32 @@ class TickerCatalogCollector:
             pass
         return result
 
-    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)"""
+    def _collect_sise_stocks(self, sosok: int, market: str, max_pages: int, task_id: Optional[str] = None, use_cache: bool = False) -> List[Dict[str, Any]]:
+        """네이버 sise_market_sum 페이지에서 종목 목록 + 가격 데이터 수집 (KOSPI/KOSDAQ 공통)
+
+        use_cache=True면 다른 수집 기능이 최근(TTL 이내) 크롤한 결과를 재사용해
+        190페이지 중복 크롤을 생략한다(D1). 크롤을 새로 수행하면 완전한 결과를
+        캐시에 저장하므로, use_cache 여부와 무관하게 다음 호출이 재사용할 수 있다.
+        """
         from app.services.progress import is_cancelled
-        
+
+        cache_key = (sosok, market)
+        if use_cache:
+            cached = _get_cached_sise(cache_key)
+            if cached is not None:
+                logger.info(f"{market} sise 캐시 재사용: {len(cached):,}개 (중복 크롤 생략)")
+                return cached
+
         stocks = []
         page = 1
+        aborted = False  # 취소/에러로 중단됐으면 부분 결과이므로 캐시하지 않음
 
         while page <= max_pages:
             if task_id and is_cancelled(task_id):
                 logger.info(f"Collection cancelled during {market} page {page}")
+                aborted = True
                 break
-                
+
             url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
 
             try:
@@ -286,7 +324,12 @@ class TickerCatalogCollector:
 
             except Exception as e:
                 logger.error(f"Error collecting {market} page {page}: {e}")
+                aborted = True
                 break
+
+        # 완전한 결과만 캐시에 저장 (취소/에러로 중단된 부분 결과는 제외)
+        if stocks and not aborted:
+            _store_cached_sise(cache_key, stocks)
 
         return stocks
 

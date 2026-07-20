@@ -276,7 +276,7 @@ sequenceDiagram
 - [ ] **C2.** 검증: 증분/전량 결과 일치 테스트
 
 ### Phase D — 보조 개선 (독립적, 순서 무관) — D2/D3/D5 완료 (2026-07-20)
-- [ ] **D1.** S4: 기능 5/6 간 `sise_market_sum` 결과 공유 — `catalog_updated_at`이 오늘이면 sise 재크롤 스킵 (미착수)
+- [x] **D1.** S4: `sise_market_sum` 크롤 결과 공유 ✅ 완료 (2026-07-20) — 종목목록 수집과 스캐너 Phase4가 동일 `_collect_sise_stocks`를 호출하는 점을 활용해 **프로세스 레벨 TTL 캐시**(`SISE_CACHE_TTL_MINUTES`, 기본 30) 도입. 종목목록 수집은 항상 fresh 크롤(리스트 권위 유지)하되 결과를 캐시에 저장, Phase4는 `use_cache=True`로 재사용→190p 중복 크롤 생략. 취소/에러 부분결과는 캐시 안 함, 재사용 시 격리 복사본 반환. 라이브: 2회차 0.000s(재크롤 0). 테스트 `test_sise_cache.py` 4케이스
 - [x] **D2.** S6: 뉴스 쓰로틀 — `NEWS_COLLECT_INTERVAL_MINUTES`(기본 30) 추가. `collect_periodic_data`가 마지막 뉴스 수집 후 간격 이내면 뉴스 단계 스킵(가격/매매동향은 매 주기 유지). 라이브 확인: 최초 실행 "뉴스 68건", 이후 주기 "뉴스 건너뜀(쓰로틀)"
 - [x] **D3.** S7: `collect_and_save_news`의 매 호출 `Config._stock_config_cache=None` 제거. 캐시는 settings/stocks_manager의 `reload_stock_config`(설정 변경 시)에서만 무효화 → 병렬 워커 stocks.json 반복 재읽기 제거
 - [ ] **D4.** S5: Phase 2/4 워커·지연 튜닝 (미착수 — B 적용으로 종목당 ~1p라 우선순위 낮음, 필요 시 실측 후)

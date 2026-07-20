@@ -57,6 +57,10 @@ class Config:
     # 가격만 움직이므로 이 TTL(시간) 이내면 재수집을 스킵한다. force=true면 무시.
     SCANNER_COLLECT_TTL_HOURS = int(os.getenv("SCANNER_COLLECT_TTL_HOURS", "6"))
 
+    # sise_market_sum(KOSPI 80p + KOSDAQ 110p) 크롤 결과 공유 TTL(분). 종목목록 수집과
+    # 스캐너 데이터 수집이 이 시간 이내 연달아 실행되면 뒤쪽이 앞쪽 크롤 결과를 재사용한다(D1).
+    SISE_CACHE_TTL_MINUTES = int(os.getenv("SISE_CACHE_TTL_MINUTES", "30"))
+
     # Cache Settings (메모리 캐시 구현됨)
     CACHE_TTL_MINUTES = float(os.getenv("CACHE_TTL_MINUTES", "3"))
     
