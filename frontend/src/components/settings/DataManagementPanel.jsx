@@ -104,6 +104,8 @@ export default function DataManagementPanel() {
       return response.data
     },
     refetchInterval: 30000, // 30초마다 자동 갱신
+    refetchIntervalInBackground: true, // 탭이 백그라운드여도 갱신 유지 (긴 수집 중 탭 전환 대비)
+    refetchOnWindowFocus: true, // 수집 후 탭으로 돌아오면 즉시 카운트 갱신 (전역 false를 이 쿼리만 override)
   })
 
   // 전체 데이터 수집 진행률 polling
@@ -127,6 +129,10 @@ export default function DataManagementPanel() {
         if (data.status === 'completed' || data.status === 'error' || data.status === 'idle') {
           clearInterval(collectAllPollingRef.current)
           collectAllPollingRef.current = null
+          // 진행바 완료 시점에 통계를 즉시 갱신
+          if (data.status === 'completed') {
+            queryClient.invalidateQueries({ queryKey: ['data-stats'] })
+          }
         }
       } catch {
         // polling 실패는 무시
@@ -162,6 +168,11 @@ export default function DataManagementPanel() {
         if (data.status === 'completed' || data.status === 'error' || data.status === 'idle') {
           clearInterval(tickerCatalogPollingRef.current)
           tickerCatalogPollingRef.current = null
+          // 진행바 완료 시점에 통계(종목 목록 개수 등)를 즉시 갱신
+          // (동기 mutation 응답 지연/실패와 무관하게 카운트가 바로 반영되도록)
+          if (data.status === 'completed') {
+            queryClient.invalidateQueries({ queryKey: ['data-stats'] })
+          }
         }
       } catch {
         // polling 실패는 무시
