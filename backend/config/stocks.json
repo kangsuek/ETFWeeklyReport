@@ -249,5 +249,19 @@
       "삼성전기",
       "미분류"
     ]
+  },
+  "261220": {
+    "name": "KODEX WTI원유선물(H)",
+    "type": "ETF",
+    "theme": "미분류",
+    "purchase_date": null,
+    "purchase_price": null,
+    "quantity": null,
+    "search_keyword": "WTI원유선물(H)",
+    "relevance_keywords": [
+      "KODEX WTI원유선물(H)",
+      "WTI원유선물(H)",
+      "미분류"
+    ]
   }
 }
