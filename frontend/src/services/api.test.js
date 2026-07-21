@@ -96,32 +96,6 @@ describe('API Services', () => {
       const response = await etfApi.getMetrics('487240')
       expect(response.data).toEqual(mockData)
     })
-
-    it('collectPrices - 가격 데이터 수집을 트리거한다', async () => {
-      const mockData = { message: 'Collection started', status: 'success' }
-
-      server.use(
-        http.post('http://localhost:8000/api/etfs/487240/collect', () => {
-          return HttpResponse.json(mockData)
-        })
-      )
-
-      const response = await etfApi.collectPrices('487240', 10)
-      expect(response.data).toEqual(mockData)
-    })
-
-    it('collectTradingFlow - 매매 동향 수집을 트리거한다', async () => {
-      const mockData = { message: 'Collection started', status: 'success' }
-
-      server.use(
-        http.post('http://localhost:8000/api/etfs/487240/collect-trading-flow', () => {
-          return HttpResponse.json(mockData)
-        })
-      )
-
-      const response = await etfApi.collectTradingFlow('487240', 10)
-      expect(response.data).toEqual(mockData)
-    })
   })
 
   describe('newsApi', () => {
@@ -150,22 +124,6 @@ describe('API Services', () => {
       expect(response.data).toHaveLength(2)
     })
 
-    it('getAll - 전체 뉴스를 조회한다', async () => {
-      const mockData = [
-        { id: 1, title: '뉴스 1' },
-        { id: 2, title: '뉴스 2' },
-      ]
-
-      server.use(
-        http.get('http://localhost:8000/api/news', () => {
-          return HttpResponse.json(mockData)
-        })
-      )
-
-      const response = await newsApi.getAll({ limit: 10 })
-      expect(response.data).toEqual(mockData)
-    })
-
     it('collect - 뉴스 수집을 트리거한다', async () => {
       const mockData = { message: 'News collection started', status: 'success' }
 
@@ -191,35 +149,6 @@ describe('API Services', () => {
       )
 
       const response = await dataApi.collectAll(10)
-      expect(response.data).toEqual(mockData)
-    })
-
-    it('backfill - 히스토리 백필을 트리거한다', async () => {
-      const mockData = { message: 'Backfill started', status: 'success' }
-
-      server.use(
-        http.post('http://localhost:8000/api/data/backfill', () => {
-          return HttpResponse.json(mockData)
-        })
-      )
-
-      const response = await dataApi.backfill(90)
-      expect(response.data).toEqual(mockData)
-    })
-
-    it('getStatus - 수집 상태를 조회한다', async () => {
-      const mockData = {
-        last_collection: '2025-11-10T09:00:00',
-        status: 'completed',
-      }
-
-      server.use(
-        http.get('http://localhost:8000/api/data/status', () => {
-          return HttpResponse.json(mockData)
-        })
-      )
-
-      const response = await dataApi.getStatus()
       expect(response.data).toEqual(mockData)
     })
 

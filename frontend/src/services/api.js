@@ -128,20 +128,6 @@ export const etfApi = {
       params: { period }
     }),
 
-  // 가격 데이터 수집 트리거 (긴 작업)
-  collectPrices: (ticker, days = 10) =>
-    api.post(`/etfs/${ticker}/collect`, null, { 
-      timeout: LONG_API_TIMEOUT,
-      params: { days } 
-    }),
-
-  // 매매 동향 수집 트리거 (긴 작업)
-  collectTradingFlow: (ticker, days = 10) =>
-    api.post(`/etfs/${ticker}/collect-trading-flow`, null, { 
-      timeout: LONG_API_TIMEOUT,
-      params: { days } 
-    }),
-
   // 종목 비교 (일반 조회)
   compare: (params = {}) => {
     return api.get('/etfs/compare', {
@@ -174,13 +160,6 @@ export const etfApi = {
     })
   },
 
-  // 분봉 데이터 수집 트리거 (긴 작업)
-  collectIntraday: (ticker, pages = 20) =>
-    api.post(`/etfs/${ticker}/collect-intraday`, null, {
-      timeout: LONG_API_TIMEOUT,
-      params: { pages }
-    }),
-
   // AI 분석 프롬프트 생성 (API 호출 없이 프롬프트만 반환)
   getAIPrompt: (ticker) =>
     api.get(`/etfs/${ticker}/ai-prompt`, { timeout: FAST_API_TIMEOUT }),
@@ -207,20 +186,6 @@ export const newsApi = {
     })
   },
 
-  // 전체 뉴스 조회 (추후 구현 시) (일반 조회)
-  getAll: (params = {}) => {
-    const { startDate, endDate, days, limit } = params
-    return api.get('/news', {
-      timeout: NORMAL_API_TIMEOUT,
-      params: {
-        start_date: startDate,
-        end_date: endDate,
-        days,
-        limit
-      }
-    })
-  },
-
   // 뉴스 수집 트리거 (긴 작업)
   collect: (ticker, days = 7) =>
     api.post(`/news/${ticker}/collect`, null, { 
@@ -238,35 +203,17 @@ export const dataApi = {
       params: { days } 
     }),
 
-  // 히스토리 백필 (긴 작업)
-  backfill: (days = 90) =>
-    api.post('/data/backfill', null, { 
-      timeout: LONG_API_TIMEOUT,
-      params: { days } 
-    }),
-
-  // 수집 상태 조회 (빠른 조회)
-  getStatus: () => api.get('/data/status', { timeout: FAST_API_TIMEOUT }),
-
   // 스케줄러 상태 조회 (빠른 조회)
   getSchedulerStatus: () => api.get('/data/scheduler-status', { timeout: FAST_API_TIMEOUT }),
 
   // 데이터베이스 통계 조회 (일반 조회)
   getStats: () => api.get('/data/stats', { timeout: NORMAL_API_TIMEOUT }),
 
-  // 캐시 통계 조회 (빠른 조회)
-  getCacheStats: () => api.get('/data/cache/stats', { timeout: FAST_API_TIMEOUT }),
-
   // 데이터베이스 초기화 (위험!) (긴 작업)
   reset: () => api.delete('/data/reset', { timeout: LONG_API_TIMEOUT }),
 
   // 전체 데이터 수집 진행률 조회 (빠른 조회)
   getCollectProgress: () => api.get('/data/collect-progress', { timeout: FAST_API_TIMEOUT }),
-
-  // 백엔드 캐시 클리어 후 요청 (새로고침용 헬퍼)
-  // X-No-Cache 헤더를 포함한 GET 요청을 보내면 백엔드 미들웨어가 캐시를 클리어한 뒤 처리
-  fetchWithNoCache: (url, options = {}) =>
-    api.get(url, { ...options, headers: { ...options.headers, 'X-No-Cache': 'true' } }),
 }
 
 // Health Check API
@@ -331,10 +278,6 @@ export const alertApi = {
 
   // 알림 트리거 기록 (프론트에서 감지 후 백엔드에 기록)
   recordTrigger: (data) => api.post('/alerts/trigger', data, { timeout: FAST_API_TIMEOUT }),
-
-  // 종목별 알림 이력 조회
-  getHistory: (ticker, limit = 20) =>
-    api.get(`/alerts/history/${ticker}`, { params: { limit }, timeout: FAST_API_TIMEOUT }),
 }
 
 // Simulation API 서비스
