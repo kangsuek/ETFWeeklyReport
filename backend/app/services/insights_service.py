@@ -13,6 +13,19 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# 외국인 "대규모 순매수/매도 지속" 판정 기준
+# 최근 N거래일 외국인 순매수 합계를 판단하되, 임계값은 종목별 평균 거래량에 비례해
+# 스케일링한다(대형주/소형 ETF 모두 거래규모에 자동 적응). 단일 일자만 보면 최근 하루
+# 흐름에 좌우되므로 합계로 추세를 반영한다.
+FOREIGN_NET_SUSTAINED_DAYS = 5
+# 평균 일거래량 계산에 사용할 최근 거래일 수
+FOREIGN_NET_AVG_VOLUME_WINDOW = 20
+# 임계값 = 비율 × 평균 일거래량 × 판정 일수
+# (최근 N거래일 외국인 순매수 합계가 같은 기간 거래량의 이 비율을 넘으면 "대규모 지속")
+FOREIGN_NET_SUSTAINED_VOLUME_RATIO = 0.05
+# 거래량 데이터가 없을 때 사용할 고정 폴백 임계값 (주 단위)
+FOREIGN_NET_SUSTAINED_FALLBACK_THRESHOLD = 1000
+
 
 class InsightsService:
     """종목 인사이트 생성 서비스"""
@@ -231,23 +244,25 @@ class InsightsService:
             elif volatility < 15:
                 key_points.append("변동성 안정적, 안전자산 선호 시 유리")
         
-        # 매매동향 포인트
+        # 매매동향 포인트 (최근 N거래일 외국인 순매수 합계를 평균 거래량 대비로 판단)
+        # trading_flow는 날짜 내림차순(DESC)이므로 앞에서 N건이 최근 N거래일이다.
+        # 단일 일자가 아닌 누적 합계로 판단하고, 임계값은 종목 평균 거래량에 비례시켜
+        # 거래규모가 다른 종목 간에도 "대규모" 기준이 일관되게 적용되도록 한다.
         if trading_flow:
-            recent_flow = trading_flow[0] if trading_flow else None
-            if recent_flow:
+            recent_flows = trading_flow[:FOREIGN_NET_SUSTAINED_DAYS]
+            foreign_net_sum = 0
+            for flow in recent_flows:
                 # TradingFlow 객체 또는 dict 처리
-                if hasattr(recent_flow, 'foreign_net'):
-                    foreign_net = recent_flow.foreign_net or 0
-                elif isinstance(recent_flow, dict):
-                    foreign_net = recent_flow.get("foreign_net", 0) or 0
-                else:
-                    foreign_net = 0
-            else:
-                foreign_net = 0
-            
-            if foreign_net > 1000:  # 천주 단위
+                if hasattr(flow, 'foreign_net'):
+                    foreign_net_sum += flow.foreign_net or 0
+                elif isinstance(flow, dict):
+                    foreign_net_sum += flow.get("foreign_net", 0) or 0
+
+            threshold = self._foreign_net_threshold(prices, len(recent_flows))
+
+            if foreign_net_sum > threshold:
                 key_points.append("외국인 대규모 순매수 지속")
-            elif foreign_net < -1000:
+            elif foreign_net_sum < -threshold:
                 key_points.append("외국인 대규모 순매도 지속")
         
         # 뉴스 기반 포인트
@@ -263,7 +278,39 @@ class InsightsService:
         
         # 최대 3개까지만 반환
         return key_points[:3]
-    
+
+    def _foreign_net_threshold(self, prices: List, days: int) -> float:
+        """
+        '외국인 대규모 순매수/매도 지속' 판정 임계값 계산
+
+        종목별 평균 일거래량에 비례한 임계값을 반환한다.
+        임계값 = 비율 × 평균 일거래량 × 판정 일수.
+        거래량 데이터가 없으면 고정 폴백 임계값을 사용한다.
+
+        Args:
+            prices: 가격 데이터 리스트(날짜 내림차순, volume 포함)
+            days: 실제로 합산한 거래일 수
+
+        Returns:
+            순매수 합계와 비교할 임계값(주 단위)
+        """
+        volumes = []
+        for p in (prices or [])[:FOREIGN_NET_AVG_VOLUME_WINDOW]:
+            if hasattr(p, 'volume'):
+                volume = p.volume
+            elif isinstance(p, dict):
+                volume = p.get('volume')
+            else:
+                volume = None
+            if volume:
+                volumes.append(volume)
+
+        if not volumes:
+            return FOREIGN_NET_SUSTAINED_FALLBACK_THRESHOLD
+
+        avg_volume = sum(volumes) / len(volumes)
+        return FOREIGN_NET_SUSTAINED_VOLUME_RATIO * avg_volume * max(days, 1)
+
     def _analyze_risks(
         self,
         metrics,
