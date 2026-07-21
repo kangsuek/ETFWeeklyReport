@@ -235,6 +235,11 @@ export default function ETFDetail() {
     refetchIntraday()
   }, [refetchIntraday])
 
+  // 새로고침 아이콘 회전 조건: 요청 중이거나 백그라운드 수집이 진행 중일 때.
+  // 강제 새로고침 시 백엔드가 즉시 응답하고 수집은 백그라운드에서 계속되므로,
+  // background_collect_started 플래그가 유지되는 동안(3초 폴링) 계속 회전시킨다.
+  const intradayCollecting = intradayFetching || !!intradayData?.background_collect_started
+
   // 알림 규칙 (목표가) 조회 - 분봉 차트에 표시
   const { data: alertRules = [] } = useQuery({
     queryKey: ['alertRules', ticker],
@@ -648,8 +653,10 @@ export default function ETFDetail() {
                 {intradayData.date}
               </span>
             )}
-            {intradayFetching && (
-              <span className="text-xs text-blue-500 animate-pulse">갱신 중...</span>
+            {intradayCollecting && (
+              <span className="text-xs text-blue-500 animate-pulse">
+                {intradayData?.background_collect_started ? '수집 중...' : '갱신 중...'}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -661,10 +668,10 @@ export default function ETFDetail() {
             <button
               onClick={handleIntradayRefresh}
               className="btn btn-outline btn-sm"
-              disabled={intradayFetching}
+              disabled={intradayCollecting}
               title="새로고침"
             >
-              <svg className={`w-4 h-4 ${intradayFetching ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-4 h-4 ${intradayCollecting ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
